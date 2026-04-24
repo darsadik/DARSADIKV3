@@ -7,7 +7,7 @@ module.exports = {
         brand: {
           50:  '#e8f0fb',
           100: '#c5d8f5',
-          200: '#a0bfee',  // ← FIXED: this was missing!
+          200: '#a0bfee',
           300: '#7aa6e6',
           400: '#4d8bdc',
           500: '#1a5fa8',
