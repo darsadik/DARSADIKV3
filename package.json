@@ -1,26 +1,24 @@
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  content: ['./pages/**/*.{js,jsx}', './components/**/*.{js,jsx}'],
-  theme: {
-    extend: {
-      colors: {
-        brand: {
-          50:  '#e8f0fb',
-          100: '#c5d8f5',
-          200: '#a0bfee',  // ← FIXED: this was missing!
-          300: '#7aa6e6',
-          400: '#4d8bdc',
-          500: '#1a5fa8',
-          600: '#145090',
-          700: '#0d3d6e',
-          800: '#0a2d52',
-          900: '#071f3a',
-        }
-      },
-      fontFamily: {
-        sans: ['Inter', 'Segoe UI', 'sans-serif'],
-      }
-    }
+{
+  "name": "darsadik",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
-  plugins: [],
+  "dependencies": {
+    "next": "14.2.29",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "@supabase/supabase-js": "^2.38.0",
+    "@supabase/auth-helpers-nextjs": "^0.8.7",
+    "recharts": "^2.10.0",
+    "date-fns": "^2.30.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.0.0",
+    "postcss": "^8.0.0",
+    "tailwindcss": "^3.3.0"
+  }
 }
