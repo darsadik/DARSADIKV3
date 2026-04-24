@@ -1,0 +1,108 @@
+import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/router'
+import { useAuth } from '../pages/_app'
+
+const nav = [
+  { href: '/',            icon: '📊', label: 'Dashboard' },
+  { href: '/ventes',      icon: '📦', label: 'Ventes' },
+  { href: '/clients',     icon: '👥', label: 'Clients' },
+  { href: '/paiements',   icon: '💰', label: 'Paiements' },
+  { href: '/gasoil',      icon: '⛽', label: 'Gasoil' },
+  { href: '/parametres',  icon: '⚙️', label: 'Paramètres' },
+]
+
+export default function Layout({ children, title, subtitle }) {
+  const router = useRouter()
+  const { user, supabase } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  const logout = async () => {
+    await supabase.auth.signOut()
+    router.push('/')
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* SIDEBAR */}
+      <aside className={`${sidebarOpen ? 'w-56' : 'w-16'} bg-brand-700 flex flex-col transition-all duration-200 flex-shrink-0`}>
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-600">
+          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-brand-700 font-black text-sm">DS</span>
+          </div>
+          {sidebarOpen && (
+            <div>
+              <div className="text-white font-bold text-sm">DAR SADIK</div>
+              <div className="text-brand-200 text-xs">Nador</div>
+            </div>
+          )}
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 py-4 space-y-1 px-2">
+          {nav.map(item => {
+            const active = router.pathname === item.href
+            return (
+              <Link key={item.href} href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                  ${active ? 'bg-white text-brand-700' : 'text-brand-100 hover:bg-brand-600 hover:text-white'}`}>
+                <span className="text-base flex-shrink-0">{item.icon}</span>
+                {sidebarOpen && <span>{item.label}</span>}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* User */}
+        <div className="border-t border-brand-600 p-3">
+          {sidebarOpen ? (
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-brand-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-xs font-bold">{user?.email?.[0]?.toUpperCase()}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-white text-xs font-medium truncate">{user?.email}</div>
+                <button onClick={logout} className="text-brand-300 text-xs hover:text-white transition-colors">Déconnexion</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={logout} className="w-full flex justify-center text-brand-300 hover:text-white text-lg">↪</button>
+          )}
+        </div>
+      </aside>
+
+      {/* MAIN */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* TOPBAR */}
+        <header className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+            </button>
+            <div>
+              {title && <h1 className="page-title">{title}</h1>}
+              {subtitle && <p className="page-subtitle">{subtitle}</p>}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              En ligne
+            </div>
+            <div className="text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-lg">
+              {new Date().toLocaleDateString('fr-MA', { weekday:'long', day:'numeric', month:'long' })}
+            </div>
+          </div>
+        </header>
+
+        {/* PAGE CONTENT */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  )
+}
