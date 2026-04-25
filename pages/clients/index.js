@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
+const today = () => new Date().toISOString().split('T')[0]
+const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
+const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 
 export default function Clients() {
   const { user } = useAuth()
@@ -17,7 +20,12 @@ export default function Clients() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', depot: 'EL HAJEB', tel: '', solde: 0 })
   const [saving, setSaving] = useState(false)
-  const printRef = useRef()
+
+  // DATE FILTER STATE
+  const [filterType, setFilterType] = useState('all') // all | day | week | month | custom
+  const [filterDate, setFilterDate] = useState(today())
+  const [filterFrom, setFilterFrom] = useState(startOfMonth())
+  const [filterTo, setFilterTo] = useState(today())
 
   useEffect(() => { loadClients() }, [])
 
@@ -67,12 +75,44 @@ export default function Clients() {
     if (selected?.id === client.id) setSelected({ ...selected, solde: n })
   }
 
-  // ---- PRINT ONE CLIENT ----
+  // ---- DATE FILTER LOGIC ----
+  function getDateRange() {
+    if (filterType === 'all') return { from: null, to: null }
+    if (filterType === 'day') return { from: filterDate, to: filterDate }
+    if (filterType === 'week') return { from: startOfWeek(), to: today() }
+    if (filterType === 'month') return { from: startOfMonth(), to: today() }
+    if (filterType === 'custom') return { from: filterFrom, to: filterTo }
+    return { from: null, to: null }
+  }
+
+  function filterByDate(items) {
+    const { from, to } = getDateRange()
+    if (!from && !to) return items
+    return items.filter(item => {
+      const d = item.date
+      return (!from || d >= from) && (!to || d <= to)
+    })
+  }
+
+  function getFilterLabel() {
+    const { from, to } = getDateRange()
+    if (!from) return 'Toutes les dates'
+    if (filterType === 'day') return `Jour: ${filterDate}`
+    if (filterType === 'week') return `Cette semaine`
+    if (filterType === 'month') return `Ce mois`
+    return `Du ${from} au ${to}`
+  }
+
+  const filteredVentes = filterByDate(clientVentes)
+  const filteredPaiements = filterByDate(clientPaiements)
+
+  // ---- PRINT ----
   function printClient() {
-    const totalVentes = clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
-    const totalMarge = clientVentes.reduce((s, v) => s + (v.marge || 0), 0)
-    const totalPaiements = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+    const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const totalMarge = filteredVentes.reduce((s, v) => s + (v.marge || 0), 0)
+    const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
     const date = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
+    const periode = getFilterLabel()
 
     const win = window.open('', '_blank')
     win.document.write(`
@@ -80,24 +120,23 @@ export default function Clients() {
       <meta charset="UTF-8">
       <title>Fiche Client — ${selected.nom}</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; }
-        h1 { font-size: 22px; margin-bottom: 4px; }
-        .sub { color: #888; font-size: 13px; margin-bottom: 20px; }
-        .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px; }
-        .info-box { background: #f5f5f5; border-radius: 8px; padding: 12px; text-align: center; }
-        .info-box .lbl { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
-        .info-box .val { font-size: 20px; font-weight: 800; }
-        .red { color: #dc2626; } .green { color: #16a34a; } .blue { color: #1d4ed8; }
-        h2 { font-size: 15px; margin: 20px 0 8px; border-bottom: 2px solid #eee; padding-bottom: 6px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th { background: #f5f5f5; text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #888; border-bottom: 1px solid #ddd; }
-        td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
-        tr:last-child td { border: none; }
-        tfoot td { background: #eff6ff; font-weight: 800; color: #1d4ed8; border-top: 2px solid #bfdbfe; }
-        .footer { margin-top: 30px; padding-top: 12px; border-top: 1px solid #ddd; color: #aaa; font-size: 11px; text-align: center; }
-        @media print { button { display: none; } }
-      </style>
-      </head><body>
+        body{font-family:Arial,sans-serif;padding:30px;color:#111;font-size:13px}
+        h1{font-size:22px;margin-bottom:4px}
+        .sub{color:#888;font-size:13px;margin-bottom:20px}
+        .badge{display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;margin-bottom:16px}
+        .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px}
+        .info-box{background:#f5f5f5;border-radius:8px;padding:12px;text-align:center}
+        .info-box .lbl{font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px}
+        .info-box .val{font-size:20px;font-weight:800}
+        .red{color:#dc2626}.green{color:#16a34a}.blue{color:#1d4ed8}
+        h2{font-size:15px;margin:20px 0 8px;border-bottom:2px solid #eee;padding-bottom:6px}
+        table{width:100%;border-collapse:collapse;margin-bottom:20px}
+        th{background:#f5f5f5;text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;color:#888;border-bottom:1px solid #ddd}
+        td{padding:8px 10px;border-bottom:1px solid #f0f0f0}
+        tfoot td{background:#eff6ff;font-weight:800;color:#1d4ed8;border-top:2px solid #bfdbfe}
+        .footer{margin-top:30px;padding-top:12px;border-top:1px solid #ddd;color:#aaa;font-size:11px;text-align:center}
+        @media print{button{display:none}}
+      </style></head><body>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
         <div>
           <h1>🏗️ DAR SADIK — Fiche Client</h1>
@@ -106,7 +145,7 @@ export default function Clients() {
         <button onclick="window.print()" style="padding:10px 20px;background:#1a5fa8;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer">🖨️ Imprimer</button>
       </div>
 
-      <div style="background:#1a5fa8;color:white;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px">
+      <div style="background:#1a5fa8;color:white;border-radius:12px;padding:16px 20px;margin-bottom:12px;display:flex;align-items:center;gap:16px">
         <div style="width:50px;height:50px;background:rgba(255,255,255,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900">${selected.nom[0]}</div>
         <div>
           <div style="font-size:20px;font-weight:800">${selected.nom}</div>
@@ -114,54 +153,50 @@ export default function Clients() {
         </div>
       </div>
 
+      <div class="badge">📅 Période: ${periode}</div>
+
       <div class="info-grid">
         <div class="info-box"><div class="lbl">Solde dû</div><div class="val red">${fmt(selected.solde || 0)} DHS</div></div>
         <div class="info-box"><div class="lbl">Total ventes</div><div class="val blue">${fmt(totalVentes)} DHS</div></div>
         <div class="info-box"><div class="lbl">Total payé</div><div class="val green">${fmt(totalPaiements)} DHS</div></div>
       </div>
 
-      <h2>📦 Ventes (${clientVentes.length})</h2>
+      <h2>📦 Ventes (${filteredVentes.length})</h2>
       <table>
         <thead><tr><th>Date</th><th>Camion</th><th>Fournisseur</th><th>Type</th><th style="text-align:right">Qté</th><th style="text-align:right">Vente DHS</th><th style="text-align:right">Marge DHS</th></tr></thead>
-        <tbody>
-          ${clientVentes.map(v => `<tr><td>${v.date}</td><td>${v.camion_plaque}</td><td>${v.fournisseur || '—'}</td><td>${v.type_brique || '—'}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td style="text-align:right;color:#16a34a"><b>${fmt(v.marge)}</b></td></tr>`).join('')}
-          ${clientVentes.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px">Aucune vente</td></tr>' : ''}
+        <tbody>${filteredVentes.map(v=>`<tr><td>${v.date}</td><td>${v.camion_plaque}</td><td>${v.fournisseur||'—'}</td><td>${v.type_brique||'—'}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td style="text-align:right;color:#16a34a"><b>${fmt(v.marge)}</b></td></tr>`).join('')}
+        ${filteredVentes.length===0?'<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px">Aucune vente pour cette période</td></tr>':''}
         </tbody>
-        ${clientVentes.length > 0 ? `<tfoot><tr><td colspan="4">TOTAL</td><td style="text-align:right">${fmt(clientVentes.reduce((s,v)=>s+(v.qte||0),0))}</td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td style="text-align:right;color:#16a34a">${fmt(totalMarge)} DHS</td></tr></tfoot>` : ''}
+        ${filteredVentes.length>0?`<tfoot><tr><td colspan="4">TOTAL</td><td style="text-align:right">${fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td style="text-align:right;color:#16a34a">${fmt(totalMarge)} DHS</td></tr></tfoot>`:''}
       </table>
 
-      <h2>💰 Paiements (${clientPaiements.length})</h2>
+      <h2>💰 Paiements (${filteredPaiements.length})</h2>
       <table>
-        <thead><tr><th>Date</th><th>Mode</th><th style="text-align:right">Montant DHS</th><th>Note / Référence</th></tr></thead>
-        <tbody>
-          ${clientPaiements.map(p => `<tr><td>${p.date}</td><td>${p.mode}</td><td style="text-align:right;color:#16a34a"><b>− ${fmt(p.montant)}</b></td><td style="color:#aaa">${p.note || '—'}</td></tr>`).join('')}
-          ${clientPaiements.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">Aucun paiement</td></tr>' : ''}
+        <thead><tr><th>Date</th><th>Mode</th><th style="text-align:right">Montant DHS</th><th>Note</th></tr></thead>
+        <tbody>${filteredPaiements.map(p=>`<tr><td>${p.date}</td><td>${p.mode}</td><td style="text-align:right;color:#16a34a"><b>− ${fmt(p.montant)}</b></td><td style="color:#aaa">${p.note||'—'}</td></tr>`).join('')}
+        ${filteredPaiements.length===0?'<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">Aucun paiement pour cette période</td></tr>':''}
         </tbody>
-        ${clientPaiements.length > 0 ? `<tfoot><tr><td colspan="2">TOTAL REÇU</td><td style="text-align:right;color:#16a34a">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>` : ''}
+        ${filteredPaiements.length>0?`<tfoot><tr><td colspan="2">TOTAL REÇU</td><td style="text-align:right;color:#16a34a">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>`:''}
       </table>
-
       <div class="footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
-      </body></html>
-    `)
+      </body></html>`)
     win.document.close()
   }
 
-  // ---- EXPORT CLIENT EXCEL ----
+  // ---- EXPORT CSV ----
   function exportClientExcel() {
-    const totalVentes = clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
-    const totalPaiements = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+    const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+    const periode = getFilterLabel()
 
-    // Build CSV content
     let csv = `FICHE CLIENT — DAR SADIK\n`
-    csv += `Nom,${selected.nom}\nDépôt,${selected.depot || ''}\nTéléphone,${selected.tel || ''}\nSolde DHS,${selected.solde || 0}\nTotal Ventes DHS,${totalVentes}\nTotal Paiements DHS,${totalPaiements}\n\n`
-    
+    csv += `Nom,${selected.nom}\nDépôt,${selected.depot||''}\nTéléphone,${selected.tel||''}\nSolde DHS,${selected.solde||0}\nPériode,${periode}\nTotal Ventes DHS,${totalVentes}\nTotal Paiements DHS,${totalPaiements}\n\n`
     csv += `VENTES\nDate,Camion,Chauffeur,Fournisseur,Type,Quantité,Prix Vente/u,Prix Achat/u,Total Vente DHS,Marge DHS,BON,Note\n`
-    clientVentes.forEach(v => {
+    filteredVentes.forEach(v => {
       csv += `${v.date},${v.camion_plaque},${v.chauffeur||''},${v.fournisseur||''},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.prix_achat||0},${v.total_vente||0},${v.marge||0},${v.bon||''},${v.note||''}\n`
     })
-    
     csv += `\nPAIEMENTS\nDate,Mode,Montant DHS,Note\n`
-    clientPaiements.forEach(p => {
+    filteredPaiements.forEach(p => {
       csv += `${p.date},${p.mode},${p.montant||0},${p.note||''}\n`
     })
 
@@ -169,15 +204,15 @@ export default function Clients() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `Client-${selected.nom}-${new Date().toLocaleDateString('fr-MA').replace(/\//g,'-')}.csv`
+    a.download = `Client-${selected.nom}-${periode.replace(/[^a-zA-Z0-9]/g,'-')}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
 
   const filtered = clients.filter(c => !search || (c.nom + c.depot).toLowerCase().includes(search.toLowerCase()))
   const totalCreances = filtered.reduce((s, c) => s + (c.solde || 0), 0)
-  const totalVentesClient = clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
-  const totalPaiementsClient = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+  const totalVentesClient = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+  const totalPaiementsClient = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
 
   return (
     <Layout title="Clients" subtitle="Gestion des clients et suivi des comptes">
@@ -188,9 +223,7 @@ export default function Clients() {
           <div className="card">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900">Liste clients</h2>
-              <button onClick={() => setShowForm(!showForm)} className="btn-primary text-xs px-3 py-1.5">
-                + Nouveau
-              </button>
+              <button onClick={() => setShowForm(!showForm)} className="btn-primary text-xs px-3 py-1.5">+ Nouveau</button>
             </div>
 
             {showForm && (
@@ -216,9 +249,7 @@ export default function Clients() {
                   <input className="input" type="number" value={form.solde} onChange={e => setForm({...form, solde: e.target.value})} />
                 </div>
                 <div className="flex gap-2">
-                  <button type="submit" disabled={saving} className="btn-primary text-xs">
-                    {saving ? 'Enregistrement...' : '✓ Enregistrer'}
-                  </button>
+                  <button type="submit" disabled={saving} className="btn-primary text-xs">{saving ? 'Enregistrement...' : '✓ Enregistrer'}</button>
                   <button type="button" className="btn-secondary text-xs" onClick={() => setShowForm(false)}>Annuler</button>
                 </div>
               </form>
@@ -233,8 +264,7 @@ export default function Clients() {
                 const s = c.solde || 0
                 const isActive = selected?.id === c.id
                 return (
-                  <div key={c.id}
-                    onClick={() => selectClient(c)}
+                  <div key={c.id} onClick={() => selectClient(c)}
                     className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border
                       ${isActive ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}>
                     <div className="flex-1 min-w-0">
@@ -250,11 +280,9 @@ export default function Clients() {
               {filtered.length === 0 && <div className="text-center text-gray-400 py-6">Aucun client</div>}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-gray-100">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500 font-medium">Total créances</span>
-                <span className="font-bold text-red-600">{fmt(totalCreances)} DHS</span>
-              </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between text-sm">
+              <span className="text-gray-500 font-medium">Total créances</span>
+              <span className="font-bold text-red-600">{fmt(totalCreances)} DHS</span>
             </div>
           </div>
         </div>
@@ -269,9 +297,10 @@ export default function Clients() {
             </div>
           ) : (
             <div className="space-y-4">
+
               {/* CLIENT HEADER */}
               <div className="card">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-brand-100 rounded-2xl flex items-center justify-center flex-shrink-0">
                       <span className="text-brand-700 font-black text-xl">{selected.nom[0]}</span>
@@ -284,59 +313,92 @@ export default function Clients() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700">
-                      🖨️ Imprimer
-                    </button>
-                    <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700">
-                      📥 Excel
-                    </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ Imprimer</button>
+                    <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
                     <button onClick={() => editSolde(selected)} className="btn-secondary text-xs">✎ Solde</button>
                     <button onClick={() => deleteClient(selected.id)} className="btn-danger">✕</button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 mt-5 pt-4 border-t border-gray-100">
+                {/* DATE FILTER BAR */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">📅 Filtrer par période</div>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {[
+                      { key: 'all', label: 'Tout' },
+                      { key: 'day', label: 'Jour' },
+                      { key: 'week', label: 'Semaine' },
+                      { key: 'month', label: 'Mois' },
+                      { key: 'custom', label: 'Personnalisé' },
+                    ].map(f => (
+                      <button key={f.key} onClick={() => setFilterType(f.key)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all
+                          ${filterType === f.key ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {filterType === 'day' && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500">Date:</label>
+                      <input type="date" className="input text-xs" style={{width:'160px'}} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+                    </div>
+                  )}
+                  {filterType === 'custom' && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="text-xs text-gray-500">Du:</label>
+                      <input type="date" className="input text-xs" style={{width:'150px'}} value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+                      <label className="text-xs text-gray-500">Au:</label>
+                      <input type="date" className="input text-xs" style={{width:'150px'}} value={filterTo} onChange={e => setFilterTo(e.target.value)} />
+                    </div>
+                  )}
+                  {filterType !== 'all' && (
+                    <div className="mt-2 text-xs text-brand-600 font-semibold">
+                      📅 Période affichée: {getFilterLabel()}
+                    </div>
+                  )}
+                </div>
+
+                {/* TOTALS */}
+                <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100">
                   <div className="text-center">
                     <div className="text-xs text-gray-400 mb-1">Solde dû</div>
                     <div className={`text-2xl font-bold ${(selected.solde || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmt(selected.solde || 0)} DHS</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xs text-gray-400 mb-1">Total ventes</div>
+                    <div className="text-xs text-gray-400 mb-1">Ventes {filterType !== 'all' ? '(période)' : ''}</div>
                     <div className="text-2xl font-bold text-blue-600">{fmt(totalVentesClient)} DHS</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xs text-gray-400 mb-1">Total payé</div>
+                    <div className="text-xs text-gray-400 mb-1">Payé {filterType !== 'all' ? '(période)' : ''}</div>
                     <div className="text-2xl font-bold text-green-600">{fmt(totalPaiementsClient)} DHS</div>
                   </div>
                 </div>
               </div>
 
               {loadingDetail ? (
-                <div className="card text-center py-10 text-gray-400">Chargement des données...</div>
+                <div className="card text-center py-10 text-gray-400">Chargement...</div>
               ) : (
                 <>
-                  {/* VENTES CLIENT */}
+                  {/* VENTES */}
                   <div className="card">
-                    <h3 className="font-semibold text-gray-900 mb-3">📦 Ventes ({clientVentes.length})</h3>
+                    <h3 className="font-semibold text-gray-900 mb-3">📦 Ventes ({filteredVentes.length})</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
                           <tr>
-                            <th className="th">Date</th>
-                            <th className="th">Camion</th>
-                            <th className="th">Fournisseur</th>
-                            <th className="th">Type</th>
-                            <th className="th text-right">Qté</th>
-                            <th className="th text-right">Vente DHS</th>
-                            <th className="th text-right">Marge DHS</th>
+                            <th className="th">Date</th><th className="th">Camion</th><th className="th">Fournisseur</th>
+                            <th className="th">Type</th><th className="th text-right">Qté</th>
+                            <th className="th text-right">Vente DHS</th><th className="th text-right">Marge DHS</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {clientVentes.map(v => (
+                          {filteredVentes.map(v => (
                             <tr key={v.id} className="hover:bg-gray-50">
                               <td className="td text-gray-500">{v.date}</td>
-                              <td className="td text-gray-700">{v.camion_plaque}</td>
+                              <td className="td">{v.camion_plaque}</td>
                               <td className="td"><span className="badge-blue">{v.fournisseur || '—'}</span></td>
                               <td className="td"><span className="badge-gray">{v.type_brique || '—'}</span></td>
                               <td className="td text-right">{fmt(v.qte)}</td>
@@ -344,17 +406,15 @@ export default function Clients() {
                               <td className="td text-right font-bold text-green-600">{fmt(v.marge)}</td>
                             </tr>
                           ))}
-                          {clientVentes.length === 0 && (
-                            <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucune vente</td></tr>
-                          )}
+                          {filteredVentes.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucune vente pour cette période</td></tr>}
                         </tbody>
-                        {clientVentes.length > 0 && (
+                        {filteredVentes.length > 0 && (
                           <tfoot>
                             <tr>
                               <td className="tfoot-td" colSpan={4}>TOTAL</td>
-                              <td className="tfoot-td text-right">{fmt(clientVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
+                              <td className="tfoot-td text-right">{fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
                               <td className="tfoot-td text-right">{fmt(totalVentesClient)} DHS</td>
-                              <td className="tfoot-td text-right text-green-700">{fmt(clientVentes.reduce((s,v)=>s+(v.marge||0),0))} DHS</td>
+                              <td className="tfoot-td text-right text-green-700">{fmt(filteredVentes.reduce((s,v)=>s+(v.marge||0),0))} DHS</td>
                             </tr>
                           </tfoot>
                         )}
@@ -362,21 +422,19 @@ export default function Clients() {
                     </div>
                   </div>
 
-                  {/* PAIEMENTS CLIENT */}
+                  {/* PAIEMENTS */}
                   <div className="card">
-                    <h3 className="font-semibold text-gray-900 mb-3">💰 Paiements ({clientPaiements.length})</h3>
+                    <h3 className="font-semibold text-gray-900 mb-3">💰 Paiements ({filteredPaiements.length})</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
                           <tr>
-                            <th className="th">Date</th>
-                            <th className="th">Mode</th>
-                            <th className="th text-right">Montant DHS</th>
-                            <th className="th">Note</th>
+                            <th className="th">Date</th><th className="th">Mode</th>
+                            <th className="th text-right">Montant DHS</th><th className="th">Note</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {clientPaiements.map(p => (
+                          {filteredPaiements.map(p => (
                             <tr key={p.id} className="hover:bg-gray-50">
                               <td className="td text-gray-500">{p.date}</td>
                               <td className="td"><span className="badge-green">{p.mode}</span></td>
@@ -384,11 +442,9 @@ export default function Clients() {
                               <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
                             </tr>
                           ))}
-                          {clientPaiements.length === 0 && (
-                            <tr><td colSpan={4} className="td text-center text-gray-400 py-6">Aucun paiement</td></tr>
-                          )}
+                          {filteredPaiements.length === 0 && <tr><td colSpan={4} className="td text-center text-gray-400 py-6">Aucun paiement pour cette période</td></tr>}
                         </tbody>
-                        {clientPaiements.length > 0 && (
+                        {filteredPaiements.length > 0 && (
                           <tfoot>
                             <tr>
                               <td className="tfoot-td" colSpan={2}>TOTAL REÇU</td>
