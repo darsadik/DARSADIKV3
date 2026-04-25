@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
@@ -17,6 +17,7 @@ export default function Clients() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', depot: 'EL HAJEB', tel: '', solde: 0 })
   const [saving, setSaving] = useState(false)
+  const printRef = useRef()
 
   useEffect(() => { loadClients() }, [])
 
@@ -66,9 +67,115 @@ export default function Clients() {
     if (selected?.id === client.id) setSelected({ ...selected, solde: n })
   }
 
+  // ---- PRINT ONE CLIENT ----
+  function printClient() {
+    const totalVentes = clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const totalMarge = clientVentes.reduce((s, v) => s + (v.marge || 0), 0)
+    const totalPaiements = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+    const date = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
+
+    const win = window.open('', '_blank')
+    win.document.write(`
+      <!DOCTYPE html><html lang="fr"><head>
+      <meta charset="UTF-8">
+      <title>Fiche Client — ${selected.nom}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; }
+        h1 { font-size: 22px; margin-bottom: 4px; }
+        .sub { color: #888; font-size: 13px; margin-bottom: 20px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+        .info-box { background: #f5f5f5; border-radius: 8px; padding: 12px; text-align: center; }
+        .info-box .lbl { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+        .info-box .val { font-size: 20px; font-weight: 800; }
+        .red { color: #dc2626; } .green { color: #16a34a; } .blue { color: #1d4ed8; }
+        h2 { font-size: 15px; margin: 20px 0 8px; border-bottom: 2px solid #eee; padding-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th { background: #f5f5f5; text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: #888; border-bottom: 1px solid #ddd; }
+        td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
+        tr:last-child td { border: none; }
+        tfoot td { background: #eff6ff; font-weight: 800; color: #1d4ed8; border-top: 2px solid #bfdbfe; }
+        .footer { margin-top: 30px; padding-top: 12px; border-top: 1px solid #ddd; color: #aaa; font-size: 11px; text-align: center; }
+        @media print { button { display: none; } }
+      </style>
+      </head><body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+        <div>
+          <h1>🏗️ DAR SADIK — Fiche Client</h1>
+          <div class="sub">Selouane — Nador | Imprimé le ${date}</div>
+        </div>
+        <button onclick="window.print()" style="padding:10px 20px;background:#1a5fa8;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer">🖨️ Imprimer</button>
+      </div>
+
+      <div style="background:#1a5fa8;color:white;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px">
+        <div style="width:50px;height:50px;background:rgba(255,255,255,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900">${selected.nom[0]}</div>
+        <div>
+          <div style="font-size:20px;font-weight:800">${selected.nom}</div>
+          <div style="opacity:0.8;margin-top:2px">Dépôt: ${selected.depot || '—'} ${selected.tel ? `| 📞 ${selected.tel}` : ''}</div>
+        </div>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-box"><div class="lbl">Solde dû</div><div class="val red">${fmt(selected.solde || 0)} DHS</div></div>
+        <div class="info-box"><div class="lbl">Total ventes</div><div class="val blue">${fmt(totalVentes)} DHS</div></div>
+        <div class="info-box"><div class="lbl">Total payé</div><div class="val green">${fmt(totalPaiements)} DHS</div></div>
+      </div>
+
+      <h2>📦 Ventes (${clientVentes.length})</h2>
+      <table>
+        <thead><tr><th>Date</th><th>Camion</th><th>Fournisseur</th><th>Type</th><th style="text-align:right">Qté</th><th style="text-align:right">Vente DHS</th><th style="text-align:right">Marge DHS</th></tr></thead>
+        <tbody>
+          ${clientVentes.map(v => `<tr><td>${v.date}</td><td>${v.camion_plaque}</td><td>${v.fournisseur || '—'}</td><td>${v.type_brique || '—'}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td style="text-align:right;color:#16a34a"><b>${fmt(v.marge)}</b></td></tr>`).join('')}
+          ${clientVentes.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px">Aucune vente</td></tr>' : ''}
+        </tbody>
+        ${clientVentes.length > 0 ? `<tfoot><tr><td colspan="4">TOTAL</td><td style="text-align:right">${fmt(clientVentes.reduce((s,v)=>s+(v.qte||0),0))}</td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td style="text-align:right;color:#16a34a">${fmt(totalMarge)} DHS</td></tr></tfoot>` : ''}
+      </table>
+
+      <h2>💰 Paiements (${clientPaiements.length})</h2>
+      <table>
+        <thead><tr><th>Date</th><th>Mode</th><th style="text-align:right">Montant DHS</th><th>Note / Référence</th></tr></thead>
+        <tbody>
+          ${clientPaiements.map(p => `<tr><td>${p.date}</td><td>${p.mode}</td><td style="text-align:right;color:#16a34a"><b>− ${fmt(p.montant)}</b></td><td style="color:#aaa">${p.note || '—'}</td></tr>`).join('')}
+          ${clientPaiements.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">Aucun paiement</td></tr>' : ''}
+        </tbody>
+        ${clientPaiements.length > 0 ? `<tfoot><tr><td colspan="2">TOTAL REÇU</td><td style="text-align:right;color:#16a34a">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>` : ''}
+      </table>
+
+      <div class="footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
+      </body></html>
+    `)
+    win.document.close()
+  }
+
+  // ---- EXPORT CLIENT EXCEL ----
+  function exportClientExcel() {
+    const totalVentes = clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const totalPaiements = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+
+    // Build CSV content
+    let csv = `FICHE CLIENT — DAR SADIK\n`
+    csv += `Nom,${selected.nom}\nDépôt,${selected.depot || ''}\nTéléphone,${selected.tel || ''}\nSolde DHS,${selected.solde || 0}\nTotal Ventes DHS,${totalVentes}\nTotal Paiements DHS,${totalPaiements}\n\n`
+    
+    csv += `VENTES\nDate,Camion,Chauffeur,Fournisseur,Type,Quantité,Prix Vente/u,Prix Achat/u,Total Vente DHS,Marge DHS,BON,Note\n`
+    clientVentes.forEach(v => {
+      csv += `${v.date},${v.camion_plaque},${v.chauffeur||''},${v.fournisseur||''},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.prix_achat||0},${v.total_vente||0},${v.marge||0},${v.bon||''},${v.note||''}\n`
+    })
+    
+    csv += `\nPAIEMENTS\nDate,Mode,Montant DHS,Note\n`
+    clientPaiements.forEach(p => {
+      csv += `${p.date},${p.mode},${p.montant||0},${p.note||''}\n`
+    })
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Client-${selected.nom}-${new Date().toLocaleDateString('fr-MA').replace(/\//g,'-')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const filtered = clients.filter(c => !search || (c.nom + c.depot).toLowerCase().includes(search.toLowerCase()))
   const totalCreances = filtered.reduce((s, c) => s + (c.solde || 0), 0)
-
   const totalVentesClient = clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
   const totalPaiementsClient = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
 
@@ -134,10 +241,8 @@ export default function Clients() {
                       <div className={`font-semibold text-sm truncate ${isActive ? 'text-brand-700' : 'text-gray-900'}`}>{c.nom}</div>
                       <div className="text-xs text-gray-400">{c.depot}</div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <div className={`text-xs font-bold ${s >= 100000 ? 'text-red-600' : s >= 30000 ? 'text-amber-600' : s > 0 ? 'text-blue-600' : 'text-green-600'}`}>
-                        {fmt(s)} DHS
-                      </div>
+                    <div className={`text-xs font-bold ${s >= 100000 ? 'text-red-600' : s >= 30000 ? 'text-amber-600' : s > 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                      {fmt(s)} DHS
                     </div>
                   </div>
                 )
@@ -179,7 +284,13 @@ export default function Clients() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700">
+                      🖨️ Imprimer
+                    </button>
+                    <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700">
+                      📥 Excel
+                    </button>
                     <button onClick={() => editSolde(selected)} className="btn-secondary text-xs">✎ Solde</button>
                     <button onClick={() => deleteClient(selected.id)} className="btn-danger">✕</button>
                   </div>
@@ -237,6 +348,16 @@ export default function Clients() {
                             <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucune vente</td></tr>
                           )}
                         </tbody>
+                        {clientVentes.length > 0 && (
+                          <tfoot>
+                            <tr>
+                              <td className="tfoot-td" colSpan={4}>TOTAL</td>
+                              <td className="tfoot-td text-right">{fmt(clientVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
+                              <td className="tfoot-td text-right">{fmt(totalVentesClient)} DHS</td>
+                              <td className="tfoot-td text-right text-green-700">{fmt(clientVentes.reduce((s,v)=>s+(v.marge||0),0))} DHS</td>
+                            </tr>
+                          </tfoot>
+                        )}
                       </table>
                     </div>
                   </div>
@@ -267,6 +388,15 @@ export default function Clients() {
                             <tr><td colSpan={4} className="td text-center text-gray-400 py-6">Aucun paiement</td></tr>
                           )}
                         </tbody>
+                        {clientPaiements.length > 0 && (
+                          <tfoot>
+                            <tr>
+                              <td className="tfoot-td" colSpan={2}>TOTAL REÇU</td>
+                              <td className="tfoot-td text-right text-green-700">− {fmt(totalPaiementsClient)} DHS</td>
+                              <td className="tfoot-td"></td>
+                            </tr>
+                          </tfoot>
+                        )}
                       </table>
                     </div>
                   </div>
