@@ -19,6 +19,13 @@ export default function Clients() {
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', depot: 'EL HAJEB', tel: '', solde: 0 })
+  const [showCustomDepot, setShowCustomDepot] = useState(false)
+  const [customDepotValue, setCustomDepotValue] = useState('')
+  const DEFAULT_DEPOTS = ['EL HAJEB', 'BERKANE', 'AHFIR', 'TAOUIMA', 'ZAIO']
+  const getAllDepots = () => {
+    const fromClients = clients.map(c => c.depot).filter(Boolean)
+    return [...new Set([...DEFAULT_DEPOTS, ...fromClients])].sort()
+  }
   const [saving, setSaving] = useState(false)
 
   // DATE FILTER STATE
@@ -235,9 +242,28 @@ export default function Clients() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="label">Dépôt</label>
-                    <select className="input" value={form.depot} onChange={e => setForm({...form, depot: e.target.value})}>
-                      {['EL HAJEB','BERKANE','AHFIR','TAOUIMA','ZAIO','AUTRE'].map(d => <option key={d}>{d}</option>)}
-                    </select>
+                    {!showCustomDepot ? (
+                      <div className="flex gap-1">
+                        <select className="input flex-1" value={form.depot} onChange={e => setForm({...form, depot: e.target.value})}>
+                          {getAllDepots().map(d => <option key={d}>{d}</option>)}
+                        </select>
+                        <button type="button" title="Ajouter un nouveau dépôt"
+                          onClick={() => setShowCustomDepot(true)}
+                          className="btn-secondary text-xs px-2">+ Nouveau</button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1">
+                        <input className="input flex-1" placeholder="Nom du dépôt..." value={customDepotValue}
+                          onChange={e => setCustomDepotValue(e.target.value.toUpperCase())} />
+                        <button type="button" className="btn-primary text-xs px-2"
+                          onClick={() => { if(customDepotValue.trim()) { setForm({...form, depot: customDepotValue.trim()}); setShowCustomDepot(false) } }}>
+                          ✓
+                        </button>
+                        <button type="button" className="btn-secondary text-xs px-2"
+                          onClick={() => setShowCustomDepot(false)}>✕</button>
+                      </div>
+                    )}
+                    {showCustomDepot && <div className="text-xs text-gray-400 mt-1">Tapez le nom du nouveau dépôt</div>}
                   </div>
                   <div>
                     <label className="label">Téléphone</label>
