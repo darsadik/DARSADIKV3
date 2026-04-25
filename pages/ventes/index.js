@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
-const fmtD = n => parseFloat(n || 0).toFixed(2)
 const today = () => new Date().toISOString().split('T')[0]
 
 export default function Ventes() {
@@ -20,6 +19,9 @@ export default function Ventes() {
   const [filterClient, setFilterClient] = useState('')
   const [filterFourn, setFilterFourn] = useState('')
   const [showForm, setShowForm] = useState(true)
+  const [uploadFile, setUploadFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [printVente, setPrintVente] = useState(null)
 
   const [form, setForm] = useState({
     date: today(), client_id: '', camion_id: '', fournisseur_id: '',
@@ -81,10 +83,25 @@ export default function Ventes() {
       user_id: user?.id
     }
 
-    const { error } = await supabase.from('ventes').insert(rec)
+    const { data: inserted, error } = await supabase.from('ventes').insert(rec).select().single()
+
     if (!error && client) {
       await supabase.from('clients').update({ solde: (client.solde || 0) + totalVente }).eq('id', client.id)
     }
+
+    if (!error && inserted && uploadFile) {
+      setUploading(true)
+      const ext = uploadFile.name.split('.').pop()
+      const path = `${user.id}/vente_${inserted.id}.${ext}`
+      const { error: upErr } = await supabase.storage.from('ventes-fichiers').upload(path, uploadFile, { upsert: true })
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from('ventes-fichiers').getPublicUrl(path)
+        await supabase.from('ventes').update({ fichier_url: urlData.publicUrl, fichier_nom: uploadFile.name }).eq('id', inserted.id)
+      }
+      setUploading(false)
+      setUploadFile(null)
+    }
+
     setSaving(false)
     if (!error) {
       setForm({ date: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '' })
@@ -92,12 +109,17 @@ export default function Ventes() {
     }
   }
 
-  async function deleteVente(id, clientId, totalVente) {
+  async function deleteVente(id, clientId, totalVenteAmt) {
     if (!confirm('Supprimer cette vente ?')) return
     const client = clients.find(c => c.id === clientId)
     await supabase.from('ventes').delete().eq('id', id)
-    if (client) await supabase.from('clients').update({ solde: Math.max(0, (client.solde || 0) - totalVente) }).eq('id', clientId)
+    if (client) await supabase.from('clients').update({ solde: Math.max(0, (client.solde || 0) - totalVenteAmt) }).eq('id', clientId)
     loadAll()
+  }
+
+  function handlePrint(vente) {
+    setPrintVente(vente)
+    setTimeout(() => window.print(), 300)
   }
 
   const filtered = ventes.filter(v => {
@@ -115,7 +137,71 @@ export default function Ventes() {
   return (
     <Layout title="Ventes de briques" subtitle="Saisie et historique de toutes les ventes">
 
-      {/* FORM */}
+      {/* ZONE IMPRESSION - cachée à l'écran */}
+      {printVente && (
+        <div className="print-only">
+          <div style={{padding:'40px',fontFamily:'Arial,sans-serif',maxWidth:'800px',margin:'0 auto'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'30px',borderBottom:'2px solid #333',paddingBottom:'20px'}}>
+              <div>
+                <h1 style={{fontSize:'24px',fontWeight:'bold',margin:0}}>DAR SADIK</h1>
+                <p style={{color:'#666',margin:'4px 0 0'}}>Bon de Livraison</p>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <p style={{fontWeight:'bold',fontSize:'18px',margin:0}}>BON N° {printVente.bon || printVente.id}</p>
+                <p style={{color:'#666',margin:'4px 0 0'}}>Date : {printVente.date}</p>
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'20px',marginBottom:'30px'}}>
+              <div style={{background:'#f9f9f9',padding:'16px',borderRadius:'8px'}}>
+                <p style={{fontWeight:'bold',marginBottom:'8px',color:'#333'}}>CLIENT</p>
+                <p style={{fontSize:'16px',fontWeight:'bold'}}>{printVente.client_nom}</p>
+              </div>
+              <div style={{background:'#f9f9f9',padding:'16px',borderRadius:'8px'}}>
+                <p style={{fontWeight:'bold',marginBottom:'8px',color:'#333'}}>TRANSPORT</p>
+                <p>Camion : <strong>{printVente.camion_plaque}</strong></p>
+                <p>Chauffeur : <strong>{printVente.chauffeur || '—'}</strong></p>
+              </div>
+            </div>
+            <table style={{width:'100%',borderCollapse:'collapse',marginBottom:'30px'}}>
+              <thead>
+                <tr style={{background:'#333',color:'#fff'}}>
+                  <th style={{padding:'10px',textAlign:'left'}}>Désignation</th>
+                  <th style={{padding:'10px',textAlign:'left'}}>Fournisseur</th>
+                  <th style={{padding:'10px',textAlign:'right'}}>Quantité</th>
+                  <th style={{padding:'10px',textAlign:'right'}}>Prix/u (DHS)</th>
+                  <th style={{padding:'10px',textAlign:'right'}}>Total (DHS)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{borderBottom:'1px solid #ddd'}}>
+                  <td style={{padding:'12px'}}>{printVente.type_brique || 'Briques'}</td>
+                  <td style={{padding:'12px'}}>{printVente.fournisseur || '—'}</td>
+                  <td style={{padding:'12px',textAlign:'right'}}>{fmt(printVente.qte)}</td>
+                  <td style={{padding:'12px',textAlign:'right'}}>{printVente.prix_vente}</td>
+                  <td style={{padding:'12px',textAlign:'right',fontWeight:'bold'}}>{fmt(printVente.total_vente)} DHS</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr style={{background:'#f0f0f0'}}>
+                  <td colSpan={4} style={{padding:'12px',fontWeight:'bold',textAlign:'right'}}>TOTAL</td>
+                  <td style={{padding:'12px',fontWeight:'bold',fontSize:'18px',textAlign:'right'}}>{fmt(printVente.total_vente)} DHS</td>
+                </tr>
+              </tfoot>
+            </table>
+            {printVente.note && <div style={{marginBottom:'20px'}}><strong>Note :</strong> {printVente.note}</div>}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'40px',marginTop:'60px'}}>
+              <div style={{textAlign:'center',borderTop:'1px solid #999',paddingTop:'10px'}}>
+                <p style={{color:'#666'}}>Signature Client</p>
+              </div>
+              <div style={{textAlign:'center',borderTop:'1px solid #999',paddingTop:'10px'}}>
+                <p style={{color:'#666'}}>Signature DAR SADIK</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FORMULAIRE */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-900">➕ Nouvelle vente</h2>
@@ -187,7 +273,22 @@ export default function Ventes() {
               </div>
             </div>
 
-            {/* CALC */}
+            {/* UPLOAD FICHIER */}
+            <div className="mb-4">
+              <label className="label">📎 Pièce jointe (PDF, Excel, Image)</label>
+              <div className="flex items-center gap-3">
+                <label className="cursor-pointer flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-sm text-gray-500 hover:text-blue-600">
+                  <span>📁</span>
+                  <span>{uploadFile ? uploadFile.name : 'Choisir un fichier...'}</span>
+                  <input type="file" className="hidden" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png" onChange={e => setUploadFile(e.target.files[0] || null)} />
+                </label>
+                {uploadFile && (
+                  <button type="button" onClick={() => setUploadFile(null)} className="text-red-400 hover:text-red-600 text-xs">✕ Supprimer</button>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Accepté : PDF, Excel (.xlsx/.xls), CSV, Images</p>
+            </div>
+
             {(qte > 0 && pv > 0) && (
               <div className="bg-gray-50 rounded-xl p-4 mb-4 grid grid-cols-3 gap-4">
                 <div>
@@ -206,10 +307,10 @@ export default function Ventes() {
             )}
 
             <div className="flex gap-3">
-              <button type="submit" disabled={saving} className="btn-primary">
-                {saving ? 'Enregistrement...' : '✓ Enregistrer la vente'}
+              <button type="submit" disabled={saving || uploading} className="btn-primary">
+                {saving || uploading ? 'Enregistrement...' : '✓ Enregistrer la vente'}
               </button>
-              <button type="button" className="btn-secondary" onClick={() => setForm({ date: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '' })}>
+              <button type="button" className="btn-secondary" onClick={() => { setForm({ date: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '' }); setUploadFile(null) }}>
                 Annuler
               </button>
             </div>
@@ -217,7 +318,7 @@ export default function Ventes() {
         )}
       </div>
 
-      {/* HISTORY */}
+      {/* HISTORIQUE */}
       <div className="card">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h2 className="font-semibold text-gray-900">
@@ -254,7 +355,8 @@ export default function Ventes() {
                   <th className="th text-right">Vente DHS</th>
                   <th className="th text-right">Marge DHS</th>
                   <th className="th">BON</th>
-                  <th className="th"></th>
+                  <th className="th">Fichier</th>
+                  <th className="th">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -271,12 +373,28 @@ export default function Ventes() {
                     <td className={`td text-right font-bold ${(v.marge || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmt(v.marge)}</td>
                     <td className="td text-gray-400 text-xs">{v.bon || '—'}</td>
                     <td className="td">
-                      <button className="btn-danger" onClick={() => deleteVente(v.id, v.client_id, v.total_vente)}>✕</button>
+                      {v.fichier_url ? (
+                        <a href={v.fichier_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-xs flex items-center gap-1">
+                          📎 {v.fichier_nom ? (v.fichier_nom.length > 12 ? v.fichier_nom.substring(0,12)+'...' : v.fichier_nom) : 'Fichier'}
+                        </a>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="td">
+                      <div className="flex gap-1">
+                        <button
+                          className="bg-white hover:bg-blue-50 text-blue-600 font-medium px-2 py-1 rounded text-xs border border-blue-200 transition-all"
+                          onClick={() => handlePrint(v)}
+                          title="Imprimer bon de livraison"
+                        >🖨️</button>
+                        <button className="btn-danger" onClick={() => deleteVente(v.id, v.client_id, v.total_vente)}>✕</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={11} className="td text-center text-gray-400 py-10">Aucune vente trouvée</td></tr>
+                  <tr><td colSpan={12} className="td text-center text-gray-400 py-10">Aucune vente trouvée</td></tr>
                 )}
               </tbody>
               {filtered.length > 0 && (
@@ -286,7 +404,7 @@ export default function Ventes() {
                     <td className="tfoot-td text-right">{fmt(totQte)}</td>
                     <td className="tfoot-td text-right">{fmt(totVente)} DHS</td>
                     <td className="tfoot-td text-right text-green-700">{fmt(totMarge)} DHS</td>
-                    <td className="tfoot-td" colSpan={2}></td>
+                    <td className="tfoot-td" colSpan={3}></td>
                   </tr>
                 </tfoot>
               )}
@@ -294,6 +412,14 @@ export default function Ventes() {
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        @media print {
+          body > * { display: none !important; }
+          .print-only { display: block !important; position: fixed; top: 0; left: 0; width: 100%; background: white; z-index: 9999; }
+        }
+        .print-only { display: none; }
+      `}</style>
     </Layout>
   )
 }
