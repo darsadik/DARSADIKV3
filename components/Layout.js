@@ -10,6 +10,7 @@ const nav = [
   { href: '/clients',     icon: '👥', label: 'Clients' },
   { href: '/paiements',   icon: '💰', label: 'Paiements' },
   { href: '/gasoil',      icon: '⛽', label: 'Gasoil' },
+  { href: '/huile',       icon: '🫒', label: 'Huile' },
   { href: '/parametres',  icon: '⚙️', label: 'Paramètres' },
 ]
 
