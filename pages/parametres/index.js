@@ -33,11 +33,10 @@ export default function Parametres() {
 
   async function loadAll() {
     setLoading(true)
-    const uid = user?.id
     const [{ data: ca }, { data: fo }, { data: ty }] = await Promise.all([
-      supabase.from('camions').select('*').eq('user_id', uid).order('plaque'),
-      supabase.from('fournisseurs').select('*').eq('user_id', uid).order('nom'),
-      supabase.from('type_briques').select('*').eq('user_id', uid).order('nom'),
+      supabase.from('camions').select('*').order('plaque'),
+      supabase.from('fournisseurs').select('*').order('nom'),
+      supabase.from('type_briques').select('*').order('nom'),
     ])
     setCamions(ca || [])
     setFournisseurs(fo || [])
@@ -54,7 +53,7 @@ export default function Parametres() {
       chauffeur: camionForm.chauffeur,
       depot: camionForm.depot,
       gasoil_dhs: 0, pleins: 0, litres: 0,
-      user_id: user?.id
+      
     })
     setSaving(false)
     setCamionForm({ plaque: '', chauffeur: '', depot: 'EL HAJEB' })
@@ -71,7 +70,7 @@ export default function Parametres() {
     e.preventDefault()
     if (!fournForm.nom.trim()) return
     setSaving(true)
-    await supabase.from('fournisseurs').insert({ ...fournForm, user_id: user?.id })
+    await supabase.from('fournisseurs').insert({ ...fournForm })
     setSaving(false)
     setFournForm({ nom: '', tel: '', note: '' })
     loadAll()
@@ -87,7 +86,7 @@ export default function Parametres() {
     e.preventDefault()
     if (!briqForm.nom.trim()) return
     setSaving(true)
-    await supabase.from('type_briques').insert({ ...briqForm, user_id: user?.id })
+    await supabase.from('type_briques').insert({ ...briqForm })
     setSaving(false)
     setBriqForm({ nom: '', description: '' })
     loadAll()
