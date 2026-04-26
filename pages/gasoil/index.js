@@ -6,6 +6,19 @@ import { useAuth } from '../_app'
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtD = n => parseFloat(n || 0).toFixed(2)
 const today = () => new Date().toISOString().split('T')[0]
+const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
+
+const PRINT_CSS = `
+  body{font-family:Arial,sans-serif;padding:30px;font-size:13px;color:#111}
+  h1{font-size:20px;margin-bottom:4px}.sub{color:#888;font-size:12px;margin-bottom:20px}
+  table{width:100%;border-collapse:collapse;margin-top:14px}
+  th{background:#f5f5f5;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;border-bottom:1px solid #ddd}
+  td{padding:8px 10px;border-bottom:1px solid #f0f0f0}
+  tfoot td{background:#fffbeb;font-weight:800;border-top:2px solid #fde68a}
+  .section-title{font-size:14px;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #eee;padding-bottom:6px}
+  .print-btn{padding:8px 16px;background:#1a5fa8;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px}
+  @media print{.print-btn{display:none}}
+`
 
 export default function Gasoil() {
   const { user } = useAuth()
@@ -15,6 +28,8 @@ export default function Gasoil() {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [filterCamion, setFilterCamion] = useState('')
+  const [filterFrom, setFilterFrom] = useState(startOfMonth())
+  const [filterTo, setFilterTo] = useState(today())
   const [form, setForm] = useState({
     date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom',
     qte: '', prix_unitaire: '12.40', bon: '', km: '', note: ''
@@ -30,7 +45,8 @@ export default function Gasoil() {
     setLoading(true)
     const [{ data: ca }, { data: ga }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
-      supabase.from('gasoil').select('*').order('date', { ascending: false }),
+      // ✅ date ASC — oldest to newest
+      supabase.from('gasoil').select('*').order('date', { ascending: true }),
     ])
     setCamions(ca || [])
     setGasoil(ga || [])
@@ -42,7 +58,7 @@ export default function Gasoil() {
     if (!form.camion_id || !qte || !pu) return
     setSaving(true)
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
-    const rec = {
+    await supabase.from('gasoil').insert({
       date: form.date,
       camion_id: parseInt(form.camion_id),
       camion_plaque: camion?.plaque || '',
@@ -52,9 +68,7 @@ export default function Gasoil() {
       bon: form.bon,
       km: parseFloat(form.km) || null,
       note: form.note,
-      
-    }
-    await supabase.from('gasoil').insert(rec)
+    })
     if (camion) {
       await supabase.from('camions').update({
         gasoil_dhs: (camion.gasoil_dhs || 0) + total,
@@ -81,16 +95,21 @@ export default function Gasoil() {
     loadAll()
   }
 
-  const filtered = gasoil.filter(g => {
-    if (filterCamion && g.camion_id !== parseInt(filterCamion)) return false
-    if (search && !(g.camion_plaque + g.station + (g.chauffeur || '')).toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
+  // ✅ filter + force ASC
+  const filtered = gasoil
+    .filter(g => {
+      if (filterCamion && g.camion_id !== parseInt(filterCamion)) return false
+      if (filterFrom && g.date < filterFrom) return false
+      if (filterTo && g.date > filterTo) return false
+      if (search && !(g.camion_plaque + g.station + (g.chauffeur || '')).toLowerCase().includes(search.toLowerCase())) return false
+      return true
+    })
+    .sort((a, b) => a.date.localeCompare(b.date))
 
   const totLitres = filtered.reduce((s, g) => s + (g.qte || 0), 0)
   const totDHS = filtered.reduce((s, g) => s + (g.total || 0), 0)
 
-  // Stats by camion
+  // Stats by camion (from ALL gasoil)
   const byCamion = {}
   gasoil.forEach(g => {
     if (!byCamion[g.camion_plaque]) byCamion[g.camion_plaque] = { litres: 0, total: 0, pleins: 0 }
@@ -98,6 +117,56 @@ export default function Gasoil() {
     byCamion[g.camion_plaque].total += g.total || 0
     byCamion[g.camion_plaque].pleins += 1
   })
+
+  function printGasoil() {
+    const rows = filtered.map(g =>
+      `<tr><td>${g.date}</td><td><b>${g.camion_plaque}</b></td>
+      <td>${g.chauffeur||'—'}</td><td>${g.station}</td>
+      <td style="text-align:right">${fmtD(g.qte)} L</td>
+      <td style="text-align:right">${fmtD(g.prix_unitaire)}</td>
+      <td style="text-align:right"><b>${fmtD(g.total)}</b></td>
+      <td style="text-align:right;color:#888">${g.km ? fmt(g.km) : '—'}</td>
+      <td>${g.bon||'—'}</td></tr>`
+    ).join('')
+
+    const camionRows = Object.entries(byCamion).sort((a,b)=>b[1].total-a[1].total).map(([plaque, d]) =>
+      `<tr><td><b>${plaque}</b></td><td style="text-align:right">${fmt(d.litres)} L</td>
+      <td style="text-align:right"><b>${fmt(d.total)}</b></td><td style="text-align:right">${d.pleins}</td></tr>`
+    ).join('')
+
+    const win = window.open('', '_blank')
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${PRINT_CSS}</style></head><body>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div><h1>⛽ DAR SADIK — Gasoil</h1>
+        <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
+        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+      </div>
+      <div class="section-title">📋 Historique des pleins (plus ancien → plus récent)</div>
+      <table>
+        <thead><tr><th>Date</th><th>Camion</th><th>Chauffeur</th><th>Station</th>
+        <th style="text-align:right">Litres</th><th style="text-align:right">Prix/L</th>
+        <th style="text-align:right">Total DHS</th><th style="text-align:right">KM</th><th>BON</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="4">TOTAL (${filtered.length} pleins)</td>
+        <td style="text-align:right">${fmtD(totLitres)} L</td><td></td>
+        <td style="text-align:right">${fmt(totDHS)} DHS</td><td colspan="2"></td></tr></tfoot>
+      </table>
+      <div class="section-title" style="margin-top:30px">🚛 Récapitulatif par camion</div>
+      <table>
+        <thead><tr><th>Camion</th><th style="text-align:right">Litres</th><th style="text-align:right">Total DHS</th><th style="text-align:right">Nb pleins</th></tr></thead>
+        <tbody>${camionRows}</tbody>
+      </table>
+    </body></html>`)
+    win.document.close()
+  }
+
+  function exportCSV() {
+    let csv = `Date,Camion,Chauffeur,Station,Litres,Prix/L,Total DHS,KM,BON\n`
+    filtered.forEach(g => { csv += `${g.date},${g.camion_plaque},${g.chauffeur||''},${g.station},${g.qte||0},${g.prix_unitaire||0},${g.total||0},${g.km||''},${g.bon||''}\n` })
+    const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = `Gasoil-${filterFrom}-${filterTo}.csv`; a.click()
+  }
 
   return (
     <Layout title="Gasoil" subtitle="Suivi de consommation et coûts carburant">
@@ -173,7 +242,6 @@ export default function Gasoil() {
                   <input className="input" type="number" placeholder="ex: 85000" value={form.km} onChange={e => setForm({...form, km: e.target.value})} />
                 </div>
               </div>
-
               {qte > 0 && pu > 0 && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
                   <div className="text-xs text-amber-600 mb-1">Total à payer</div>
@@ -181,7 +249,6 @@ export default function Gasoil() {
                   <div className="text-xs text-amber-500">{fmtD(qte)} L × {fmtD(pu)} DHS/L</div>
                 </div>
               )}
-
               <button type="submit" disabled={saving} className="btn-primary w-full justify-center">
                 {saving ? 'Enregistrement...' : '✓ Enregistrer le plein'}
               </button>
@@ -201,9 +268,7 @@ export default function Gasoil() {
                   <div className="text-sm font-bold text-amber-600">{fmt(d.total)} DHS</div>
                 </div>
               ))}
-              {Object.keys(byCamion).length === 0 && (
-                <div className="text-center text-gray-400 text-sm py-4">Aucune donnée</div>
-              )}
+              {Object.keys(byCamion).length === 0 && <div className="text-center text-gray-400 text-sm py-4">Aucune donnée</div>}
             </div>
           </div>
         </div>
@@ -217,12 +282,23 @@ export default function Gasoil() {
                 <span className="ml-2 text-xs font-normal text-gray-400">({filtered.length} entrées)</span>
               </h2>
               <div className="flex gap-2 flex-wrap">
-                <input className="input w-40" placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} />
-                <select className="input w-44" value={filterCamion} onChange={e => setFilterCamion(e.target.value)}>
-                  <option value="">Tous les camions</option>
+                <button onClick={printGasoil} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ Imprimer / PDF</button>
+                <button onClick={exportCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 CSV</button>
+              </div>
+            </div>
+
+            {/* FILTERS */}
+            <div className="flex flex-wrap gap-3 mb-4 items-end">
+              <div><label className="label">Du</label><input type="date" className="input" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} /></div>
+              <div><label className="label">Au</label><input type="date" className="input" value={filterTo} onChange={e=>setFilterTo(e.target.value)} /></div>
+              <div><label className="label">Camion</label>
+                <select className="input" value={filterCamion} onChange={e=>setFilterCamion(e.target.value)} style={{minWidth:'150px'}}>
+                  <option value="">Tous</option>
                   {camions.map(c => <option key={c.id} value={c.id}>{c.plaque}</option>)}
                 </select>
               </div>
+              <div><input className="input" placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:'130px'}} /></div>
+              <button onClick={()=>{setFilterCamion('');setFilterFrom(startOfMonth());setFilterTo(today());setSearch('')}} className="btn-secondary text-xs">↺</button>
             </div>
 
             {loading ? (
