@@ -28,10 +28,9 @@ export default function Gasoil() {
 
   async function loadAll() {
     setLoading(true)
-    const uid = user?.id
     const [{ data: ca }, { data: ga }] = await Promise.all([
-      supabase.from('camions').select('*').eq('user_id', uid).order('plaque'),
-      supabase.from('gasoil').select('*').eq('user_id', uid).order('date', { ascending: false }),
+      supabase.from('camions').select('*').order('plaque'),
+      supabase.from('gasoil').select('*').order('date', { ascending: false }),
     ])
     setCamions(ca || [])
     setGasoil(ga || [])
@@ -53,7 +52,7 @@ export default function Gasoil() {
       bon: form.bon,
       km: parseFloat(form.km) || null,
       note: form.note,
-      user_id: user?.id
+      
     }
     await supabase.from('gasoil').insert(rec)
     if (camion) {
