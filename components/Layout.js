@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useAuth } from '../pages/_app'
 
-const SUPER_ADMIN = 'hafidcoder@gmail.com'
+const SUPER_ADMIN = 'abdelhafidbaadi@gmail.com'
 const nav = [
   { href: '/',            icon: '📊', label: 'Dashboard' },
   { href: '/ventes',      icon: '📦', label: 'Ventes' },
