@@ -248,6 +248,155 @@ export default function Ventes() {
   }
 
   // ── FOURNISSEUR VIEW ──
+  // ── CAMION REPORT HTML (shared by print + PDF) ──────────────
+  function buildCamionReportHTML() {
+    const byCamion = {}
+    filtered.forEach(v => {
+      const p = v.camion_plaque || 'Sans camion'
+      if (!byCamion[p]) byCamion[p] = { voyages: 0, qte: 0, vente: 0, chauffeur: v.chauffeur || '', types: {}, ops: [] }
+      byCamion[p].voyages += 1
+      byCamion[p].qte    += v.qte || 0
+      byCamion[p].vente  += v.total_vente || 0
+      const tb = v.type_brique || 'Sans type'
+      if (!byCamion[p].types[tb]) byCamion[p].types[tb] = 0
+      byCamion[p].types[tb] += v.qte || 0
+      byCamion[p].ops.push(v)
+    })
+
+    const css = `
+      body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#111}
+      h1{font-size:19px;margin:0 0 2px}
+      .sub{color:#888;font-size:11px;margin-bottom:18px}
+      .camion-block{margin-bottom:32px;page-break-inside:avoid}
+      .camion-header{background:#1a5fa8;color:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+      .camion-title{font-size:15px;font-weight:800}
+      .camion-sub{font-size:11px;opacity:.8;margin-top:2px}
+      .stats{display:flex;gap:10px;margin-bottom:10px}
+      .stat-box{background:#f5f5f5;border-radius:6px;padding:8px 14px;text-align:center;flex:1}
+      .stat-box .lbl{font-size:10px;color:#888;text-transform:uppercase}
+      .stat-box .val{font-size:16px;font-weight:800;color:#1a5fa8}
+      .products{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+      .product-pill{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700}
+      table{width:100%;border-collapse:collapse;margin-top:6px}
+      th{background:#f5f5f5;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:#888;border-bottom:1px solid #ddd}
+      td{padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:11px}
+      tfoot td{background:#eff6ff;font-weight:800;color:#1d4ed8;border-top:2px solid #bfdbfe}
+      .footer{margin-top:24px;padding-top:10px;border-top:1px solid #eee;color:#aaa;font-size:10px;text-align:center}
+      .print-btn{padding:8px 18px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;margin-bottom:16px}
+      @media print{.print-btn{display:none}}
+    `
+
+    const camionBlocks = Object.entries(byCamion)
+      .sort((a, b) => b[1].qte - a[1].qte)
+      .map(([plaque, data]) => {
+        const opRows = data.ops
+          .slice().sort((a, b) => a.date.localeCompare(b.date))
+          .map(v => `<tr>
+            <td>${v.date}</td>
+            <td><b>${v.type_brique || '—'}</b></td>
+            <td style="text-align:right">${fmt(v.qte)}</td>
+            <td>${v.client_nom || '—'}</td>
+            <td>${v.fournisseur || '—'}</td>
+            <td><span style="background:${v.client_nom?'#eff6ff':'#f0fdf4'};color:${v.client_nom?'#1d4ed8':'#15803d'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${v.client_nom ? 'Vente' : 'Achat'}</span></td>
+          </tr>`).join('')
+
+        const productPills = Object.entries(data.types)
+          .map(([tb, q]) => `<span class="product-pill">${tb} — ${fmt(q)}</span>`).join('')
+
+        return `
+          <div class="camion-block">
+            <div class="camion-header">
+              <div>
+                <div class="camion-title">🚛 ${plaque}</div>
+                ${data.chauffeur ? `<div class="camion-sub">👤 ${data.chauffeur}</div>` : ''}
+              </div>
+              <div style="text-align:right;font-size:11px;opacity:.9">
+                ${data.voyages} voyage(s) · ${fmt(data.qte)} briques · ${fmt(data.vente)} DHS
+              </div>
+            </div>
+            <div class="stats">
+              <div class="stat-box"><div class="lbl">Voyages</div><div class="val">${data.voyages}</div></div>
+              <div class="stat-box"><div class="lbl">Briques</div><div class="val">${fmt(data.qte)}</div></div>
+              <div class="stat-box"><div class="lbl">Total DHS</div><div class="val">${fmt(data.vente)}</div></div>
+            </div>
+            <div class="products">${productPills}</div>
+            <table>
+              <thead><tr>
+                <th>Date</th><th>Produit</th><th style="text-align:right">Quantité</th>
+                <th>Client</th><th>Fournisseur</th><th>Type</th>
+              </tr></thead>
+              <tbody>${opRows}</tbody>
+              <tfoot><tr>
+                <td colspan="2">TOTAL (${data.ops.length} op.)</td>
+                <td style="text-align:right">${fmt(data.qte)}</td>
+                <td colspan="3"></td>
+              </tr></tfoot>
+            </table>
+          </div>`
+      }).join('')
+
+    return `<!DOCTYPE html><html lang="fr"><head>
+      <meta charset="UTF-8">
+      <title>DAR SADIK — Rapport Camions</title>
+      <style>${css}</style>
+    </head><body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
+        <div>
+          <h1>🚛 DAR SADIK — Rapport Camions</h1>
+          <div class="sub">Période: ${filterFrom} → ${filterTo} | ${Object.keys(byCamion).length} camion(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+        </div>
+        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+      </div>
+      ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
+      <div class="footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
+    </body></html>`
+  }
+
+  function printCamionReport() {
+    const win = window.open('', '_blank')
+    win.document.write(buildCamionReportHTML())
+    win.document.close()
+    setTimeout(() => win.print(), 400)
+  }
+
+  async function downloadCamionPDF() {
+    // inject html2pdf from CDN if not already loaded
+    if (!window.html2pdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+        s.onload = resolve
+        s.onerror = reject
+        document.head.appendChild(s)
+      })
+    }
+
+    // build a hidden container with the report HTML
+    const container = document.createElement('div')
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;font-family:Arial,sans-serif;font-size:12px;color:#111;padding:20px;background:#fff'
+    container.innerHTML = buildCamionReportHTML()
+    // strip the outer html/body tags — html2pdf works on a div
+    const tmp = document.createElement('div')
+    tmp.innerHTML = buildCamionReportHTML()
+    const body = tmp.querySelector('body')
+    container.innerHTML = body ? body.innerHTML : tmp.innerHTML
+    // remove the print button inside
+    container.querySelectorAll('.print-btn').forEach(el => el.remove())
+    document.body.appendChild(container)
+
+    const filename = `Camions-${filterFrom}-${filterTo}.pdf`
+    await window.html2pdf().set({
+      margin:      [10, 10, 10, 10],
+      filename,
+      image:       { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:   { mode: ['avoid-all', 'css'] },
+    }).from(container).save()
+
+    document.body.removeChild(container)
+  }
+
   function FournisseurView() {
     if (!admin) return (
       <div className="card flex flex-col items-center justify-center py-20 text-center">
@@ -402,6 +551,19 @@ export default function Ventes() {
 
     return (
       <div className="space-y-4">
+        {/* Print + PDF buttons */}
+        <div className="flex gap-2 justify-end">
+          <button onClick={printCamionReport}
+            className="btn-primary text-xs px-3 py-1.5"
+            style={{background:'#4f46e5'}}>
+            🖨️ Imprimer
+          </button>
+          <button onClick={downloadCamionPDF}
+            className="btn-primary text-xs px-3 py-1.5"
+            style={{background:'#dc2626'}}>
+            📄 Télécharger PDF
+          </button>
+        </div>
         {Object.entries(byCamion).sort((a,b) => b[1].qte - a[1].qte).map(([plaque, data]) => (
           <div key={plaque} className="card">
             <div className={`${isMobile ? 'space-y-3' : 'flex items-start justify-between'} mb-4`}>
