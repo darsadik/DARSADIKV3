@@ -39,15 +39,14 @@ export default function Ventes() {
 
   async function loadAll() {
     setLoading(true)
-    const uid = user?.id
     const [
       { data: cl }, { data: ca }, { data: fo }, { data: ty }, { data: ve }
     ] = await Promise.all([
-      supabase.from('clients').select('*').eq('user_id', uid).order('nom'),
-      supabase.from('camions').select('*').eq('user_id', uid).order('plaque'),
-      supabase.from('fournisseurs').select('*').eq('user_id', uid).order('nom'),
-      supabase.from('type_briques').select('*').eq('user_id', uid).order('nom'),
-      supabase.from('ventes').select('*').eq('user_id', uid).order('date', { ascending: false }),
+      supabase.from('clients').select('*').order('nom'),
+      supabase.from('camions').select('*').order('plaque'),
+      supabase.from('fournisseurs').select('*').order('nom'),
+      supabase.from('type_briques').select('*').order('nom'),
+      supabase.from('ventes').select('*').order('date', { ascending: false }),
     ])
     setClients(cl || [])
     setCamions(ca || [])
@@ -80,7 +79,7 @@ export default function Ventes() {
       qte, prix_vente: pv, prix_achat: pa,
       total_vente: totalVente, total_achat: totalAchat, marge,
       bon: form.bon, note: form.note,
-      user_id: user?.id
+      
     }
 
     const { data: inserted, error } = await supabase.from('ventes').insert(rec).select().single()
