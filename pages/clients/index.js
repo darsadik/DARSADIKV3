@@ -47,8 +47,8 @@ export default function Clients() {
     setSelected(client)
     setLoadingDetail(true)
     const [{ data: ventes }, { data: paiements }] = await Promise.all([
-      supabase.from('ventes').select('*').eq('client_id', client.id).order('date', { ascending: false }),
-      supabase.from('paiements').select('*').eq('client_id', client.id).order('date', { ascending: false }),
+      supabase.from('ventes').select('*').eq('client_id', client.id).order('date', { ascending: true }),
+      supabase.from('paiements').select('*').eq('client_id', client.id).order('date', { ascending: true }),
     ])
     setClientVentes(ventes || [])
     setClientPaiements(paiements || [])
@@ -171,10 +171,10 @@ export default function Clients() {
       <h2>📦 Ventes (${filteredVentes.length})</h2>
       <table>
         <thead><tr><th>Date</th><th>Camion</th><th>Fournisseur</th><th>Type</th><th style="text-align:right">Qté</th><th style="text-align:right">Vente DHS</th><th style="text-align:right">Marge DHS</th></tr></thead>
-        <tbody>${filteredVentes.map(v=>`<tr><td>${v.date}</td><td>${v.camion_plaque}</td><td>${v.fournisseur||'—'}</td><td>${v.type_brique||'—'}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td style="text-align:right;color:#16a34a"><b>${fmt(v.marge)}</b></td></tr>`).join('')}
+        <tbody>${filteredVentes.map(v=>`<tr><td>${v.date}</td><td>${v.camion_plaque}</td><td>${v.type_brique||'—'}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${parseFloat(v.prix_vente||0).toFixed(2)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td></tr>`).join('')}
         ${filteredVentes.length===0?'<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px">Aucune vente pour cette période</td></tr>':''}
         </tbody>
-        ${filteredVentes.length>0?`<tfoot><tr><td colspan="4">TOTAL</td><td style="text-align:right">${fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td style="text-align:right;color:#16a34a">${fmt(totalMarge)} DHS</td></tr></tfoot>`:''}
+        ${filteredVentes.length>0?`<tfoot><tr><td colspan="4">TOTAL</td><td style="text-align:right">${fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td><td style="text-align:right">${fmt(totalVentes)} DHS</td></tr></tfoot>`:''}
       </table>
 
       <h2>💰 Paiements (${filteredPaiements.length})</h2>
@@ -198,9 +198,9 @@ export default function Clients() {
 
     let csv = `FICHE CLIENT — DAR SADIK\n`
     csv += `Nom,${selected.nom}\nDépôt,${selected.depot||''}\nTéléphone,${selected.tel||''}\nSolde DHS,${selected.solde||0}\nPériode,${periode}\nTotal Ventes DHS,${totalVentes}\nTotal Paiements DHS,${totalPaiements}\n\n`
-    csv += `VENTES\nDate,Camion,Chauffeur,Fournisseur,Type,Quantité,Prix Vente/u,Prix Achat/u,Total Vente DHS,Marge DHS,BON,Note\n`
+    csv += `VENTES\nDate,Transport,Type,Quantité,Prix Vente/u,Total DHS\n`
     filteredVentes.forEach(v => {
-      csv += `${v.date},${v.camion_plaque},${v.chauffeur||''},${v.fournisseur||''},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.prix_achat||0},${v.total_vente||0},${v.marge||0},${v.bon||''},${v.note||''}\n`
+      csv += `${v.date},${v.camion_plaque},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.total_vente||0}\n`
     })
     csv += `\nPAIEMENTS\nDate,Mode,Montant DHS,Note\n`
     filteredPaiements.forEach(p => {
@@ -415,9 +415,9 @@ export default function Clients() {
                       <table className="w-full">
                         <thead>
                           <tr>
-                            <th className="th">Date</th><th className="th">Camion</th><th className="th">Fournisseur</th>
+                            <th className="th">Date</th><th className="th">Transport</th>
                             <th className="th">Type</th><th className="th text-right">Qté</th>
-                            <th className="th text-right">Vente DHS</th><th className="th text-right">Marge DHS</th>
+                            <th className="th text-right">Prix/u DHS</th><th className="th text-right">Total DHS</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -425,11 +425,10 @@ export default function Clients() {
                             <tr key={v.id} className="hover:bg-gray-50">
                               <td className="td text-gray-500">{v.date}</td>
                               <td className="td">{v.camion_plaque}</td>
-                              <td className="td"><span className="badge-blue">{v.fournisseur || '—'}</span></td>
                               <td className="td"><span className="badge-gray">{v.type_brique || '—'}</span></td>
                               <td className="td text-right">{fmt(v.qte)}</td>
+                              <td className="td text-right">{parseFloat(v.prix_vente||0).toFixed(2)}</td>
                               <td className="td text-right font-bold">{fmt(v.total_vente)}</td>
-                              <td className="td text-right font-bold text-green-600">{fmt(v.marge)}</td>
                             </tr>
                           ))}
                           {filteredVentes.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucune vente pour cette période</td></tr>}
@@ -437,10 +436,10 @@ export default function Clients() {
                         {filteredVentes.length > 0 && (
                           <tfoot>
                             <tr>
-                              <td className="tfoot-td" colSpan={4}>TOTAL</td>
+                              <td className="tfoot-td" colSpan={3}>TOTAL</td>
                               <td className="tfoot-td text-right">{fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
+                              <td className="tfoot-td"></td>
                               <td className="tfoot-td text-right">{fmt(totalVentesClient)} DHS</td>
-                              <td className="tfoot-td text-right text-green-700">{fmt(filteredVentes.reduce((s,v)=>s+(v.marge||0),0))} DHS</td>
                             </tr>
                           </tfoot>
                         )}
