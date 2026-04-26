@@ -170,11 +170,11 @@ export default function Clients() {
 
       <h2>📦 Ventes (${filteredVentes.length})</h2>
       <table>
-        <thead><tr><th>Produit</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix/u DHS</th><th style="text-align:right">Total DHS</th><th>Date</th><th>Transport</th></tr></thead>
-        <tbody>${filteredVentes.map(v=>`<tr><td><b>${v.type_brique||'—'}</b></td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${parseFloat(v.prix_vente||0).toFixed(2)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td>${v.date}</td><td>${v.camion_plaque||'—'}</td></tr>`).join('')}
+        <thead><tr><th>Date</th><th>Transport</th><th>Produit</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix/u DHS</th><th style="text-align:right">Total DHS</th></tr></thead>
+        <tbody>${filteredVentes.map(v=>`<tr><td>${v.date}</td><td>${v.camion_plaque||'—'}</td><td><b>${v.type_brique||'—'}</b></td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${parseFloat(v.prix_vente||0).toFixed(2)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td></tr>`).join('')}
         ${filteredVentes.length===0?'<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">Aucune vente pour cette période</td></tr>':''}
         </tbody>
-        ${filteredVentes.length>0?`<tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td><td></td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td colspan="2"></td></tr></tfoot>`:''}
+        ${filteredVentes.length>0?`<tfoot><tr><td colspan="3">TOTAL</td><td style="text-align:right">${fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td><td></td><td style="text-align:right">${fmt(totalVentes)} DHS</td></tr></tfoot>`:''}
       </table>
 
       <h2>💰 Paiements (${filteredPaiements.length})</h2>
