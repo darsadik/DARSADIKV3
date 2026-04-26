@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useAuth } from '../pages/_app'
 
+const SUPER_ADMIN = 'hafidcoder@gmail.com'
 const nav = [
   { href: '/',            icon: '📊', label: 'Dashboard' },
   { href: '/ventes',      icon: '📦', label: 'Ventes' },
@@ -52,6 +53,15 @@ export default function Layout({ children, title, subtitle }) {
               </Link>
             )
           })}
+          {/* Admin link — only for super admin */}
+          {user?.email === SUPER_ADMIN && (
+            <Link href="/admin"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                ${router.pathname === '/admin' ? 'bg-white text-brand-700' : 'text-amber-300 hover:bg-brand-600 hover:text-white'}`}>
+              <span className="text-base flex-shrink-0">👑</span>
+              {sidebarOpen && <span>Admin</span>}
+            </Link>
+          )}
         </nav>
 
         {/* User */}
