@@ -2,7 +2,7 @@ import '../styles/globals.css'
 import { useState, useEffect, createContext, useContext } from 'react'
 import { supabase } from '../lib/supabase'
 
-const SUPER_ADMIN = 'hafidcoder@gmail.com'
+const SUPER_ADMIN = 'abdelhafidbaadi@gmail.com'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
