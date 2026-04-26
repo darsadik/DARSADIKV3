@@ -48,3 +48,174 @@ body {
   .stat-value { @apply text-2xl font-bold; }
   .stat-sub { @apply text-xs text-gray-400 mt-1; }
 }
+
+/* ═══════════════════════════════════════════
+   📱 MOBILE RESPONSIVE STYLES
+   ═══════════════════════════════════════════ */
+
+/* Mobile cards replacing table rows */
+@media (max-width: 767px) {
+
+  /* Hide desktop tables on mobile */
+  .mobile-hide-table table,
+  .mobile-hide-table .overflow-x-auto {
+    display: none !important;
+  }
+
+  /* Mobile card list */
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Each data row becomes a card */
+  .mobile-row-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .mobile-row-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .mobile-row-card .card-title {
+    font-weight: 700;
+    font-size: 15px;
+    color: #111827;
+  }
+
+  .mobile-row-card .card-amount {
+    font-weight: 700;
+    font-size: 15px;
+    color: #1d4ed8;
+  }
+
+  .mobile-row-card .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .mobile-row-card .card-meta span {
+    background: #f3f4f6;
+    border-radius: 6px;
+    padding: 2px 8px;
+  }
+
+  .mobile-row-card .card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid #f3f4f6;
+  }
+
+  /* Collapsible section */
+  .mobile-collapse-btn {
+    width: 100%;
+    text-align: left;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #374151;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    margin-bottom: 4px;
+  }
+
+  /* Mobile filters — stack vertically */
+  .mobile-filters {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .mobile-filters .input {
+    font-size: 14px;
+  }
+
+  /* Mobile tabs — horizontal scroll */
+  .mobile-tabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .mobile-tabs::-webkit-scrollbar { display: none; }
+
+  .mobile-tabs button {
+    flex-shrink: 0;
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    white-space: nowrap;
+    background: white;
+    color: #6b7280;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+
+  .mobile-tabs button.active {
+    background: #1d4ed8;
+    color: white;
+    border-color: #1d4ed8;
+  }
+
+  /* Stat cards — 2 columns on mobile */
+  .mobile-stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Reduce padding on mobile */
+  .card {
+    padding: 12px !important;
+  }
+
+  /* Stack form grids on mobile */
+  .mobile-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Full width buttons on mobile */
+  .mobile-btn-full {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Hide subtitles on mobile to save space */
+  .page-subtitle {
+    display: none;
+  }
+
+  /* Smaller stat values on mobile */
+  .stat-value {
+    font-size: 20px !important;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .card {
+    padding: 14px !important;
+  }
+}
