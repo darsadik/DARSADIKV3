@@ -39,7 +39,6 @@ export default function Dashboard() {
 
   async function loadData() {
     setLoading(true)
-    const uid = user?.id
     const [
       { data: clients },
       { data: ventes },
@@ -47,11 +46,11 @@ export default function Dashboard() {
       { data: paiements },
       { data: recentOps },
     ] = await Promise.all([
-      supabase.from('clients').select('*').eq('user_id', uid),
-      supabase.from('ventes').select('*').eq('user_id', uid),
-      supabase.from('gasoil').select('*').eq('user_id', uid),
-      supabase.from('paiements').select('*').eq('user_id', uid),
-      supabase.from('ventes').select('*').eq('user_id', uid).order('date', { ascending: false }).limit(8),
+      supabase.from('clients').select('*'),
+      supabase.from('ventes').select('*'),
+      supabase.from('gasoil').select('*'),
+      supabase.from('paiements').select('*'),
+      supabase.from('ventes').select('*').order('date', { ascending: false }).limit(8),
     ])
 
     const totalCreances = (clients || []).reduce((s, c) => s + (c.solde || 0), 0)
