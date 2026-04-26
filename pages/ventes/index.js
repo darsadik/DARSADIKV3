@@ -134,7 +134,7 @@ export default function Ventes() {
 
   const tabs = [
     { key: 'client', label: '👥 Clients' },
-    { key: 'fournisseur', label: '🏭 Fournisseur', adminOnly: true },
+    { key: 'fournisseur', label: '🏭 Fournisseur', },
     { key: 'camion', label: '🚛 Camions' },
     ...(admin ? [{ key: 'saisie', label: '➕ Saisie' }] : []),
   ].filter(t => !t.adminOnly || admin)
@@ -398,13 +398,6 @@ export default function Ventes() {
   }
 
   function FournisseurView() {
-    if (!admin) return (
-      <div className="card flex flex-col items-center justify-center py-20 text-center">
-        <div className="text-5xl mb-4">🔒</div>
-        <div className="text-xl font-bold text-gray-900">Accès restreint</div>
-        <div className="text-gray-500 mt-2">Réservé à l'administrateur</div>
-      </div>
-    )
     const byFourn = {}
     filtered.forEach(v => {
       const f = v.fournisseur || 'Sans fournisseur'
