@@ -38,7 +38,7 @@ export default function Clients() {
 
   async function loadClients() {
     setLoading(true)
-    const { data } = await supabase.from('clients').select('*').eq('user_id', user?.id).order('solde', { ascending: false })
+    const { data } = await supabase.from('clients').select('*').order('solde', { ascending: false })
     setClients(data || [])
     setLoading(false)
   }
@@ -58,7 +58,7 @@ export default function Clients() {
   async function addClient(e) {
     e.preventDefault()
     setSaving(true)
-    await supabase.from('clients').insert({ ...form, solde: parseFloat(form.solde) || 0, user_id: user?.id })
+    await supabase.from('clients').insert({ ...form, solde: parseFloat(form.solde) || 0 })
     setSaving(false)
     setShowForm(false)
     setForm({ nom: '', depot: 'EL HAJEB', tel: '', solde: 0 })
