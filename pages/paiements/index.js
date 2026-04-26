@@ -18,10 +18,9 @@ export default function Paiements() {
 
   async function loadAll() {
     setLoading(true)
-    const uid = user?.id
     const [{ data: cl }, { data: pa }] = await Promise.all([
-      supabase.from('clients').select('*').eq('user_id', uid).order('nom'),
-      supabase.from('paiements').select('*').eq('user_id', uid).order('date', { ascending: false }),
+      supabase.from('clients').select('*').order('nom'),
+      supabase.from('paiements').select('*').order('date', { ascending: false }),
     ])
     setClients(cl || [])
     setPaiements(pa || [])
@@ -40,7 +39,7 @@ export default function Paiements() {
     await supabase.from('paiements').insert({
       date: form.date, client_id: parseInt(form.client_id),
       client_nom: client?.nom || '', mode: form.mode,
-      montant, note: form.note, user_id: user?.id
+      montant, note: form.note
     })
     if (client) await supabase.from('clients').update({ solde: Math.max(0, (client.solde || 0) - montant) }).eq('id', client.id)
     setSaving(false)
