@@ -140,9 +140,8 @@ export default function Grignon() {
 
   // ── Grignon client management ──
   async function addClient() {
-    e.preventDefault()
     if (!admin || !newClientNom.trim()) return
-    await supabase.from('grignon_clients').insert({ nom: newClientNom.trim(), solde: 0 })
+    await supabase.from('grignon_clients').insert({ nom: newClientNom.trim(), solde: 0, opening_balance: 0 })
     setNewClientNom('')
     loadAll()
   }
