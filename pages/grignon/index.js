@@ -153,6 +153,20 @@ export default function Grignon() {
     loadAll()
   }
 
+  async function editOpeningBalance(client) {
+    if (!admin) return
+    const v = prompt(`Solde initial (ancien solde) de ${client.nom}\nActuel: ${Math.round(client.opening_balance || 0).toLocaleString('fr-MA')} DHS\n\nCe montant représente ce que le client devait AVANT d'utiliser cette app.`, client.opening_balance || 0)
+    if (v === null) return
+    const n = parseFloat(v)
+    if (isNaN(n)) return
+    // Recalc solde from grignon_operations
+    const { data: ops } = await supabase.from('grignon_operations').select('total_vente').eq('client_id', client.id)
+    const totalV = (ops || []).reduce((s, o) => s + (o.total_vente || 0), 0)
+    const newSolde = n + totalV
+    await supabase.from('grignon_clients').update({ opening_balance: n, solde: newSolde }).eq('id', client.id)
+    loadAll()
+  }
+
   // ── Grignon fournisseur management ──
   async function addFournisseur() {
     if (!admin || !newFournNom.trim()) return
@@ -379,6 +393,18 @@ export default function Grignon() {
         {/* All-time KPIs */}
         <div>
           <div className="text-xs font-bold text-gray-400 uppercase mb-2">Totaux globaux</div>
+          {(() => {
+            const totalOB = clients.reduce((s,c) => s + (c.opening_balance || 0), 0)
+            return totalOB > 0 ? (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+                <span className="text-xl">🏦</span>
+                <div>
+                  <span className="font-bold text-amber-800">Soldes initiaux inclus: {fmt(totalOB)} DHS</span>
+                  <div className="text-xs text-amber-600">Anciens soldes avant l'utilisation de l'app</div>
+                </div>
+              </div>
+            ) : null
+          })()}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="stat-card border border-amber-100 bg-amber-50">
               <div className="stat-label text-amber-600">Total quantité</div>
@@ -403,7 +429,7 @@ export default function Grignon() {
             <div className="stat-card border border-orange-100 bg-orange-50">
               <div className="stat-label text-orange-600">Créances clients</div>
               <div className="stat-value text-orange-700">{fmt(totalCreances)} DHS</div>
-              <div className="stat-sub">{totalClients} client(s)</div>
+              <div className="stat-sub">{totalClients} client(s) — soldes initiaux inclus</div>
             </div>
             <div className="stat-card border border-gray-100 bg-gray-50">
               <div className="stat-label text-gray-500">Opérations</div>
@@ -744,9 +770,13 @@ export default function Grignon() {
               <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50">
                 <div>
                   <span className="font-semibold">{c.nom}</span>
-                  <span className="ml-3 text-xs text-orange-600">Solde: {fmt(c.solde)} DHS</span>
+                  <span className="ml-3 text-xs text-amber-600">🏦 Initial: {fmt(c.opening_balance || 0)} DHS</span>
+                  <span className="ml-2 text-xs text-orange-600">Solde final: {fmt(c.solde)} DHS</span>
                 </div>
-                <button onClick={() => deleteClient(c.id)} className="btn-danger text-xs">✕</button>
+                <div className="flex gap-2">
+                  <button onClick={() => editOpeningBalance(c)} className="text-xs px-2 py-1 rounded-lg border font-semibold" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
+                  <button onClick={() => deleteClient(c.id)} className="btn-danger text-xs">✕</button>
+                </div>
               </div>
             ))}
             {clients.length === 0 && <div className="text-gray-400 text-sm">Aucun client grignon</div>}
