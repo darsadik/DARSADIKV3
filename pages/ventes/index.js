@@ -39,6 +39,7 @@ export default function Ventes() {
   const [filterCamion, setFilterCamion] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [fournTab, setFournTab] = useState('produit')
 
   useEffect(() => { loadAll() }, [])
 
@@ -391,6 +392,26 @@ export default function Ventes() {
   }
 
   function FournisseurView() {
+
+    // ── GROUP BY PRODUIT (type_brique) ──
+    // For each product: per-day quantities + total briques + total price
+    const byProduit = {}
+    fFiltered.forEach(v => {
+      const prod = v.type_brique || 'Sans produit'
+      if (!byProduit[prod]) byProduit[prod] = { days: {}, totalQte: 0, totalAchat: 0, ops: [] }
+      byProduit[prod].totalQte   += v.qte || 0
+      byProduit[prod].totalAchat += v.total_achat || 0
+      byProduit[prod].ops.push(v)
+      const day = v.date
+      if (!byProduit[prod].days[day]) byProduit[prod].days[day] = { qte: 0, total: 0, prix: v.prix_achat || 0 }
+      byProduit[prod].days[day].qte   += v.qte || 0
+      byProduit[prod].days[day].total += v.total_achat || 0
+    })
+
+    // Grand totals across all products
+    const grandTotalQte   = Object.values(byProduit).reduce((s, p) => s + p.totalQte, 0)
+    const grandTotalAchat = Object.values(byProduit).reduce((s, p) => s + p.totalAchat, 0)
+
     const byFourn = {}
     fFiltered.forEach(v => {
       const f = v.fournisseur || 'Sans fournisseur'
@@ -406,6 +427,132 @@ export default function Ventes() {
       { label: 'Ce mois', key: 'month' },
       { label: 'Cette année', key: 'year' },
     ]
+
+    // ── PRODUIT VIEW (inside FournisseurView) ──
+    function ProduitView() {
+      return (
+        <div className="space-y-4">
+          {/* Grand total bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="stat-card border border-blue-100 bg-blue-50 col-span-2">
+              <div className="stat-label text-blue-600">Total toutes briques</div>
+              <div className="stat-value text-blue-700">{fmt(grandTotalQte)} briques</div>
+              <div className="stat-sub">{Object.keys(byProduit).length} produit(s)</div>
+            </div>
+            <div className="stat-card border border-amber-100 bg-amber-50 col-span-2">
+              <div className="stat-label text-amber-600">Total achat global</div>
+              <div className="stat-value text-amber-700">{fmt(grandTotalAchat)} DHS</div>
+              <div className="stat-sub">Tous produits confondus</div>
+            </div>
+          </div>
+
+          {/* One card per product */}
+          {Object.entries(byProduit)
+            .sort((a, b) => b[1].totalQte - a[1].totalQte)
+            .map(([prod, data]) => (
+            <div key={prod} className="card">
+              {/* Product header */}
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2"
+                style={{background:'#1a5fa8',borderRadius:10,padding:'10px 16px',color:'#fff',margin:'-16px -16px 16px -16px'}}>
+                <div>
+                  <div className="font-bold text-lg">📦 {prod}</div>
+                  <div className="text-xs opacity-80">{data.ops.length} opération(s)</div>
+                </div>
+                <div className="flex gap-4 text-sm text-right">
+                  <div>
+                    <div className="opacity-70 text-xs">Total briques</div>
+                    <div className="font-bold text-base">{fmt(data.totalQte)}</div>
+                  </div>
+                  <div>
+                    <div className="opacity-70 text-xs">Total achat</div>
+                    <div className="font-bold text-base">{fmt(data.totalAchat)} DHS</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Daily breakdown table */}
+              <div className="text-xs font-bold text-gray-400 uppercase mb-2">📅 Quantités journalières</div>
+              {isMobile ? (
+                <div className="space-y-2">
+                  {Object.entries(data.days)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([day, d]) => (
+                    <div key={day} className="flex items-center justify-between py-2 border-b border-gray-50">
+                      <div>
+                        <div className="font-semibold text-gray-900">{day}</div>
+                        <div className="text-xs text-gray-400">{fmtD(d.prix)} DHS/u</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-blue-700">{fmt(d.qte)} briques</div>
+                        <div className="text-xs text-amber-600">{fmt(d.total)} DHS</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr>
+                        <th className="th">Date</th>
+                        <th className="th">Produit</th>
+                        <th className="th text-right">Quantité (briques)</th>
+                        <th className="th text-right">Prix achat/u DHS</th>
+                        <th className="th text-right">Total DHS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(data.days)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([day, d]) => (
+                        <tr key={day} className="hover:bg-gray-50">
+                          <td className="td font-semibold text-gray-700">{day}</td>
+                          <td className="td"><span className="badge-blue">{prod}</span></td>
+                          <td className="td text-right font-bold text-blue-700">{fmt(d.qte)}</td>
+                          <td className="td text-right text-gray-500">{fmtD(d.prix)}</td>
+                          <td className="td text-right font-bold text-amber-700">{fmt(d.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td className="tfoot-td" colSpan={2}>TOTAL {prod} ({Object.keys(data.days).length} jour(s))</td>
+                        <td className="tfoot-td text-right">{fmt(data.totalQte)}</td>
+                        <td className="tfoot-td"></td>
+                        <td className="tfoot-td text-right">{fmt(data.totalAchat)} DHS</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Grand total footer */}
+          {Object.keys(byProduit).length > 1 && (
+            <div className="card" style={{background:'#fefce8',border:'2px solid #fde68a'}}>
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="font-bold text-amber-900 text-lg">🧾 TOTAL GÉNÉRAL — Tous produits</div>
+                <div className="flex gap-6">
+                  <div className="text-center">
+                    <div className="text-xs text-amber-600">Total briques</div>
+                    <div className="text-2xl font-bold text-amber-800">{fmt(grandTotalQte)}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-amber-600">Total achat DHS</div>
+                    <div className="text-2xl font-bold text-amber-800">{fmt(grandTotalAchat)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {Object.keys(byProduit).length === 0 && (
+            <div className="card text-center py-10 text-gray-400">Aucune donnée pour cette période</div>
+          )}
+        </div>
+      )
+    }
 
     return (
       <div className="space-y-4">
@@ -453,6 +600,22 @@ export default function Ventes() {
           </button>
         </div>
 
+        {/* Sub-tabs: Par produit / Par fournisseur */}
+        <div className="flex gap-2">
+          {[
+            { key: 'produit',      label: '📦 Par produit' },
+            { key: 'fournisseur',  label: '🏭 Par fournisseur' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setFournTab(t.key)}
+              className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${fournTab===t.key?'bg-brand-500 text-white border-brand-500':'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {fournTab === 'produit' && <ProduitView />}
+
+        {fournTab === 'fournisseur' && <div className="space-y-4">
         {/* Per-fournisseur tables */}
         {Object.entries(byFourn).map(([fourn, data]) => (
           <div key={fourn} className="card">
@@ -521,6 +684,8 @@ export default function Ventes() {
           </div>
         ))}
         {Object.keys(byFourn).length === 0 && <div className="card text-center py-10 text-gray-400">Aucune donnée pour cette période</div>}
+        </div>}
+
       </div>
     )
   }
