@@ -91,8 +91,7 @@ export default function Grignon() {
   const totVente = Math.round(qte * pVente * 100) / 100
   const marge    = Math.round((totVente - totAchat) * 100) / 100
 
-  async function saveOperation(e) {
-    e.preventDefault()
+  async function saveOperation() {
     if (!admin) return
     setSaving(true)
     const cl = clients.find(c => c.id === parseInt(form.client_id))
@@ -140,7 +139,7 @@ export default function Grignon() {
   }
 
   // ── Grignon client management ──
-  async function addClient(e) {
+  async function addClient() {
     e.preventDefault()
     if (!admin || !newClientNom.trim()) return
     await supabase.from('grignon_clients').insert({ nom: newClientNom.trim(), solde: 0 })
@@ -155,8 +154,7 @@ export default function Grignon() {
   }
 
   // ── Grignon fournisseur management ──
-  async function addFournisseur(e) {
-    e.preventDefault()
+  async function addFournisseur() {
     if (!admin || !newFournNom.trim()) return
     await supabase.from('grignon_fournisseurs').insert({ nom: newFournNom.trim() })
     setNewFournNom('')
@@ -170,8 +168,7 @@ export default function Grignon() {
   }
 
   // ── Grignon camion management ──
-  async function addCamion(e) {
-    e.preventDefault()
+  async function addCamion() {
     if (!admin || !newCamionPlaque.trim()) return
     await supabase.from('grignon_camions').insert({ plaque: newCamionPlaque.trim(), chauffeur: newCamionChauffeur.trim() })
     setNewCamionPlaque('')
@@ -737,10 +734,11 @@ export default function Grignon() {
         {/* Clients */}
         <div className="card">
           <h3 className="font-bold text-gray-900 mb-4">👤 Clients Grignon</h3>
-          <form onSubmit={addClient} className="flex gap-2 mb-4">
-            <input className="input flex-1" placeholder="Nom du client grignon" value={newClientNom} onChange={e=>setNewClientNom(e.target.value)} required />
-            <button type="submit" className="btn-primary">+ Ajouter</button>
-          </form>
+          <div className="flex gap-2 mb-4">
+            <input className="input flex-1" placeholder="Nom du client grignon" value={newClientNom} onChange={e=>setNewClientNom(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter') addClient() }} />
+            <button onClick={addClient} className="btn-primary">+ Ajouter</button>
+          </div>
           <div className="space-y-2">
             {clients.map(c => (
               <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50">
@@ -758,10 +756,11 @@ export default function Grignon() {
         {/* Fournisseurs */}
         <div className="card">
           <h3 className="font-bold text-gray-900 mb-4">🏭 Fournisseurs Grignon</h3>
-          <form onSubmit={addFournisseur} className="flex gap-2 mb-4">
-            <input className="input flex-1" placeholder="Nom du fournisseur grignon" value={newFournNom} onChange={e=>setNewFournNom(e.target.value)} required />
-            <button type="submit" className="btn-primary">+ Ajouter</button>
-          </form>
+          <div className="flex gap-2 mb-4">
+            <input className="input flex-1" placeholder="Nom du fournisseur grignon" value={newFournNom} onChange={e=>setNewFournNom(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter') addFournisseur() }} />
+            <button onClick={addFournisseur} className="btn-primary">+ Ajouter</button>
+          </div>
           <div className="space-y-2">
             {fournisseurs.map(f => (
               <div key={f.id} className="flex items-center justify-between py-2 border-b border-gray-50">
@@ -776,11 +775,13 @@ export default function Grignon() {
         {/* Camions */}
         <div className="card">
           <h3 className="font-bold text-gray-900 mb-4">🚛 Camions Grignon</h3>
-          <form onSubmit={addCamion} className="flex gap-2 mb-4 flex-wrap">
-            <input className="input" placeholder="Plaque" value={newCamionPlaque} onChange={e=>setNewCamionPlaque(e.target.value)} required />
-            <input className="input" placeholder="Chauffeur (optionnel)" value={newCamionChauffeur} onChange={e=>setNewCamionChauffeur(e.target.value)} />
-            <button type="submit" className="btn-primary">+ Ajouter</button>
-          </form>
+          <div className="flex gap-2 mb-4 flex-wrap">
+            <input className="input" placeholder="Plaque" value={newCamionPlaque} onChange={e=>setNewCamionPlaque(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter') addCamion() }} />
+            <input className="input" placeholder="Chauffeur (optionnel)" value={newCamionChauffeur} onChange={e=>setNewCamionChauffeur(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter') addCamion() }} />
+            <button onClick={addCamion} className="btn-primary">+ Ajouter</button>
+          </div>
           <div className="space-y-2">
             {camions.map(c => (
               <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50">
@@ -914,7 +915,7 @@ export default function Grignon() {
       {view === 'saisie' && admin && (
         <div className="card mb-4">
           <h3 className="font-bold text-gray-900 mb-4">➕ Nouvelle opération grignon (fitour)</h3>
-          <form onSubmit={saveOperation}>
+          <div>
             <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
               <div><label className="label">Date</label>
                 <input type="date" className="input" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} required />
@@ -963,10 +964,10 @@ export default function Grignon() {
               </div>
             )}
 
-            <button type="submit" disabled={saving} className={`btn-primary ${isMobile ? 'w-full justify-center' : ''}`}>
+            <button onClick={saveOperation} disabled={saving} className={`btn-primary ${isMobile ? 'w-full justify-center' : ''}`}>
               {saving ? 'Enregistrement...' : '✓ Enregistrer'}
             </button>
-          </form>
+          </div>
         </div>
       )}
 
