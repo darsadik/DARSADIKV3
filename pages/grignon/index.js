@@ -820,87 +820,7 @@ export default function Grignon() {
     )
   }
 
-  // ── Gestion tab: manage grignon clients / fournisseurs / camions ──
-  function GestionView() {
-    if (!admin) return (
-      <div className="card flex flex-col items-center justify-center py-20 text-center">
-        <div className="text-5xl mb-4">🔒</div>
-        <div className="text-xl font-bold text-gray-900">Accès restreint</div>
-      </div>
-    )
-    return (
-      <div className="space-y-6">
-        {/* Clients */}
-        <div className="card">
-          <h3 className="font-bold text-gray-900 mb-4">👤 Clients Grignon</h3>
-          <div className="flex gap-2 mb-4">
-            <input className="input flex-1" placeholder="Nom du client grignon" value={newClientNom} onChange={e=>setNewClientNom(e.target.value)}
-              onKeyDown={e=>{ if(e.key==='Enter') addClient() }} />
-            <button onClick={addClient} className="btn-primary">+ Ajouter</button>
-          </div>
-          <div className="space-y-2">
-            {clients.map(c => (
-              <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50">
-                <div>
-                  <span className="font-semibold">{c.nom}</span>
-                  <span className="ml-3 text-xs text-amber-600">🏦 Initial: {fmt(c.opening_balance || 0)} DHS</span>
-                  <span className="ml-2 text-xs text-orange-600">Solde final: {fmt(c.solde)} DHS</span>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => editOpeningBalance(c)} className="text-xs px-2 py-1 rounded-lg border font-semibold" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
-                  <button onClick={() => deleteClient(c.id)} className="btn-danger text-xs">✕</button>
-                </div>
-              </div>
-            ))}
-            {clients.length === 0 && <div className="text-gray-400 text-sm">Aucun client grignon</div>}
-          </div>
-        </div>
-
-        {/* Fournisseurs */}
-        <div className="card">
-          <h3 className="font-bold text-gray-900 mb-4">🏭 Fournisseurs Grignon</h3>
-          <div className="flex gap-2 mb-4">
-            <input className="input flex-1" placeholder="Nom du fournisseur grignon" value={newFournNom} onChange={e=>setNewFournNom(e.target.value)}
-              onKeyDown={e=>{ if(e.key==='Enter') addFournisseur() }} />
-            <button onClick={addFournisseur} className="btn-primary">+ Ajouter</button>
-          </div>
-          <div className="space-y-2">
-            {fournisseurs.map(f => (
-              <div key={f.id} className="flex items-center justify-between py-2 border-b border-gray-50">
-                <span className="font-semibold">{f.nom}</span>
-                <button onClick={() => deleteFournisseur(f.id)} className="btn-danger text-xs">✕</button>
-              </div>
-            ))}
-            {fournisseurs.length === 0 && <div className="text-gray-400 text-sm">Aucun fournisseur grignon</div>}
-          </div>
-        </div>
-
-        {/* Camions */}
-        <div className="card">
-          <h3 className="font-bold text-gray-900 mb-4">🚛 Camions Grignon</h3>
-          <div className="flex gap-2 mb-4 flex-wrap">
-            <input className="input" placeholder="Plaque" value={newCamionPlaque} onChange={e=>setNewCamionPlaque(e.target.value)}
-              onKeyDown={e=>{ if(e.key==='Enter') addCamion() }} />
-            <input className="input" placeholder="Chauffeur (optionnel)" value={newCamionChauffeur} onChange={e=>setNewCamionChauffeur(e.target.value)}
-              onKeyDown={e=>{ if(e.key==='Enter') addCamion() }} />
-            <button onClick={addCamion} className="btn-primary">+ Ajouter</button>
-          </div>
-          <div className="space-y-2">
-            {camions.map(c => (
-              <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50">
-                <div>
-                  <span className="font-semibold">{c.plaque}</span>
-                  {c.chauffeur && <span className="ml-2 text-xs text-gray-500">— {c.chauffeur}</span>}
-                </div>
-                <button onClick={() => deleteCamion(c.id)} className="btn-danger text-xs">✕</button>
-              </div>
-            ))}
-            {camions.length === 0 && <div className="text-gray-400 text-sm">Aucun camion grignon</div>}
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // GestionView is rendered inline to prevent input focus loss on re-render
 
   // ──────────────────────────────────────────────────────────
   //  RENDER
@@ -1083,7 +1003,105 @@ export default function Grignon() {
           {view === 'client'       && <ClientView />}
           {view === 'fournisseur'  && <FournisseurView />}
           {view === 'camion'       && <CamionView />}
-          {view === 'gestion'      && <GestionView />}
+          {view === 'gestion' && (
+            !admin ? (
+              <div className="card flex flex-col items-center justify-center py-20 text-center">
+                <div className="text-5xl mb-4">🔒</div>
+                <div className="text-xl font-bold text-gray-900">Accès restreint</div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Clients */}
+                <div className="card">
+                  <h3 className="font-bold text-gray-900 mb-4">👤 Clients Grignon</h3>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      className="input flex-1"
+                      placeholder="Nom du client grignon"
+                      value={newClientNom}
+                      onChange={e => setNewClientNom(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') addClient() }}
+                    />
+                    <button onClick={addClient} className="btn-primary">+ Ajouter</button>
+                  </div>
+                  <div className="space-y-2">
+                    {clients.map(c => (
+                      <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+                        <div>
+                          <span className="font-semibold">{c.nom}</span>
+                          <span className="ml-3 text-xs text-amber-600">🏦 Initial: {fmt(c.opening_balance || 0)} DHS</span>
+                          <span className="ml-2 text-xs text-orange-600">Solde: {fmt(c.solde)} DHS</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => editOpeningBalance(c)} className="text-xs px-2 py-1 rounded-lg border font-semibold" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
+                          <button onClick={() => deleteClient(c.id)} className="btn-danger text-xs">✕</button>
+                        </div>
+                      </div>
+                    ))}
+                    {clients.length === 0 && <div className="text-gray-400 text-sm">Aucun client grignon</div>}
+                  </div>
+                </div>
+
+                {/* Fournisseurs */}
+                <div className="card">
+                  <h3 className="font-bold text-gray-900 mb-4">🏭 Fournisseurs Grignon</h3>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      className="input flex-1"
+                      placeholder="Nom du fournisseur grignon"
+                      value={newFournNom}
+                      onChange={e => setNewFournNom(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') addFournisseur() }}
+                    />
+                    <button onClick={addFournisseur} className="btn-primary">+ Ajouter</button>
+                  </div>
+                  <div className="space-y-2">
+                    {fournisseurs.map(f => (
+                      <div key={f.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+                        <span className="font-semibold">{f.nom}</span>
+                        <button onClick={() => deleteFournisseur(f.id)} className="btn-danger text-xs">✕</button>
+                      </div>
+                    ))}
+                    {fournisseurs.length === 0 && <div className="text-gray-400 text-sm">Aucun fournisseur grignon</div>}
+                  </div>
+                </div>
+
+                {/* Camions */}
+                <div className="card">
+                  <h3 className="font-bold text-gray-900 mb-4">🚛 Camions Grignon</h3>
+                  <div className="flex gap-2 mb-4 flex-wrap">
+                    <input
+                      className="input"
+                      placeholder="Plaque"
+                      value={newCamionPlaque}
+                      onChange={e => setNewCamionPlaque(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') addCamion() }}
+                    />
+                    <input
+                      className="input"
+                      placeholder="Chauffeur (optionnel)"
+                      value={newCamionChauffeur}
+                      onChange={e => setNewCamionChauffeur(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') addCamion() }}
+                    />
+                    <button onClick={addCamion} className="btn-primary">+ Ajouter</button>
+                  </div>
+                  <div className="space-y-2">
+                    {camions.map(c => (
+                      <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50">
+                        <div>
+                          <span className="font-semibold">{c.plaque}</span>
+                          {c.chauffeur && <span className="ml-2 text-xs text-gray-500">— {c.chauffeur}</span>}
+                        </div>
+                        <button onClick={() => deleteCamion(c.id)} className="btn-danger text-xs">✕</button>
+                      </div>
+                    ))}
+                    {camions.length === 0 && <div className="text-gray-400 text-sm">Aucun camion grignon</div>}
+                  </div>
+                </div>
+              </div>
+            )
+          )}
         </>
       )}
     </Layout>
