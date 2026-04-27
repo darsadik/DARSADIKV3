@@ -378,15 +378,89 @@ export default function Grignon() {
   }
 
   // ──────────────────────────────────────────────────────────
+
+  function printDashboard() {
+    const win = window.open('', '_blank')
+    const date = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
+    const totalOB = clients.reduce((s,c) => s + (c.opening_balance || 0), 0)
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Grignon — Tableau de bord</title>
+      <style>${PRINT_CSS}
+        .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+        .kpi-box{background:#f5f5f5;border-radius:8px;padding:14px;text-align:center}
+        .kpi-box .lbl{font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px}
+        .kpi-box .val{font-size:20px;font-weight:800}
+        .kpi-amber .val{color:#b45309}.kpi-blue .val{color:#1d4ed8}
+        .kpi-purple .val{color:#7e22ce}.kpi-green .val{color:#15803d}
+        .kpi-orange .val{color:#c2410c}
+      </style></head><body>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div>
+          <h1>🫒 DAR SADIK — Grignon (Fitour) · Tableau de bord</h1>
+          <div class="sub">Généré le ${date}</div>
+        </div>
+        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+      </div>
+
+      ${totalOB > 0 ? `<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:16px">
+        🏦 <b>Soldes initiaux inclus: ${fmt(totalOB)} DHS</b> — Anciens soldes avant l'utilisation de l'app
+      </div>` : ''}
+
+      <div class="section-title">📊 Totaux globaux</div>
+      <div class="kpi-grid">
+        <div class="kpi-box kpi-amber"><div class="lbl">Total quantité</div><div class="val">${fmtD(totalKg)} kg</div></div>
+        <div class="kpi-box kpi-blue"><div class="lbl">Total achats</div><div class="val">${fmt(totalAchat)} DHS</div></div>
+        <div class="kpi-box kpi-purple"><div class="lbl">Total ventes</div><div class="val">${fmt(totalVente)} DHS</div></div>
+        <div class="kpi-box kpi-green"><div class="lbl">Marge brute</div><div class="val">${fmt(totalMarge)} DHS</div></div>
+        <div class="kpi-box kpi-orange"><div class="lbl">Créances clients</div><div class="val">${fmt(totalCreances)} DHS</div></div>
+        <div class="kpi-box"><div class="lbl">Opérations</div><div class="val">${operations.length}</div></div>
+      </div>
+
+      <div class="section-title">📅 Ce mois-ci</div>
+      <div class="kpi-grid">
+        <div class="kpi-box kpi-amber"><div class="lbl">Quantité</div><div class="val">${fmtD(monthKg)} kg</div></div>
+        <div class="kpi-box kpi-blue"><div class="lbl">Achats</div><div class="val">${fmt(monthAchat)} DHS</div></div>
+        <div class="kpi-box kpi-purple"><div class="lbl">Ventes</div><div class="val">${fmt(monthVente)} DHS</div></div>
+        <div class="kpi-box kpi-green"><div class="lbl">Marge</div><div class="val">${fmt(monthMarge)} DHS</div></div>
+      </div>
+
+      <div class="section-title">👤 Top clients</div>
+      <table>
+        <thead><tr><th>Client</th><th style="text-align:right">Quantité (kg)</th><th style="text-align:right">Vente DHS</th></tr></thead>
+        <tbody>${topClients.map(([nom, d]) => `<tr><td><b>${nom}</b></td><td style="text-align:right">${fmtD(d.qte)} kg</td><td style="text-align:right">${fmt(d.vente)} DHS</td></tr>`).join('')}
+        ${topClients.length === 0 ? '<tr><td colspan="3" style="text-align:center;color:#aaa">Aucun client</td></tr>' : ''}</tbody>
+      </table>
+
+      <div class="section-title">🏭 Top fournisseurs</div>
+      <table>
+        <thead><tr><th>Fournisseur</th><th style="text-align:right">Quantité (kg)</th><th style="text-align:right">Achat DHS</th></tr></thead>
+        <tbody>${topFourns.map(([nom, d]) => `<tr><td><b>${nom}</b></td><td style="text-align:right">${fmtD(d.qte)} kg</td><td style="text-align:right">${fmt(d.achat)} DHS</td></tr>`).join('')}
+        ${topFourns.length === 0 ? '<tr><td colspan="3" style="text-align:center;color:#aaa">Aucun fournisseur</td></tr>' : ''}</tbody>
+      </table>
+
+      <div class="section-title">📋 Clients — Soldes</div>
+      <table>
+        <thead><tr><th>Client</th><th style="text-align:right">Solde initial DHS</th><th style="text-align:right">Solde total DHS</th></tr></thead>
+        <tbody>${clients.map(c => `<tr><td><b>${c.nom}</b></td><td style="text-align:right">${fmt(c.opening_balance || 0)}</td><td style="text-align:right;color:#c2410c"><b>${fmt(c.solde || 0)}</b></td></tr>`).join('')}
+        ${clients.length === 0 ? '<tr><td colspan="3" style="text-align:center;color:#aaa">Aucun client</td></tr>' : ''}</tbody>
+        ${clients.length > 0 ? `<tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmt(clients.reduce((s,c)=>s+(c.opening_balance||0),0))}</td><td style="text-align:right;color:#c2410c">${fmt(totalCreances)}</td></tr></tfoot>` : ''}
+      </table>
+      </body></html>`)
+    win.document.close()
+  }
+
   //  DASHBOARD — fully separate from main project dashboard
   // ──────────────────────────────────────────────────────────
   function DashboardView() {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-2xl">🫒</span>
-          <h2 className="text-xl font-bold text-gray-900">Tableau de bord — Grignon (Fitour)</h2>
-          <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded-full px-3 py-1 font-semibold">Module isolé</span>
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🫒</span>
+            <h2 className="text-xl font-bold text-gray-900">Tableau de bord — Grignon (Fitour)</h2>
+            <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded-full px-3 py-1 font-semibold">Module isolé</span>
+          </div>
+          <button onClick={printDashboard} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ Imprimer Dashboard</button>
         </div>
 
         {/* All-time KPIs */}
