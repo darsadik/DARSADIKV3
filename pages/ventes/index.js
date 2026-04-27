@@ -247,7 +247,284 @@ export default function Ventes() {
     )
   }
 
-  // ── FOURNISSEUR VIEW ──
+  // ── FOURNISSEUR VIEW ─────────────────────────────────────────
+  const [fFilterFrom, setFFilterFrom] = useState(startOfMonth())
+  const [fFilterTo,   setFFilterTo]   = useState(today())
+  const [fFilterFourn, setFFilterFourn] = useState('')
+
+  const fQuick = (label) => {
+    const now = new Date()
+    const pad = n => String(n).padStart(2,'0')
+    if (label === 'today') {
+      const d = today(); setFFilterFrom(d); setFFilterTo(d)
+    } else if (label === 'week') {
+      const day = now.getDay() || 7
+      const mon = new Date(now); mon.setDate(now.getDate() - day + 1)
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+      setFFilterFrom(mon.toISOString().split('T')[0])
+      setFFilterTo(sun.toISOString().split('T')[0])
+    } else if (label === 'month') {
+      setFFilterFrom(`${now.getFullYear()}-${pad(now.getMonth()+1)}-01`)
+      setFFilterTo(today())
+    } else if (label === 'year') {
+      setFFilterFrom(`${now.getFullYear()}-01-01`)
+      setFFilterTo(`${now.getFullYear()}-12-31`)
+    }
+  }
+
+  const fFiltered = ventes.filter(v => {
+    if (fFilterFrom && v.date < fFilterFrom) return false
+    if (fFilterTo   && v.date > fFilterTo)   return false
+    if (fFilterFourn && v.fournisseur !== fFilterFourn) return false
+    return true
+  }).slice().sort((a,b) => a.date.localeCompare(b.date))
+
+  function buildFournisseurReportHTML() {
+    const byFourn = {}
+    fFiltered.forEach(v => {
+      const f = v.fournisseur || 'Sans fournisseur'
+      if (!byFourn[f]) byFourn[f] = { ops: [] }
+      byFourn[f].ops.push(v)
+    })
+
+    const css = `
+      body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#111}
+      h1{font-size:18px;margin:0 0 2px}
+      .sub{color:#888;font-size:11px;margin-bottom:16px}
+      .fourn-block{margin-bottom:28px;page-break-inside:avoid}
+      .fourn-header{background:#1a5fa8;color:#fff;border-radius:8px;padding:10px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+      .fourn-title{font-size:14px;font-weight:800}
+      table{width:100%;border-collapse:collapse;margin-top:4px}
+      th{background:#f5f5f5;padding:7px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:#888;border-bottom:1px solid #ddd}
+      td{padding:7px 8px;border-bottom:1px solid #f0f0f0;font-size:11px}
+      tfoot td{background:#eff6ff;font-weight:800;color:#1d4ed8;border-top:2px solid #bfdbfe}
+      .footer{margin-top:20px;padding-top:8px;border-top:1px solid #eee;color:#aaa;font-size:10px;text-align:center}
+      .print-btn{padding:7px 16px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;margin-bottom:14px}
+      @media print{.print-btn{display:none}}
+    `
+
+    const sections = Object.entries(byFourn).map(([fourn, data]) => {
+      const totQte   = data.ops.reduce((s,v)=>s+(v.qte||0),0)
+      const totAchat = data.ops.reduce((s,v)=>s+(v.total_achat||0),0)
+      const rows = data.ops.map(v => `<tr>
+        <td>${v.date}</td>
+        <td><b>${fourn}</b></td>
+        <td>${v.type_brique||'—'}</td>
+        <td style="text-align:right">${fmt(v.qte)}</td>
+        <td style="text-align:right">${fmtD(v.prix_achat)}</td>
+        <td style="text-align:right"><b>${fmt(v.total_achat)}</b></td>
+      </tr>`).join('')
+      return `
+        <div class="fourn-block">
+          <div class="fourn-header">
+            <div class="fourn-title">🏭 ${fourn}</div>
+            <div style="font-size:11px;opacity:.9">${data.ops.length} op. · ${fmt(totQte)} briques · ${fmt(totAchat)} DHS</div>
+          </div>
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Fournisseur</th><th>Produit</th>
+              <th style="text-align:right">Quantité</th>
+              <th style="text-align:right">Prix achat/u DHS</th>
+              <th style="text-align:right">Total DHS</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr>
+              <td colspan="3">TOTAL (${data.ops.length})</td>
+              <td style="text-align:right">${fmt(totQte)}</td>
+              <td></td>
+              <td style="text-align:right">${fmt(totAchat)} DHS</td>
+            </tr></tfoot>
+          </table>
+        </div>`
+    }).join('')
+
+    return `<!DOCTYPE html><html lang="fr"><head>
+      <meta charset="UTF-8">
+      <title>DAR SADIK — Rapport Fournisseurs</title>
+      <style>${css}</style>
+    </head><body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+        <div>
+          <h1>🏭 DAR SADIK — Rapport Fournisseurs (Achats)</h1>
+          <div class="sub">Période: ${fFilterFrom} → ${fFilterTo} | ${Object.keys(byFourn).length} fournisseur(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+        </div>
+        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+      </div>
+      ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
+      <div class="footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
+    </body></html>`
+  }
+
+  function printFournisseurReport() {
+    const win = window.open('', '_blank')
+    win.document.write(buildFournisseurReportHTML())
+    win.document.close()
+    setTimeout(() => win.print(), 400)
+  }
+
+  async function downloadFournisseurPDF() {
+    if (!window.html2pdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+        s.onload = resolve; s.onerror = reject
+        document.head.appendChild(s)
+      })
+    }
+    const tmp = document.createElement('div')
+    tmp.innerHTML = buildFournisseurReportHTML()
+    const body = tmp.querySelector('body')
+    const container = document.createElement('div')
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;font-family:Arial,sans-serif;font-size:12px;color:#111;padding:20px;background:#fff'
+    container.innerHTML = body ? body.innerHTML : tmp.innerHTML
+    container.querySelectorAll('.print-btn').forEach(el => el.remove())
+    document.body.appendChild(container)
+    await window.html2pdf().set({
+      margin: [10,10,10,10],
+      filename: `Fournisseurs-${fFilterFrom}-${fFilterTo}.pdf`,
+      image: { type:'jpeg', quality:0.98 },
+      html2canvas: { scale:2, useCORS:true },
+      jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
+      pagebreak: { mode:['avoid-all','css'] },
+    }).from(container).save()
+    document.body.removeChild(container)
+  }
+
+  function FournisseurView() {
+    const byFourn = {}
+    fFiltered.forEach(v => {
+      const f = v.fournisseur || 'Sans fournisseur'
+      if (!byFourn[f]) byFourn[f] = { ops: [], totQte: 0, totAchat: 0 }
+      byFourn[f].ops.push(v)
+      byFourn[f].totQte   += v.qte || 0
+      byFourn[f].totAchat += v.total_achat || 0
+    })
+
+    const quickBtns = [
+      { label: "Aujourd'hui", key: 'today' },
+      { label: 'Cette semaine', key: 'week' },
+      { label: 'Ce mois', key: 'month' },
+      { label: 'Cette année', key: 'year' },
+    ]
+
+    return (
+      <div className="space-y-4">
+
+        {/* Fournisseur-specific filters */}
+        <div className="card">
+          <div className="flex flex-wrap gap-2 mb-3">
+            {quickBtns.map(q => (
+              <button key={q.key} onClick={() => fQuick(q.key)}
+                className="px-3 py-1.5 rounded-lg border text-xs font-bold bg-white text-gray-600 border-gray-200 hover:bg-brand-50 hover:border-brand-300 transition-all">
+                {q.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div><label className="label">Du</label>
+              <input type="date" className="input" value={fFilterFrom} onChange={e=>setFFilterFrom(e.target.value)} />
+            </div>
+            <div><label className="label">Au</label>
+              <input type="date" className="input" value={fFilterTo} onChange={e=>setFFilterTo(e.target.value)} />
+            </div>
+            <div><label className="label">Fournisseur</label>
+              <select className="input" value={fFilterFourn} onChange={e=>setFFilterFourn(e.target.value)}>
+                <option value="">Tous</option>
+                {uniqueFourns.map(f=><option key={f}>{f}</option>)}
+              </select>
+            </div>
+            <button onClick={()=>{setFFilterFrom(startOfMonth());setFFilterTo(today());setFFilterFourn('')}}
+              className="btn-secondary text-xs">↺ Réinitialiser</button>
+          </div>
+          <div className="mt-2 text-xs text-gray-400">
+            {fFiltered.length} opération(s) — {fmt(fFiltered.reduce((s,v)=>s+(v.qte||0),0))} briques — {fmt(fFiltered.reduce((s,v)=>s+(v.total_achat||0),0))} DHS achat
+          </div>
+        </div>
+
+        {/* Print + PDF */}
+        <div className="flex gap-2 justify-end">
+          <button onClick={printFournisseurReport}
+            className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>
+            🖨️ Imprimer
+          </button>
+          <button onClick={downloadFournisseurPDF}
+            className="btn-primary text-xs px-3 py-1.5" style={{background:'#dc2626'}}>
+            📄 Télécharger PDF
+          </button>
+        </div>
+
+        {/* Per-fournisseur tables */}
+        {Object.entries(byFourn).map(([fourn, data]) => (
+          <div key={fourn} className="card">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <h3 className="font-bold text-lg text-brand-700">🏭 {fourn}</h3>
+              <div className="flex gap-4 text-sm">
+                <span className="text-gray-500">Qté: <b className="text-gray-900">{fmt(data.totQte)} briques</b></span>
+                <span className="text-gray-500">Achat: <b className="text-amber-700">{fmt(data.totAchat)} DHS</b></span>
+              </div>
+            </div>
+
+            {isMobile ? (
+              <div className="space-y-2">
+                {data.ops.map(v => (
+                  <div key={v.id} className="mobile-row-card">
+                    <div className="card-header">
+                      <div>
+                        <div className="card-title">{v.type_brique||'—'}</div>
+                        <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{v.date}</div>
+                      </div>
+                      <div className="card-amount">{fmt(v.total_achat)} DHS</div>
+                    </div>
+                    <div className="card-meta">
+                      <span>📏 {fmt(v.qte)} briques</span>
+                      <span>💲 {fmtD(v.prix_achat)} DHS/u</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      <th className="th">Date</th>
+                      <th className="th">Fournisseur</th>
+                      <th className="th">Produit</th>
+                      <th className="th text-right">Quantité</th>
+                      <th className="th text-right">Prix achat/u DHS</th>
+                      <th className="th text-right">Total DHS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.ops.map(v => (
+                      <tr key={v.id} className="hover:bg-gray-50">
+                        <td className="td text-gray-500">{v.date}</td>
+                        <td className="td font-semibold">{fourn}</td>
+                        <td className="td"><span className="badge-blue">{v.type_brique||'—'}</span></td>
+                        <td className="td text-right">{fmt(v.qte)}</td>
+                        <td className="td text-right text-gray-500">{fmtD(v.prix_achat)}</td>
+                        <td className="td text-right font-bold text-amber-700">{fmt(v.total_achat)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td className="tfoot-td" colSpan={3}>TOTAL ({data.ops.length})</td>
+                      <td className="tfoot-td text-right">{fmt(data.totQte)}</td>
+                      <td className="tfoot-td"></td>
+                      <td className="tfoot-td text-right">{fmt(data.totAchat)} DHS</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        ))}
+        {Object.keys(byFourn).length === 0 && <div className="card text-center py-10 text-gray-400">Aucune donnée pour cette période</div>}
+      </div>
+    )
+  }
+
   // ── CAMION REPORT HTML (shared by print + PDF) ──────────────
   function buildCamionReportHTML() {
     const byCamion = {}
