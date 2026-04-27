@@ -18,7 +18,7 @@ export default function Clients() {
   const [clientPaiements, setClientPaiements] = useState([])
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ nom: '', depot: 'EL HAJEB', tel: '', solde: 0 })
+  const [form, setForm] = useState({ nom: '', depot: 'EL HAJEB', tel: '', solde: 0, opening_balance: 0 })
   const [showCustomDepot, setShowCustomDepot] = useState(false)
   const [customDepotValue, setCustomDepotValue] = useState('')
   const DEFAULT_DEPOTS = ['EL HAJEB', 'BERKANE', 'AHFIR', 'TAOUIMA', 'ZAIO']
@@ -80,6 +80,20 @@ export default function Clients() {
     await supabase.from('clients').update({ solde: n }).eq('id', client.id)
     loadClients()
     if (selected?.id === client.id) setSelected({ ...selected, solde: n })
+  }
+
+  async function editOpeningBalance(client) {
+    const v = prompt(`Solde initial (ancien solde) de ${client.nom}\nActuel: ${fmt(client.opening_balance || 0)} DHS\n\nCe montant représente ce que le client devait AVANT d'utiliser cette app.`, client.opening_balance || 0)
+    if (v === null) return
+    const n = parseFloat(v)
+    if (isNaN(n)) return
+    // Recalculate final solde: opening_balance + total ventes - total paiements
+    const totalV = clientVentes.reduce((s, v2) => s + (v2.total_vente || 0), 0)
+    const totalP = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+    const newSolde = n + totalV - totalP
+    await supabase.from('clients').update({ opening_balance: n, solde: newSolde }).eq('id', client.id)
+    loadClients()
+    if (selected?.id === client.id) setSelected({ ...selected, opening_balance: n, solde: newSolde })
   }
 
   // ---- DATE FILTER LOGIC ----
@@ -271,8 +285,9 @@ export default function Clients() {
                   </div>
                 </div>
                 <div>
-                  <label className="label">Solde initial (DHS)</label>
-                  <input className="input" type="number" value={form.solde} onChange={e => setForm({...form, solde: e.target.value})} />
+                  <label className="label">Solde d'ouverture (ancien solde DHS)</label>
+                  <input className="input" type="number" placeholder="0" value={form.opening_balance} onChange={e => setForm({...form, opening_balance: e.target.value, solde: e.target.value})} />
+                  <div className="text-xs text-gray-400 mt-1">Montant dû par ce client avant cette app</div>
                 </div>
                 <div className="flex gap-2">
                   <button type="submit" disabled={saving} className="btn-primary text-xs">{saving ? 'Enregistrement...' : '✓ Enregistrer'}</button>
@@ -343,6 +358,7 @@ export default function Clients() {
                     <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ Imprimer</button>
                     <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
                     <button onClick={() => editSolde(selected)} className="btn-secondary text-xs">✎ Solde</button>
+                    <button onClick={() => editOpeningBalance(selected)} className="btn-secondary text-xs" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
                     <button onClick={() => deleteClient(selected.id)} className="btn-danger">✕</button>
                   </div>
                 </div>
@@ -388,18 +404,24 @@ export default function Clients() {
                 </div>
 
                 {/* TOTALS */}
-                <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-400 mb-1">Solde dû</div>
-                    <div className={`text-2xl font-bold ${(selected.solde || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmt(selected.solde || 0)} DHS</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-100">
+                  <div className="text-center p-3 bg-amber-50 rounded-xl">
+                    <div className="text-xs text-amber-600 font-semibold mb-1">🏦 Solde initial</div>
+                    <div className="text-xl font-bold text-amber-700">{fmt(selected.opening_balance || 0)} DHS</div>
+                    <div className="text-xs text-gray-400 mt-1">Ancien solde</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-400 mb-1">Ventes {filterType !== 'all' ? '(période)' : ''}</div>
-                    <div className="text-2xl font-bold text-blue-600">{fmt(totalVentesClient)} DHS</div>
+                  <div className="text-center p-3 bg-blue-50 rounded-xl">
+                    <div className="text-xs text-blue-600 font-semibold mb-1">📦 Ventes {filterType !== 'all' ? '(période)' : ''}</div>
+                    <div className="text-xl font-bold text-blue-700">{fmt(totalVentesClient)} DHS</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-400 mb-1">Payé {filterType !== 'all' ? '(période)' : ''}</div>
-                    <div className="text-2xl font-bold text-green-600">{fmt(totalPaiementsClient)} DHS</div>
+                  <div className="text-center p-3 bg-green-50 rounded-xl">
+                    <div className="text-xs text-green-600 font-semibold mb-1">💰 Payé {filterType !== 'all' ? '(période)' : ''}</div>
+                    <div className="text-xl font-bold text-green-600">{fmt(totalPaiementsClient)} DHS</div>
+                  </div>
+                  <div className="text-center p-3 bg-red-50 rounded-xl border-2 border-red-100">
+                    <div className="text-xs text-red-600 font-semibold mb-1">⚠️ Solde final dû</div>
+                    <div className={`text-xl font-bold ${(selected.solde || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmt(selected.solde || 0)} DHS</div>
+                    <div className="text-xs text-gray-400 mt-1">Initial + Ventes − Paiements</div>
                   </div>
                 </div>
               </div>
