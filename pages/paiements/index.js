@@ -87,10 +87,40 @@ export default function Paiements() {
   function printPaiements() {
     const win = window.open('', '_blank')
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <style>body{font-family:Arial;padding:30px;font-size:13px}table{width:100%;border-collapse:collapse}
-    th{background:#f5f5f5;padding:8px;font-size:11px;text-align:left;border-bottom:1px solid #ddd}
-    td{padding:8px;border-bottom:1px solid #f0f0f0}tfoot td{background:#f0fdf4;font-weight:800;border-top:2px solid #bbf7d0}
-    @media print{button{display:none}}</style></head><body>
+    <style>
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000 !important; background: #fff !important; margin: 0; }
+      h1 { font-size: 18px; margin: 0 0 4px; color: #000 !important; }
+      h2 { font-size: 15px; color: #000 !important; }
+      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th { background: #1e293b !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
+      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #000 !important; }
+      tr:nth-child(even) td { background: #f8fafc !important; }
+      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #000 !important; border-top: 2px solid #334155 !important; font-size: 12px; }
+      b, strong { color: #000 !important; font-weight: 800; }
+      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
+      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1e293b; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #000 !important; border: 1px solid #cbd5e1; }
+      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
+      .fourn-header { background: #1e293b !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
+      .prod-block { margin-bottom: 12px; }
+      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1e293b; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #000 !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
+      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #000 !important; border-top: 3px solid #1e293b !important; font-size: 13px; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
+      .camion-header { background: #0f172a !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+      .info-box b { display: block; margin-bottom: 4px; color: #000 !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
+      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
+      @media print {
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        button, .no-print { display: none !important; }
+        body { padding: 0; }
+      }
+</style></head><body>
     <h1>DAR SADIK — Paiements ${filterFrom} → ${filterTo}</h1>
     <table><thead><tr><th>Date</th><th>Client</th><th>Mode</th><th style="text-align:right">Montant DHS</th><th>Référence</th></tr></thead>
     <tbody>${filtered.map(p=>`<tr><td>${p.date}</td><td><b>${p.client_nom}</b></td><td>${p.mode}</td><td style="text-align:right;color:green"><b>− ${fmt(p.montant)}</b></td><td>${p.note||'—'}</td></tr>`).join('')}</tbody>
