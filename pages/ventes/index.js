@@ -109,10 +109,40 @@ export default function Ventes() {
     const tV = filtered.reduce((s,v)=>s+(v.total_vente||0),0)
     const win = window.open('','_blank')
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ventes</title>
-    <style>body{font-family:Arial;padding:30px;font-size:13px}table{width:100%;border-collapse:collapse}
-    th{background:#f5f5f5;padding:8px;font-size:11px;text-align:left;border-bottom:1px solid #ddd}
-    td{padding:8px;border-bottom:1px solid #f0f0f0}tfoot td{background:#eff6ff;font-weight:800;border-top:2px solid #bfdbfe}
-    @media print{button{display:none}}</style></head><body>
+    <style>
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000 !important; background: #fff !important; margin: 0; }
+      h1 { font-size: 18px; margin: 0 0 4px; color: #000 !important; }
+      h2 { font-size: 15px; color: #000 !important; }
+      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th { background: #1e293b !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
+      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #000 !important; }
+      tr:nth-child(even) td { background: #f8fafc !important; }
+      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #000 !important; border-top: 2px solid #334155 !important; font-size: 12px; }
+      b, strong { color: #000 !important; font-weight: 800; }
+      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
+      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1e293b; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #000 !important; border: 1px solid #cbd5e1; }
+      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
+      .fourn-header { background: #1e293b !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
+      .prod-block { margin-bottom: 12px; }
+      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1e293b; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #000 !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
+      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #000 !important; border-top: 3px solid #1e293b !important; font-size: 13px; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
+      .camion-header { background: #0f172a !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+      .info-box b { display: block; margin-bottom: 4px; color: #000 !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
+      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
+      @media print {
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        button, .no-print { display: none !important; }
+        body { padding: 0; }
+      }
+</style></head><body>
     <h1>DAR SADIK — Ventes ${filterFrom} → ${filterTo}</h1>
     <table><thead><tr><th>Date</th><th>Client</th><th>Produit</th><th>Transport</th><th>Qté</th><th>Prix/u</th><th>Total DHS</th></tr></thead>
     <tbody>${filtered.map(v=>`<tr><td>${v.date}</td><td><b>${v.client_nom}</b></td><td>${v.type_brique||'—'}</td><td>${v.camion_plaque}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${fmtD(v.prix_vente)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td></tr>`).join('')}</tbody>
@@ -289,20 +319,39 @@ export default function Ventes() {
     })
 
     const css = `
-      body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#111}
-      h1{font-size:18px;margin:0 0 2px}
-      .sub{color:#888;font-size:11px;margin-bottom:16px}
-      .fourn-block{margin-bottom:28px;page-break-inside:avoid}
-      .fourn-header{background:#1a5fa8;color:#fff;border-radius:8px;padding:10px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
-      .fourn-title{font-size:14px;font-weight:800}
-      table{width:100%;border-collapse:collapse;margin-top:4px}
-      th{background:#f5f5f5;padding:7px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:#888;border-bottom:1px solid #ddd}
-      td{padding:7px 8px;border-bottom:1px solid #f0f0f0;font-size:11px}
-      tfoot td{background:#eff6ff;font-weight:800;color:#1d4ed8;border-top:2px solid #bfdbfe}
-      .footer{margin-top:20px;padding-top:8px;border-top:1px solid #eee;color:#aaa;font-size:10px;text-align:center}
-      .print-btn{padding:7px 16px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;margin-bottom:14px}
-      @media print{.print-btn{display:none}}
-    `
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000 !important; background: #fff !important; margin: 0; }
+      h1 { font-size: 18px; margin: 0 0 4px; color: #000 !important; }
+      h2 { font-size: 15px; color: #000 !important; }
+      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th { background: #1e293b !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
+      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #000 !important; }
+      tr:nth-child(even) td { background: #f8fafc !important; }
+      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #000 !important; border-top: 2px solid #334155 !important; font-size: 12px; }
+      b, strong { color: #000 !important; font-weight: 800; }
+      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
+      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1e293b; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #000 !important; border: 1px solid #cbd5e1; }
+      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
+      .fourn-header { background: #1e293b !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
+      .prod-block { margin-bottom: 12px; }
+      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1e293b; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #000 !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
+      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #000 !important; border-top: 3px solid #1e293b !important; font-size: 13px; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
+      .camion-header { background: #0f172a !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+      .info-box b { display: block; margin-bottom: 4px; color: #000 !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
+      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
+      @media print {
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        button, .no-print { display: none !important; }
+        body { padding: 0; }
+      }
+`
 
     const sections = Object.entries(byFourn).map(([fourn, data]) => {
       const totQte   = data.ops.reduce((s,v)=>s+(v.qte||0),0)
@@ -342,7 +391,40 @@ export default function Ventes() {
     return `<!DOCTYPE html><html lang="fr"><head>
       <meta charset="UTF-8">
       <title>DAR SADIK — Rapport Fournisseurs</title>
-      <style>${css}</style>
+      <style>
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000 !important; background: #fff !important; margin: 0; }
+      h1 { font-size: 18px; margin: 0 0 4px; color: #000 !important; }
+      h2 { font-size: 15px; color: #000 !important; }
+      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th { background: #1e293b !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
+      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #000 !important; }
+      tr:nth-child(even) td { background: #f8fafc !important; }
+      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #000 !important; border-top: 2px solid #334155 !important; font-size: 12px; }
+      b, strong { color: #000 !important; font-weight: 800; }
+      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
+      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1e293b; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #000 !important; border: 1px solid #cbd5e1; }
+      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
+      .fourn-header { background: #1e293b !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
+      .prod-block { margin-bottom: 12px; }
+      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1e293b; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #000 !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
+      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #000 !important; border-top: 3px solid #1e293b !important; font-size: 13px; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
+      .camion-header { background: #0f172a !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+      .info-box b { display: block; margin-bottom: 4px; color: #000 !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
+      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
+      @media print {
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        button, .no-print { display: none !important; }
+        body { padding: 0; }
+      }
+</style>
     </head><body>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
         <div>
@@ -706,27 +788,39 @@ export default function Ventes() {
     })
 
     const css = `
-      body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#111}
-      h1{font-size:19px;margin:0 0 2px}
-      .sub{color:#888;font-size:11px;margin-bottom:18px}
-      .camion-block{margin-bottom:32px;page-break-inside:avoid}
-      .camion-header{background:#1a5fa8;color:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
-      .camion-title{font-size:15px;font-weight:800}
-      .camion-sub{font-size:11px;opacity:.8;margin-top:2px}
-      .stats{display:flex;gap:10px;margin-bottom:10px}
-      .stat-box{background:#f5f5f5;border-radius:6px;padding:8px 14px;text-align:center;flex:1}
-      .stat-box .lbl{font-size:10px;color:#888;text-transform:uppercase}
-      .stat-box .val{font-size:16px;font-weight:800;color:#1a5fa8}
-      .products{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-      .product-pill{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700}
-      table{width:100%;border-collapse:collapse;margin-top:6px}
-      th{background:#f5f5f5;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:#888;border-bottom:1px solid #ddd}
-      td{padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:11px}
-      tfoot td{background:#eff6ff;font-weight:800;color:#1d4ed8;border-top:2px solid #bfdbfe}
-      .footer{margin-top:24px;padding-top:10px;border-top:1px solid #eee;color:#aaa;font-size:10px;text-align:center}
-      .print-btn{padding:8px 18px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;margin-bottom:16px}
-      @media print{.print-btn{display:none}}
-    `
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000 !important; background: #fff !important; margin: 0; }
+      h1 { font-size: 18px; margin: 0 0 4px; color: #000 !important; }
+      h2 { font-size: 15px; color: #000 !important; }
+      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th { background: #1e293b !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
+      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #000 !important; }
+      tr:nth-child(even) td { background: #f8fafc !important; }
+      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #000 !important; border-top: 2px solid #334155 !important; font-size: 12px; }
+      b, strong { color: #000 !important; font-weight: 800; }
+      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
+      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1e293b; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #000 !important; border: 1px solid #cbd5e1; }
+      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
+      .fourn-header { background: #1e293b !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
+      .prod-block { margin-bottom: 12px; }
+      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1e293b; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #000 !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
+      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #000 !important; border-top: 3px solid #1e293b !important; font-size: 13px; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
+      .camion-header { background: #0f172a !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+      .info-box b { display: block; margin-bottom: 4px; color: #000 !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
+      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
+      @media print {
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        button, .no-print { display: none !important; }
+        body { padding: 0; }
+      }
+`
 
     const camionBlocks = Object.entries(byCamion)
       .sort((a, b) => b[1].qte - a[1].qte)
@@ -780,7 +874,40 @@ export default function Ventes() {
     return `<!DOCTYPE html><html lang="fr"><head>
       <meta charset="UTF-8">
       <title>DAR SADIK — Rapport Camions</title>
-      <style>${css}</style>
+      <style>
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000 !important; background: #fff !important; margin: 0; }
+      h1 { font-size: 18px; margin: 0 0 4px; color: #000 !important; }
+      h2 { font-size: 15px; color: #000 !important; }
+      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th { background: #1e293b !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
+      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #000 !important; }
+      tr:nth-child(even) td { background: #f8fafc !important; }
+      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #000 !important; border-top: 2px solid #334155 !important; font-size: 12px; }
+      b, strong { color: #000 !important; font-weight: 800; }
+      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
+      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1e293b; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #000 !important; border: 1px solid #cbd5e1; }
+      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
+      .fourn-header { background: #1e293b !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
+      .prod-block { margin-bottom: 12px; }
+      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1e293b; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #000 !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
+      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #000 !important; border-top: 3px solid #1e293b !important; font-size: 13px; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
+      .camion-header { background: #0f172a !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+      .info-box b { display: block; margin-bottom: 4px; color: #000 !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
+      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
+      @media print {
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        button, .no-print { display: none !important; }
+        body { padding: 0; }
+      }
+</style>
     </head><body>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
         <div>
