@@ -5,247 +5,489 @@ import { useAuth } from './_app'
 import Link from 'next/link'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
-const fmtD = n => parseFloat(n || 0).toFixed(2)
+const today = () => new Date().toISOString().split('T')[0]
+const startOfWeek = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - d.getDay() + 1)
+  return d.toISOString().split('T')[0]
+}
+const startOfMonth = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
 
-function StatCard({ label, value, sub, color = 'blue', icon }) {
+function ProfitValue({ value }) {
+  const n = Math.round(value || 0)
+  const cls = n < 0 ? 'text-red-600' : n > 0 ? 'text-green-600' : 'text-gray-700'
+  return <span className={cls}>{fmt(n)} DHS</span>
+}
+
+function StatCard({ label, value, sub, color = 'blue', icon, isProfit = false, rawValue }) {
   const colors = {
-    blue:   'bg-blue-50 text-blue-600 border-blue-100',
-    green:  'bg-green-50 text-green-600 border-green-100',
-    red:    'bg-red-50 text-red-600 border-red-100',
-    amber:  'bg-amber-50 text-amber-600 border-amber-100',
-    purple: 'bg-purple-50 text-purple-600 border-purple-100',
+    blue: 'bg-blue-50 border-blue-100', green: 'bg-green-50 border-green-100',
+    red: 'bg-red-50 border-red-100', amber: 'bg-amber-50 border-amber-100',
+    purple: 'bg-purple-50 border-purple-100',
+  }
+  const iconBg = {
+    blue: 'bg-blue-100 text-blue-600', green: 'bg-green-100 text-green-600',
+    red: 'bg-red-100 text-red-600', amber: 'bg-amber-100 text-amber-600',
+    purple: 'bg-purple-100 text-purple-600',
   }
   const valColors = {
-    blue: 'text-blue-700', green: 'text-green-700', red: 'text-red-700', amber: 'text-amber-700', purple: 'text-purple-700'
+    blue: 'text-blue-700', green: 'text-green-700', red: 'text-red-700',
+    amber: 'text-amber-700', purple: 'text-purple-700',
   }
   return (
-    <div className={`stat-card border ${colors[color]}`}>
-      <div className="flex items-start justify-between mb-2">
-        <div className="stat-label text-current opacity-70">{label}</div>
-        <span className="text-xl">{icon}</span>
+    <div className={`stat-card border ${colors[color]} flex flex-col gap-2`}>
+      <div className="flex items-center justify-between">
+        <div className="stat-label text-gray-500">{label}</div>
+        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-base ${iconBg[color]}`}>{icon}</span>
       </div>
-      <div className={`stat-value ${valColors[color]}`}>{value}</div>
+      <div className="stat-value">
+        {isProfit
+          ? <ProfitValue value={rawValue} />
+          : <span className={valColors[color]}>{value}</span>
+        }
+      </div>
       {sub && <div className="stat-sub">{sub}</div>}
+    </div>
+  )
+}
+
+function SalesChart({ data }) {
+  if (!data || data.length === 0) return (
+    <div className="flex items-center justify-center h-40 text-gray-400 text-sm">Aucune donnée disponible</div>
+  )
+  const maxVal = Math.max(...data.map(d => Math.abs(d.value)), 1)
+  const total = data.length
+  const barW = Math.max(10, Math.min(36, Math.floor(540 / total) - 3))
+  const svgW = total * (barW + 3)
+  return (
+    <div className="overflow-x-auto pb-1">
+      <svg width={Math.max(svgW, 280)} height={155} style={{ minWidth: '100%', display: 'block' }}>
+        {[0, 0.5, 1].map(pct => (
+          <line key={pct} x1={0} x2="100%" y1={10 + (1 - pct) * 110} y2={10 + (1 - pct) * 110}
+            stroke="#f0f0f0" strokeWidth={1} />
+        ))}
+        {data.map((d, i) => {
+          const h = Math.max(3, Math.round((Math.abs(d.value) / maxVal) * 100))
+          const x = i * (barW + 3) + 1
+          const isNeg = d.value < 0
+          const y = isNeg ? 120 : 120 - h
+          return (
+            <g key={d.label + i}>
+              <rect x={x} y={y} width={barW} height={h} rx={2}
+                fill={isNeg ? '#ef4444' : '#3b82f6'} opacity={0.82} />
+              <text x={x + barW / 2} y={148} textAnchor="middle" fontSize={8} fill="#aaa">
+                {d.label}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+function Skeleton() {
+  return (
+    <div className="animate-pulse space-y-5">
+      <div className="grid grid-cols-3 gap-4">
+        {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 rounded-xl" />)}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {[...Array(5)].map((_, i) => <div key={i} className="h-24 bg-gray-200 rounded-xl" />)}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {[...Array(4)].map((_, i) => <div key={i} className="h-52 bg-gray-200 rounded-xl" />)}
+      </div>
     </div>
   )
 }
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [data, setData] = useState(null)
+  const [allVentes, setAllVentes] = useState([])
+  const [allGasoil, setAllGasoil] = useState([])
+  const [allClients, setAllClients] = useState([])
   const [loading, setLoading] = useState(true)
+  const [filterFrom, setFilterFrom] = useState(startOfMonth())
+  const [filterTo, setFilterTo] = useState(today())
+  const [quickFilter, setQuickFilter] = useState('month')
+  const [chartMode, setChartMode] = useState('day')
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadAll() }, [])
 
-  async function loadData() {
+  async function loadAll() {
     setLoading(true)
-    const [
-      { data: clients },
-      { data: ventes },
-      { data: gasoil },
-      { data: paiements },
-      { data: recentOps },
-    ] = await Promise.all([
+    const [{ data: ventes }, { data: gasoil }, { data: clients }] = await Promise.all([
+      supabase.from('ventes').select('*').order('date', { ascending: true }),
+      supabase.from('gasoil').select('*').order('date', { ascending: true }),
       supabase.from('clients').select('*'),
-      supabase.from('ventes').select('*'),
-      supabase.from('gasoil').select('*'),
-      supabase.from('paiements').select('*'),
-      supabase.from('ventes').select('*').order('date', { ascending: false }).limit(8),
     ])
-
-    const totalCreances = (clients || []).reduce((s, c) => s + (c.solde || 0), 0)
-    const totalVentes = (ventes || []).reduce((s, v) => s + (v.total_vente || 0), 0)
-    const totalGasoil = (gasoil || []).reduce((s, g) => s + (g.total || 0), 0)
-    const totalMarge = (ventes || []).reduce((s, v) => s + (v.marge || 0), 0)
-    const totalPaiements = (paiements || []).reduce((s, p) => s + (p.montant || 0), 0)
-
-    // By fournisseur
-    const byFourn = {}
-    ;(ventes || []).forEach(v => {
-      if (!byFourn[v.fournisseur]) byFourn[v.fournisseur] = { qte: 0, vente: 0, marge: 0 }
-      byFourn[v.fournisseur].qte += v.qte || 0
-      byFourn[v.fournisseur].vente += v.total_vente || 0
-      byFourn[v.fournisseur].marge += v.marge || 0
-    })
-
-    // By camion
-    const byCamion = {}
-    ;(ventes || []).forEach(v => {
-      if (!byCamion[v.camion_plaque]) byCamion[v.camion_plaque] = { qte: 0, vente: 0, voyages: 0 }
-      byCamion[v.camion_plaque].qte += v.qte || 0
-      byCamion[v.camion_plaque].vente += v.total_vente || 0
-      byCamion[v.camion_plaque].voyages += 1
-    })
-
-    // Top clients by solde
-    const topClients = (clients || []).filter(c => (c.solde || 0) > 0).sort((a, b) => (b.solde || 0) - (a.solde || 0)).slice(0, 6)
-
-    setData({ totalCreances, totalVentes, totalGasoil, totalMarge, totalPaiements, byFourn, byCamion, topClients, recentOps: recentOps || [], clients: clients || [] })
+    setAllVentes(ventes || [])
+    setAllGasoil(gasoil || [])
+    setAllClients(clients || [])
     setLoading(false)
   }
 
-  const urgentClients = data?.clients?.filter(c => (c.solde || 0) >= 100000) || []
+  function applyQuick(q) {
+    setQuickFilter(q)
+    const t = today()
+    if (q === 'today') { setFilterFrom(t); setFilterTo(t) }
+    else if (q === 'week') { setFilterFrom(startOfWeek()); setFilterTo(t) }
+    else if (q === 'month') { setFilterFrom(startOfMonth()); setFilterTo(t) }
+    else if (q === 'all') { setFilterFrom('2020-01-01'); setFilterTo(t) }
+  }
+
+  const filteredVentes = allVentes.filter(v =>
+    (!filterFrom || v.date >= filterFrom) && (!filterTo || v.date <= filterTo)
+  )
+  const filteredGasoil = allGasoil.filter(g =>
+    (!filterFrom || g.date >= filterFrom) && (!filterTo || g.date <= filterTo)
+  )
+
+  // Fixed profit periods
+  const t = today(), sw = startOfWeek(), sm = startOfMonth()
+  const profitToday = allVentes.filter(v => v.date === t).reduce((s, v) => s + (v.marge || 0), 0)
+    - allGasoil.filter(g => g.date === t).reduce((s, g) => s + (g.total || 0), 0)
+  const profitWeek = allVentes.filter(v => v.date >= sw).reduce((s, v) => s + (v.marge || 0), 0)
+    - allGasoil.filter(g => g.date >= sw).reduce((s, g) => s + (g.total || 0), 0)
+  const profitMonth = allVentes.filter(v => v.date >= sm).reduce((s, v) => s + (v.marge || 0), 0)
+    - allGasoil.filter(g => g.date >= sm).reduce((s, g) => s + (g.total || 0), 0)
+
+  // Period KPIs
+  const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+  const totalMarge = filteredVentes.reduce((s, v) => s + (v.marge || 0), 0)
+  const totalGasoilCost = filteredGasoil.reduce((s, g) => s + (g.total || 0), 0)
+  const profitNet = totalMarge - totalGasoilCost
+  const totalQte = filteredVentes.reduce((s, v) => s + (v.qte || 0), 0)
+  const totalCreances = allClients.reduce((s, c) => s + (c.solde || 0), 0)
+
+  // Client insights
+  const clientPurchases = {}
+  allVentes.forEach(v => {
+    if (!v.client_id) return
+    if (!clientPurchases[v.client_id]) clientPurchases[v.client_id] = { nom: v.client_nom, total: 0 }
+    clientPurchases[v.client_id].total += v.total_vente || 0
+  })
+  const top3Clients = Object.values(clientPurchases).sort((a, b) => b.total - a.total).slice(0, 3)
+  const highDebtClients = [...allClients].filter(c => (c.solde || 0) > 0).sort((a, b) => (b.solde || 0) - (a.solde || 0)).slice(0, 5)
+  const overdueClients = allClients.filter(c => (c.solde || 0) >= 50000)
+
+  // Product analysis
+  const byType = {}
+  filteredVentes.forEach(v => {
+    const t2 = v.type_brique || 'N/A'
+    byType[t2] = (byType[t2] || 0) + (v.qte || 0)
+  })
+  const byTypeSorted = Object.entries(byType).sort((a, b) => b[1] - a[1])
+  const mostSold = byTypeSorted[0]
+
+  // Chart data
+  const chartData = (() => {
+    if (chartMode === 'day') {
+      const byDay = {}
+      filteredVentes.forEach(v => { byDay[v.date] = (byDay[v.date] || 0) + (v.marge || 0) })
+      return Object.entries(byDay).sort((a, b) => a[0].localeCompare(b[0])).slice(-30).map(([d, val]) => ({ label: d.slice(5), value: val }))
+    } else {
+      const byMonth = {}
+      filteredVentes.forEach(v => { const m = v.date ? v.date.slice(0, 7) : '?'; byMonth[m] = (byMonth[m] || 0) + (v.marge || 0) })
+      return Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).map(([m, val]) => ({ label: m.slice(2), value: val }))
+    }
+  })()
+
+  // Alerts
+  const highDebtAlert = allClients.filter(c => (c.solde || 0) >= 100000)
+  const negativeProfitAlert = profitMonth < 0
 
   return (
     <Layout title="Dashboard" subtitle="Vue d'ensemble de votre activité">
-      {urgentClients.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-          <span className="text-red-500 text-xl flex-shrink-0">⚠️</span>
-          <div>
-            <div className="font-semibold text-red-700 text-sm">Soldes urgents — {urgentClients.length} client(s) ≥ 100 000 DHS</div>
-            <div className="text-red-600 text-xs mt-1">{urgentClients.map(c => c.nom).join(' • ')}</div>
-          </div>
+
+      {/* ALERTS */}
+      {(highDebtAlert.length > 0 || negativeProfitAlert) && (
+        <div className="space-y-3 mb-6">
+          {highDebtAlert.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-red-500 text-xl flex-shrink-0">⚠️</span>
+              <div>
+                <div className="font-semibold text-red-700 text-sm">Soldes urgents — {highDebtAlert.length} client(s) ≥ 100 000 DHS</div>
+                <div className="text-red-600 text-xs mt-1">{highDebtAlert.map(c => c.nom).join(' • ')}</div>
+              </div>
+            </div>
+          )}
+          {negativeProfitAlert && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-orange-500 text-xl flex-shrink-0">📉</span>
+              <div>
+                <div className="font-semibold text-orange-700 text-sm">Profit négatif ce mois — Vérifier les charges gasoil</div>
+                <div className="text-orange-600 text-xs mt-1">La marge brute ne couvre pas le gasoil ce mois-ci</div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+      {/* DATE FILTER */}
+      <div className="card mb-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-gray-600 flex-shrink-0">📅 Période :</span>
+          <div className="flex gap-1.5 flex-wrap">
+            {[
+              { key: 'today', label: "Aujourd'hui" },
+              { key: 'week', label: 'Semaine' },
+              { key: 'month', label: 'Ce mois' },
+              { key: 'all', label: 'Tout' },
+            ].map(q => (
+              <button key={q.key} onClick={() => applyQuick(q.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  quickFilter === q.key ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}>
+                {q.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 ml-auto flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-500 font-medium">De</label>
+              <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); setQuickFilter('custom') }}
+                className="input text-xs py-1.5 w-36" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-500 font-medium">À</label>
+              <input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); setQuickFilter('custom') }}
+                className="input text-xs py-1.5 w-36" />
+            </div>
+          </div>
         </div>
-      ) : (
+      </div>
+
+      {loading ? <Skeleton /> : (
         <>
-          {/* KPI CARDS */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-            <StatCard label="Créances totales" value={fmt(data.totalCreances)+' DHS'} sub="Dus par clients" color="red" icon="📋"/>
-            <StatCard label="Total ventes" value={fmt(data.totalVentes)+' DHS'} sub="Enregistrées" color="blue" icon="📦"/>
-            <StatCard label="Marge brute" value={fmt(data.totalMarge)+' DHS'} sub={data.totalVentes > 0 ? Math.round(data.totalMarge/data.totalVentes*100)+'%' : '0%'} color="green" icon="📈"/>
-            <StatCard label="Total gasoil" value={fmt(data.totalGasoil)+' DHS'} sub="Consommé" color="amber" icon="⛽"/>
-            <StatCard label="Marge nette" value={fmt(data.totalMarge - data.totalGasoil)+' DHS'} sub="Marge − Gasoil" color="purple" icon="💎"/>
+          {/* PROFIT SECTION */}
+          <div className="mb-6">
+            <h2 className="font-bold text-gray-700 text-sm uppercase tracking-wide mb-3">💰 Profit — Périodes fixes</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <StatCard label="Profit aujourd'hui" icon="📅" color={profitToday >= 0 ? 'green' : 'red'} isProfit rawValue={profitToday} sub="Marge brute − Gasoil" />
+              <StatCard label="Profit cette semaine" icon="📆" color={profitWeek >= 0 ? 'green' : 'red'} isProfit rawValue={profitWeek} sub="Marge brute − Gasoil" />
+              <StatCard label="Profit ce mois" icon="🗓️" color={profitMonth >= 0 ? 'green' : 'red'} isProfit rawValue={profitMonth} sub="Marge brute − Gasoil" />
+            </div>
           </div>
 
+          {/* PERIOD KPIs */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="font-bold text-gray-700 text-sm uppercase tracking-wide">📊 Résumé de la période sélectionnée</h2>
+              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+                {filterFrom} → {filterTo}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <StatCard label="Total ventes" value={fmt(totalVentes) + ' DHS'} icon="📦" color="blue" sub={fmt(totalQte) + ' briques'} />
+              <StatCard label="Marge brute" value={fmt(totalMarge) + ' DHS'} icon="📈" color="green"
+                sub={totalVentes > 0 ? Math.round(totalMarge / totalVentes * 100) + '% du CA' : '0%'} />
+              <StatCard label="Gasoil période" value={fmt(totalGasoilCost) + ' DHS'} icon="⛽" color="amber" sub="Dépense carburant" />
+              <StatCard label="Marge nette" icon="💎" color={profitNet >= 0 ? 'purple' : 'red'} isProfit rawValue={profitNet} sub="Marge − Gasoil" />
+              <StatCard label="Créances totales" value={fmt(totalCreances) + ' DHS'} icon="📋" color="red" sub="Soldes clients" />
+            </div>
+          </div>
+
+          {/* CHART + TOP CLIENTS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* TOP CLIENTS */}
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-gray-900">👥 Clients — Soldes</h2>
-                <Link href="/clients" className="text-xs text-brand-500 hover:underline">Voir tout →</Link>
+                <h2 className="font-semibold text-gray-900">📉 Marge — Evolution</h2>
+                <div className="flex gap-1">
+                  {[['day', 'Par jour'], ['month', 'Par mois']].map(([m, l]) => (
+                    <button key={m} onClick={() => setChartMode(m)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        chartMode === m ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}>{l}</button>
+                  ))}
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      <th className="th">Client</th>
-                      <th className="th">Dépôt</th>
-                      <th className="th text-right">Solde DHS</th>
-                      <th className="th">Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.topClients.map(c => {
-                      const s = c.solde || 0
-                      const badge = s >= 100000 ? 'badge-red' : s >= 30000 ? 'badge-amber' : 'badge-blue'
-                      const label = s >= 100000 ? 'Urgent' : s >= 30000 ? 'Attention' : 'En cours'
-                      return (
-                        <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="td font-semibold text-gray-900">{c.nom}</td>
-                          <td className="td text-gray-500">{c.depot}</td>
-                          <td className="td text-right font-bold text-gray-900">{fmt(s)}</td>
-                          <td className="td"><span className={badge}>{label}</span></td>
-                        </tr>
-                      )
-                    })}
-                    {data.topClients.length === 0 && (
-                      <tr><td colSpan={4} className="td text-center text-gray-400 py-6">Aucun client avec solde</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <SalesChart data={chartData} />
+              <p className="text-xs text-gray-400 mt-2 text-center">
+                {chartMode === 'day' ? '30 derniers jours de la période' : 'Marge mensuelle'} — Rouge = négatif
+              </p>
             </div>
 
-            {/* RECENT VENTES */}
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-gray-900">📦 Dernières ventes</h2>
-                <Link href="/ventes" className="text-xs text-brand-500 hover:underline">Voir tout →</Link>
+                <h2 className="font-semibold text-gray-900">🏆 Top 3 clients</h2>
+                <Link href="/clients" className="text-xs text-blue-500 hover:underline">Voir tout →</Link>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      <th className="th">Date</th>
-                      <th className="th">Client</th>
-                      <th className="th">Type</th>
-                      <th className="th text-right">Vente DHS</th>
-                      <th className="th text-right">Marge</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.recentOps.map(v => (
-                      <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="td text-gray-500">{v.date}</td>
-                        <td className="td font-medium text-gray-900 max-w-[120px] truncate">{v.client_nom}</td>
-                        <td className="td"><span className="badge-blue">{v.type_brique}</span></td>
-                        <td className="td text-right font-semibold">{fmt(v.total_vente)}</td>
-                        <td className="td text-right font-semibold text-green-600">{fmt(v.marge)}</td>
-                      </tr>
-                    ))}
-                    {data.recentOps.length === 0 && (
-                      <tr><td colSpan={5} className="td text-center text-gray-400 py-6">Aucune vente enregistrée</td></tr>
-                    )}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {top3Clients.map((c, i) => (
+                  <div key={c.nom} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0 ${
+                      i === 0 ? 'bg-yellow-100' : i === 1 ? 'bg-gray-200' : 'bg-orange-100'}`}>
+                      {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-900 text-sm truncate">{c.nom}</div>
+                      <div className="text-xs text-gray-400">Total achats (tous temps)</div>
+                    </div>
+                    <div className="font-bold text-green-600 text-sm whitespace-nowrap">{fmt(c.total)} DHS</div>
+                  </div>
+                ))}
+                {top3Clients.length === 0 && (
+                  <div className="text-center text-gray-400 text-sm py-6">Aucune donnée clients</div>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* BY FOURNISSEUR */}
+          {/* HIGH DEBT + PRODUCT */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div className="card">
-              <h2 className="font-semibold text-gray-900 mb-4">📦 Par fournisseur</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      <th className="th">Fournisseur</th>
-                      <th className="th text-right">Quantité</th>
-                      <th className="th text-right">Vente DHS</th>
-                      <th className="th text-right">Marge DHS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(data.byFourn).sort((a, b) => b[1].vente - a[1].vente).map(([fourn, d]) => (
-                      <tr key={fourn} className="hover:bg-gray-50">
-                        <td className="td font-semibold text-gray-900">{fourn || '—'}</td>
-                        <td className="td text-right">{fmt(d.qte)}</td>
-                        <td className="td text-right font-semibold">{fmt(d.vente)}</td>
-                        <td className="td text-right font-semibold text-green-600">{fmt(d.marge)}</td>
-                      </tr>
-                    ))}
-                    {Object.keys(data.byFourn).length === 0 && (
-                      <tr><td colSpan={4} className="td text-center text-gray-400 py-6">Aucune donnée</td></tr>
-                    )}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-900">💸 Clients — Dettes élevées</h2>
+                <Link href="/clients" className="text-xs text-blue-500 hover:underline">Voir tout →</Link>
               </div>
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="th">Client</th>
+                    <th className="th">Dépôt</th>
+                    <th className="th text-right">Solde DHS</th>
+                    <th className="th">Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {highDebtClients.map(c => {
+                    const s = c.solde || 0
+                    return (
+                      <tr key={c.id} className="hover:bg-gray-50">
+                        <td className="td font-semibold text-gray-900">{c.nom}</td>
+                        <td className="td text-gray-400 text-xs">{c.depot}</td>
+                        <td className="td text-right font-bold text-red-600">{fmt(s)}</td>
+                        <td className="td">
+                          <span className={s >= 100000 ? 'badge-red' : s >= 50000 ? 'badge-amber' : 'badge-blue'}>
+                            {s >= 100000 ? '🔴 Urgent' : s >= 50000 ? '🟡 Élevé' : '🔵 Normal'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {highDebtClients.length === 0 && (
+                    <tr><td colSpan={4} className="td text-center text-gray-400 py-6">✅ Aucun solde en attente</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            {/* BY CAMION */}
             <div className="card">
-              <h2 className="font-semibold text-gray-900 mb-4">🚛 Par camion</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      <th className="th">Camion</th>
-                      <th className="th text-right">Briques</th>
-                      <th className="th text-right">Voyages</th>
-                      <th className="th text-right">Vente DHS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(data.byCamion).sort((a, b) => b[1].qte - a[1].qte).slice(0, 8).map(([plaque, d]) => (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-900">🧱 Analyse — Types de briques</h2>
+                {mostSold && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">⭐ {mostSold[0]}</span>
+                )}
+              </div>
+              {byTypeSorted.length > 0 ? (
+                <div className="space-y-3">
+                  {byTypeSorted.map(([type, qte], i) => {
+                    const maxQte = byTypeSorted[0][1] || 1
+                    const pct = Math.round(qte / maxQte * 100)
+                    return (
+                      <div key={type}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-800">{type}</span>
+                            {i === 0 && <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-semibold">TOP</span>}
+                          </div>
+                          <span className="text-sm font-bold text-blue-700">{fmt(qte)} briques</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-2">
+                          <div className="h-2 rounded-full" style={{
+                            width: pct + '%',
+                            background: i === 0 ? '#2563eb' : i === 1 ? '#60a5fa' : '#bfdbfe'
+                          }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-gray-400 text-sm py-6">Aucune donnée pour cette période</div>
+              )}
+            </div>
+          </div>
+
+          {/* OVERDUE + GASOIL */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="card">
+              <h2 className="font-semibold text-gray-900 mb-4">⏰ Clients en retard (solde ≥ 50 000 DHS)</h2>
+              {overdueClients.length > 0 ? (
+                <div className="space-y-2">
+                  {overdueClients.map(c => (
+                    <div key={c.id} className="flex items-center justify-between p-3 bg-red-50 border border-red-100 rounded-xl">
+                      <div>
+                        <div className="font-semibold text-gray-900 text-sm">{c.nom}</div>
+                        <div className="text-xs text-gray-400">{c.depot || '—'}{c.tel ? ` • ${c.tel}` : ''}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-red-600 text-sm">{fmt(c.solde)} DHS</div>
+                        <span className={`text-xs font-semibold ${(c.solde || 0) >= 100000 ? 'text-red-700' : 'text-orange-600'}`}>
+                          {(c.solde || 0) >= 100000 ? '🔴 Urgent' : '🟠 Retard'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                  <span className="text-3xl mb-2">✅</span>
+                  <div className="text-sm">Aucun client en retard</div>
+                </div>
+              )}
+            </div>
+
+            <div className="card">
+              <h2 className="font-semibold text-gray-900 mb-4">⛽ Gasoil — Résumé période</h2>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                  <div className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-1">Coût total</div>
+                  <div className="text-xl font-bold text-amber-700">{fmt(totalGasoilCost)} DHS</div>
+                </div>
+                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                  <div className="text-xs text-orange-600 font-semibold uppercase tracking-wide mb-1">Nb. pleins</div>
+                  <div className="text-xl font-bold text-orange-700">{filteredGasoil.length}</div>
+                </div>
+              </div>
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="th">Camion</th>
+                    <th className="th text-right">Litres</th>
+                    <th className="th text-right">Coût DHS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const byCamion = {}
+                    filteredGasoil.forEach(g => {
+                      const k = g.camion_plaque || '—'
+                      if (!byCamion[k]) byCamion[k] = { litres: 0, total: 0 }
+                      byCamion[k].litres += g.qte || 0
+                      byCamion[k].total += g.total || 0
+                    })
+                    const rows = Object.entries(byCamion).sort((a, b) => b[1].total - a[1].total)
+                    if (rows.length === 0) return (
+                      <tr><td colSpan={3} className="td text-center text-gray-400 py-4">Aucune entrée gasoil</td></tr>
+                    )
+                    return rows.map(([plaque, d]) => (
                       <tr key={plaque} className="hover:bg-gray-50">
                         <td className="td font-semibold text-gray-900">{plaque}</td>
-                        <td className="td text-right">{fmt(d.qte)}</td>
-                        <td className="td text-right">{d.voyages}</td>
-                        <td className="td text-right font-semibold">{fmt(d.vente)}</td>
+                        <td className="td text-right text-gray-600">{Math.round(d.litres)} L</td>
+                        <td className="td text-right font-bold text-amber-600">{fmt(d.total)}</td>
                       </tr>
-                    ))}
-                    {Object.keys(data.byCamion).length === 0 && (
-                      <tr><td colSpan={4} className="td text-center text-gray-400 py-6">Aucune donnée</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                    ))
+                  })()}
+                </tbody>
+              </table>
+              <div className="mt-3 text-right">
+                <Link href="/gasoil" className="text-xs text-blue-500 hover:underline">Voir tout le gasoil →</Link>
               </div>
             </div>
           </div>
