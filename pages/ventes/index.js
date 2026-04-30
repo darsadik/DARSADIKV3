@@ -431,7 +431,13 @@ export default function Ventes() {
           <h1>🏭 DAR SADIK — Rapport Fournisseurs (Achats)</h1>
           <div class="sub">Période: ${fFilterFrom} → ${fFilterTo} | ${Object.keys(byFourn).length} fournisseur(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
         </div>
+        <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px">
         <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+      </div>
+          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+        </div>
       </div>
       ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
       <div class="footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
@@ -914,7 +920,13 @@ export default function Ventes() {
           <h1>🚛 DAR SADIK — Rapport Camions</h1>
           <div class="sub">Période: ${filterFrom} → ${filterTo} | ${Object.keys(byCamion).length} camion(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
         </div>
+        <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px">
         <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+      </div>
+          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+        </div>
       </div>
       ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
       <div class="footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
