@@ -48,7 +48,7 @@ export default function Clients() {
 
   async function selectClient(client) {
     setSelected(client)
-    setShowDetail(true)          // ← mobile: show detail panel
+    setShowDetail(true)
     setLoadingDetail(true)
     const [{ data: ventes }, { data: paiements }] = await Promise.all([
       supabase.from('ventes').select('*').eq('client_id', client.id).order('date', { ascending: true }),
@@ -143,60 +143,72 @@ export default function Clients() {
 <title>Fiche Client — ${selected.nom}</title>
 <style>
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Arial', sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; }
+  body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; }
 
-  /* ── LOGO HEADER ── */
-  .logo-bar { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 3px solid #1a5fa8; margin-bottom: 18px; }
+  .logo-bar { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 3px solid #475569; margin-bottom: 18px; }
   .logo-left { display: flex; align-items: center; gap: 10px; }
   .logo-icon { font-size: 26px; line-height: 1; }
-  .logo-text { font-size: 20px; font-weight: 900; color: #1a5fa8; letter-spacing: -0.5px; }
-  .logo-sub { font-size: 10px; color: #64748b; margin-top: 1px; letter-spacing: 0.03em; }
+  .logo-text { font-size: 20px; font-weight: 900; color: #1e293b; letter-spacing: -0.5px; }
+  .logo-sub { font-size: 10px; color: #64748b; margin-top: 1px; }
   .print-date { font-size: 10px; color: #94a3b8; text-align: right; padding-top: 4px; }
+  .btn-print { padding: 7px 16px; background: #475569; color: #fff; border: none; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; }
 
-  /* ── CLIENT IDENTITY ── */
   .client-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
-  .client-avatar { width: 44px; height: 44px; border-radius: 8px; background: #e0e7f3; border: 2px solid #c7d7ef; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #1a5fa8; flex-shrink: 0; }
+  .client-avatar { width: 44px; height: 44px; border-radius: 8px; background: #f1f5f9; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #475569; flex-shrink: 0; }
   .client-name { font-size: 17px; font-weight: 800; color: #1e293b; }
   .client-meta { font-size: 10px; color: #64748b; margin-top: 2px; }
 
-  /* ── PERIODE BADGE ── */
-  .periode { display: inline-flex; align-items: center; gap: 5px; background: #f0f5ff; border: 1px solid #c7d7ef; border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 700; color: #1a5fa8; margin-bottom: 16px; }
+  .periode { display: inline-flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 16px; }
 
-  /* ── SUMMARY ── */
   .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
   .sum-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 11px 14px; }
   .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 5px; }
-  .sum-val { font-size: 19px; font-weight: 900; line-height: 1; }
-  .c-solde  { color: #d97706; }
-  .c-ventes { color: #1a5fa8; }
+  .sum-val { font-size: 20px; font-weight: 900; line-height: 1; }
+  .c-solde  { color: #7c3aed; }
+  .c-ventes { color: #1e40af; }
   .c-paye   { color: #16a34a; }
 
-  /* ── SECTION TITLES ── */
-  .section-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin: 18px 0 8px; }
+  .section-title { font-size: 12px; font-weight: 700; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin: 18px 0 0; }
 
-  /* ── TABLES ── */
-  table { width: 100%; border-collapse: collapse; }
-  th { background: #1a5fa8 !important; color: #ffffff !important; padding: 7px 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; text-align: left; }
+  table { width: 100%; border-collapse: collapse; margin-top: 0; }
+  th {
+    background: #475569 !important;
+    color: #ffffff !important;
+    padding: 9px 12px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-align: left;
+    border: 1px solid #334155;
+  }
   th.r { text-align: right; }
-  td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; font-size: 11px; color: #1e293b; }
-  td.r { text-align: right; }
-  td.muted { color: #94a3b8; }
+  td {
+    padding: 9px 12px;
+    font-size: 12px;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    vertical-align: middle;
+  }
+  td.r { text-align: right; font-family: monospace; font-size: 13px; }
+  td.muted { color: #94a3b8; font-size: 11px; }
   tr:nth-child(even) td { background: #f8fafc !important; }
-  .bold { font-weight: 700; }
+  .num { font-weight: 700; font-size: 13px; }
   .green { color: #16a34a; font-weight: 700; }
-  .type-tag { background: #f0f5ff; color: #1a5fa8; border-radius: 3px; padding: 1px 6px; font-size: 10px; font-weight: 700; }
+  .type-tag { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 3px; padding: 2px 7px; font-size: 10px; font-weight: 700; }
 
-  /* ── TFOOT ── */
-  tfoot td { background: #e0e7f3 !important; color: #1a5fa8 !important; font-weight: 800; border-top: 2px solid #1a5fa8 !important; font-size: 11px; }
+  tfoot td {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+    font-weight: 800;
+    font-size: 12px;
+    border: 1px solid #cbd5e1;
+    border-top: 2px solid #475569 !important;
+  }
+  tfoot td.r { font-size: 14px; color: #1e293b !important; }
 
-  /* ── EMPTY ── */
-  .empty-row td { text-align: center; color: #94a3b8; padding: 18px; font-style: italic; }
-
-  /* ── FOOTER ── */
+  .empty-row td { text-align: center; color: #94a3b8; padding: 18px; font-style: italic; border: 1px solid #e2e8f0; }
   .doc-footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
-
-  /* ── PRINT BUTTON ── */
-  .btn-print { padding: 8px 16px; background: #1a5fa8; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
 
   @media print {
     .btn-print { display: none !important; }
@@ -205,13 +217,12 @@ export default function Clients() {
 </style>
 </head><body>
 
-<!-- LOGO BAR -->
 <div class="logo-bar">
   <div class="logo-left">
     <div class="logo-icon">🏗</div>
     <div>
-      <div class="logo-text">DAR SADIK</div>
-      <div class="logo-sub">Selouane — Nador &nbsp;|&nbsp; Fiche Client</div>
+      <div class="logo-text">DAR SADIK — Fiche Client</div>
+      <div class="logo-sub">Selouane — Nador</div>
     </div>
   </div>
   <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
@@ -220,7 +231,6 @@ export default function Clients() {
   </div>
 </div>
 
-<!-- CLIENT IDENTITY -->
 <div class="client-row">
   <div class="client-avatar">${selected.nom[0].toUpperCase()}</div>
   <div>
@@ -229,10 +239,8 @@ export default function Clients() {
   </div>
 </div>
 
-<!-- PERIODE -->
 <div class="periode">📅 Période: ${periode}</div>
 
-<!-- SUMMARY -->
 <div class="summary">
   <div class="sum-box">
     <div class="sum-lbl">SOLDE DÛ</div>
@@ -248,48 +256,44 @@ export default function Clients() {
   </div>
 </div>
 
-<!-- VENTES -->
 <div class="section-title">📦 Ventes (${filteredVentes.length})</div>
 <table>
   <thead>
     <tr>
       <th>DATE</th>
       <th>CAMION</th>
-      <th>FOURNISSEUR</th>
       <th>TYPE</th>
       <th class="r">QTÉ</th>
-      <th class="r">VENTE DHS</th>
-      <th class="r">MARGE DHS</th>
+      <th class="r">PRIX/U DHS</th>
+      <th class="r">TOTAL DHS</th>
     </tr>
   </thead>
   <tbody>
     ${filteredVentes.length === 0
-      ? '<tr class="empty-row"><td colspan="7">Aucune vente pour cette période</td></tr>'
+      ? '<tr class="empty-row"><td colspan="6">Aucune vente pour cette période</td></tr>'
       : filteredVentes.map(v => `
         <tr>
           <td>${v.date || '—'}</td>
           <td>${v.camion_plaque || '—'}</td>
-          <td>${v.fournisseur || '—'}</td>
           <td><span class="type-tag">${v.type_brique || '—'}</span></td>
-          <td class="r">${fmt(v.qte)}</td>
-          <td class="r bold">${fmt(v.total_vente)}</td>
-          <td class="r">${v.marge ? fmt(v.marge) : ''}</td>
+          <td class="r num">${fmt(v.qte)}</td>
+          <td class="r">${parseFloat(v.prix_vente || 0).toFixed(2)}</td>
+          <td class="r num">${fmt(v.total_vente)}</td>
         </tr>`).join('')
     }
   </tbody>
   ${filteredVentes.length > 0 ? `
   <tfoot>
     <tr>
-      <td colspan="4"><b>TOTAL</b></td>
+      <td colspan="3"><b>TOTAL (${filteredVentes.length} ventes)</b></td>
       <td class="r"><b>${fmt(filteredVentes.reduce((s,v) => s + (v.qte||0), 0))}</b></td>
-      <td class="r"><b>${fmt(totalVentes)} DHS</b></td>
       <td></td>
+      <td class="r"><b>${fmt(totalVentes)} DHS</b></td>
     </tr>
   </tfoot>` : ''}
 </table>
 
-<!-- PAIEMENTS -->
-<div class="section-title">💰 Paiements (${filteredPaiements.length})</div>
+<div class="section-title" style="margin-top:22px">💰 Paiements (${filteredPaiements.length})</div>
 <table>
   <thead>
     <tr>
@@ -306,7 +310,7 @@ export default function Clients() {
         <tr>
           <td>${p.date || '—'}</td>
           <td>${p.mode || '—'}</td>
-          <td class="r green">− ${fmt(p.montant)}</td>
+          <td class="r green num">− ${fmt(p.montant)}</td>
           <td class="muted">${p.note || '—'}</td>
         </tr>`).join('')
     }
@@ -357,7 +361,6 @@ export default function Clients() {
   const totalVentesClient = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
   const totalPaiementsClient = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
 
-  // ── MOBILE: back button from detail to list
   const handleBack = () => { setShowDetail(false) }
 
   return (
@@ -562,9 +565,10 @@ export default function Clients() {
                     <div className="text-xs text-green-600 font-semibold mb-1">💰 Payé {filterType !== 'all' ? '(période)' : ''}</div>
                     <div className="text-xl font-bold text-green-600">{fmt(totalPaiementsClient)} DHS</div>
                   </div>
-                  <div className="text-center p-3 bg-orange-50 rounded-xl border-2 border-orange-100">
-                    <div className="text-xs text-orange-600 font-semibold mb-1">⚠️ Solde final dû</div>
-                    <div className={`text-xl font-bold ${(selected.solde || 0) > 0 ? 'text-orange-600' : 'text-green-600'}`}>{fmt(selected.solde || 0)} DHS</div>
+                  {/* SOLDE DÛ — purple, not red/orange */}
+                  <div className="text-center p-3 rounded-xl border-2" style={{background:'#faf5ff', borderColor:'#e9d5ff'}}>
+                    <div className="text-xs font-semibold mb-1" style={{color:'#7c3aed'}}>⚠️ Solde final dû</div>
+                    <div className="text-xl font-bold" style={{color: (selected.solde || 0) > 0 ? '#7c3aed' : '#16a34a'}}>{fmt(selected.solde || 0)} DHS</div>
                     <div className="text-xs text-gray-400 mt-1">Initial + Ventes − Paiements</div>
                   </div>
                 </div>
@@ -574,38 +578,43 @@ export default function Clients() {
                 <div className="card text-center py-10 text-gray-400">Chargement...</div>
               ) : (
                 <>
-                  {/* VENTES */}
+                  {/* VENTES TABLE — no fournisseur column */}
                   <div className="card">
                     <h3 className="font-semibold text-gray-900 mb-3">📦 Ventes ({filteredVentes.length})</h3>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full border-collapse">
                         <thead>
                           <tr>
-                            <th className="th">Date</th><th className="th">Transport</th>
-                            <th className="th">Type</th><th className="th text-right">Qté</th>
-                            <th className="th text-right">Prix/u DHS</th><th className="th text-right">Total DHS</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Date</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Camion</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Type</th>
+                            <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Qté</th>
+                            <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Prix/u DHS</th>
+                            <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Total DHS</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredVentes.map(v => (
                             <tr key={v.id} className="hover:bg-gray-50">
-                              <td className="td text-gray-500">{v.date}</td>
-                              <td className="td">{v.camion_plaque}</td>
-                              <td className="td"><span className="badge-gray">{v.type_brique || '—'}</span></td>
-                              <td className="td text-right">{fmt(v.qte)}</td>
-                              <td className="td text-right">{parseFloat(v.prix_vente||0).toFixed(2)}</td>
-                              <td className="td text-right font-bold">{fmt(v.total_vente)}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0', color:'#64748b'}}>{v.date}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0'}}>{v.camion_plaque}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0'}}><span className="badge-gray">{v.type_brique || '—'}</span></td>
+                              <td className="td text-right font-semibold" style={{border:'1px solid #e2e8f0'}}>{fmt(v.qte)}</td>
+                              <td className="td text-right" style={{border:'1px solid #e2e8f0'}}>{parseFloat(v.prix_vente||0).toFixed(2)}</td>
+                              <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0', fontSize:'14px'}}>{fmt(v.total_vente)}</td>
                             </tr>
                           ))}
-                          {filteredVentes.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucune vente pour cette période</td></tr>}
+                          {filteredVentes.length === 0 && (
+                            <tr><td colSpan={6} className="td text-center text-gray-400 py-6" style={{border:'1px solid #e2e8f0'}}>Aucune vente pour cette période</td></tr>
+                          )}
                         </tbody>
                         {filteredVentes.length > 0 && (
                           <tfoot>
                             <tr>
-                              <td className="tfoot-td" colSpan={3}>TOTAL</td>
-                              <td className="tfoot-td text-right">{fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
-                              <td className="tfoot-td"></td>
-                              <td className="tfoot-td text-right">{fmt(totalVentesClient)} DHS</td>
+                              <td className="tfoot-td" colSpan={3} style={{border:'1px solid #cbd5e1'}}>TOTAL</td>
+                              <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1', fontSize:'14px'}}>{fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
+                              <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
+                              <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1', fontSize:'14px'}}>{fmt(totalVentesClient)} DHS</td>
                             </tr>
                           </tfoot>
                         )}
@@ -613,34 +622,38 @@ export default function Clients() {
                     </div>
                   </div>
 
-                  {/* PAIEMENTS */}
+                  {/* PAIEMENTS TABLE */}
                   <div className="card">
                     <h3 className="font-semibold text-gray-900 mb-3">💰 Paiements ({filteredPaiements.length})</h3>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full border-collapse">
                         <thead>
                           <tr>
-                            <th className="th">Date</th><th className="th">Mode</th>
-                            <th className="th text-right">Montant DHS</th><th className="th">Note</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Date</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Mode</th>
+                            <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Montant DHS</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Note</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredPaiements.map(p => (
                             <tr key={p.id} className="hover:bg-gray-50">
-                              <td className="td text-gray-500">{p.date}</td>
-                              <td className="td"><span className="badge-green">{p.mode}</span></td>
-                              <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
-                              <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0', color:'#64748b'}}>{p.date}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0'}}><span className="badge-green">{p.mode}</span></td>
+                              <td className="td text-right font-bold text-green-600" style={{border:'1px solid #e2e8f0', fontSize:'14px'}}>− {fmt(p.montant)}</td>
+                              <td className="td text-gray-400 text-xs" style={{border:'1px solid #e2e8f0'}}>{p.note || '—'}</td>
                             </tr>
                           ))}
-                          {filteredPaiements.length === 0 && <tr><td colSpan={4} className="td text-center text-gray-400 py-6">Aucun paiement pour cette période</td></tr>}
+                          {filteredPaiements.length === 0 && (
+                            <tr><td colSpan={4} className="td text-center text-gray-400 py-6" style={{border:'1px solid #e2e8f0'}}>Aucun paiement pour cette période</td></tr>
+                          )}
                         </tbody>
                         {filteredPaiements.length > 0 && (
                           <tfoot>
                             <tr>
-                              <td className="tfoot-td" colSpan={2}>TOTAL REÇU</td>
-                              <td className="tfoot-td text-right text-green-700">− {fmt(totalPaiementsClient)} DHS</td>
-                              <td className="tfoot-td"></td>
+                              <td className="tfoot-td" colSpan={2} style={{border:'1px solid #cbd5e1'}}>TOTAL REÇU</td>
+                              <td className="tfoot-td text-right text-green-700" style={{border:'1px solid #cbd5e1', fontSize:'14px'}}>− {fmt(totalPaiementsClient)} DHS</td>
+                              <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
                             </tr>
                           </tfoot>
                         )}
