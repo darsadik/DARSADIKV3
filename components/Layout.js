@@ -108,6 +108,10 @@ export default function Layout({ children, title, subtitle }) {
                 <button onClick={logout} className="w-full bg-brand-600 hover:bg-brand-500 text-white text-sm py-2 rounded-lg transition-all">
                   ↪ Déconnexion
                 </button>
+                <div className="mt-3 pt-3 border-t border-brand-600 text-center">
+                  <div className="text-brand-300 text-[10px]">Designed by</div>
+                  <div className="text-white text-[11px] font-semibold tracking-wide">Abdelhafid Baadi</div>
+                </div>
               </div>
             </div>
           </div>
@@ -189,6 +193,12 @@ export default function Layout({ children, title, subtitle }) {
             </div>
           ) : (
             <button onClick={logout} className="w-full flex justify-center text-brand-300 hover:text-white text-lg">↪</button>
+          )}
+          {sidebarOpen && (
+            <div className="mt-3 pt-3 border-t border-brand-600 text-center">
+              <div className="text-brand-300 text-[10px] leading-tight">Designed by</div>
+              <div className="text-white text-[11px] font-semibold tracking-wide">Abdelhafid Baadi</div>
+            </div>
           )}
         </div>
       </aside>
