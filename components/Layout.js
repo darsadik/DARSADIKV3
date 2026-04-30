@@ -14,6 +14,29 @@ const nav = [
   { href: '/parametres',  icon: '⚙️', label: 'Paramètres' },
 ]
 
+
+// ── DAR SADIK LOGO COMPONENT ──
+function DsLogo({ size = 32, white = false }) {
+  const bg   = white ? '#ffffff' : '#1a5fa8'
+  const mark = white ? '#1a5fa8' : '#ffffff'
+  const accent = white ? '#0d3d6e' : '#e8f0fb'
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="40" height="40" rx="9" fill={bg}/>
+      {/* Brick row 1 */}
+      <rect x="7"  y="10" width="11" height="6" rx="1" fill={mark}/>
+      <rect x="21" y="10" width="12" height="6" rx="1" fill={mark}/>
+      {/* Brick row 2 — offset */}
+      <rect x="7"  y="18" width="7"  height="6" rx="1" fill={accent}/>
+      <rect x="17" y="18" width="11" height="6" rx="1" fill={mark}/>
+      <rect x="31" y="18" width="2"  height="6" rx="1" fill={accent}/>
+      {/* Brick row 3 */}
+      <rect x="7"  y="26" width="11" height="6" rx="1" fill={mark}/>
+      <rect x="21" y="26" width="12" height="6" rx="1" fill={mark}/>
+    </svg>
+  )
+}
+
 export default function Layout({ children, title, subtitle }) {
   const router = useRouter()
   const { user, supabase } = useAuth()
@@ -44,11 +67,9 @@ export default function Layout({ children, title, subtitle }) {
         {/* MOBILE TOP BAR */}
         <header className="bg-brand-700 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <span className="text-brand-700 font-black text-sm">DS</span>
-            </div>
+            <DsLogo size={34} white={false} />
             <div>
-              <div className="font-bold text-sm leading-tight">DAR SADIK</div>
+              <div className="font-bold text-sm leading-tight tracking-wide">DAR SADIK</div>
               {title && <div className="text-brand-200 text-xs leading-tight">{title}</div>}
             </div>
           </div>
@@ -65,12 +86,10 @@ export default function Layout({ children, title, subtitle }) {
           <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
             <div className="absolute top-0 right-0 h-full w-64 bg-brand-700 shadow-2xl" onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-600">
-                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                  <span className="text-brand-700 font-black text-sm">DS</span>
-                </div>
+                <DsLogo size={36} white={false} />
                 <div>
-                  <div className="text-white font-bold text-sm">DAR SADIK</div>
-                  <div className="text-brand-200 text-xs">Nador</div>
+                  <div className="text-white font-bold text-sm tracking-wide">DAR SADIK</div>
+                  <div className="text-brand-200 text-xs">Selouane — Nador</div>
                 </div>
               </div>
 
@@ -147,13 +166,11 @@ export default function Layout({ children, title, subtitle }) {
       {/* SIDEBAR */}
       <aside className={`${sidebarOpen ? 'w-56' : 'w-16'} bg-brand-700 flex flex-col transition-all duration-200 flex-shrink-0`}>
         <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-600">
-          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-brand-700 font-black text-sm">DS</span>
-          </div>
+          <DsLogo size={sidebarOpen ? 36 : 32} white={false} />
           {sidebarOpen && (
             <div>
-              <div className="text-white font-bold text-sm">DAR SADIK</div>
-              <div className="text-brand-200 text-xs">Nador</div>
+              <div className="text-white font-bold text-sm tracking-wide">DAR SADIK</div>
+              <div className="text-brand-200 text-xs">Selouane — Nador</div>
             </div>
           )}
         </div>
