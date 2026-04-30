@@ -212,8 +212,10 @@ export default function Clients() {
 
   @media print {
     .btn-print { display: none !important; }
+    .btn-pdf { display: none !important; }
     body { padding: 12px 18px; }
   }
+  @page { size: A4; margin: 10mm 12mm; }
 </style>
 </head><body>
 
@@ -226,7 +228,10 @@ export default function Clients() {
     </div>
   </div>
   <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-    <button class="btn-print" onclick="window.print()">🖨️ Imprimer</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn-print" onclick="window.print()" style="padding:7px 16px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
+      <button class="btn-pdf" onclick="window.print()" style="padding:7px 16px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
+    </div>
     <div class="print-date">Imprimé le ${date}</div>
   </div>
 </div>
