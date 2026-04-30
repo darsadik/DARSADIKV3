@@ -333,7 +333,13 @@ export default function Grignon() {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div><h1>🫒 DAR SADIK — Grignon (Fitour) · Ventes Clients</h1>
         <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
+        <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px">
         <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+      </div>
+          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+        </div>
       </div>
       <table>
         <thead><tr>
@@ -421,7 +427,13 @@ export default function Grignon() {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div><h1>🫒 DAR SADIK — Grignon (Fitour) · Achats Fournisseurs</h1>
         <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
+        <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px">
         <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+      </div>
+          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+        </div>
       </div>
       ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
       </body></html>`)
@@ -492,7 +504,13 @@ export default function Grignon() {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
         <div><h1>🫒 DAR SADIK — Grignon (Fitour) · Suivi Camions</h1>
         <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
+        <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px">
         <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+      </div>
+          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+        </div>
       </div>
       ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
       </body></html>`)
@@ -546,7 +564,13 @@ export default function Grignon() {
           <h1>🫒 DAR SADIK — Grignon (Fitour) · Tableau de bord</h1>
           <div class="sub">Généré le ${date}</div>
         </div>
+        <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px">
         <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+      </div>
+          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
+        </div>
       </div>
 
       ${totalOB > 0 ? `<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:16px">
