@@ -144,6 +144,12 @@ function LoginPage({ accessDenied }) {
             {loading?'Chargement...':tab==='login'?'Se connecter':'Créer un compte'}
           </button>
         </form>
+
+        <div style={{marginTop:'24px',paddingTop:'16px',borderTop:'1px solid #f1f5f9',textAlign:'center'}}>
+          <p style={{fontSize:'11px',color:'#94a3b8',margin:0}}>
+            Designed by <span style={{fontWeight:'700',color:'#475569'}}>Abdelhafid Baadi</span>
+          </p>
+        </div>
       </div>
     </div>
   )
