@@ -578,7 +578,7 @@ export default function Clients() {
                 <div className="card text-center py-10 text-gray-400">Chargement...</div>
               ) : (
                 <>
-                  {/* VENTES TABLE — no fournisseur column */}
+                  {/* VENTES TABLE — screen: WITH fournisseur + note */}
                   <div className="card">
                     <h3 className="font-semibold text-gray-900 mb-3">📦 Ventes ({filteredVentes.length})</h3>
                     <div className="overflow-x-auto">
@@ -587,34 +587,39 @@ export default function Clients() {
                           <tr>
                             <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Date</th>
                             <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Camion</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Fournisseur</th>
                             <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Type</th>
                             <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Qté</th>
-                            <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Prix/u DHS</th>
+                            <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Prix/u</th>
                             <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Total DHS</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155',minWidth:'120px'}}>Note</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredVentes.map(v => (
                             <tr key={v.id} className="hover:bg-gray-50">
-                              <td className="td" style={{border:'1px solid #e2e8f0', color:'#64748b'}}>{v.date}</td>
-                              <td className="td" style={{border:'1px solid #e2e8f0'}}>{v.camion_plaque}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{v.date}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{v.camion_plaque || '—'}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{v.fournisseur || '—'}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0'}}><span className="badge-gray">{v.type_brique || '—'}</span></td>
-                              <td className="td text-right font-semibold" style={{border:'1px solid #e2e8f0'}}>{fmt(v.qte)}</td>
-                              <td className="td text-right" style={{border:'1px solid #e2e8f0'}}>{parseFloat(v.prix_vente||0).toFixed(2)}</td>
-                              <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0', fontSize:'14px'}}>{fmt(v.total_vente)}</td>
+                              <td className="td text-right font-semibold" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{fmt(v.qte)}</td>
+                              <td className="td text-right" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{parseFloat(v.prix_vente||0).toFixed(2)}</td>
+                              <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'14px',whiteSpace:'nowrap'}}>{fmt(v.total_vente)}</td>
+                              <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{v.note || '—'}</td>
                             </tr>
                           ))}
                           {filteredVentes.length === 0 && (
-                            <tr><td colSpan={6} className="td text-center text-gray-400 py-6" style={{border:'1px solid #e2e8f0'}}>Aucune vente pour cette période</td></tr>
+                            <tr><td colSpan={8} className="td text-center text-gray-400 py-6" style={{border:'1px solid #e2e8f0'}}>Aucune vente pour cette période</td></tr>
                           )}
                         </tbody>
                         {filteredVentes.length > 0 && (
                           <tfoot>
                             <tr>
-                              <td className="tfoot-td" colSpan={3} style={{border:'1px solid #cbd5e1'}}>TOTAL</td>
-                              <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1', fontSize:'14px'}}>{fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
+                              <td className="tfoot-td" colSpan={4} style={{border:'1px solid #cbd5e1'}}>TOTAL</td>
+                              <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px'}}>{fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
                               <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
-                              <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1', fontSize:'14px'}}>{fmt(totalVentesClient)} DHS</td>
+                              <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px'}}>{fmt(totalVentesClient)} DHS</td>
+                              <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
                             </tr>
                           </tfoot>
                         )}
