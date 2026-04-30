@@ -105,9 +105,20 @@ function LoginPage({ accessDenied }) {
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#071f3a 0%,#0d3d6e 50%,#1a5fa8 100%)',padding:'16px'}}>
       <div style={{background:'white',borderRadius:'24px',padding:'40px',width:'100%',maxWidth:'420px',boxShadow:'0 25px 60px rgba(0,0,0,0.3)'}}>
         <div style={{textAlign:'center',marginBottom:'28px'}}>
-          <div style={{width:'64px',height:'64px',background:'#e8f0fb',borderRadius:'16px',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px',fontSize:'28px'}}>🏗️</div>
-          <h1 style={{fontSize:'22px',fontWeight:'800',color:'#0f172a'}}>DAR SADIK</h1>
-          <p style={{fontSize:'13px',color:'#64748b',marginTop:'4px'}}>Selouane — Nador | Gestion Commerciale</p>
+          <div style={{margin:'0 auto 14px',width:'72px',height:'72px'}}>
+            <svg width="72" height="72" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="40" height="40" rx="9" fill="#1a5fa8"/>
+              <rect x="7"  y="10" width="11" height="6" rx="1" fill="white"/>
+              <rect x="21" y="10" width="12" height="6" rx="1" fill="white"/>
+              <rect x="7"  y="18" width="7"  height="6" rx="1" fill="#e8f0fb"/>
+              <rect x="17" y="18" width="11" height="6" rx="1" fill="white"/>
+              <rect x="31" y="18" width="2"  height="6" rx="1" fill="#e8f0fb"/>
+              <rect x="7"  y="26" width="11" height="6" rx="1" fill="white"/>
+              <rect x="21" y="26" width="12" height="6" rx="1" fill="white"/>
+            </svg>
+          </div>
+          <h1 style={{fontSize:'24px',fontWeight:'900',color:'#0f172a',letterSpacing:'-0.5px'}}>DAR SADIK</h1>
+          <p style={{fontSize:'12px',color:'#64748b',marginTop:'4px',letterSpacing:'0.03em'}}>Selouane — Nador &nbsp;|&nbsp; Gestion Commerciale</p>
         </div>
 
         <div style={{display:'flex',background:'#f1f5f9',borderRadius:'12px',padding:'4px',marginBottom:'24px'}}>
