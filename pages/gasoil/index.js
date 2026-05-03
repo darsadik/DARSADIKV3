@@ -220,83 +220,206 @@ export default function Gasoil() {
   })
 
   function printGasoil() {
-    const rows = filtered.map(g =>
-      `<tr><td>${g.date}</td><td><b>${g.camion_plaque}</b></td>
-      <td>${g.chauffeur||'—'}</td><td>${g.station}</td>
-      <td style="text-align:right">${fmtD(g.qte)} L</td>
-      <td style="text-align:right">${fmtD(g.prix_unitaire)}</td>
-      <td style="text-align:right"><b>${fmtD(g.total)}</b></td>
-      <td style="text-align:right;color:#888">${g.km ? fmt(g.km) : '—'}</td>
-      <td>${g.bon||'—'}</td></tr>`
+    const printDate = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
+    const solde = totalGasoilAll - totalPaiements
+
+    const gasoilRows = filtered.map(g =>
+      `<tr>
+        <td>${g.date}</td>
+        <td><b>${g.camion_plaque}</b></td>
+        <td>${g.chauffeur||'—'}</td>
+        <td>${g.station}</td>
+        <td class="r">${fmtD(g.qte)} L</td>
+        <td class="r">${fmtD(g.prix_unitaire)}</td>
+        <td class="r bold">${fmt(g.total)}</td>
+        <td class="r muted">${g.km ? fmt(g.km) : '—'}</td>
+        <td class="muted">${g.bon||'—'}</td>
+      </tr>`
     ).join('')
 
+    const paiRows = [...gasoilPaiements]
+      .sort((a,b) => a.date.localeCompare(b.date))
+      .map(p => `<tr>
+        <td>${p.date}</td>
+        <td class="r green bold">− ${fmt(p.montant)} DHS</td>
+        <td class="muted">${p.note||'—'}</td>
+      </tr>`).join('')
+
     const camionRows = Object.entries(byCamion).sort((a,b)=>b[1].total-a[1].total).map(([plaque, d]) =>
-      `<tr><td><b>${plaque}</b></td><td style="text-align:right">${fmt(d.litres)} L</td>
-      <td style="text-align:right"><b>${fmt(d.total)}</b></td><td style="text-align:right">${d.pleins}</td></tr>`
+      `<tr>
+        <td><b>${plaque}</b></td>
+        <td class="r">${fmt(d.litres)} L</td>
+        <td class="r bold">${fmt(d.total)} DHS</td>
+        <td class="r muted">${d.pleins}</td>
+      </tr>`
     ).join('')
 
     const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
-</style></head><body>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div><h1>⛽ DAR SADIK — Gasoil</h1>
-        <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
-        <div style="display:flex;gap:8px">
-          <div style="display:flex;gap:8px">
-        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-        </div>
-      </div>
-      <div class="section-title">📋 Historique des pleins (plus ancien → plus récent)</div>
-      <table>
-        <thead><tr><th>Date</th><th>Camion</th><th>Chauffeur</th><th>Station</th>
-        <th style="text-align:right">Litres</th><th style="text-align:right">Prix/L</th>
-        <th style="text-align:right">Total DHS</th><th style="text-align:right">KM</th><th>BON</th></tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr><td colspan="4">TOTAL (${filtered.length} pleins)</td>
-        <td style="text-align:right">${fmtD(totLitres)} L</td><td></td>
-        <td style="text-align:right">${fmt(totDHS)} DHS</td><td colspan="2"></td></tr></tfoot>
-      </table>
-      <div class="section-title" style="margin-top:30px">🚛 Récapitulatif par camion</div>
-      <table>
-        <thead><tr><th>Camion</th><th style="text-align:right">Litres</th><th style="text-align:right">Total DHS</th><th style="text-align:right">Nb pleins</th></tr></thead>
-        <tbody>${camionRows}</tbody>
-      </table>
-    </body></html>`)
+    win.document.write(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8">
+<title>Gasoil — DAR SADIK</title>
+<style>
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; }
+
+  .logo-bar { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 3px solid #475569; margin-bottom: 18px; }
+  .logo-text { font-size: 20px; font-weight: 900; color: #1e293b; letter-spacing: -0.5px; }
+  .logo-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .print-date { font-size: 10px; color: #94a3b8; padding-top: 4px; text-align: right; }
+  .btn-print { padding: 7px 14px; background: #475569; color: #fff; border: none; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; margin-right: 6px; }
+  .btn-pdf   { padding: 7px 14px; background: #16a34a; color: #fff; border: none; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; }
+
+  .periode { display: inline-flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 16px; }
+
+  /* SUMMARY 3 BOXES — like client page */
+  .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
+  .sum-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; }
+  .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 5px; }
+  .sum-val { font-size: 20px; font-weight: 900; line-height: 1; }
+  .c-total  { color: #d97706; }
+  .c-paye   { color: #16a34a; }
+  .c-solde  { color: #7c3aed; }
+  .c-solde-ok { color: #16a34a; }
+
+  .section-title { font-size: 12px; font-weight: 700; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin: 20px 0 0; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #475569 !important; color: #ffffff !important; padding: 8px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; border: 1px solid #334155; }
+  th.r { text-align: right; }
+  td { padding: 8px 10px; font-size: 11px; color: #1e293b; border: 1px solid #e2e8f0; vertical-align: middle; }
+  td.r { text-align: right; font-family: monospace; }
+  td.muted { color: #94a3b8; font-size: 10px; }
+  td.bold { font-weight: 700; }
+  td.green { color: #16a34a; font-weight: 700; }
+  tr:nth-child(even) td { background: #f8fafc !important; }
+
+  tfoot td { background: #f1f5f9 !important; font-weight: 800; font-size: 12px; border: 1px solid #cbd5e1; border-top: 2px solid #475569 !important; color: #1e293b !important; }
+  tfoot td.r { font-size: 13px; }
+
+  /* SOLDE RESULT ROW */
+  .solde-row td { background: #f5f3ff !important; color: #7c3aed !important; font-weight: 900; font-size: 13px; border: 2px solid #7c3aed !important; }
+  .solde-row-ok td { background: #f0fdf4 !important; color: #16a34a !important; font-weight: 900; font-size: 13px; border: 2px solid #16a34a !important; }
+
+  .empty-row td { text-align: center; color: #94a3b8; padding: 16px; font-style: italic; }
+  .doc-footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
+
+  @media print {
+    .btn-print, .btn-pdf { display: none !important; }
+    body { padding: 12px 18px; }
+  }
+  @page { size: A4; margin: 10mm 12mm; }
+</style>
+</head><body>
+
+<!-- HEADER -->
+<div class="logo-bar">
+  <div>
+    <div class="logo-text">⛽ DAR SADIK — Gasoil</div>
+    <div class="logo-sub">Selouane — Nador</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+    <div>
+      <button class="btn-print" onclick="window.print()">🖨️ Imprimer</button>
+      <button class="btn-pdf" onclick="window.print()">📥 PDF</button>
+    </div>
+    <div class="print-date">Généré le ${printDate}</div>
+  </div>
+</div>
+
+<div class="periode">📅 Période : ${filterFrom} → ${filterTo}</div>
+
+<!-- SUMMARY: TOTAL GASOIL / TOTAL PAYÉ / SOLDE -->
+<div class="summary">
+  <div class="sum-box">
+    <div class="sum-lbl">TOTAL GASOIL</div>
+    <div class="sum-val c-total">${fmt(totalGasoilAll)} DHS</div>
+  </div>
+  <div class="sum-box">
+    <div class="sum-lbl">TOTAL PAYÉ</div>
+    <div class="sum-val c-paye">${fmt(totalPaiements)} DHS</div>
+  </div>
+  <div class="sum-box">
+    <div class="sum-lbl">SOLDE RESTANT</div>
+    <div class="sum-val ${solde > 0 ? 'c-solde' : 'c-solde-ok'}">${fmt(solde)} DHS</div>
+  </div>
+</div>
+
+<!-- GASOIL TABLE -->
+<div class="section-title">📋 Historique des pleins (${filtered.length})</div>
+<table>
+  <thead>
+    <tr>
+      <th>DATE</th><th>CAMION</th><th>CHAUFFEUR</th><th>STATION</th>
+      <th class="r">LITRES</th><th class="r">PRIX/L</th>
+      <th class="r">TOTAL DHS</th><th class="r">KM</th><th>BON</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${gasoilRows || '<tr class="empty-row"><td colspan="9">Aucune entrée pour cette période</td></tr>'}
+  </tbody>
+  ${filtered.length > 0 ? `
+  <tfoot>
+    <tr>
+      <td colspan="4"><b>TOTAL (${filtered.length} pleins)</b></td>
+      <td class="r"><b>${fmtD(totLitres)} L</b></td>
+      <td></td>
+      <td class="r"><b>${fmt(totDHS)} DHS</b></td>
+      <td colspan="2"></td>
+    </tr>
+  </tfoot>` : ''}
+</table>
+
+<!-- PAYMENTS TABLE -->
+<div class="section-title" style="margin-top:22px">💳 Paiements fournisseur (${gasoilPaiements.length})</div>
+<table>
+  <thead>
+    <tr>
+      <th>DATE</th>
+      <th class="r">MONTANT DHS</th>
+      <th>NOTE</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${paiRows || '<tr class="empty-row"><td colspan="3">Aucun paiement enregistré</td></tr>'}
+  </tbody>
+  ${gasoilPaiements.length > 0 ? `
+  <tfoot>
+    <tr>
+      <td><b>TOTAL PAYÉ</b></td>
+      <td class="r"><b>− ${fmt(totalPaiements)} DHS</b></td>
+      <td></td>
+    </tr>
+  </tfoot>` : ''}
+</table>
+
+<!-- SOLDE RESULT — the key row like client page -->
+<table style="margin-top:10px">
+  <tbody>
+    <tr class="${solde > 0 ? 'solde-row' : 'solde-row-ok'}">
+      <td><b>${solde > 0 ? '⚠️ SOLDE RESTANT À PAYER' : '✅ COMPTE SOLDÉ'}</b></td>
+      <td class="r"><b>${fmt(solde)} DHS</b></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- CAMION RECAP -->
+<div class="section-title" style="margin-top:22px">🚛 Récapitulatif par camion</div>
+<table>
+  <thead>
+    <tr>
+      <th>CAMION</th>
+      <th class="r">LITRES</th>
+      <th class="r">TOTAL DHS</th>
+      <th class="r">NB PLEINS</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${camionRows || '<tr class="empty-row"><td colspan="4">Aucune donnée</td></tr>'}
+  </tbody>
+</table>
+
+<div class="doc-footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
+</body></html>`)
     win.document.close()
   }
 
