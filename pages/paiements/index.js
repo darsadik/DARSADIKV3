@@ -150,7 +150,7 @@ export default function Paiements() {
       </div>
       <div><label className="label">Mode</label>
         <select className="input" value={form.mode} onChange={e=>setForm({...form,mode:e.target.value})}>
-          {['Espèce','Chèque','Virement','Versement chauffeur'].map(m=><option key={m}>{m}</option>)}
+          {['Espèce','Chèque','Virement','Paiement fournisseur'].map(m=><option key={m}>{m}</option>)}
         </select>
       </div>
       <div><label className="label">Montant (DHS)</label>
