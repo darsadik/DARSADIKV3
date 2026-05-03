@@ -47,6 +47,10 @@ export default function Gasoil() {
   const { user } = useAuth()
   const [camions, setCamions] = useState([])
   const [gasoil, setGasoil] = useState([])
+  const [gasoilPaiements, setGasoilPaiements] = useState([])
+  const [paiForm, setPaiForm] = useState({ date: '', montant: '', note: '' })
+  const [savingPai, setSavingPai] = useState(false)
+  const [showPaiForm, setShowPaiForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
@@ -73,13 +77,15 @@ export default function Gasoil() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: ca }, { data: ga }] = await Promise.all([
+    const [{ data: ca }, { data: ga }, { data: gp }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       // ✅ date ASC — oldest to newest
       supabase.from('gasoil').select('*').order('date', { ascending: true }),
+      supabase.from('gasoil_paiements').select('*').order('date', { ascending: true }),
     ])
     setCamions(ca || [])
     setGasoil(ga || [])
+    setGasoilPaiements(gp || [])
     setLoading(false)
   }
 
@@ -111,6 +117,28 @@ export default function Gasoil() {
     loadAll()
   }
 
+  async function savePaiement(e) {
+    e.preventDefault()
+    const m = parseFloat(paiForm.montant)
+    if (!m || !paiForm.date) return
+    setSavingPai(true)
+    await supabase.from('gasoil_paiements').insert({
+      date: paiForm.date,
+      montant: m,
+      note: paiForm.note || null,
+    })
+    setSavingPai(false)
+    setPaiForm({ date: '', montant: '', note: '' })
+    setShowPaiForm(false)
+    loadAll()
+  }
+
+  async function deletePaiement(id) {
+    if (!confirm('Supprimer ce paiement ?')) return
+    await supabase.from('gasoil_paiements').delete().eq('id', id)
+    loadAll()
+  }
+
   async function deleteGasoil(id, camionId, total, qte) {
     if (!confirm('Supprimer ce plein ?')) return
     const camion = camions.find(c => c.id === camionId)
@@ -138,6 +166,11 @@ export default function Gasoil() {
 
   const totLitres = filtered.reduce((s, g) => s + (g.qte || 0), 0)
   const totDHS = filtered.reduce((s, g) => s + (g.total || 0), 0)
+
+  // Payment totals
+  const totalGasoilAll = gasoil.reduce((s, g) => s + (g.total || 0), 0)
+  const totalPaiements = gasoilPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+  const soldeGasoil = totalGasoilAll - totalPaiements
 
   // ── MONTHLY CONSUMPTION PER CAMION ──
   // For each camion in selected month:
@@ -279,10 +312,10 @@ export default function Gasoil() {
     <Layout title="Gasoil" subtitle="Suivi de consommation et coûts carburant">
 
       {/* KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
         <div className="stat-card border border-amber-100 bg-amber-50">
           <div className="stat-label text-amber-600">Total gasoil</div>
-          <div className="stat-value text-amber-700">{fmt(gasoil.reduce((s,g)=>s+(g.total||0),0))} DHS</div>
+          <div className="stat-value text-amber-700">{fmt(totalGasoilAll)} DHS</div>
           <div className="stat-sub">Toutes périodes</div>
         </div>
         <div className="stat-card border border-blue-100 bg-blue-50">
@@ -291,7 +324,7 @@ export default function Gasoil() {
           <div className="stat-sub">Consommés</div>
         </div>
         <div className="stat-card border border-gray-100">
-          <div className="stat-label">Nombre de pleins</div>
+          <div className="stat-label">Nb. pleins</div>
           <div className="stat-value text-gray-700">{gasoil.length}</div>
           <div className="stat-sub">Enregistrés</div>
         </div>
@@ -301,6 +334,16 @@ export default function Gasoil() {
             {gasoil.length > 0 ? fmtD(gasoil.reduce((s,g)=>s+(g.total||0),0) / gasoil.reduce((s,g)=>s+(g.qte||0),0)) : '0.00'} DHS
           </div>
           <div className="stat-sub">Moyenne</div>
+        </div>
+        <div className="stat-card border border-green-100 bg-green-50">
+          <div className="stat-label text-green-600">Total payé</div>
+          <div className="stat-value text-green-700">{fmt(totalPaiements)} DHS</div>
+          <div className="stat-sub">Paiements fournisseur</div>
+        </div>
+        <div className={`stat-card border ${soldeGasoil > 0 ? 'border-purple-100 bg-purple-50' : 'border-green-100 bg-green-50'}`}>
+          <div className={`stat-label ${soldeGasoil > 0 ? 'text-purple-600' : 'text-green-600'}`}>Solde restant</div>
+          <div className={`stat-value ${soldeGasoil > 0 ? 'text-purple-700' : 'text-green-700'}`}>{fmt(soldeGasoil)} DHS</div>
+          <div className="stat-sub">{soldeGasoil > 0 ? 'À payer' : '✓ Soldé'}</div>
         </div>
       </div>
 
@@ -439,6 +482,86 @@ export default function Gasoil() {
             <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400">
               Distance = dernier KM − premier KM du mois
             </div>
+          </div>
+
+          {/* ── GASOIL PAYMENTS ── */}
+          <div className="card mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">💳 Paiements fournisseur</h3>
+              <button
+                onClick={() => setShowPaiForm(!showPaiForm)}
+                className="btn-primary text-xs px-3 py-1.5"
+              >
+                {showPaiForm ? '✕ Annuler' : '+ Paiement'}
+              </button>
+            </div>
+
+            {/* Solde Summary */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="text-center bg-amber-50 rounded-lg p-2">
+                <div className="text-xs text-amber-600 font-semibold">Total gasoil</div>
+                <div className="text-sm font-bold text-amber-700">{fmt(totalGasoilAll)}</div>
+              </div>
+              <div className="text-center bg-green-50 rounded-lg p-2">
+                <div className="text-xs text-green-600 font-semibold">Payé</div>
+                <div className="text-sm font-bold text-green-700">{fmt(totalPaiements)}</div>
+              </div>
+              <div className={`text-center rounded-lg p-2 ${soldeGasoil > 0 ? 'bg-purple-50' : 'bg-green-50'}`}>
+                <div className={`text-xs font-semibold ${soldeGasoil > 0 ? 'text-purple-600' : 'text-green-600'}`}>Restant</div>
+                <div className={`text-sm font-bold ${soldeGasoil > 0 ? 'text-purple-700' : 'text-green-700'}`}>{fmt(soldeGasoil)}</div>
+              </div>
+            </div>
+
+            {/* Add Payment Form */}
+            {showPaiForm && (
+              <form onSubmit={savePaiement} className="bg-purple-50 border border-purple-100 rounded-xl p-3 mb-4 space-y-2">
+                <div>
+                  <label className="label">Date</label>
+                  <input type="date" className="input" required
+                    value={paiForm.date}
+                    onChange={e => setPaiForm({...paiForm, date: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">Montant (DHS)</label>
+                  <input type="number" step="0.01" className="input" placeholder="ex: 15000" required
+                    value={paiForm.montant}
+                    onChange={e => setPaiForm({...paiForm, montant: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">Note (optionnel)</label>
+                  <input type="text" className="input" placeholder="ex: chèque n° 123"
+                    value={paiForm.note}
+                    onChange={e => setPaiForm({...paiForm, note: e.target.value})} />
+                </div>
+                <button type="submit" disabled={savingPai} className="btn-primary w-full justify-center text-xs">
+                  {savingPai ? 'Enregistrement...' : '✓ Enregistrer paiement'}
+                </button>
+              </form>
+            )}
+
+            {/* Payments List */}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {gasoilPaiements.length === 0 ? (
+                <div className="text-center text-gray-400 text-xs py-4">Aucun paiement enregistré</div>
+              ) : (
+                [...gasoilPaiements].sort((a,b) => b.date.localeCompare(a.date)).map(p => (
+                  <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700">{fmt(p.montant)} DHS</div>
+                      <div className="text-xs text-gray-400">{p.date}{p.note ? ` · ${p.note}` : ''}</div>
+                    </div>
+                    <button onClick={() => deletePaiement(p.id)} className="btn-danger text-xs px-2 py-1">✕</button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {gasoilPaiements.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between text-xs">
+                <span className="text-gray-500">{gasoilPaiements.length} paiements</span>
+                <span className="font-bold text-green-600">{fmt(totalPaiements)} DHS payés</span>
+              </div>
+            )}
           </div>
         </div>
 
