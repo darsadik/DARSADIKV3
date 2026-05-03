@@ -23,6 +23,10 @@ export default function Ventes() {
   const { user } = useAuth()
   const isMobile = useIsMobile()
   const admin = user?.email === ADMIN
+  const [editRow, setEditRow] = useState(null)   // vente being edited
+  const [editForm, setEditForm] = useState({})
+  const [editSaving, setEditSaving] = useState(false)
+  const [editMsg, setEditMsg] = useState('')
   const [ventes, setVentes] = useState([])
   const [clients, setClients] = useState([])
   const [camions, setCamions] = useState([])
@@ -93,6 +97,59 @@ export default function Ventes() {
     setSaving(false); setShowForm(false)
     setForm({ date: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '' })
     loadAll()
+  }
+
+  function openEdit(v) {
+    setEditRow(v)
+    setEditForm({
+      date: v.date || '',
+      qte: v.qte || '',
+      prix_vente: v.prix_vente || '',
+      prix_achat: v.prix_achat || '',
+      bon: v.bon || '',
+      note: v.note || '',
+    })
+    setEditMsg('')
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault()
+    if (!editRow) return
+    setEditSaving(true)
+    const qte = parseFloat(editForm.qte) || 0
+    const pv  = parseFloat(editForm.prix_vente) || 0
+    const pa  = parseFloat(editForm.prix_achat) || 0
+    const total_vente = Math.round(qte * pv * 100) / 100
+    const total_achat = Math.round(qte * pa * 100) / 100
+    const marge = Math.round((total_vente - total_achat) * 100) / 100
+
+    const { error } = await supabase.from('ventes').update({
+      date: editForm.date,
+      qte, prix_vente: pv, prix_achat: pa,
+      total_vente, total_achat, marge,
+      bon: editForm.bon || null,
+      note: editForm.note || null,
+    }).eq('id', editRow.id)
+
+    // Adjust client solde: remove old total, add new total
+    if (!error) {
+      const cl = clients.find(c => c.id === editRow.client_id)
+      if (cl) {
+        const diff = total_vente - (editRow.total_vente || 0)
+        if (diff !== 0) {
+          await supabase.from('clients').update({ solde: (cl.solde || 0) + diff }).eq('id', cl.id)
+        }
+      }
+    }
+
+    setEditSaving(false)
+    if (error) {
+      setEditMsg('❌ Erreur: ' + error.message)
+    } else {
+      setEditMsg('✅ Modifications enregistrées !')
+      setTimeout(() => { setEditRow(null); setEditMsg('') }, 1000)
+      loadAll()
+    }
   }
 
   async function deleteVente(v) {
@@ -190,6 +247,7 @@ export default function Ventes() {
         </div>
         {admin && (
           <div className="card-actions">
+            {admin && <button onClick={() => openEdit(v)} className="btn-secondary text-xs" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️ Modifier</button>}
             <button onClick={() => deleteVente(v)} className="btn-danger">✕ Supprimer</button>
           </div>
         )}
@@ -255,7 +313,12 @@ export default function Ventes() {
                     <td className="td text-right">{fmt(v.qte)}</td>
                     <td className="td text-right">{fmtD(v.prix_vente)}</td>
                     <td className="td text-right font-bold">{fmt(v.total_vente)}</td>
-                    {admin && <td className="td"><button onClick={() => deleteVente(v)} className="btn-danger text-xs">✕</button></td>}
+                    {admin && <td className="td">
+                      <div className="flex gap-1">
+                        <button onClick={() => openEdit(v)} className="btn-secondary text-xs px-2" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️</button>
+                        <button onClick={() => deleteVente(v)} className="btn-danger text-xs">✕</button>
+                      </div>
+                    </td>}
                   </tr>
                 ))}
                 {filtered.length === 0 && <tr><td colSpan={8} className="td text-center text-gray-400 py-8">Aucune vente</td></tr>}
@@ -1189,6 +1252,92 @@ export default function Ventes() {
           {view === 'camion' && <CamionView />}
         </>
       )}
+
+      {/* ── EDIT MODAL ── */}
+      {editRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">✏️ Modifier la vente</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{editRow.client_nom} · {editRow.type_brique} · {editRow.camion_plaque}</p>
+              </div>
+              <button onClick={() => setEditRow(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={saveEdit} className="p-5 space-y-3">
+              <div>
+                <label className="label">Date</label>
+                <input type="date" className="input" required
+                  value={editForm.date}
+                  onChange={e => setEditForm({...editForm, date: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Quantité</label>
+                  <input type="number" className="input" required
+                    value={editForm.qte}
+                    onChange={e => setEditForm({...editForm, qte: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">Prix vente / u</label>
+                  <input type="number" step="0.01" className="input" required
+                    value={editForm.prix_vente}
+                    onChange={e => setEditForm({...editForm, prix_vente: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Prix achat / u</label>
+                  <input type="number" step="0.01" className="input"
+                    value={editForm.prix_achat}
+                    onChange={e => setEditForm({...editForm, prix_achat: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">BON N°</label>
+                  <input type="text" className="input"
+                    value={editForm.bon}
+                    onChange={e => setEditForm({...editForm, bon: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Note</label>
+                <input type="text" className="input"
+                  value={editForm.note}
+                  onChange={e => setEditForm({...editForm, note: e.target.value})} />
+              </div>
+              {editForm.qte && editForm.prix_vente && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 grid grid-cols-3 gap-2 text-center text-xs">
+                  <div>
+                    <div className="text-blue-400">Total vente</div>
+                    <div className="font-bold text-blue-700">{fmt(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_vente)||0)))} DHS</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">Total achat</div>
+                    <div className="font-bold text-gray-600">{fmt(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_achat)||0)))} DHS</div>
+                  </div>
+                  <div>
+                    <div className="text-green-400">Marge</div>
+                    <div className="font-bold text-green-600">{fmt(Math.round((parseFloat(editForm.qte)||0)*((parseFloat(editForm.prix_vente)||0)-(parseFloat(editForm.prix_achat)||0))))} DHS</div>
+                  </div>
+                </div>
+              )}
+              {editMsg && (
+                <div className={`text-sm font-semibold text-center p-2 rounded-lg ${editMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  {editMsg}
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={editSaving} className="btn-primary flex-1 justify-center">
+                  {editSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+                <button type="button" onClick={() => setEditRow(null)} className="btn-secondary">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </Layout>
   )
 }
