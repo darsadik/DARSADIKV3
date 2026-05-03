@@ -28,6 +28,7 @@ export default function Paiements() {
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo, setFilterTo] = useState(today())
   const [showForm, setShowForm] = useState(false)
+  const [filterMode, setFilterMode] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [form, setForm] = useState({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '' })
 
@@ -78,6 +79,7 @@ export default function Paiements() {
       if (filterClient && p.client_id !== parseInt(filterClient)) return false
       if (filterFrom && p.date < filterFrom) return false
       if (filterTo && p.date > filterTo) return false
+      if (filterMode && p.mode !== filterMode) return false
       return true
     })
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -142,7 +144,13 @@ export default function Paiements() {
     <form onSubmit={savePaiement} className="space-y-4">
       <div><label className="label">Date</label>
         <input className="input" type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} required /></div>
-      <div><label className="label">Client</label>
+      <div><label className="label">Mode de paiement</label>
+                <select className="input" value={filterMode} onChange={e=>setFilterMode(e.target.value)}>
+                  <option value="">Tous les modes</option>
+                  {['Espèce','Chèque','Virement','Paiement fournisseur'].map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div><label className="label">Client</label>
         <select className="input" value={form.client_id} onChange={e=>setForm({...form,client_id:e.target.value})} required>
           <option value="">Sélectionner...</option>
           {clients.map(c=><option key={c.id} value={c.id}>{c.nom} — {fmt(c.solde||0)} DHS</option>)}
@@ -218,13 +226,19 @@ export default function Paiements() {
                 <div><label className="label">Du</label><input type="date" className="input" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} /></div>
                 <div><label className="label">Au</label><input type="date" className="input" value={filterTo} onChange={e=>setFilterTo(e.target.value)} /></div>
               </div>
+              <div><label className="label">Mode de paiement</label>
+                <select className="input" value={filterMode} onChange={e=>setFilterMode(e.target.value)}>
+                  <option value="">Tous les modes</option>
+                  {['Espèce','Chèque','Virement','Paiement fournisseur'].map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
               <div><label className="label">Client</label>
                 <select className="input" value={filterClient} onChange={e=>setFilterClient(e.target.value)}>
                   <option value="">Tous</option>{clients.map(c=><option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
               <div className="flex gap-2">
-                <button onClick={()=>{setFilterClient('');setFilterFrom(startOfMonth());setFilterTo(today());setShowFilters(false)}} className="btn-secondary text-xs flex-1 justify-center">↺ Reset</button>
+                <button onClick={()=>{setFilterClient('');setFilterMode('');setFilterFrom(startOfMonth());setFilterTo(today());setShowFilters(false)}} className="btn-secondary text-xs flex-1 justify-center">↺ Reset</button>
                 <button onClick={printPaiements} className="btn-primary text-xs flex-1 justify-center" style={{background:'#4f46e5'}}>🖨️ PDF</button>
                 <button onClick={exportCSV} className="btn-primary text-xs flex-1 justify-center" style={{background:'#16a34a'}}>📥 CSV</button>
               </div>
@@ -280,7 +294,13 @@ export default function Paiements() {
               <div className="flex flex-wrap gap-3 mb-4 items-end">
                 <div><label className="label">Du</label><input type="date" className="input" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} /></div>
                 <div><label className="label">Au</label><input type="date" className="input" value={filterTo} onChange={e=>setFilterTo(e.target.value)} /></div>
-                <div><label className="label">Client</label>
+                <div><label className="label">Mode de paiement</label>
+                <select className="input" value={filterMode} onChange={e=>setFilterMode(e.target.value)}>
+                  <option value="">Tous les modes</option>
+                  {['Espèce','Chèque','Virement','Paiement fournisseur'].map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div><label className="label">Client</label>
                   <select className="input" value={filterClient} onChange={e=>setFilterClient(e.target.value)} style={{minWidth:'160px'}}>
                     <option value="">Tous</option>{clients.map(c=><option key={c.id} value={c.id}>{c.nom}</option>)}
                   </select>
