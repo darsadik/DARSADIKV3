@@ -5,26 +5,34 @@ import { useAuth } from '../pages/_app'
 
 const SUPER_ADMIN = 'abdelhafidbaadi@gmail.com'
 const nav = [
-  { href: '/',           icon: '▦',  label: 'Dashboard' },
-  { href: '/ventes',     icon: '◈',  label: 'Ventes' },
-  { href: '/clients',    icon: '◎',  label: 'Clients' },
-  { href: '/paiements',  icon: '◇',  label: 'Paiements' },
-  { href: '/gasoil',     icon: '◉',  label: 'Gasoil' },
-  { href: '/grignon',    icon: '✦',  label: 'Grignon' },
-  { href: '/parametres', icon: '⊞',  label: 'Paramètres' },
+  { href: '/',            icon: '📊', label: 'Dashboard' },
+  { href: '/ventes',      icon: '📦', label: 'Ventes' },
+  { href: '/clients',     icon: '👥', label: 'Clients' },
+  { href: '/paiements',   icon: '💰', label: 'Paiements' },
+  { href: '/gasoil',      icon: '⛽', label: 'Gasoil' },
+  { href: '/grignon', icon: '🫒', label: 'Grignon' },
+  { href: '/parametres',  icon: '⚙️', label: 'Paramètres' },
 ]
 
-function DsLogo({ size = 32 }) {
+
+// ── DAR SADIK LOGO COMPONENT ──
+function DsLogo({ size = 32, white = false }) {
+  const bg   = white ? '#ffffff' : '#1a5fa8'
+  const mark = white ? '#1a5fa8' : '#ffffff'
+  const accent = white ? '#0d3d6e' : '#e8f0fb'
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="40" height="40" rx="8" fill="#ffffff" fillOpacity="0.06"/>
-      <rect x="7"  y="10" width="11" height="6" rx="1" fill="white"/>
-      <rect x="21" y="10" width="12" height="6" rx="1" fill="white"/>
-      <rect x="7"  y="18" width="7"  height="6" rx="1" fill="white" fillOpacity="0.25"/>
-      <rect x="17" y="18" width="11" height="6" rx="1" fill="white"/>
-      <rect x="31" y="18" width="2"  height="6" rx="1" fill="white" fillOpacity="0.25"/>
-      <rect x="7"  y="26" width="11" height="6" rx="1" fill="white"/>
-      <rect x="21" y="26" width="12" height="6" rx="1" fill="white"/>
+      <rect width="40" height="40" rx="9" fill={bg}/>
+      {/* Brick row 1 */}
+      <rect x="7"  y="10" width="11" height="6" rx="1" fill={mark}/>
+      <rect x="21" y="10" width="12" height="6" rx="1" fill={mark}/>
+      {/* Brick row 2 — offset */}
+      <rect x="7"  y="18" width="7"  height="6" rx="1" fill={accent}/>
+      <rect x="17" y="18" width="11" height="6" rx="1" fill={mark}/>
+      <rect x="31" y="18" width="2"  height="6" rx="1" fill={accent}/>
+      {/* Brick row 3 */}
+      <rect x="7"  y="26" width="11" height="6" rx="1" fill={mark}/>
+      <rect x="21" y="26" width="12" height="6" rx="1" fill={mark}/>
     </svg>
   )
 }
@@ -43,6 +51,7 @@ export default function Layout({ children, title, subtitle }) {
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  // Close mobile menu on route change
   useEffect(() => { setMobileMenuOpen(false) }, [router.pathname])
 
   const logout = async () => {
@@ -50,89 +59,99 @@ export default function Layout({ children, title, subtitle }) {
     router.push('/')
   }
 
+  // ── MOBILE LAYOUT ──────────────────────────────────────────
   if (isMobile) {
     return (
-      <div className="flex flex-col min-h-screen" style={{background:'#0a0a0a'}}>
-        <header style={{background:'#111', borderBottom:'1px solid #1e1e1e'}}
-          className="px-4 py-3 flex items-center justify-between sticky top-0 z-50">
-          <div className="flex items-center gap-3">
-            <DsLogo size={32} />
+      <div className="flex flex-col min-h-screen bg-gray-50">
+
+        {/* MOBILE TOP BAR */}
+        <header className="bg-brand-700 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
+          <div className="flex items-center gap-2">
+            <DsLogo size={34} white={false} />
             <div>
-              <div style={{color:'#e0e0e0', fontWeight:700, fontSize:13, letterSpacing:'0.15em', textTransform:'uppercase'}}>Dar Sadik</div>
-              {title && <div style={{color:'#444', fontSize:11}}>{title}</div>}
+              <div className="font-bold text-sm leading-tight tracking-wide">DAR SADIK</div>
+              {title && <div className="text-brand-200 text-xs leading-tight">{title}</div>}
             </div>
           </div>
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="w-9 h-9 flex items-center justify-center rounded-lg"
-            style={{background:'#1a1a1a', border:'1px solid #2a2a2a', color:'#666'}}>
-            <span style={{fontSize:13, fontFamily:'monospace'}}>{mobileMenuOpen ? '✕' : '☰'}</span>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="w-9 h-9 flex items-center justify-center rounded-lg bg-brand-600 hover:bg-brand-500 transition-all"
+          >
+            <span className="text-lg">{mobileMenuOpen ? '✕' : '☰'}</span>
           </button>
         </header>
 
+        {/* MOBILE DROPDOWN MENU */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-40" style={{background:'rgba(0,0,0,0.9)'}}
-            onClick={() => setMobileMenuOpen(false)}>
-            <div className="absolute top-0 right-0 h-full w-64 flex flex-col"
-              style={{background:'#111', borderLeft:'1px solid #1e1e1e'}}
-              onClick={e => e.stopPropagation()}>
-              <div className="flex items-center gap-3 px-5 py-5" style={{borderBottom:'1px solid #1a1a1a'}}>
-                <DsLogo size={34} />
+          <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
+            <div className="absolute top-0 right-0 h-full w-64 bg-brand-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-600">
+                <DsLogo size={36} white={false} />
                 <div>
-                  <div style={{color:'#e0e0e0', fontWeight:700, fontSize:13, letterSpacing:'0.15em', textTransform:'uppercase'}}>Dar Sadik</div>
-                  <div style={{color:'#333', fontSize:11}}>Selouane — Nador</div>
+                  <div className="text-white font-bold text-sm tracking-wide">DAR SADIK</div>
+                  <div className="text-brand-200 text-xs">Selouane — Nador</div>
                 </div>
               </div>
-              <nav className="flex-1 py-4 space-y-0.5 px-3">
+
+              <nav className="flex-1 py-4 space-y-1 px-2">
                 {nav.map(item => {
                   const active = router.pathname === item.href
                   return (
                     <Link key={item.href} href={item.href}
-                      className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all"
-                      style={active ? {background:'#fff', color:'#000'} : {color:'#444'}}>
-                      <span className="w-5 text-center" style={{fontSize:15}}>{item.icon}</span>
-                      <span style={{letterSpacing:'0.05em', fontSize:13}}>{item.label}</span>
+                      className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all
+                        ${active ? 'bg-white text-brand-700' : 'text-brand-100 hover:bg-brand-600 hover:text-white'}`}>
+                      <span className="text-base">{item.icon}</span>
+                      <span>{item.label}</span>
                     </Link>
                   )
                 })}
                 {user?.email === SUPER_ADMIN && (
                   <Link href="/admin"
-                    className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-all"
-                    style={router.pathname === '/admin' ? {background:'#fff', color:'#000'} : {color:'#a78b4a'}}>
-                    <span className="w-5 text-center">★</span>
-                    <span style={{letterSpacing:'0.05em', fontSize:13}}>Admin</span>
+                    className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all
+                      ${router.pathname === '/admin' ? 'bg-white text-brand-700' : 'text-amber-300 hover:bg-brand-600 hover:text-white'}`}>
+                    <span className="text-base">👑</span>
+                    <span>Admin</span>
                   </Link>
                 )}
               </nav>
-              <div className="p-4" style={{borderTop:'1px solid #1a1a1a'}}>
+
+              <div className="border-t border-brand-600 p-4 absolute bottom-0 w-full">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{background:'#1e1e1e', border:'1px solid #2e2e2e'}}>
-                    <span style={{color:'#fff', fontSize:11, fontWeight:700}}>{user?.email?.[0]?.toUpperCase()}</span>
+                  <div className="w-8 h-8 bg-brand-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">{user?.email?.[0]?.toUpperCase()}</span>
                   </div>
-                  <div style={{color:'#555', fontSize:11, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{user?.email}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white text-xs font-medium truncate">{user?.email}</div>
+                  </div>
                 </div>
-                <button onClick={logout} className="w-full py-2 rounded-lg transition-all"
-                  style={{background:'#161616', border:'1px solid #222', color:'#555', fontSize:11, letterSpacing:'0.1em', textTransform:'uppercase'}}>
-                  Déconnexion
+                <button onClick={logout} className="w-full bg-brand-600 hover:bg-brand-500 text-white text-sm py-2 rounded-lg transition-all">
+                  ↪ Déconnexion
                 </button>
+                <div className="mt-3 pt-3 border-t border-brand-600 text-center">
+                  <div className="text-brand-300 text-[10px]">Designed by</div>
+                  <div className="text-white text-[11px] font-semibold tracking-wide">Abdelhafid Baadi</div>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        <main className="flex-1 p-3 pb-24">{children}</main>
+        {/* MOBILE CONTENT */}
+        <main className="flex-1 p-3 pb-24">
+          {children}
+        </main>
 
-        <nav className="fixed bottom-0 left-0 right-0 z-30 flex"
-          style={{background:'#111', borderTop:'1px solid #1e1e1e'}}>
+        {/* MOBILE BOTTOM NAV */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-lg z-30 flex">
           {nav.slice(0, 5).map(item => {
             const active = router.pathname === item.href
             return (
               <Link key={item.href} href={item.href}
-                className="flex-1 flex flex-col items-center justify-center py-2.5 transition-all"
-                style={active ? {color:'#fff'} : {color:'#333'}}>
-                <span style={{fontSize:18, marginBottom:2}}>{item.icon}</span>
-                <span style={{fontSize:9, letterSpacing:'0.08em', textTransform:'uppercase'}}>{item.label}</span>
-                {active && <div style={{width:20, height:1, background:'#fff', marginTop:2, borderRadius:1}} />}
+                className={`flex-1 flex flex-col items-center justify-center py-2 text-xs font-medium transition-all
+                  ${active ? 'text-brand-600' : 'text-gray-400 hover:text-gray-600'}`}>
+                <span className="text-xl mb-0.5">{item.icon}</span>
+                <span className="text-[10px] leading-tight">{item.label}</span>
+                {active && <div className="absolute bottom-0 w-8 h-0.5 bg-brand-500 rounded-full" />}
               </Link>
             )
           })}
@@ -141,98 +160,91 @@ export default function Layout({ children, title, subtitle }) {
     )
   }
 
+  // ── DESKTOP LAYOUT (UNCHANGED) ──────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden" style={{background:'#0a0a0a'}}>
-      <aside className="flex flex-col flex-shrink-0 transition-all duration-200"
-        style={{width: sidebarOpen ? 220 : 60, background:'#111', borderRight:'1px solid #1a1a1a'}}>
-        <div className="flex items-center gap-3 px-4 py-5" style={{borderBottom:'1px solid #181818', minHeight:64}}>
-          <DsLogo size={sidebarOpen ? 34 : 28} />
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* SIDEBAR */}
+      <aside className={`${sidebarOpen ? 'w-56' : 'w-16'} bg-brand-700 flex flex-col transition-all duration-200 flex-shrink-0`}>
+        <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-600">
+          <DsLogo size={sidebarOpen ? 36 : 32} white={false} />
           {sidebarOpen && (
             <div>
-              <div style={{color:'#e0e0e0', fontWeight:700, fontSize:12, letterSpacing:'0.18em', textTransform:'uppercase'}}>Dar Sadik</div>
-              <div style={{color:'#2e2e2e', fontSize:10, marginTop:2}}>Selouane — Nador</div>
+              <div className="text-white font-bold text-sm tracking-wide">DAR SADIK</div>
+              <div className="text-brand-200 text-xs">Selouane — Nador</div>
             </div>
           )}
         </div>
 
-        <nav className="flex-1 py-4 space-y-0.5 px-2">
+        <nav className="flex-1 py-4 space-y-1 px-2">
           {nav.map(item => {
             const active = router.pathname === item.href
             return (
               <Link key={item.href} href={item.href}
-                title={!sidebarOpen ? item.label : undefined}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
-                style={active
-                  ? {background:'#ffffff', color:'#000000'}
-                  : {color:'#3a3a3a'}}>
-                <span className="flex-shrink-0 w-5 text-center" style={{fontSize:14}}>{item.icon}</span>
-                {sidebarOpen && <span style={{fontSize:12, letterSpacing:'0.06em', fontWeight:500}}>{item.label}</span>}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                  ${active ? 'bg-white text-brand-700' : 'text-brand-100 hover:bg-brand-600 hover:text-white'}`}>
+                <span className="text-base flex-shrink-0">{item.icon}</span>
+                {sidebarOpen && <span>{item.label}</span>}
               </Link>
             )
           })}
           {user?.email === SUPER_ADMIN && (
             <Link href="/admin"
-              title={!sidebarOpen ? 'Admin' : undefined}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
-              style={router.pathname === '/admin' ? {background:'#fff', color:'#000'} : {color:'#7a6030'}}>
-              <span className="flex-shrink-0 w-5 text-center" style={{fontSize:14}}>★</span>
-              {sidebarOpen && <span style={{fontSize:12, letterSpacing:'0.06em', fontWeight:500}}>Admin</span>}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                ${router.pathname === '/admin' ? 'bg-white text-brand-700' : 'text-amber-300 hover:bg-brand-600 hover:text-white'}`}>
+              <span className="text-base flex-shrink-0">👑</span>
+              {sidebarOpen && <span>Admin</span>}
             </Link>
           )}
         </nav>
 
-        <div className="p-3" style={{borderTop:'1px solid #181818'}}>
+        <div className="border-t border-brand-600 p-3">
           {sidebarOpen ? (
-            <>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{background:'#1a1a1a', border:'1px solid #262626'}}>
-                  <span style={{color:'#888', fontSize:10, fontWeight:700}}>{user?.email?.[0]?.toUpperCase()}</span>
-                </div>
-                <div style={{color:'#444', fontSize:11, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{user?.email}</div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-brand-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-xs font-bold">{user?.email?.[0]?.toUpperCase()}</span>
               </div>
-              <button onClick={logout} className="w-full py-1.5 rounded-lg transition-all"
-                style={{background:'#141414', border:'1px solid #1e1e1e', color:'#3a3a3a', fontSize:10, letterSpacing:'0.12em', textTransform:'uppercase'}}>
-                Déconnexion
-              </button>
-              <div className="mt-3 text-center" style={{borderTop:'1px solid #181818', paddingTop:10}}>
-                <div style={{color:'#222', fontSize:9, letterSpacing:'0.15em', textTransform:'uppercase'}}>Designed by</div>
-                <div style={{color:'#2a2a2a', fontSize:10, fontWeight:600, letterSpacing:'0.1em'}}>Abdelhafid Baadi</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-white text-xs font-medium truncate">{user?.email}</div>
+                <button onClick={logout} className="text-brand-300 text-xs hover:text-white transition-colors">Déconnexion</button>
               </div>
-            </>
+            </div>
           ) : (
-            <button onClick={logout} className="w-full flex justify-center py-1" style={{color:'#2e2e2e'}}>↪</button>
+            <button onClick={logout} className="w-full flex justify-center text-brand-300 hover:text-white text-lg">↪</button>
+          )}
+          {sidebarOpen && (
+            <div className="mt-3 pt-3 border-t border-brand-600 text-center">
+              <div className="text-brand-300 text-[10px] leading-tight">Designed by</div>
+              <div className="text-white text-[11px] font-semibold tracking-wide">Abdelhafid Baadi</div>
+            </div>
           )}
         </div>
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between px-6 flex-shrink-0"
-          style={{height:56, background:'#0d0d0d', borderBottom:'1px solid #181818'}}>
+        <header className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{color:'#2e2e2e'}} className="transition-colors hover:opacity-60">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
               </svg>
             </button>
             <div>
-              {title && <h1 style={{color:'#c0c0c0', fontWeight:700, fontSize:12, letterSpacing:'0.2em', textTransform:'uppercase'}}>{title}</h1>}
-              {subtitle && <p style={{color:'#2e2e2e', fontSize:10, letterSpacing:'0.1em'}}>{subtitle}</p>}
+              {title && <h1 className="page-title">{title}</h1>}
+              {subtitle && <p className="page-subtitle">{subtitle}</p>}
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5" style={{color:'#2e2e2e', fontSize:11}}>
-              <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{background:'#22c55e'}}/>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
               En ligne
             </div>
-            <div className="px-3 py-1.5 rounded-lg"
-              style={{background:'#141414', border:'1px solid #1e1e1e', color:'#3a3a3a', fontSize:10, letterSpacing:'0.08em'}}>
+            <div className="text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-lg">
               {new Date().toLocaleDateString('fr-MA', { weekday:'long', day:'numeric', month:'long' })}
             </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6" style={{background:'#0a0a0a'}}>
+        <main className="flex-1 overflow-y-auto p-6">
           {children}
         </main>
       </div>
