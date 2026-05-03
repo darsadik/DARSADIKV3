@@ -58,6 +58,10 @@ export default function Grignon() {
   const { user } = useAuth()
   const isMobile = useIsMobile()
   const admin = user?.email === ADMIN
+  const [editRow, setEditRow] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [editSaving, setEditSaving] = useState(false)
+  const [editMsg, setEditMsg] = useState('')
 
   // ── Grignon-isolated data (never mixed with main project) ──
   const [operations, setOperations]     = useState([])
@@ -148,6 +152,54 @@ export default function Grignon() {
     setSaving(false)
     setForm({ date: today(), client_id: '', camion_id: '', fournisseur_id: '', qte: '', prix_achat: '', prix_vente: '', note: '' })
     loadAll()
+  }
+
+  function openEditGrignon(op) {
+    setEditRow(op)
+    setEditForm({
+      date: op.date || '',
+      qte: op.qte || '',
+      prix_vente: op.prix_vente || '',
+      prix_achat: op.prix_achat || '',
+      note: op.note || '',
+    })
+    setEditMsg('')
+  }
+
+  async function saveEditGrignon(e) {
+    e.preventDefault()
+    if (!editRow) return
+    setEditSaving(true)
+    const qte = parseFloat(editForm.qte) || 0
+    const pv  = parseFloat(editForm.prix_vente) || 0
+    const pa  = parseFloat(editForm.prix_achat) || 0
+    const total_vente = Math.round(qte * pv * 100) / 100
+    const total_achat = Math.round(qte * pa * 100) / 100
+    const marge = Math.round((total_vente - total_achat) * 100) / 100
+
+    const { error } = await supabase.from('grignon_operations').update({
+      date: editForm.date,
+      qte, prix_vente: pv, prix_achat: pa,
+      total_vente, total_achat, marge,
+      note: editForm.note || null,
+    }).eq('id', editRow.id)
+
+    if (!error && editRow.client_id) {
+      const cl = clients.find(c => c.id === editRow.client_id)
+      if (cl) {
+        const diff = total_vente - (editRow.total_vente || 0)
+        if (diff !== 0) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) + diff }).eq('id', cl.id)
+      }
+    }
+
+    setEditSaving(false)
+    if (error) {
+      setEditMsg('❌ ' + error.message)
+    } else {
+      setEditMsg('✅ Enregistré !')
+      setTimeout(() => { setEditRow(null); setEditMsg('') }, 1000)
+      loadAll()
+    }
   }
 
   async function deleteOperation(op) {
@@ -823,7 +875,12 @@ export default function Grignon() {
                   <td className="td text-right text-gray-500">{fmtD(op.prix_vente)}</td>
                   <td className="td text-right font-bold">{fmt(op.total_vente)}</td>
                   <td className="td text-gray-500">{op.camion_plaque || '—'}</td>
-                  {admin && <td className="td"><button onClick={() => deleteOperation(op)} className="btn-danger text-xs">✕</button></td>}
+                  {admin && <td className="td">
+                    <div className="flex gap-1">
+                      <button onClick={() => openEditGrignon(op)} className="btn-secondary text-xs px-2" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️</button>
+                      <button onClick={() => deleteOperation(op)} className="btn-danger text-xs">✕</button>
+                    </div>
+                  </td>}
                 </tr>
               ))}
               {filtered.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-8">Aucune opération</td></tr>}
@@ -1275,6 +1332,86 @@ export default function Grignon() {
           )}
         </>
       )}
+
+      {/* ── GRIGNON EDIT MODAL ── */}
+      {editRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">✏️ Modifier l'opération</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{editRow.client_nom || '—'} · {editRow.date}</p>
+              </div>
+              <button onClick={() => setEditRow(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={saveEditGrignon} className="p-5 space-y-3">
+              <div>
+                <label className="label">Date</label>
+                <input type="date" className="input" required
+                  value={editForm.date}
+                  onChange={e => setEditForm({...editForm, date: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Quantité (kg)</label>
+                  <input type="number" step="0.01" className="input" required
+                    value={editForm.qte}
+                    onChange={e => setEditForm({...editForm, qte: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">Prix vente / kg</label>
+                  <input type="number" step="0.01" className="input" required
+                    value={editForm.prix_vente}
+                    onChange={e => setEditForm({...editForm, prix_vente: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Prix achat / kg</label>
+                  <input type="number" step="0.01" className="input"
+                    value={editForm.prix_achat}
+                    onChange={e => setEditForm({...editForm, prix_achat: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">Note</label>
+                  <input type="text" className="input"
+                    value={editForm.note}
+                    onChange={e => setEditForm({...editForm, note: e.target.value})} />
+                </div>
+              </div>
+              {editForm.qte && editForm.prix_vente && (
+                <div className="bg-green-50 border border-green-100 rounded-xl p-3 grid grid-cols-3 gap-2 text-center text-xs">
+                  <div>
+                    <div className="text-green-400">Total vente</div>
+                    <div className="font-bold text-green-700">{fmt(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_vente)||0)))} DHS</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">Total achat</div>
+                    <div className="font-bold text-gray-600">{fmt(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_achat)||0)))} DHS</div>
+                  </div>
+                  <div>
+                    <div className="text-blue-400">Marge</div>
+                    <div className="font-bold text-blue-700">{fmt(Math.round((parseFloat(editForm.qte)||0)*((parseFloat(editForm.prix_vente)||0)-(parseFloat(editForm.prix_achat)||0))))} DHS</div>
+                  </div>
+                </div>
+              )}
+              {editMsg && (
+                <div className={`text-sm font-semibold text-center p-2 rounded-lg ${editMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  {editMsg}
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={editSaving} className="btn-primary flex-1 justify-center">
+                  {editSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+                <button type="button" onClick={() => setEditRow(null)} className="btn-secondary">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </Layout>
   )
 }
