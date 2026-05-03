@@ -3,6 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
+const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtD = n => parseFloat(n || 0).toFixed(2)
 const today = () => new Date().toISOString().split('T')[0]
@@ -45,6 +46,11 @@ const PRINT_CSS = `
 
 export default function Gasoil() {
   const { user } = useAuth()
+  const admin = user?.email === ADMIN
+  const [editRow, setEditRow] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [editSaving, setEditSaving] = useState(false)
+  const [editMsg, setEditMsg] = useState('')
   const [camions, setCamions] = useState([])
   const [gasoil, setGasoil] = useState([])
   const [gasoilPaiements, setGasoilPaiements] = useState([])
@@ -137,6 +143,62 @@ export default function Gasoil() {
     if (!confirm('Supprimer ce paiement ?')) return
     await supabase.from('gasoil_paiements').delete().eq('id', id)
     loadAll()
+  }
+
+  function openEditGasoil(g) {
+    setEditRow(g)
+    setEditForm({
+      date: g.date || '',
+      qte: g.qte || '',
+      prix_unitaire: g.prix_unitaire || '',
+      km: g.km || '',
+      bon: g.bon || '',
+      station: g.station || '',
+      note: g.note || '',
+    })
+    setEditMsg('')
+  }
+
+  async function saveEditGasoil(e) {
+    e.preventDefault()
+    if (!editRow) return
+    setEditSaving(true)
+    const qte = parseFloat(editForm.qte) || 0
+    const pu  = parseFloat(editForm.prix_unitaire) || 0
+    const total = Math.round(qte * pu * 100) / 100
+
+    const { error } = await supabase.from('gasoil').update({
+      date: editForm.date,
+      qte, prix_unitaire: pu, total,
+      km: parseFloat(editForm.km) || null,
+      bon: editForm.bon || null,
+      station: editForm.station || null,
+      note: editForm.note || null,
+    }).eq('id', editRow.id)
+
+    // Adjust camion totals
+    if (!error) {
+      const camion = camions.find(c => c.id === editRow.camion_id)
+      if (camion) {
+        const diff = total - (editRow.total || 0)
+        const diffL = qte - (editRow.qte || 0)
+        if (diff !== 0 || diffL !== 0) {
+          await supabase.from('camions').update({
+            gasoil_dhs: (camion.gasoil_dhs || 0) + diff,
+            litres: (camion.litres || 0) + diffL,
+          }).eq('id', camion.id)
+        }
+      }
+    }
+
+    setEditSaving(false)
+    if (error) {
+      setEditMsg('❌ ' + error.message)
+    } else {
+      setEditMsg('✅ Enregistré !')
+      setTimeout(() => { setEditRow(null); setEditMsg('') }, 1000)
+      loadAll()
+    }
   }
 
   async function deleteGasoil(id, camionId, total, qte) {
@@ -748,7 +810,10 @@ export default function Gasoil() {
                         <td className="td text-right text-gray-400 text-xs">{g.km ? fmt(g.km) : '—'}</td>
                         <td className="td text-gray-400 text-xs">{g.bon || '—'}</td>
                         <td className="td">
+                          <div className="flex gap-1">
+                          {admin && <button onClick={() => openEditGasoil(g)} className="btn-secondary text-xs px-2" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️</button>}
                           <button className="btn-danger" onClick={() => deleteGasoil(g.id, g.camion_id, g.total, g.qte)}>✕</button>
+                        </div>
                         </td>
                       </tr>
                     ))}
@@ -773,6 +838,84 @@ export default function Gasoil() {
           </div>
         </div>
       </div>
+
+      {/* ── GASOIL EDIT MODAL ── */}
+      {editRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">✏️ Modifier le plein</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{editRow.camion_plaque} · {editRow.date}</p>
+              </div>
+              <button onClick={() => setEditRow(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={saveEditGasoil} className="p-5 space-y-3">
+              <div>
+                <label className="label">Date</label>
+                <input type="date" className="input" required
+                  value={editForm.date}
+                  onChange={e => setEditForm({...editForm, date: e.target.value})} />
+              </div>
+              <div>
+                <label className="label">Station</label>
+                <input type="text" className="input"
+                  value={editForm.station}
+                  onChange={e => setEditForm({...editForm, station: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Litres</label>
+                  <input type="number" step="0.01" className="input" required
+                    value={editForm.qte}
+                    onChange={e => setEditForm({...editForm, qte: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">Prix / L (DHS)</label>
+                  <input type="number" step="0.01" className="input" required
+                    value={editForm.prix_unitaire}
+                    onChange={e => setEditForm({...editForm, prix_unitaire: e.target.value})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">KM compteur</label>
+                  <input type="number" className="input"
+                    value={editForm.km}
+                    onChange={e => setEditForm({...editForm, km: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">BON N°</label>
+                  <input type="text" className="input"
+                    value={editForm.bon}
+                    onChange={e => setEditForm({...editForm, bon: e.target.value})} />
+                </div>
+              </div>
+              {editForm.qte && editForm.prix_unitaire && (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+                  <div className="text-xs text-amber-600 mb-1">Total calculé</div>
+                  <div className="text-xl font-bold text-amber-700">
+                    {fmtD((parseFloat(editForm.qte)||0) * (parseFloat(editForm.prix_unitaire)||0))} DHS
+                  </div>
+                </div>
+              )}
+              {editMsg && (
+                <div className={`text-sm font-semibold text-center p-2 rounded-lg ${editMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  {editMsg}
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={editSaving} className="btn-primary flex-1 justify-center">
+                  {editSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+                <button type="button" onClick={() => setEditRow(null)} className="btn-secondary">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </Layout>
   )
 }
