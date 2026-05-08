@@ -1605,6 +1605,7 @@ export default function Grignon() {
 
       {/* SAISIE FORM */}
       {view === 'saisie' && admin && (
+        <div className="space-y-6">
         <div className="card mb-4">
           <h3 className="font-bold text-gray-900 mb-4">➕ Nouvelle opération grignon (fitour)</h3>
           <div>
@@ -1718,7 +1719,8 @@ export default function Grignon() {
             )}
           </div>
         )}
-      
+        </div>
+      )}
 
       {/* VIEWS */}
       {loading ? (
