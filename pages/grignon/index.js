@@ -62,6 +62,7 @@ export default function Grignon() {
   const [editForm, setEditForm] = useState({})
   const [editSaving, setEditSaving] = useState(false)
   const [editMsg, setEditMsg] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(null) // op id waiting confirm
 
   // ── Grignon-isolated data (never mixed with main project) ──
   const [operations, setOperations]     = useState([])
@@ -170,11 +171,14 @@ export default function Grignon() {
   function openEditGrignon(op) {
     setEditRow(op)
     setEditForm({
-      date: op.date || '',
-      qte: op.qte || '',
-      prix_vente: op.prix_vente || '',
-      prix_achat: op.prix_achat || '',
-      note: op.note || '',
+      date:           op.date || '',
+      qte:            op.qte || '',
+      prix_vente:     op.prix_vente || '',
+      prix_achat:     op.prix_achat || '',
+      note:           op.note || '',
+      client_id:      op.client_id || '',
+      fournisseur_id: op.fournisseur_id || '',
+      camion_id:      op.camion_id || '',
     })
     setEditMsg('')
   }
@@ -190,18 +194,41 @@ export default function Grignon() {
     const total_achat = Math.round(qte * pa * 100) / 100
     const marge = Math.round((total_vente - total_achat) * 100) / 100
 
+    const cl = clients.find(c => c.id === parseInt(editForm.client_id))
+    const fo = fournisseurs.find(f => f.id === parseInt(editForm.fournisseur_id))
+    const ca = camions.find(c => c.id === parseInt(editForm.camion_id))
+
     const { error } = await supabase.from('grignon_operations').update({
-      date: editForm.date,
+      date:            editForm.date,
       qte, prix_vente: pv, prix_achat: pa,
       total_vente, total_achat, marge,
-      note: editForm.note || null,
+      note:            editForm.note || null,
+      client_id:       editForm.client_id ? parseInt(editForm.client_id) : null,
+      client_nom:      cl?.nom || '',
+      fournisseur_id:  editForm.fournisseur_id ? parseInt(editForm.fournisseur_id) : null,
+      fournisseur_nom: fo?.nom || '',
+      camion_id:       editForm.camion_id ? parseInt(editForm.camion_id) : null,
+      camion_plaque:   ca?.plaque || '',
+      chauffeur:       ca?.chauffeur || '',
     }).eq('id', editRow.id)
 
-    if (!error && editRow.client_id) {
-      const cl = clients.find(c => c.id === editRow.client_id)
-      if (cl) {
-        const diff = total_vente - (editRow.total_vente || 0)
-        if (diff !== 0) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) + diff }).eq('id', cl.id)
+    // fix client solde: reverse old total_vente, apply new
+    if (!error) {
+      const oldCl = clients.find(c => c.id === editRow.client_id)
+      const newCl = cl
+      // remove old vente from old client
+      if (oldCl && editRow.total_vente) {
+        await supabase.from('grignon_clients')
+          .update({ solde: Math.max(0, (oldCl.solde || 0) - (editRow.total_vente || 0)) })
+          .eq('id', oldCl.id)
+      }
+      // add new vente to new client
+      if (newCl && total_vente > 0) {
+        // reload fresh solde to avoid stale value
+        const { data: freshCl } = await supabase.from('grignon_clients').select('solde').eq('id', newCl.id).single()
+        await supabase.from('grignon_clients')
+          .update({ solde: (freshCl?.solde || 0) + total_vente })
+          .eq('id', newCl.id)
       }
     }
 
@@ -210,14 +237,19 @@ export default function Grignon() {
       setEditMsg('❌ ' + error.message)
     } else {
       setEditMsg('✅ Enregistré !')
-      setTimeout(() => { setEditRow(null); setEditMsg('') }, 1000)
+      setTimeout(() => { setEditRow(null); setEditMsg('') }, 800)
       loadAll()
     }
   }
 
   async function deleteOperation(op) {
     if (!admin) return
-    if (!confirm('Supprimer cette opération ?')) return
+    if (deleteConfirm !== op.id) {
+      setDeleteConfirm(op.id)
+      setTimeout(() => setDeleteConfirm(null), 3000) // auto cancel after 3s
+      return
+    }
+    setDeleteConfirm(null)
     await supabase.from('grignon_operations').delete().eq('id', op.id)
     if (op.client_id && op.total_vente) {
       const cl = clients.find(c => c.id === op.client_id)
@@ -936,9 +968,12 @@ export default function Grignon() {
                   <td className="td text-right font-bold">{fmt(op.total_vente)}</td>
                   <td className="td text-gray-500">{op.camion_plaque || '—'}</td>
                   {admin && <td className="td">
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 items-center">
                       <button onClick={() => openEditGrignon(op)} className="btn-secondary text-xs px-2" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️</button>
-                      <button onClick={() => deleteOperation(op)} className="btn-danger text-xs">✕</button>
+                      {deleteConfirm === op.id
+                        ? <button onClick={() => deleteOperation(op)} className="text-xs px-2 py-1 rounded-lg font-bold" style={{background:'#dc2626',color:'#fff'}}>Confirmer ✕</button>
+                        : <button onClick={() => deleteOperation(op)} className="btn-danger text-xs">✕</button>
+                      }
                     </div>
                   </td>}
                 </tr>
@@ -1227,7 +1262,7 @@ export default function Grignon() {
             </div>
             <div>
               <label className="label">Montant (DHS)</label>
-              <input type="number" step="0.01" className="input" placeholder="ex: 5000" value={paiForm.montant} onChange={e=>setPaiForm({...paiForm,montant:e.target.value})} />
+              <input type="text" inputMode="decimal" className="input" placeholder="ex: 5000" value={paiForm.montant} onChange={e=>setPaiForm({...paiForm,montant:e.target.value})} />
             </div>
             <div>
               <label className="label">Mode de paiement</label>
@@ -1658,16 +1693,16 @@ export default function Grignon() {
                       <td className="td text-right font-bold text-purple-700">{fmt(op.total_vente)}</td>
                       <td className="td text-gray-400 text-xs">{op.note || '—'}</td>
                       <td className="td">
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 items-center">
                           <button
                             onClick={() => openEditGrignon(op)}
                             className="btn-secondary text-xs px-2"
                             style={{color:'#1a5fa8', borderColor:'#1a5fa8'}}
                           >✏️</button>
-                          <button
-                            onClick={() => deleteOperation(op)}
-                            className="btn-danger text-xs"
-                          >✕</button>
+                          {deleteConfirm === op.id
+                            ? <button onClick={() => deleteOperation(op)} className="text-xs px-2 py-1 rounded-lg font-bold" style={{background:'#dc2626',color:'#fff'}}>Confirmer ✕</button>
+                            : <button onClick={() => deleteOperation(op)} className="btn-danger text-xs">✕</button>
+                          }
                         </div>
                       </td>
                     </tr>
@@ -1801,22 +1836,53 @@ export default function Grignon() {
       {editRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{background:'rgba(0,0,0,0.5)'}}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-y-auto" style={{maxHeight:'90vh'}}>
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
               <div>
-                <h2 className="font-bold text-gray-900">✏️ Modifier l'opération</h2>
+                <h2 className="font-bold text-gray-900">✏️ Modifier l'opération #{editRow.id}</h2>
                 <p className="text-xs text-gray-400 mt-0.5">{editRow.client_nom || '—'} · {editRow.date}</p>
               </div>
               <button onClick={() => setEditRow(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
             </div>
             <form onSubmit={saveEditGrignon} className="p-5 space-y-3">
+
+              {/* Date */}
               <div>
                 <label className="label">Date</label>
                 <input type="date" className="input" required
                   value={editForm.date}
                   onChange={e => setEditForm({...editForm, date: e.target.value})} />
               </div>
+
+              {/* Client / Fournisseur */}
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Client</label>
+                  <select className="input" value={editForm.client_id} onChange={e => setEditForm({...editForm, client_id: e.target.value})}>
+                    <option value="">— Sans client —</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Fournisseur</label>
+                  <select className="input" value={editForm.fournisseur_id} onChange={e => setEditForm({...editForm, fournisseur_id: e.target.value})}>
+                    <option value="">— Sans fournisseur —</option>
+                    {fournisseurs.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Camion */}
+              <div>
+                <label className="label">Camion</label>
+                <select className="input" value={editForm.camion_id} onChange={e => setEditForm({...editForm, camion_id: e.target.value})}>
+                  <option value="">— Sans camion —</option>
+                  {camions.map(c => <option key={c.id} value={c.id}>{c.plaque}{c.chauffeur ? ` — ${c.chauffeur}` : ''}</option>)}
+                </select>
+              </div>
+
+              {/* Qté / Prix */}
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="label">Quantité (kg)</label>
                   <input type="number" step="0.01" className="input" required
@@ -1824,47 +1890,47 @@ export default function Grignon() {
                     onChange={e => setEditForm({...editForm, qte: e.target.value})} />
                 </div>
                 <div>
-                  <label className="label">Prix vente / kg</label>
-                  <input type="number" step="0.01" className="input" required
-                    value={editForm.prix_vente}
-                    onChange={e => setEditForm({...editForm, prix_vente: e.target.value})} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Prix achat / kg</label>
+                  <label className="label">Prix achat/kg</label>
                   <input type="number" step="0.01" className="input"
                     value={editForm.prix_achat}
                     onChange={e => setEditForm({...editForm, prix_achat: e.target.value})} />
                 </div>
                 <div>
-                  <label className="label">Note</label>
-                  <input type="text" className="input"
-                    value={editForm.note}
-                    onChange={e => setEditForm({...editForm, note: e.target.value})} />
+                  <label className="label">Prix vente/kg</label>
+                  <input type="number" step="0.01" className="input"
+                    value={editForm.prix_vente}
+                    onChange={e => setEditForm({...editForm, prix_vente: e.target.value})} />
                 </div>
               </div>
-              {editForm.qte && editForm.prix_vente && (
-                <div className="bg-green-50 border border-green-100 rounded-xl p-3 grid grid-cols-3 gap-2 text-center text-xs">
-                  <div>
-                    <div className="text-green-400">Total vente</div>
-                    <div className="font-bold text-green-700">{fmt(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_vente)||0)))} DHS</div>
+
+              {/* Note */}
+              <div>
+                <label className="label">Note</label>
+                <input type="text" className="input" placeholder="optionnel"
+                  value={editForm.note}
+                  onChange={e => setEditForm({...editForm, note: e.target.value})} />
+              </div>
+
+              {/* Preview */}
+              {editForm.qte && (editForm.prix_vente || editForm.prix_achat) && (() => {
+                const q  = parseFloat(editForm.qte) || 0
+                const pv = parseFloat(editForm.prix_vente) || 0
+                const pa = parseFloat(editForm.prix_achat) || 0
+                return (
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div><div className="text-amber-500">Total achat</div><div className="font-bold text-amber-700">{fmt(Math.round(q*pa))} DHS</div></div>
+                    <div><div className="text-blue-400">Total vente</div><div className="font-bold text-blue-700">{fmt(Math.round(q*pv))} DHS</div></div>
+                    <div><div className="text-green-400">Marge</div><div className="font-bold text-green-700">{fmt(Math.round(q*(pv-pa)))} DHS</div></div>
                   </div>
-                  <div>
-                    <div className="text-gray-400">Total achat</div>
-                    <div className="font-bold text-gray-600">{fmt(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_achat)||0)))} DHS</div>
-                  </div>
-                  <div>
-                    <div className="text-blue-400">Marge</div>
-                    <div className="font-bold text-blue-700">{fmt(Math.round((parseFloat(editForm.qte)||0)*((parseFloat(editForm.prix_vente)||0)-(parseFloat(editForm.prix_achat)||0))))} DHS</div>
-                  </div>
-                </div>
-              )}
+                )
+              })()}
+
               {editMsg && (
                 <div className={`text-sm font-semibold text-center p-2 rounded-lg ${editMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                   {editMsg}
                 </div>
               )}
+
               <div className="flex gap-2 pt-1">
                 <button type="submit" disabled={editSaving} className="btn-primary flex-1 justify-center">
                   {editSaving ? 'Enregistrement...' : '✓ Enregistrer'}
