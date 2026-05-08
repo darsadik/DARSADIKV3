@@ -377,8 +377,12 @@ export default function Ventes() {
     const byFourn = {}
     fFiltered.forEach(v => {
       const f = v.fournisseur || 'Sans fournisseur'
-      if (!byFourn[f]) byFourn[f] = { ops: [] }
+      if (!byFourn[f]) byFourn[f] = { ops: [], byType: {} }
       byFourn[f].ops.push(v)
+      const tb = v.type_brique || 'Sans type'
+      if (!byFourn[f].byType[tb]) byFourn[f].byType[tb] = { qte: 0, total: 0 }
+      byFourn[f].byType[tb].qte   += v.qte || 0
+      byFourn[f].byType[tb].total += v.total_achat || 0
     })
 
     const css = `
@@ -419,14 +423,23 @@ export default function Ventes() {
     const sections = Object.entries(byFourn).map(([fourn, data]) => {
       const totQte   = data.ops.reduce((s,v)=>s+(v.qte||0),0)
       const totAchat = data.ops.reduce((s,v)=>s+(v.total_achat||0),0)
-      const rows = data.ops.map(v => `<tr>
-        <td>${v.date}</td>
-        <td><b>${fourn}</b></td>
-        <td>${v.type_brique||'—'}</td>
-        <td style="text-align:right">${fmt(v.qte)}</td>
-        <td style="text-align:right">${fmtD(v.prix_achat)}</td>
-        <td style="text-align:right"><b>${fmt(v.total_achat)}</b></td>
-      </tr>`).join('')
+      const rows = data.ops
+        .sort((a,b)=>a.date.localeCompare(b.date))
+        .map(v => `<tr>
+          <td>${v.date}</td>
+          <td>${v.type_brique||'—'}</td>
+          <td style="text-align:right">${fmt(v.qte)}</td>
+          <td style="text-align:right">${fmtD(v.prix_achat)}</td>
+          <td style="text-align:right"><b>${fmt(v.total_achat)}</b></td>
+        </tr>`).join('')
+      const typeRows = Object.entries(data.byType)
+        .sort(([a],[b])=>a.localeCompare(b))
+        .map(([tb,td]) => `<tr style="background:#fffbeb !important">
+          <td colspan="2" style="font-weight:800;color:#92400e">📦 ${tb}</td>
+          <td style="text-align:right;font-weight:800;color:#1d4ed8">${fmt(td.qte)}</td>
+          <td></td>
+          <td style="text-align:right;font-weight:800;color:#b45309">${fmt(td.total)} DHS</td>
+        </tr>`).join('')
       return `
         <div class="fourn-block">
           <div class="fourn-header">
@@ -435,14 +448,19 @@ export default function Ventes() {
           </div>
           <table>
             <thead><tr>
-              <th>Date</th><th>Fournisseur</th><th>Produit</th>
+              <th>Date</th><th>Produit</th>
               <th style="text-align:right">Quantité</th>
               <th style="text-align:right">Prix achat/u DHS</th>
               <th style="text-align:right">Total DHS</th>
             </tr></thead>
-            <tbody>${rows}</tbody>
+            <tbody>
+              ${rows}
+              <tr><td colspan="5" style="padding:0;height:4px;background:#f1f5f9"></td></tr>
+              <tr><td colspan="5" style="background:#fffbeb;font-weight:700;font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:.05em;padding:6px 10px 3px">📊 Total par type de brique</td></tr>
+              ${typeRows}
+            </tbody>
             <tfoot><tr>
-              <td colspan="3">TOTAL (${data.ops.length})</td>
+              <td colspan="2">TOTAL GÉNÉRAL (${data.ops.length} opérations)</td>
               <td style="text-align:right">${fmt(totQte)}</td>
               <td></td>
               <td style="text-align:right">${fmt(totAchat)} DHS</td>
