@@ -30,18 +30,21 @@ export default function Paiements() {
   const [showForm, setShowForm] = useState(false)
   const [filterMode, setFilterMode] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [form, setForm] = useState({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '' })
+  const [camions, setCamions] = useState([])
+  const [form, setForm] = useState({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '', camion_id: '' })
 
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: cl }, { data: pa }] = await Promise.all([
+    const [{ data: cl }, { data: pa }, { data: ca }] = await Promise.all([
       supabase.from('clients').select('*').order('nom'),
       supabase.from('paiements').select('*').order('date', { ascending: true }),
+      supabase.from('camions').select('*').order('plaque'),
     ])
     setClients(cl || [])
     setPaiements(pa || [])
+    setCamions(ca || [])
     setLoading(false)
   }
 
@@ -54,14 +57,17 @@ export default function Paiements() {
     if (!form.client_id || !montant) return
     setSaving(true)
     const client = selectedClient
+    const camion = camions.find(c => c.id === parseInt(form.camion_id))
     await supabase.from('paiements').insert({
       date: form.date, client_id: parseInt(form.client_id),
       client_nom: client?.nom || '', mode: form.mode,
-      montant, note: form.note
+      montant, note: form.note,
+      camion_id: form.camion_id ? parseInt(form.camion_id) : null,
+      camion_plaque: camion?.plaque || null,
     })
     if (client) await supabase.from('clients').update({ solde: Math.max(0, (client.solde || 0) - montant) }).eq('id', client.id)
     setSaving(false)
-    setForm({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '' })
+    setForm({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '', camion_id: '' })
     setShowForm(false)
     loadAll()
   }
@@ -93,40 +99,19 @@ export default function Paiements() {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
       body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000 !important; background: #fff !important; margin: 0; }
       h1 { font-size: 18px; margin: 0 0 4px; color: #000 !important; }
-      h2 { font-size: 15px; color: #000 !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
+      .sub { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
       table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
       th { background: #1e293b !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
       td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #000 !important; }
       tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #000 !important; border-top: 2px solid #334155 !important; font-size: 12px; }
-      b, strong { color: #000 !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1e293b; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #000 !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1e293b !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1e293b; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #000 !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #000 !important; border-top: 3px solid #1e293b !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #0f172a !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #000 !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
-</style></head><body>
+      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; border-top: 2px solid #334155 !important; }
+      @media print { button { display: none !important; } body { padding: 0; } }
+    </style></head><body>
     <h1>DAR SADIK — Paiements ${filterFrom} → ${filterTo}</h1>
-    <table><thead><tr><th>Date</th><th>Client</th><th>Mode</th><th style="text-align:right">Montant DHS</th><th>Référence</th></tr></thead>
-    <tbody>${filtered.map(p=>`<tr><td>${p.date}</td><td><b>${p.client_nom}</b></td><td>${p.mode}</td><td style="text-align:right;color:green"><b>− ${fmt(p.montant)}</b></td><td>${p.note||'—'}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="3">TOTAL (${filtered.length})</td><td style="text-align:right;color:green">− ${fmt(total)} DHS</td><td></td></tr></tfoot>
+    <div class="sub">Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+    <table><thead><tr><th>Date</th><th>Client</th><th>Mode</th><th>Camion</th><th style="text-align:right">Montant DHS</th><th>Référence</th></tr></thead>
+    <tbody>${filtered.map(p=>`<tr><td>${p.date}</td><td><b>${p.client_nom}</b></td><td>${p.mode}</td><td>${p.camion_plaque||'—'}</td><td style="text-align:right;color:green"><b>− ${fmt(p.montant)}</b></td><td>${p.note||'—'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">TOTAL (${filtered.length})</td><td style="text-align:right;color:green">− ${fmt(total)} DHS</td><td></td></tr></tfoot>
     </table></body></html>`)
     win.document.close(); win.print()
   }
@@ -139,26 +124,25 @@ export default function Paiements() {
     a.download = `Paiements-${filterFrom}-${filterTo}.csv`; a.click()
   }
 
-  // Mobile form as modal-like bottom sheet
   const FormContent = (
     <form onSubmit={savePaiement} className="space-y-4">
       <div><label className="label">Date</label>
         <input className="input" type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} required /></div>
-      <div><label className="label">Mode de paiement</label>
-                <select className="input" value={filterMode} onChange={e=>setFilterMode(e.target.value)}>
-                  <option value="">Tous les modes</option>
-                  {['Espèce','Chèque','Virement','Paiement fournisseur'].map(m=><option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div><label className="label">Client</label>
+      <div><label className="label">Client</label>
         <select className="input" value={form.client_id} onChange={e=>setForm({...form,client_id:e.target.value})} required>
           <option value="">Sélectionner...</option>
           {clients.map(c=><option key={c.id} value={c.id}>{c.nom} — {fmt(c.solde||0)} DHS</option>)}
         </select>
       </div>
-      <div><label className="label">Mode</label>
+      <div><label className="label">Mode de paiement</label>
         <select className="input" value={form.mode} onChange={e=>setForm({...form,mode:e.target.value})}>
           {['Espèce','Chèque','Virement','Paiement fournisseur'].map(m=><option key={m}>{m}</option>)}
+        </select>
+      </div>
+      <div><label className="label">🚛 Camion transporteur (optionnel)</label>
+        <select className="input" value={form.camion_id} onChange={e=>setForm({...form,camion_id:e.target.value})}>
+          <option value="">— Sans camion —</option>
+          {camions.map(c=><option key={c.id} value={c.id}>{c.plaque}{c.chauffeur ? ` — ${c.chauffeur}` : ''}</option>)}
         </select>
       </div>
       <div><label className="label">Montant (DHS)</label>
@@ -261,6 +245,7 @@ export default function Paiements() {
                   </div>
                   <div className="card-meta">
                     <span>💳 {p.mode}</span>
+                    {p.camion_plaque && <span>🚛 {p.camion_plaque}</span>}
                     {p.note && <span>📄 {p.note}</span>}
                   </div>
                   <div className="card-actions">
@@ -313,6 +298,7 @@ export default function Paiements() {
                   <table className="w-full">
                     <thead><tr>
                       <th className="th">Date</th><th className="th">Client</th><th className="th">Mode</th>
+                      <th className="th">Camion</th>
                       <th className="th text-right">Montant DHS</th><th className="th">Note</th><th className="th"></th>
                     </tr></thead>
                     <tbody>
@@ -321,15 +307,16 @@ export default function Paiements() {
                           <td className="td text-gray-500">{p.date}</td>
                           <td className="td font-semibold">{p.client_nom}</td>
                           <td className="td"><span className="badge-green">{p.mode}</span></td>
+                          <td className="td text-gray-500 text-xs">{p.camion_plaque || '—'}</td>
                           <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
                           <td className="td text-gray-400 text-xs">{p.note||'—'}</td>
                           <td className="td"><button className="btn-danger" onClick={()=>deletePaiement(p.id,p.client_id,p.montant)}>✕</button></td>
                         </tr>
                       ))}
-                      {filtered.length===0&&<tr><td colSpan={6} className="td text-center text-gray-400 py-10">Aucun paiement</td></tr>}
+                      {filtered.length===0&&<tr><td colSpan={7} className="td text-center text-gray-400 py-10">Aucun paiement</td></tr>}
                     </tbody>
                     {filtered.length>0&&<tfoot><tr>
-                      <td className="tfoot-td" colSpan={3}>TOTAL REÇU ({filtered.length})</td>
+                      <td className="tfoot-td" colSpan={4}>TOTAL REÇU ({filtered.length})</td>
                       <td className="tfoot-td text-right text-green-700">− {fmt(total)} DHS</td>
                       <td className="tfoot-td" colSpan={2}></td>
                     </tr></tfoot>}
