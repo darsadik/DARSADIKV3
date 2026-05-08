@@ -1626,18 +1626,75 @@ export default function Grignon() {
             </button>
           </div>
         </div>
-      )}
+
+        {/* Recent operations with edit/delete — shown directly in saisie */}
+        {admin && (
+          <div className="card">
+            <h3 className="font-bold text-gray-900 mb-4">📋 Dernières saisies — modifier / supprimer</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="th">Date</th>
+                    <th className="th">Client</th>
+                    <th className="th">Fournisseur</th>
+                    <th className="th text-right">Qté kg</th>
+                    <th className="th text-right">P.Achat</th>
+                    <th className="th text-right">P.Vente</th>
+                    <th className="th text-right">Total vente</th>
+                    <th className="th">Note</th>
+                    <th className="th"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...operations].reverse().slice(0, 20).map(op => (
+                    <tr key={op.id} className="hover:bg-gray-50">
+                      <td className="td text-gray-500">{op.date}</td>
+                      <td className="td font-semibold">{op.client_nom || '—'}</td>
+                      <td className="td text-gray-500">{op.fournisseur_nom || '—'}</td>
+                      <td className="td text-right">{fmtD(op.qte)}</td>
+                      <td className="td text-right text-amber-600">{fmtD(op.prix_achat)}</td>
+                      <td className="td text-right text-blue-600">{fmtD(op.prix_vente)}</td>
+                      <td className="td text-right font-bold text-purple-700">{fmt(op.total_vente)}</td>
+                      <td className="td text-gray-400 text-xs">{op.note || '—'}</td>
+                      <td className="td">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => openEditGrignon(op)}
+                            className="btn-secondary text-xs px-2"
+                            style={{color:'#1a5fa8', borderColor:'#1a5fa8'}}
+                          >✏️</button>
+                          <button
+                            onClick={() => deleteOperation(op)}
+                            className="btn-danger text-xs"
+                          >✕</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {operations.length === 0 && (
+                    <tr><td colSpan={9} className="td text-center text-gray-400 py-8">Aucune opération</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {operations.length > 20 && (
+              <div className="text-xs text-gray-400 mt-2 text-center">Affichage des 20 dernières saisies. Pour voir tout, allez dans l'onglet 👤 Clients.</div>
+            )}
+          </div>
+        )}
+      
 
       {/* VIEWS */}
       {loading ? (
         <div className="card text-center py-10 text-gray-400">Chargement...</div>
       ) : (
         <>
-          {view === 'dashboard'    && <DashboardView />}
-          {view === 'client'       && <ClientView />}
-          {view === 'fournisseur'  && <FournisseurView />}
-          {view === 'paiements_fourn' && <PaiementsFournView />}
-          {view === 'camion'       && <CamionView />}
+          {view === 'dashboard'    && DashboardView()}
+          {view === 'client'       && ClientView()}
+          {view === 'fournisseur'  && FournisseurView()}
+          {view === 'paiements_fourn' && PaiementsFournView()}
+          {view === 'camion'       && CamionView()}
           {view === 'gestion' && (
             !admin ? (
               <div className="card flex flex-col items-center justify-center py-20 text-center">
