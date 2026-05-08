@@ -68,17 +68,28 @@ export default function Grignon() {
   const [clients, setClients]           = useState([])       // grignon_clients
   const [camions, setCamions]           = useState([])       // grignon_camions
   const [fournisseurs, setFournisseurs] = useState([])       // grignon_fournisseurs
+  const [fournPaiements, setFournPaiements] = useState([])  // grignon_fournisseur_paiements
   const [loading, setLoading]           = useState(true)
   const [saving, setSaving]             = useState(false)
 
   // ui
-  const [view, setView]                 = useState('dashboard') // dashboard | client | fournisseur | camion | saisie
+  const [view, setView]                 = useState('dashboard') // dashboard | client | fournisseur | paiements_fourn | camion | saisie
   const [filterFrom, setFilterFrom]     = useState(startOfMonth())
   const [filterTo, setFilterTo]         = useState(today())
   const [filterClient, setFilterClient] = useState('')
   const [filterFourn, setFilterFourn]   = useState('')
   const [filterCamion, setFilterCamion] = useState('')
   const [showFilters, setShowFilters]   = useState(false)
+
+  // paiement fournisseur form
+  const [paiForm, setPaiForm]           = useState({ date: today(), fournisseur_id: '', montant: '', mode_paiement: 'Espèce', note: '' })
+  const [paiSaving, setPaiSaving]       = useState(false)
+  const [paiMsg, setPaiMsg]             = useState('')
+  // paiements filters
+  const [paiFilterFourn, setPaiFilterFourn] = useState('')
+  const [paiFilterMode, setPaiFilterMode]   = useState('')
+  const [paiFilterFrom, setPaiFilterFrom]   = useState(startOfMonth())
+  const [paiFilterTo, setPaiFilterTo]       = useState(today())
 
   // client/fournisseur/camion management
   const [newClientNom, setNewClientNom]           = useState('')
@@ -97,16 +108,18 @@ export default function Grignon() {
   async function loadAll() {
     setLoading(true)
     // ALL queries use grignon_* tables — completely isolated from main project
-    const [{ data: ops }, { data: cl }, { data: ca }, { data: fo }] = await Promise.all([
+    const [{ data: ops }, { data: cl }, { data: ca }, { data: fo }, { data: fp }] = await Promise.all([
       supabase.from('grignon_operations').select('*').order('date', { ascending: true }),
       supabase.from('grignon_clients').select('*').order('nom'),
       supabase.from('grignon_camions').select('*').order('plaque'),
       supabase.from('grignon_fournisseurs').select('*').order('nom'),
+      supabase.from('grignon_fournisseur_paiements').select('*').order('date', { ascending: true }),
     ])
     setOperations(ops || [])
     setClients(cl || [])
     setCamions(ca || [])
     setFournisseurs(fo || [])
+    setFournPaiements(fp || [])
     setLoading(false)
   }
 
@@ -255,6 +268,40 @@ export default function Grignon() {
     loadAll()
   }
 
+  // ── Grignon fournisseur paiements CRUD ──
+  async function savePaiement() {
+    if (!admin) return
+    if (!paiForm.fournisseur_id || !paiForm.montant || parseFloat(paiForm.montant) <= 0) {
+      setPaiMsg('❌ Fournisseur et montant requis')
+      return
+    }
+    setPaiSaving(true)
+    const fo = fournisseurs.find(f => f.id === parseInt(paiForm.fournisseur_id))
+    const { error } = await supabase.from('grignon_fournisseur_paiements').insert({
+      date:            paiForm.date,
+      fournisseur_id:  parseInt(paiForm.fournisseur_id),
+      fournisseur_nom: fo?.nom || '',
+      montant:         parseFloat(paiForm.montant),
+      mode_paiement:   paiForm.mode_paiement,
+      note:            paiForm.note || null,
+    })
+    setPaiSaving(false)
+    if (error) {
+      setPaiMsg('❌ ' + error.message)
+    } else {
+      setPaiMsg('✅ Paiement enregistré !')
+      setPaiForm({ date: today(), fournisseur_id: '', montant: '', mode_paiement: 'Espèce', note: '' })
+      setTimeout(() => setPaiMsg(''), 2500)
+      loadAll()
+    }
+  }
+
+  async function deletePaiement(id) {
+    if (!admin || !confirm('Supprimer ce paiement fournisseur ?')) return
+    await supabase.from('grignon_fournisseur_paiements').delete().eq('id', id)
+    loadAll()
+  }
+
   // ── Grignon camion management ──
   async function addCamion() {
     if (!admin || !newCamionPlaque.trim()) return
@@ -291,6 +338,8 @@ export default function Grignon() {
   const totalMarge = operations.reduce((s, o) => s + (o.marge || 0), 0)
   const totalClients = clients.length
   const totalCreances = clients.reduce((s, c) => s + (c.solde || 0), 0)
+  const totalPaidFourn = fournPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+  const totalRestantFourn = totalAchat - totalPaidFourn
 
   // month stats for dashboard
   const thisMonth = startOfMonth()
@@ -322,10 +371,11 @@ export default function Grignon() {
 
   // ── TABS ──
   const tabs = [
-    { key: 'dashboard',    label: '📊 Tableau de bord' },
-    { key: 'client',       label: '👤 Clients' },
-    { key: 'fournisseur',  label: '🏭 Fournisseurs', adminOnly: true },
-    { key: 'camion',       label: '🚛 Camions' },
+    { key: 'dashboard',        label: '📊 Tableau de bord' },
+    { key: 'client',           label: '👤 Clients' },
+    { key: 'fournisseur',      label: '🏭 Fournisseurs', adminOnly: true },
+    { key: 'paiements_fourn',  label: '💳 Paiements Fourn.', adminOnly: true },
+    { key: 'camion',           label: '🚛 Camions' },
     ...(admin ? [
       { key: 'gestion',   label: '⚙️ Gestion' },
       { key: 'saisie',    label: '➕ Saisie' },
@@ -732,6 +782,16 @@ export default function Grignon() {
               <div className="stat-value text-gray-700">{operations.length}</div>
               <div className="stat-sub">Total enregistrées</div>
             </div>
+            <div className="stat-card border border-green-100 bg-green-50">
+              <div className="stat-label text-green-600">Payé fournisseurs</div>
+              <div className="stat-value text-green-700">{fmt(totalPaidFourn)} DHS</div>
+              <div className="stat-sub">Total paiements grignon</div>
+            </div>
+            <div className="stat-card" style={{borderColor: totalRestantFourn > 0 ? '#fecaca' : '#bbf7d0', background: totalRestantFourn > 0 ? '#fef2f2' : '#f0fdf4'}}>
+              <div className="stat-label" style={{color: totalRestantFourn > 0 ? '#dc2626' : '#16a34a'}}>Reste à payer fourn.</div>
+              <div className="stat-value" style={{color: totalRestantFourn > 0 ? '#dc2626' : '#16a34a'}}>{fmt(totalRestantFourn)} DHS</div>
+              <div className="stat-sub">Solde dû aux fournisseurs</div>
+            </div>
           </div>
         </div>
 
@@ -913,7 +973,8 @@ export default function Grignon() {
     const byF = {}
     filtered.forEach(op => {
       const f = op.fournisseur_nom || 'Sans fournisseur'
-      if (!byF[f]) byF[f] = { days: {}, total_qte: 0, total_achat: 0, total_vente: 0, total_marge: 0 }
+      const fid = op.fournisseur_id || null
+      if (!byF[f]) byF[f] = { fid, days: {}, total_qte: 0, total_achat: 0, total_vente: 0, total_marge: 0 }
       byF[f].total_qte   += op.qte || 0
       byF[f].total_achat += op.total_achat || 0
       byF[f].total_vente += op.total_vente || 0
@@ -922,55 +983,395 @@ export default function Grignon() {
       byF[f].days[op.date].qte         += op.qte || 0
       byF[f].days[op.date].total_achat += op.total_achat || 0
     })
+
+    // Compute total paid and remaining balance per fournisseur (all-time, not filtered by date)
+    const paidByFourn = {}
+    fournPaiements.forEach(p => {
+      const fid = p.fournisseur_id
+      paidByFourn[fid] = (paidByFourn[fid] || 0) + (p.montant || 0)
+    })
+    // total achat all-time per fournisseur id
+    const achatByFournId = {}
+    operations.forEach(op => {
+      if (op.fournisseur_id) {
+        achatByFournId[op.fournisseur_id] = (achatByFournId[op.fournisseur_id] || 0) + (op.total_achat || 0)
+      }
+    })
+
+    function printFournisseurViewWithBalances() {
+      const sections = Object.entries(byF).map(([fourn, data]) => {
+        const totalPaid = paidByFourn[data.fid] || 0
+        const totalAchatAllTime = achatByFournId[data.fid] || 0
+        const restant = totalAchatAllTime - totalPaid
+        const dayRows = Object.entries(data.days).sort(([a],[b])=>a.localeCompare(b)).map(([date, d]) =>
+          `<tr><td>${date}</td><td style="text-align:right">${fmtD(d.qte)} kg</td>
+           <td style="text-align:right">${fmtD(d.prix)}</td>
+           <td style="text-align:right"><b>${fmt(d.total_achat)}</b></td></tr>`
+        ).join('')
+        return `
+          <div class="fourn-block">
+            <div class="fourn-header">
+              <span class="fourn-title">🏭 ${fourn}</span>
+              <span>${fmtD(data.total_qte)} kg — ${fmt(data.total_achat)} DHS</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+              <div class="info-box"><b>Total achats (global)</b>${fmt(totalAchatAllTime)} DHS</div>
+              <div class="info-box"><b>Total payé</b><span style="color:#16a34a">${fmt(totalPaid)} DHS</span></div>
+              <div class="info-box"><b>Reste à payer</b><span style="color:${restant > 0 ? '#dc2626' : '#16a34a'}">${fmt(restant)} DHS</span></div>
+            </div>
+            <table>
+              <thead><tr><th>Date</th><th style="text-align:right">Qté (kg)</th><th style="text-align:right">Prix/kg DHS</th><th style="text-align:right">Total Achat DHS</th></tr></thead>
+              <tbody>${dayRows}</tbody>
+              <tfoot><tr><td>TOTAL (période)</td><td style="text-align:right">${fmtD(data.total_qte)} kg</td><td></td><td style="text-align:right">${fmt(data.total_achat)} DHS</td></tr></tfoot>
+            </table>
+          </div>`
+      }).join('')
+      const win = window.open('', '_blank')
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Grignon (Fitour) — Achats Fournisseurs</title>
+        <style>${PRINT_CSS}
+        .section-title{font-weight:800;font-size:13px;margin:18px 0 8px;border-left:4px solid #1a5fa8;padding-left:10px;color:#1a5fa8}
+        </style></head><body>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div><h1>🫒 DAR SADIK — Grignon · Achats & Soldes Fournisseurs</h1>
+          <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
+          <div><button onclick="window.print()" style="padding:8px 16px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer / PDF</button></div>
+        </div>
+        ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
+        </body></html>`)
+      win.document.close()
+    }
+
     return (
       <div className="space-y-6">
         <div className="flex justify-end">
-          <button onClick={printFournisseurView} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF Fournisseurs</button>
+          <button onClick={printFournisseurViewWithBalances} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF Fournisseurs</button>
         </div>
-        {Object.entries(byF).map(([fourn, data]) => (
-          <div key={fourn} className="card">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <h3 className="font-bold text-lg text-brand-700">🏭 {fourn}</h3>
-              <div className="flex gap-4 text-sm">
-                <span className="text-gray-500">Total: <b className="text-gray-900">{fmtD(data.total_qte)} kg</b></span>
-                <span className="text-gray-500">Achat: <b className="text-amber-700">{fmt(data.total_achat)} DHS</b></span>
-                <span className="text-gray-500">Marge: <b className="text-green-600">{fmt(data.total_marge)} DHS</b></span>
+        {Object.entries(byF).map(([fourn, data]) => {
+          const totalPaid = paidByFourn[data.fid] || 0
+          const totalAchatAllTime = achatByFournId[data.fid] || 0
+          const restant = totalAchatAllTime - totalPaid
+          return (
+            <div key={fourn} className="card">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h3 className="font-bold text-lg text-brand-700">🏭 {fourn}</h3>
+                <div className="flex gap-4 text-sm flex-wrap">
+                  <span className="text-gray-500">Période: <b className="text-gray-900">{fmtD(data.total_qte)} kg</b></span>
+                  <span className="text-gray-500">Achat: <b className="text-amber-700">{fmt(data.total_achat)} DHS</b></span>
+                  <span className="text-gray-500">Marge: <b className="text-green-600">{fmt(data.total_marge)} DHS</b></span>
+                </div>
+              </div>
+
+              {/* Balance summary */}
+              <div className="grid grid-cols-3 gap-3 mb-5 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="text-center">
+                  <div className="text-xs text-gray-400 uppercase font-semibold mb-1">Total achats (global)</div>
+                  <div className="text-lg font-bold text-gray-800">{fmt(totalAchatAllTime)} DHS</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-green-500 uppercase font-semibold mb-1">Total payé</div>
+                  <div className="text-lg font-bold text-green-700">{fmt(totalPaid)} DHS</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs uppercase font-semibold mb-1" style={{color: restant > 0 ? '#dc2626' : '#16a34a'}}>Reste à payer</div>
+                  <div className="text-lg font-bold" style={{color: restant > 0 ? '#dc2626' : '#16a34a'}}>{fmt(restant)} DHS</div>
+                </div>
+              </div>
+
+              <div className="text-xs font-bold text-gray-500 uppercase mb-2">📅 Suivi journalier (période filtrée)</div>
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      <th className="th">Date</th>
+                      <th className="th text-right">Qté (kg)</th>
+                      <th className="th text-right">Prix/kg DHS</th>
+                      <th className="th text-right">Total Achat DHS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(data.days).sort(([a],[b])=>a.localeCompare(b)).map(([date, d]) => (
+                      <tr key={date} className="hover:bg-gray-50">
+                        <td className="td font-semibold">{date}</td>
+                        <td className="td text-right">{fmtD(d.qte)}</td>
+                        <td className="td text-right text-gray-500">{fmtD(d.prix)}</td>
+                        <td className="td text-right font-bold text-amber-700">{fmt(d.total_achat)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td className="tfoot-td">TOTAL (période)</td>
+                      <td className="tfoot-td text-right">{fmtD(data.total_qte)} kg</td>
+                      <td className="tfoot-td"></td>
+                      <td className="tfoot-td text-right">{fmt(data.total_achat)} DHS</td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
-            <div className="text-xs font-bold text-gray-500 uppercase mb-2">📅 Suivi journalier</div>
-            <div className="overflow-x-auto mb-4">
-              <table className="w-full">
-                <thead>
-                  <tr>
-                    <th className="th">Date</th>
-                    <th className="th text-right">Qté (kg)</th>
-                    <th className="th text-right">Prix/kg DHS</th>
-                    <th className="th text-right">Total Achat DHS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(data.days).sort(([a],[b])=>a.localeCompare(b)).map(([date, d]) => (
-                    <tr key={date} className="hover:bg-gray-50">
-                      <td className="td font-semibold">{date}</td>
-                      <td className="td text-right">{fmtD(d.qte)}</td>
-                      <td className="td text-right text-gray-500">{fmtD(d.prix)}</td>
-                      <td className="td text-right font-bold text-amber-700">{fmt(d.total_achat)}</td>
+          )
+        })}
+        {Object.keys(byF).length === 0 && <div className="card text-center py-10 text-gray-400">Aucune donnée</div>}
+      </div>
+    )
+  }
+
+  function PaiementsFournView() {
+    if (!admin) return (
+      <div className="card flex flex-col items-center justify-center py-20 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <div className="text-xl font-bold text-gray-900">Accès restreint</div>
+        <div className="text-gray-500 mt-2">Réservé à l'administrateur</div>
+      </div>
+    )
+
+    // Filter payments
+    const filteredPai = fournPaiements.filter(p => {
+      if (paiFilterFourn && p.fournisseur_id !== parseInt(paiFilterFourn)) return false
+      if (paiFilterMode  && p.mode_paiement !== paiFilterMode) return false
+      if (paiFilterFrom  && p.date < paiFilterFrom) return false
+      if (paiFilterTo    && p.date > paiFilterTo) return false
+      return true
+    })
+
+    // All-time totals per fournisseur
+    const achatByFournId = {}
+    operations.forEach(op => {
+      if (op.fournisseur_id) {
+        achatByFournId[op.fournisseur_id] = (achatByFournId[op.fournisseur_id] || 0) + (op.total_achat || 0)
+      }
+    })
+    const paidByFourn = {}
+    fournPaiements.forEach(p => {
+      paidByFourn[p.fournisseur_id] = (paidByFourn[p.fournisseur_id] || 0) + (p.montant || 0)
+    })
+
+    const totalFilteredPaid = filteredPai.reduce((s,p) => s + (p.montant || 0), 0)
+
+    const MODE_COLORS = { 'Espèce': 'bg-green-100 text-green-700', 'Chèque': 'bg-blue-100 text-blue-700', 'Virement': 'bg-purple-100 text-purple-700' }
+
+    function printPaiementsView() {
+      const rows = filteredPai.map(p => {
+        const totalAchat = achatByFournId[p.fournisseur_id] || 0
+        return `<tr>
+          <td>${p.date}</td>
+          <td><b>${p.fournisseur_nom || '—'}</b></td>
+          <td style="text-align:right"><b>${fmt(p.montant)}</b></td>
+          <td><span class="badge">${p.mode_paiement}</span></td>
+          <td>${p.note || '—'}</td>
+        </tr>`
+      }).join('')
+
+      // Per-fournisseur balance summary
+      const balanceRows = fournisseurs.map(f => {
+        const totalAchat = achatByFournId[f.id] || 0
+        const totalPaid  = paidByFourn[f.id] || 0
+        const restant    = totalAchat - totalPaid
+        return `<tr>
+          <td><b>${f.nom}</b></td>
+          <td style="text-align:right">${fmt(totalAchat)}</td>
+          <td style="text-align:right;color:#16a34a">${fmt(totalPaid)}</td>
+          <td style="text-align:right;color:${restant > 0 ? '#dc2626' : '#16a34a'}"><b>${fmt(restant)}</b></td>
+        </tr>`
+      }).join('')
+
+      const win = window.open('', '_blank')
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Grignon — Paiements Fournisseurs</title>
+        <style>${PRINT_CSS}</style></head><body>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div><h1>🫒 DAR SADIK — Grignon (Fitour) · Paiements Fournisseurs</h1>
+          <div class="sub">Période: ${paiFilterFrom} → ${paiFilterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
+          <div><button onclick="window.print()" style="padding:8px 16px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer / PDF</button></div>
+        </div>
+
+        <h2>📋 Récapitulatif des soldes fournisseurs</h2>
+        <table>
+          <thead><tr><th>Fournisseur</th><th style="text-align:right">Total achats DHS</th><th style="text-align:right">Total payé DHS</th><th style="text-align:right">Reste à payer DHS</th></tr></thead>
+          <tbody>${balanceRows}</tbody>
+          <tfoot><tr>
+            <td>TOTAL</td>
+            <td style="text-align:right">${fmt(fournisseurs.reduce((s,f) => s + (achatByFournId[f.id]||0), 0))}</td>
+            <td style="text-align:right">${fmt(fournisseurs.reduce((s,f) => s + (paidByFourn[f.id]||0), 0))}</td>
+            <td style="text-align:right">${fmt(fournisseurs.reduce((s,f) => s + ((achatByFournId[f.id]||0)-(paidByFourn[f.id]||0)), 0))}</td>
+          </tr></tfoot>
+        </table>
+
+        <h2 style="margin-top:24px">💳 Historique des paiements (${filteredPai.length})</h2>
+        <table>
+          <thead><tr><th>Date</th><th>Fournisseur</th><th style="text-align:right">Montant DHS</th><th>Mode</th><th>Note</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#aaa">Aucun paiement</td></tr>'}</tbody>
+          ${filteredPai.length > 0 ? `<tfoot><tr><td colspan="2">TOTAL (${filteredPai.length})</td><td style="text-align:right">${fmt(totalFilteredPaid)}</td><td colspan="2"></td></tr></tfoot>` : ''}
+        </table>
+        </body></html>`)
+      win.document.close()
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* New payment form */}
+        <div className="card">
+          <h3 className="font-bold text-gray-900 mb-4">💳 Enregistrer un paiement fournisseur</h3>
+          <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
+            <div>
+              <label className="label">Date</label>
+              <input type="date" className="input" value={paiForm.date} onChange={e=>setPaiForm({...paiForm,date:e.target.value})} />
+            </div>
+            <div>
+              <label className="label">Fournisseur grignon</label>
+              <select className="input" value={paiForm.fournisseur_id} onChange={e=>setPaiForm({...paiForm,fournisseur_id:e.target.value})}>
+                <option value="">— Choisir —</option>
+                {fournisseurs.map(f=><option key={f.id} value={f.id}>{f.nom}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Montant (DHS)</label>
+              <input type="number" step="0.01" className="input" placeholder="ex: 5000" value={paiForm.montant} onChange={e=>setPaiForm({...paiForm,montant:e.target.value})} />
+            </div>
+            <div>
+              <label className="label">Mode de paiement</label>
+              <select className="input" value={paiForm.mode_paiement} onChange={e=>setPaiForm({...paiForm,mode_paiement:e.target.value})}>
+                <option value="Espèce">💵 Espèce</option>
+                <option value="Chèque">📝 Chèque</option>
+                <option value="Virement">🏦 Virement</option>
+              </select>
+            </div>
+          </div>
+          <div className="mb-3">
+            <label className="label">Note (optionnel)</label>
+            <input className="input" placeholder="Référence, chèque N°..." value={paiForm.note} onChange={e=>setPaiForm({...paiForm,note:e.target.value})} />
+          </div>
+          {paiMsg && (
+            <div className={`text-sm font-semibold p-2 rounded-lg mb-3 ${paiMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{paiMsg}</div>
+          )}
+          <button onClick={savePaiement} disabled={paiSaving} className={`btn-primary ${isMobile ? 'w-full justify-center' : ''}`}>
+            {paiSaving ? 'Enregistrement...' : '✓ Enregistrer le paiement'}
+          </button>
+        </div>
+
+        {/* Balance summary per fournisseur */}
+        <div className="card">
+          <h3 className="font-bold text-gray-900 mb-4">📊 Soldes fournisseurs grignon</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="th">Fournisseur</th>
+                  <th className="th text-right">Total achats DHS</th>
+                  <th className="th text-right">Total payé DHS</th>
+                  <th className="th text-right">Reste à payer DHS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fournisseurs.map(f => {
+                  const totalAchat = achatByFournId[f.id] || 0
+                  const totalPaid  = paidByFourn[f.id] || 0
+                  const restant    = totalAchat - totalPaid
+                  return (
+                    <tr key={f.id} className="hover:bg-gray-50">
+                      <td className="td font-semibold">{f.nom}</td>
+                      <td className="td text-right text-amber-700 font-bold">{fmt(totalAchat)}</td>
+                      <td className="td text-right text-green-700 font-bold">{fmt(totalPaid)}</td>
+                      <td className="td text-right font-bold" style={{color: restant > 0 ? '#dc2626' : '#16a34a'}}>{fmt(restant)}</td>
                     </tr>
-                  ))}
-                </tbody>
+                  )
+                })}
+                {fournisseurs.length === 0 && <tr><td colSpan={4} className="td text-center text-gray-400">Aucun fournisseur</td></tr>}
+              </tbody>
+              {fournisseurs.length > 0 && (
                 <tfoot>
                   <tr>
                     <td className="tfoot-td">TOTAL</td>
-                    <td className="tfoot-td text-right">{fmtD(data.total_qte)} kg</td>
-                    <td className="tfoot-td"></td>
-                    <td className="tfoot-td text-right">{fmt(data.total_achat)} DHS</td>
+                    <td className="tfoot-td text-right">{fmt(fournisseurs.reduce((s,f)=>s+(achatByFournId[f.id]||0),0))}</td>
+                    <td className="tfoot-td text-right">{fmt(fournisseurs.reduce((s,f)=>s+(paidByFourn[f.id]||0),0))}</td>
+                    <td className="tfoot-td text-right">{fmt(fournisseurs.reduce((s,f)=>s+((achatByFournId[f.id]||0)-(paidByFourn[f.id]||0)),0))}</td>
                   </tr>
                 </tfoot>
-              </table>
+              )}
+            </table>
+          </div>
+        </div>
+
+        {/* Filters + history */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h3 className="font-bold text-gray-900">💳 Historique des paiements</h3>
+            <button onClick={printPaiementsView} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ Imprimer / PDF</button>
+          </div>
+
+          {/* Filters */}
+          <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-4 p-3 bg-gray-50 rounded-xl`}>
+            <div>
+              <label className="label">Du</label>
+              <input type="date" className="input" value={paiFilterFrom} onChange={e=>setPaiFilterFrom(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Au</label>
+              <input type="date" className="input" value={paiFilterTo} onChange={e=>setPaiFilterTo(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Fournisseur</label>
+              <select className="input" value={paiFilterFourn} onChange={e=>setPaiFilterFourn(e.target.value)}>
+                <option value="">Tous</option>
+                {fournisseurs.map(f=><option key={f.id} value={f.id}>{f.nom}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Mode de paiement</label>
+              <select className="input" value={paiFilterMode} onChange={e=>setPaiFilterMode(e.target.value)}>
+                <option value="">Tous</option>
+                <option value="Espèce">💵 Espèce</option>
+                <option value="Chèque">📝 Chèque</option>
+                <option value="Virement">🏦 Virement</option>
+              </select>
             </div>
           </div>
-        ))}
-        {Object.keys(byF).length === 0 && <div className="card text-center py-10 text-gray-400">Aucune donnée</div>}
+          <div className="text-xs text-gray-400 mb-3">{filteredPai.length} paiement(s) — Total: <b className="text-green-700">{fmt(totalFilteredPaid)} DHS</b></div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="th">Date</th>
+                  <th className="th">Fournisseur</th>
+                  <th className="th text-right">Montant DHS</th>
+                  <th className="th">Mode</th>
+                  <th className="th">Note</th>
+                  {admin && <th className="th"></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPai.map(p => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="td text-gray-500">{p.date}</td>
+                    <td className="td font-semibold">{p.fournisseur_nom || '—'}</td>
+                    <td className="td text-right font-bold text-green-700">{fmt(p.montant)}</td>
+                    <td className="td">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${MODE_COLORS[p.mode_paiement] || 'bg-gray-100 text-gray-700'}`}>
+                        {p.mode_paiement}
+                      </span>
+                    </td>
+                    <td className="td text-gray-400">{p.note || '—'}</td>
+                    {admin && <td className="td">
+                      <button onClick={() => deletePaiement(p.id)} className="btn-danger text-xs">✕</button>
+                    </td>}
+                  </tr>
+                ))}
+                {filteredPai.length === 0 && <tr><td colSpan={6} className="td text-center text-gray-400 py-8">Aucun paiement pour cette période</td></tr>}
+              </tbody>
+              {filteredPai.length > 0 && (
+                <tfoot>
+                  <tr>
+                    <td className="tfoot-td" colSpan={2}>TOTAL ({filteredPai.length})</td>
+                    <td className="tfoot-td text-right">{fmt(totalFilteredPaid)} DHS</td>
+                    <td className="tfoot-td" colSpan={admin ? 3 : 2}></td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
       </div>
     )
   }
@@ -1066,7 +1467,7 @@ export default function Grignon() {
       </div>
 
       {/* Grignon KPI summary bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="stat-card border border-amber-100 bg-amber-50">
           <div className="stat-label text-amber-600">Total kg</div>
           <div className="stat-value text-amber-700">{fmtD(totalKg)} kg</div>
@@ -1086,6 +1487,11 @@ export default function Grignon() {
           <div className="stat-label text-green-600">Marge brute</div>
           <div className="stat-value text-green-700">{fmt(totalMarge)} DHS</div>
           <div className="stat-sub">{totalVente > 0 ? Math.round(totalMarge / totalVente * 100) : 0}%</div>
+        </div>
+        <div className="stat-card" style={{borderColor: totalRestantFourn > 0 ? '#fecaca' : '#bbf7d0', background: totalRestantFourn > 0 ? '#fef2f2' : '#f0fdf4'}}>
+          <div className="stat-label" style={{color: totalRestantFourn > 0 ? '#dc2626' : '#16a34a'}}>Reste fourn.</div>
+          <div className="stat-value" style={{color: totalRestantFourn > 0 ? '#dc2626' : '#16a34a'}}>{fmt(totalRestantFourn)} DHS</div>
+          <div className="stat-sub">Solde dû</div>
         </div>
       </div>
 
@@ -1230,6 +1636,7 @@ export default function Grignon() {
           {view === 'dashboard'    && <DashboardView />}
           {view === 'client'       && <ClientView />}
           {view === 'fournisseur'  && <FournisseurView />}
+          {view === 'paiements_fourn' && <PaiementsFournView />}
           {view === 'camion'       && <CamionView />}
           {view === 'gestion' && (
             !admin ? (
