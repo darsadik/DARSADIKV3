@@ -566,10 +566,20 @@ export default function Ventes() {
     const byFourn = {}
     fFiltered.forEach(v => {
       const f = v.fournisseur || 'Sans fournisseur'
-      if (!byFourn[f]) byFourn[f] = { ops: [], totQte: 0, totAchat: 0 }
+      if (!byFourn[f]) byFourn[f] = { ops: [], totQte: 0, totAchat: 0, byType: {} }
       byFourn[f].ops.push(v)
       byFourn[f].totQte   += v.qte || 0
       byFourn[f].totAchat += v.total_achat || 0
+      // group by type_brique
+      const tb = v.type_brique || 'Sans type'
+      if (!byFourn[f].byType[tb]) byFourn[f].byType[tb] = { qte: 0, total: 0, days: {} }
+      byFourn[f].byType[tb].qte   += v.qte || 0
+      byFourn[f].byType[tb].total += v.total_achat || 0
+      // track per day per type
+      const day = v.date
+      if (!byFourn[f].byType[tb].days[day]) byFourn[f].byType[tb].days[day] = { qte: 0, total: 0, prix: v.prix_achat || 0 }
+      byFourn[f].byType[tb].days[day].qte   += v.qte || 0
+      byFourn[f].byType[tb].days[day].total += v.total_achat || 0
     })
 
     const quickBtns = [
@@ -795,14 +805,24 @@ export default function Ventes() {
                     </div>
                   </div>
                 ))}
+                {/* Type totals on mobile */}
+                <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="text-xs font-bold text-amber-700 uppercase mb-2">📊 Total par type</div>
+                  {Object.entries(data.byType).sort().map(([tb, td]) => (
+                    <div key={tb} className="flex justify-between py-1 border-b border-amber-100 last:border-0">
+                      <span className="font-semibold text-sm text-gray-800">{tb}</span>
+                      <span className="text-sm"><b className="text-blue-700">{fmt(td.qte)}</b> <span className="text-gray-400">briques</span> — <b className="text-amber-700">{fmt(td.total)} DHS</b></span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                {/* Daily detail table */}
+                <table className="w-full mb-4">
                   <thead>
                     <tr>
                       <th className="th">Date</th>
-                      <th className="th">Fournisseur</th>
                       <th className="th">Produit</th>
                       <th className="th text-right">Quantité</th>
                       <th className="th text-right">Prix achat/u DHS</th>
@@ -810,10 +830,11 @@ export default function Ventes() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.ops.map(v => (
+                    {data.ops
+                      .sort((a,b) => a.date.localeCompare(b.date))
+                      .map(v => (
                       <tr key={v.id} className="hover:bg-gray-50">
                         <td className="td text-gray-500">{v.date}</td>
-                        <td className="td font-semibold">{fourn}</td>
                         <td className="td"><span className="badge-blue">{v.type_brique||'—'}</span></td>
                         <td className="td text-right">{fmt(v.qte)}</td>
                         <td className="td text-right text-gray-500">{fmtD(v.prix_achat)}</td>
@@ -823,13 +844,45 @@ export default function Ventes() {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td className="tfoot-td" colSpan={3}>TOTAL ({data.ops.length})</td>
+                      <td className="tfoot-td" colSpan={2}>TOTAL ({data.ops.length} opérations)</td>
                       <td className="tfoot-td text-right">{fmt(data.totQte)}</td>
                       <td className="tfoot-td"></td>
                       <td className="tfoot-td text-right">{fmt(data.totAchat)} DHS</td>
                     </tr>
                   </tfoot>
                 </table>
+
+                {/* ── TOTAL PAR TYPE DE BRIQUE ── */}
+                <div className="mt-2 p-4 rounded-xl border border-amber-200" style={{background:'#fffbeb'}}>
+                  <div className="text-xs font-bold text-amber-700 uppercase mb-3">📊 Récapitulatif par type de brique</div>
+                  <table className="w-full">
+                    <thead>
+                      <tr>
+                        <th className="th" style={{background:'#92400e'}}>Type</th>
+                        <th className="th text-right" style={{background:'#92400e'}}>Total briques</th>
+                        <th className="th text-right" style={{background:'#92400e'}}>Total achat DHS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(data.byType)
+                        .sort(([a],[b]) => a.localeCompare(b))
+                        .map(([tb, td]) => (
+                        <tr key={tb} className="hover:bg-amber-50">
+                          <td className="td font-bold text-gray-800">📦 {tb}</td>
+                          <td className="td text-right font-bold text-blue-700">{fmt(td.qte)}</td>
+                          <td className="td text-right font-bold text-amber-700">{fmt(td.total)} DHS</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td className="tfoot-td">TOTAL GÉNÉRAL</td>
+                        <td className="tfoot-td text-right">{fmt(data.totQte)}</td>
+                        <td className="tfoot-td text-right">{fmt(data.totAchat)} DHS</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             )}
           </div>
