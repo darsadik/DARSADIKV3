@@ -6,6 +6,7 @@ import { useAuth } from '../_app'
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtD = n => parseFloat(n || 0).toFixed(2)
+const fmtDate = d => { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${day}/${m}/${y}` }
 const today = () => new Date().toISOString().split('T')[0]
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 
@@ -195,7 +196,7 @@ export default function Ventes() {
     const tRR = filtered.reduce((s,v)=>s+(v.retour_restant||0),0)
     const hasRetour = filtered.some(v => v.retour_client)
     const win = window.open('','_blank')
-    const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${v.date}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmt(v.retour_montant)}</td><td style="text-align:right">${fmt(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
+    const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmt(v.retour_montant)}</td><td style="text-align:right">${fmt(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ventes</title>
     <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -211,16 +212,17 @@ export default function Ventes() {
       b, strong { color: #1e293b !important; font-weight: 800; }
       .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
       .section-title { font-size:14px;font-weight:800;margin:20px 0 8px;color:#1a5fa8; }
+      .note-cell { color:#64748b !important; font-style:italic; font-size:10px; }
       @media print {
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         button, .no-print { display: none !important; }
         body { padding: 0; }
       }
 </style></head><body>
-    <h1>DAR SADIK — Ventes ${filterFrom} → ${filterTo}</h1>
-    <table><thead><tr><th>Date livraison</th><th>Client</th><th>Produit</th><th>Transport</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix/u</th><th style="text-align:right">Total DHS</th></tr></thead>
-    <tbody>${filtered.map(v=>`<tr><td>${v.date}</td><td><b>${v.client_nom}</b></td><td>${v.type_brique||'—'}</td><td>${v.camion_plaque}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${fmtD(v.prix_vente)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="4">TOTAL (${filtered.length})</td><td style="text-align:right">${fmt(tQ)}</td><td></td><td style="text-align:right">${fmt(tV)} DHS</td></tr></tfoot>
+    <h1>DAR SADIK — Ventes ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</h1>
+    <table><thead><tr><th>Date livraison</th><th>Client</th><th>Produit</th><th>Transport</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix/u</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
+    <tbody>${filtered.map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.type_brique||'—'}</td><td>${v.camion_plaque}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${fmtD(v.prix_vente)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td class="note-cell">${v.note||''}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">TOTAL (${filtered.length})</td><td style="text-align:right">${fmt(tQ)}</td><td></td><td style="text-align:right">${fmt(tV)} DHS</td><td></td></tr></tfoot>
     </table>
     ${hasRetour ? `<div class="section-title">↩️ Retours Transport</div>
     <table><thead><tr><th>Date</th><th>Client vente</th><th>Camion</th><th>Retour client</th><th style="text-align:right">Montant</th><th style="text-align:right">Payé</th><th style="text-align:right">Restant</th></tr></thead>
@@ -257,7 +259,7 @@ export default function Ventes() {
         <div className="card-header">
           <div>
             <div className="card-title">{v.client_nom}</div>
-            <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{v.date}</div>
+            <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(v.date)}</div>
           </div>
           <div className="card-amount">{fmt(v.total_vente)} DHS</div>
         </div>
@@ -352,7 +354,7 @@ export default function Ventes() {
               <tbody>
                 {filtered.map(v => (
                   <tr key={v.id} className="hover:bg-gray-50">
-                    <td className="td text-gray-500">{v.date}</td>
+                    <td className="td text-gray-500">{fmtDate(v.date)}</td>
                     <td className="td font-semibold">{v.client_nom}</td>
                     <td className="td"><span className="badge-gray">{v.type_brique||'—'}</span></td>
                     <td className="td text-gray-500">{v.camion_plaque}</td>
@@ -487,7 +489,7 @@ export default function Ventes() {
       const rows = data.ops
         .sort((a,b)=>(a.date_fournisseur||a.date).localeCompare(b.date_fournisseur||b.date))
         .map(v => `<tr>
-          <td>${v.date_fournisseur || v.date}</td>
+          <td>${fmtDate(v.date_fournisseur || v.date)}</td>
           <td>${v.type_brique||'—'}</td>
           <td style="text-align:right">${fmt(v.qte)}</td>
           <td style="text-align:right">${fmtD(v.prix_achat)}</td>
@@ -571,7 +573,7 @@ export default function Ventes() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
         <div>
           <h1>🏭 DAR SADIK — Rapport Fournisseurs (Achats)</h1>
-          <div class="sub">Période: ${fFilterFrom} → ${fFilterTo} | ${Object.keys(byFourn).length} fournisseur(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+          <div class="sub">Période: ${fmtDate(fFilterFrom)} → ${fmtDate(fFilterTo)} | ${Object.keys(byFourn).length} fournisseur(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
         </div>
         <div style="display:flex;gap:8px">
           <div style="display:flex;gap:8px">
@@ -719,7 +721,7 @@ export default function Ventes() {
                     .map(([day, d]) => (
                     <div key={day} className="flex items-center justify-between py-2 border-b border-gray-50">
                       <div>
-                        <div className="font-semibold text-gray-900">{day}</div>
+                        <div className="font-semibold text-gray-900">{fmtDate(day)}</div>
                         <div className="text-xs text-gray-400">{fmtD(d.prix)} DHS/u</div>
                       </div>
                       <div className="text-right">
@@ -746,7 +748,7 @@ export default function Ventes() {
                         .sort(([a], [b]) => a.localeCompare(b))
                         .map(([day, d]) => (
                         <tr key={day} className="hover:bg-gray-50">
-                          <td className="td font-semibold text-gray-700">{day}</td>
+                          <td className="td font-semibold text-gray-700">{fmtDate(day)}</td>
                           <td className="td"><span className="badge-blue">{prod}</span></td>
                           <td className="td text-right font-bold text-blue-700">{fmt(d.qte)}</td>
                           <td className="td text-right text-gray-500">{fmtD(d.prix)}</td>
@@ -874,7 +876,7 @@ export default function Ventes() {
                     <div className="card-header">
                       <div>
                         <div className="card-title">{v.type_brique||'—'}</div>
-                        <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{v.date}</div>
+                        <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(v.date)}</div>
                       </div>
                       <div className="card-amount">{fmt(v.total_achat)} DHS</div>
                     </div>
@@ -913,7 +915,7 @@ export default function Ventes() {
                       .sort((a,b) => (a.date_fournisseur||a.date).localeCompare(b.date_fournisseur||b.date))
                       .map(v => (
                       <tr key={v.id} className="hover:bg-gray-50">
-                        <td className="td text-gray-500">{v.date_fournisseur || v.date}</td>
+                        <td className="td text-gray-500">{fmtDate(v.date_fournisseur || v.date)}</td>
                         <td className="td"><span className="badge-blue">{v.type_brique||'—'}</span></td>
                         <td className="td text-right">{fmt(v.qte)}</td>
                         <td className="td text-right text-gray-500">{fmtD(v.prix_achat)}</td>
@@ -1034,8 +1036,7 @@ export default function Ventes() {
         const opRows = data.ops
           .slice().sort((a, b) => a.date.localeCompare(b.date))
           .map(v => `<tr>
-            <td>${v.date}</td>
-            <td><b>${v.type_brique || '—'}</b></td>
+            <td>${fmtDate(v.date)}</td>
             <td style="text-align:right">${fmt(v.qte)}</td>
             <td>${v.client_nom || '—'}</td>
             <td>${v.fournisseur || '—'}</td>
@@ -1086,7 +1087,7 @@ export default function Ventes() {
                   <th style="background:#15803d">Note</th>
                 </tr></thead>
                 <tbody>${data.retours.map(v=>`<tr>
-                  <td>${v.date}</td><td><b>${v.retour_client}</b></td>
+                  <td>${fmtDate(v.date)}</td><td><b>${v.retour_client}</b></td>
                   <td style="text-align:right">${fmt(v.retour_montant)}</td>
                   <td style="text-align:right">${fmt(v.retour_paye||0)}</td>
                   <td style="text-align:right;color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td>
@@ -1138,7 +1139,7 @@ export default function Ventes() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
         <div>
           <h1>🚛 DAR SADIK — Rapport Camions</h1>
-          <div class="sub">Période: ${filterFrom} → ${filterTo} | ${Object.keys(byCamion).length} camion(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+          <div class="sub">Période: ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} | ${Object.keys(byCamion).length} camion(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
         </div>
         <div style="display:flex;gap:8px">
           <div style="display:flex;gap:8px">
@@ -1266,7 +1267,7 @@ export default function Ventes() {
             {!isMobile && (
               <div className="flex flex-wrap gap-1">
                 {[...data.dates].sort().map(d => (
-                  <span key={d} className="text-xs bg-brand-50 text-brand-700 border border-brand-200 rounded px-2 py-1">{d}</span>
+                  <span key={d} className="text-xs bg-brand-50 text-brand-700 border border-brand-200 rounded px-2 py-1">{fmtDate(d)}</span>
                 ))}
               </div>
             )}
@@ -1279,7 +1280,7 @@ export default function Ventes() {
                 </div>
                 {data.retours.map(v => (
                   <div key={v.id} className="text-xs py-1 border-t border-green-100 flex justify-between">
-                    <span>{v.date} — <b>{v.retour_client}</b></span>
+                    <span>{fmtDate(v.date)} — <b>{v.retour_client}</b></span>
                     <span>{fmt(v.retour_montant)} DHS {v.retour_restant > 0 ? <span className="text-orange-500">(reste {fmt(v.retour_restant)})</span> : <span className="text-green-600">✓</span>}</span>
                   </div>
                 ))}
@@ -1312,7 +1313,7 @@ export default function Ventes() {
       {isMobile ? (
         <div className="mb-4">
           <button className="mobile-collapse-btn" onClick={() => setShowFilters(!showFilters)}>
-            <span>🔍 Filtres ({filterFrom} → {filterTo})</span>
+            <span>🔍 Filtres ({fmtDate(filterFrom)} → {fmtDate(filterTo)})</span>
             <span>{showFilters ? '▲' : '▼'}</span>
           </button>
           {showFilters && (
