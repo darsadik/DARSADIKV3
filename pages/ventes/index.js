@@ -347,6 +347,7 @@ export default function Ventes() {
                   <th className="th">Date</th><th className="th">Client</th><th className="th">Produit</th>
                   <th className="th">Transport</th><th className="th text-right">Quantité</th>
                   <th className="th text-right">Prix/u DHS</th><th className="th text-right">Total DHS</th>
+                  <th className="th">Note</th>
                   {hasRetour && <th className="th text-right">↩️ Retour</th>}
                   {admin && <th className="th"></th>}
                 </tr>
@@ -361,6 +362,7 @@ export default function Ventes() {
                     <td className="td text-right">{fmt(v.qte)}</td>
                     <td className="td text-right">{fmtD(v.prix_vente)}</td>
                     <td className="td text-right font-bold">{fmt(v.total_vente)}</td>
+                    <td className="td text-xs text-gray-400" style={{maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{v.note || '—'}</td>
                     {hasRetour && (
                       <td className="td text-right text-xs">
                         {v.retour_client ? (
@@ -382,7 +384,7 @@ export default function Ventes() {
                     </td>}
                   </tr>
                 ))}
-                {filtered.length === 0 && <tr><td colSpan={hasRetour ? 9 : 8} className="td text-center text-gray-400 py-8">Aucune vente</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={hasRetour ? 10 : 9} className="td text-center text-gray-400 py-8">Aucune vente</td></tr>}
               </tbody>
               {filtered.length > 0 && (
                 <tfoot>
@@ -391,6 +393,7 @@ export default function Ventes() {
                     <td className="tfoot-td text-right">{fmt(tQ)}</td>
                     <td className="tfoot-td"></td>
                     <td className="tfoot-td text-right">{fmt(tV)} DHS</td>
+                    <td className="tfoot-td"></td>
                     {hasRetour && <td className="tfoot-td text-right text-xs">{fmt(tR)} DHS <span className="text-orange-400">({fmt(tRR)} reste)</span></td>}
                     {admin && <td className="tfoot-td"></td>}
                   </tr>
