@@ -78,6 +78,9 @@ export default function Gasoil() {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
   }
   const [consoMonth, setConsoMonth] = useState(currentMonth())
+  const [consoCamion, setConsoCamion] = useState('')
+  const [consoFrom, setConsoFrom] = useState('')
+  const [consoTo, setConsoTo] = useState('')
 
   useEffect(() => { loadAll() }, [])
 
@@ -234,41 +237,53 @@ export default function Gasoil() {
   const totalPaiements = gasoilPaiements.reduce((s, p) => s + (p.montant || 0), 0)
   const soldeGasoil = totalGasoilAll - totalPaiements
 
-  // ── MONTHLY CONSUMPTION PER CAMION ──
-  // For each camion in selected month:
-  // distance = last km - first km
-  // fuel = sum of liters
-  // conso = (fuel / distance) * 100
+  // ── CUMULATIVE CONSUMPTION (professional method) ──
+  // Per camion, for the selected period:
+  //   totalLiters  = sum of ALL fuel entries (with or without km reading)
+  //   distance     = last km reading − first km reading (chronological order)
+  //   conso L/100  = (totalLiters / distance) × 100
+  //   costPerKm    = totalDHS / distance
+  // Handles partial fills, cross-month fueling, and any fill size.
+  // Requires ≥ 2 km readings to compute distance; never divides by zero.
   const consoStats = (() => {
-    const monthGasoil = gasoil
-      .filter(g => g.date && g.date.startsWith(consoMonth) && g.km)
-      .sort((a, b) => a.date.localeCompare(b.date) || (a.id - b.id))
+    // Resolve active date window: explicit from/to override the month picker
+    const dateFrom = consoFrom || (consoMonth ? consoMonth + '-01' : null)
+    const dateTo   = consoTo   || (consoMonth ? consoMonth + '-31' : null)
 
+    // Group entries per camion, applying all active filters
     const byCam = {}
-    monthGasoil.forEach(g => {
-      if (!byCam[g.camion_plaque]) byCam[g.camion_plaque] = { entries: [], liters: 0 }
-      byCam[g.camion_plaque].entries.push(g)
+    gasoil.forEach(g => {
+      if (consoCamion && g.camion_plaque !== consoCamion) return
+      if (dateFrom && g.date < dateFrom) return
+      if (dateTo   && g.date > dateTo)   return
+      if (!byCam[g.camion_plaque]) byCam[g.camion_plaque] = []
+      byCam[g.camion_plaque].push(g)
     })
 
-    // Also sum ALL liters for that month (including entries without km)
-    gasoil
-      .filter(g => g.date && g.date.startsWith(consoMonth))
-      .forEach(g => {
-        if (!byCam[g.camion_plaque]) byCam[g.camion_plaque] = { entries: [], liters: 0 }
-        byCam[g.camion_plaque].liters += (g.qte || 0)
-      })
-
     return Object.entries(byCam)
-      .map(([plaque, d]) => {
-        const sorted = d.entries.sort((a, b) => a.date.localeCompare(b.date))
-        const firstKm = sorted.length > 0 ? parseFloat(sorted[0].km) : null
-        const lastKm  = sorted.length > 1 ? parseFloat(sorted[sorted.length - 1].km) : null
-        const distance = firstKm && lastKm && lastKm > firstKm ? lastKm - firstKm : null
-        const liters = d.liters
-        const conso = distance && liters > 0 ? ((liters / distance) * 100) : null
-        return { plaque, firstKm, lastKm, distance, liters, conso, count: sorted.length }
+      .map(([plaque, entries]) => {
+        // Always work chronologically (date asc, then id as tiebreak)
+        const sorted   = [...entries].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
+        const withKm   = sorted.filter(g => g.km)
+
+        // Total liters and cost — include every entry regardless of km
+        const totalLiters = sorted.reduce((s, g) => s + (g.qte   || 0), 0)
+        const totalDHS    = sorted.reduce((s, g) => s + (g.total || 0), 0)
+
+        // Distance: need at least 2 distinct km readings
+        const firstKm  = withKm.length >= 2 ? parseFloat(withKm[0].km)                        : null
+        const lastKm   = withKm.length >= 2 ? parseFloat(withKm[withKm.length - 1].km)        : null
+        const distance = (firstKm !== null && lastKm !== null && lastKm > firstKm)
+                         ? lastKm - firstKm : null
+
+        // Derived metrics — guard against division by zero
+        const conso      = distance && totalLiters > 0 ? (totalLiters / distance) * 100 : null
+        const costPerKm  = distance && totalDHS    > 0 ? totalDHS    / distance          : null
+
+        return { plaque, firstKm, lastKm, distance, totalLiters, totalDHS,
+                 conso, costPerKm, nbEntries: sorted.length, nbKm: withKm.length }
       })
-      .filter(d => d.liters > 0)
+      .filter(d => d.totalLiters > 0)
       .sort((a, b) => a.plaque.localeCompare(b.plaque))
   })()
 
@@ -607,56 +622,94 @@ export default function Gasoil() {
             </div>
           </div>
 
-          {/* ── MONTHLY CONSUMPTION L/100km ── */}
+          {/* ── CONSUMPTION TRACKER ── */}
           <div className="card mt-4">
-            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <h3 className="font-semibold text-gray-900">📊 Conso. L/100km</h3>
-              <input
-                type="month"
-                className="input text-xs"
-                style={{width:'140px'}}
-                value={consoMonth}
-                onChange={e => setConsoMonth(e.target.value)}
-              />
+            <h3 className="font-semibold text-gray-900 mb-3">📊 Consommation L/100km</h3>
+
+            {/* Filters */}
+            <div className="space-y-2 mb-4">
+              <div>
+                <label className="label">Camion</label>
+                <select className="input text-xs" value={consoCamion} onChange={e => setConsoCamion(e.target.value)}>
+                  <option value="">Tous les camions</option>
+                  {camions.map(c => <option key={c.id} value={c.plaque}>{c.plaque}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Mois rapide</label>
+                <input type="month" className="input text-xs" value={consoMonth}
+                  onChange={e => { setConsoMonth(e.target.value); setConsoFrom(''); setConsoTo('') }} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label">Du (précis)</label>
+                  <input type="date" className="input text-xs" value={consoFrom}
+                    onChange={e => { setConsoFrom(e.target.value); setConsoMonth('') }} />
+                </div>
+                <div>
+                  <label className="label">Au (précis)</label>
+                  <input type="date" className="input text-xs" value={consoTo}
+                    onChange={e => { setConsoTo(e.target.value); setConsoMonth('') }} />
+                </div>
+              </div>
+              <button className="btn-secondary text-xs w-full"
+                onClick={() => { setConsoCamion(''); setConsoMonth(currentMonth()); setConsoFrom(''); setConsoTo('') }}>
+                ↺ Réinitialiser
+              </button>
             </div>
 
+            {/* Results */}
             {consoStats.length === 0 ? (
-              <div className="text-center text-gray-400 text-xs py-4">
-                Aucune donnée KM pour {consoMonth}
+              <div className="text-center text-gray-400 text-xs py-6 bg-gray-50 rounded-xl">
+                Aucune donnée pour cette sélection
               </div>
             ) : (
               <div className="space-y-3">
                 {consoStats.map(d => (
                   <div key={d.plaque} className="border border-gray-100 rounded-xl p-3">
+
+                    {/* Truck name + L/100km badge */}
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-bold text-gray-900 text-sm">{d.plaque}</span>
                       {d.conso !== null ? (
                         <span className={`text-sm font-black px-2 py-0.5 rounded-lg ${
                           d.conso > 40 ? 'bg-red-50 text-red-600' :
                           d.conso > 30 ? 'bg-amber-50 text-amber-600' :
-                          'bg-green-50 text-green-600'
+                                         'bg-green-50 text-green-600'
                         }`}>
                           {d.conso.toFixed(1)} L/100km
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-lg">KM insuffisant</span>
+                        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-lg">
+                          {d.nbKm < 2 ? `KM insuffisant (${d.nbKm}/2)` : '—'}
+                        </span>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-1 text-center">
-                      <div className="bg-gray-50 rounded-lg p-1.5">
+
+                    {/* 4 metric tiles */}
+                    <div className="grid grid-cols-2 gap-1.5 text-center">
+                      <div className="bg-gray-50 rounded-lg p-2">
                         <div className="text-xs text-gray-400">Distance</div>
                         <div className="text-xs font-bold text-gray-700">
                           {d.distance !== null ? `${fmt(d.distance)} km` : '—'}
                         </div>
+                        {d.firstKm && d.lastKm && (
+                          <div className="text-xs text-gray-300">{fmt(d.firstKm)} → {fmt(d.lastKm)}</div>
+                        )}
                       </div>
-                      <div className="bg-blue-50 rounded-lg p-1.5">
-                        <div className="text-xs text-blue-400">Litres</div>
-                        <div className="text-xs font-bold text-blue-700">{d.liters.toFixed(0)} L</div>
+                      <div className="bg-blue-50 rounded-lg p-2">
+                        <div className="text-xs text-blue-400">Total litres</div>
+                        <div className="text-xs font-bold text-blue-700">{d.totalLiters.toFixed(1)} L</div>
+                        <div className="text-xs text-blue-300">{d.nbEntries} plein(s)</div>
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-1.5">
-                        <div className="text-xs text-gray-400">KM</div>
-                        <div className="text-xs font-bold text-gray-600">
-                          {d.firstKm ? `${fmt(d.firstKm)}→${fmt(d.lastKm)}` : '—'}
+                      <div className="bg-amber-50 rounded-lg p-2">
+                        <div className="text-xs text-amber-500">Coût total</div>
+                        <div className="text-xs font-bold text-amber-700">{fmt(d.totalDHS)} DHS</div>
+                      </div>
+                      <div className="bg-purple-50 rounded-lg p-2">
+                        <div className="text-xs text-purple-400">Coût / km</div>
+                        <div className="text-xs font-bold text-purple-700">
+                          {d.costPerKm !== null ? `${d.costPerKm.toFixed(2)} DHS` : '—'}
                         </div>
                       </div>
                     </div>
@@ -664,8 +717,10 @@ export default function Gasoil() {
                 ))}
               </div>
             )}
-            <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400">
-              Distance = dernier KM − premier KM du mois
+
+            <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400 space-y-0.5">
+              <div>📐 Méthode : Σ litres ÷ (KM final − KM initial) × 100</div>
+              <div>⚠️ Nécessite ≥ 2 relevés KM dans la période</div>
             </div>
           </div>
 
