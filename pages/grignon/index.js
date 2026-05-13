@@ -219,7 +219,7 @@ export default function Grignon() {
       // remove old vente from old client
       if (oldCl && editRow.total_vente) {
         await supabase.from('grignon_clients')
-          .update({ solde: Math.max(0, (oldCl.solde || 0) - (editRow.total_vente || 0)) })
+          .update({ solde: (oldCl.solde || 0) - (editRow.total_vente || 0) })
           .eq('id', oldCl.id)
       }
       // add new vente to new client
@@ -253,7 +253,7 @@ export default function Grignon() {
     await supabase.from('grignon_operations').delete().eq('id', op.id)
     if (op.client_id && op.total_vente) {
       const cl = clients.find(c => c.id === op.client_id)
-      if (cl) await supabase.from('grignon_clients').update({ solde: Math.max(0, (cl.solde || 0) - op.total_vente) }).eq('id', cl.id)
+      if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - op.total_vente }).eq('id', cl.id)
     }
     loadAll()
   }
