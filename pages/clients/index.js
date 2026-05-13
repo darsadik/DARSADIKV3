@@ -271,11 +271,12 @@ export default function Clients() {
       <th class="r">QTÉ</th>
       <th class="r">PRIX/U DHS</th>
       <th class="r">TOTAL DHS</th>
+      <th>NOTE</th>
     </tr>
   </thead>
   <tbody>
     ${filteredVentes.length === 0
-      ? '<tr class="empty-row"><td colspan="6">Aucune vente pour cette période</td></tr>'
+      ? '<tr class="empty-row"><td colspan="7">Aucune vente pour cette période</td></tr>'
       : filteredVentes.map(v => `
         <tr>
           <td>${v.date || '—'}</td>
@@ -284,6 +285,7 @@ export default function Clients() {
           <td class="r num">${fmt(v.qte)}</td>
           <td class="r">${parseFloat(v.prix_vente || 0).toFixed(2)}</td>
           <td class="r num">${fmt(v.total_vente)}</td>
+          <td class="muted">${v.note || '—'}</td>
         </tr>`).join('')
     }
   </tbody>
@@ -294,6 +296,7 @@ export default function Clients() {
       <td class="r"><b>${fmt(filteredVentes.reduce((s,v) => s + (v.qte||0), 0))}</b></td>
       <td></td>
       <td class="r"><b>${fmt(totalVentes)} DHS</b></td>
+      <td></td>
     </tr>
   </tfoot>` : ''}
 </table>
@@ -343,9 +346,9 @@ export default function Clients() {
 
     let csv = `FICHE CLIENT — DAR SADIK\n`
     csv += `Nom,${selected.nom}\nDépôt,${selected.depot||''}\nTéléphone,${selected.tel||''}\nSolde DHS,${selected.solde||0}\nPériode,${periode}\nTotal Ventes DHS,${totalVentes}\nTotal Paiements DHS,${totalPaiements}\n\n`
-    csv += `VENTES\nDate,Transport,Type,Quantité,Prix Vente/u,Total DHS\n`
+    csv += `VENTES\nDate,Transport,Type,Quantité,Prix Vente/u,Total DHS,Note\n`
     filteredVentes.forEach(v => {
-      csv += `${v.date},${v.camion_plaque},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.total_vente||0}\n`
+      csv += `${v.date},${v.camion_plaque},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.total_vente||0},${v.note||""}\n`
     })
     csv += `\nPAIEMENTS\nDate,Mode,Montant DHS,Note\n`
     filteredPaiements.forEach(p => {
