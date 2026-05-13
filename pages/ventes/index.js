@@ -185,7 +185,7 @@ export default function Ventes() {
     if (!confirm('Supprimer cette vente ?')) return
     await supabase.from('ventes').delete().eq('id', v.id)
     const cl = clients.find(c => c.id === v.client_id)
-    if (cl) await supabase.from('clients').update({ solde: Math.max(0, (cl.solde || 0) - v.total_vente) }).eq('id', cl.id)
+    if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) - v.total_vente }).eq('id', cl.id)
     loadAll()
   }
 
