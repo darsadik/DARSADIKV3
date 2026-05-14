@@ -29,7 +29,6 @@ export default function Ventes() {
   const [editSaving, setEditSaving] = useState(false)
   const [editMsg, setEditMsg] = useState('')
   const [ventes, setVentes] = useState([])
-  const [retours, setRetours] = useState([])
   const [clients, setClients] = useState([])
   const [camions, setCamions] = useState([])
   const [fournisseurs, setFournisseurs] = useState([])
@@ -37,17 +36,8 @@ export default function Ventes() {
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('client')
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({
-    date: today(), date_fournisseur: today(),
-    client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '',
-    qte: '', prix_vente: '', prix_achat: '', bon: '', note: ''
-  })
-  const [retourForm, setRetourForm] = useState({
-    date: today(), camion_id: '', client_retour: '', montant: '', montant_paye: '', note: ''
-  })
-  const [retourSaving, setRetourSaving]             = useState(false)
-  const [retourMsg, setRetourMsg]                   = useState('')
-  const [retourDeleteConfirm, setRetourDeleteConfirm] = useState(null)
+  const [form, setForm] = useState({ date: today(), date_fournisseur: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '', retour_client: '', retour_montant: '', retour_paye: '', retour_note: '' })
+  const [showRetour, setShowRetour] = useState(false)
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo, setFilterTo] = useState(today())
   const [filterClient, setFilterClient] = useState('')
@@ -61,23 +51,22 @@ export default function Ventes() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: v }, { data: cl }, { data: ca }, { data: fo }, { data: ty }, { data: rt }] = await Promise.all([
+    const [{ data: v }, { data: cl }, { data: ca }, { data: fo }, { data: ty }] = await Promise.all([
       supabase.from('ventes').select('*').order('date', { ascending: true }),
       supabase.from('clients').select('*').order('nom'),
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('fournisseurs').select('*').order('nom'),
       supabase.from('type_briques').select('*').order('nom'),
-      supabase.from('retours_transport').select('*').order('date', { ascending: true }),
     ])
     setVentes(v || []); setClients(cl || []); setCamions(ca || [])
     setFournisseurs(fo || []); setTypeBriques(ty || [])
-    setRetours(rt || [])
     setLoading(false)
   }
 
   const filtered = ventes.filter(v => {
-    if (filterFrom && v.date < filterFrom) return false
-    if (filterTo && v.date > filterTo) return false
+    const vDate = v.date  // client delivery date
+    if (filterFrom && vDate < filterFrom) return false
+    if (filterTo && vDate > filterTo) return false
     if (filterClient && v.client_id !== parseInt(filterClient)) return false
     if (filterFourn && v.fournisseur !== filterFourn) return false
     if (filterCamion && v.camion_plaque !== filterCamion) return false
@@ -96,6 +85,9 @@ export default function Ventes() {
     const ca = camions.find(c => c.id === parseInt(form.camion_id))
     const fo = fournisseurs.find(f => f.id === parseInt(form.fournisseur_id))
     const ty = typeBriques.find(t => t.id === parseInt(form.type_brique_id))
+    const retour_montant = parseFloat(form.retour_montant) || 0
+    const retour_paye = parseFloat(form.retour_paye) || 0
+    const retour_restant = retour_montant > 0 ? Math.round((retour_montant - retour_paye) * 100) / 100 : 0
     await supabase.from('ventes').insert({
       date: form.date,
       date_fournisseur: form.date_fournisseur || form.date,
@@ -107,10 +99,16 @@ export default function Ventes() {
       prix_achat: parseFloat(form.prix_achat) || 0,
       total_vente: tv, total_achat: ta, marge: mg,
       bon: form.bon, note: form.note,
+      retour_client: form.retour_client || null,
+      retour_montant: retour_montant || null,
+      retour_paye: retour_paye || null,
+      retour_restant: retour_restant || null,
+      retour_note: form.retour_note || null,
     })
     if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) + tv }).eq('id', cl.id)
     setSaving(false); setShowForm(false)
-    setForm({ date: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '' })
+    setForm({ date: today(), date_fournisseur: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '', retour_client: '', retour_montant: '', retour_paye: '', retour_note: '' })
+    setShowRetour(false)
     loadAll()
   }
 
@@ -118,11 +116,16 @@ export default function Ventes() {
     setEditRow(v)
     setEditForm({
       date: v.date || '',
+      date_fournisseur: v.date_fournisseur || v.date || '',
       qte: v.qte || '',
       prix_vente: v.prix_vente || '',
       prix_achat: v.prix_achat || '',
       bon: v.bon || '',
       note: v.note || '',
+      retour_client: v.retour_client || '',
+      retour_montant: v.retour_montant || '',
+      retour_paye: v.retour_paye || '',
+      retour_note: v.retour_note || '',
     })
     setEditMsg('')
   }
@@ -138,12 +141,22 @@ export default function Ventes() {
     const total_achat = Math.round(qte * pa * 100) / 100
     const marge = Math.round((total_vente - total_achat) * 100) / 100
 
+    const retour_montant = parseFloat(editForm.retour_montant) || 0
+    const retour_paye    = parseFloat(editForm.retour_paye) || 0
+    const retour_restant = retour_montant > 0 ? Math.round((retour_montant - retour_paye) * 100) / 100 : 0
+
     const { error } = await supabase.from('ventes').update({
       date: editForm.date,
+      date_fournisseur: editForm.date_fournisseur || editForm.date,
       qte, prix_vente: pv, prix_achat: pa,
       total_vente, total_achat, marge,
       bon: editForm.bon || null,
       note: editForm.note || null,
+      retour_client: editForm.retour_client || null,
+      retour_montant: retour_montant || null,
+      retour_paye: retour_paye || null,
+      retour_restant: retour_restant || null,
+      retour_note: editForm.retour_note || null,
     }).eq('id', editRow.id)
 
     // Adjust client solde: remove old total, add new total
@@ -172,14 +185,18 @@ export default function Ventes() {
     if (!confirm('Supprimer cette vente ?')) return
     await supabase.from('ventes').delete().eq('id', v.id)
     const cl = clients.find(c => c.id === v.client_id)
-    if (cl) await supabase.from('clients').update({ solde: Math.max(0, (cl.solde || 0) - v.total_vente) }).eq('id', cl.id)
+    if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) - v.total_vente }).eq('id', cl.id)
     loadAll()
   }
 
   function printClientView() {
     const tQ = filtered.reduce((s,v)=>s+(v.qte||0),0)
     const tV = filtered.reduce((s,v)=>s+(v.total_vente||0),0)
+    const tR = filtered.reduce((s,v)=>s+(v.retour_montant||0),0)
+    const tRR = filtered.reduce((s,v)=>s+(v.retour_restant||0),0)
+    const hasRetour = filtered.some(v => v.retour_client)
     const win = window.open('','_blank')
+    const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmt(v.retour_montant)}</td><td style="text-align:right">${fmt(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ventes</title>
     <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -194,32 +211,25 @@ export default function Ventes() {
       tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
       b, strong { color: #1e293b !important; font-weight: 800; }
       .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #ffffff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #ffffff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #1a5fa8 !important; color: #ffffff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
+      .section-title { font-size:14px;font-weight:800;margin:20px 0 8px;color:#1a5fa8; }
+      .note-cell { color:#64748b !important; font-style:italic; font-size:10px; }
       @media print {
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         button, .no-print { display: none !important; }
         body { padding: 0; }
       }
 </style></head><body>
-    <h1>DAR SADIK — Ventes ${filterFrom} → ${filterTo}</h1>
-    <table><thead><tr><th>Date</th><th>Client</th><th>Produit</th><th>Transport</th><th>Qté</th><th>Prix/u</th><th>Total DHS</th></tr></thead>
-    <tbody>${filtered.map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.type_brique||'—'}</td><td>${v.camion_plaque}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${fmtD(v.prix_vente)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="4">TOTAL (${filtered.length})</td><td style="text-align:right">${fmt(tQ)}</td><td></td><td style="text-align:right">${fmt(tV)} DHS</td></tr></tfoot>
-    </table></body></html>`)
+    <h1>DAR SADIK — Ventes ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</h1>
+    <table><thead><tr><th>Date livraison</th><th>Client</th><th>Produit</th><th>Transport</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix/u</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
+    <tbody>${filtered.map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.type_brique||'—'}</td><td>${v.camion_plaque}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${fmtD(v.prix_vente)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td class="note-cell">${v.note||''}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">TOTAL (${filtered.length})</td><td style="text-align:right">${fmt(tQ)}</td><td></td><td style="text-align:right">${fmt(tV)} DHS</td><td></td></tr></tfoot>
+    </table>
+    ${hasRetour ? `<div class="section-title">↩️ Retours Transport</div>
+    <table><thead><tr><th>Date</th><th>Client vente</th><th>Camion</th><th>Retour client</th><th style="text-align:right">Montant</th><th style="text-align:right">Payé</th><th style="text-align:right">Restant</th></tr></thead>
+    <tbody>${retourRows}</tbody>
+    <tfoot><tr><td colspan="4">TOTAL RETOURS</td><td style="text-align:right">${fmt(tR)} DHS</td><td></td><td style="text-align:right">${fmt(tRR)} DHS</td></tr></tfoot>
+    </table>` : ''}
+    </body></html>`)
     win.document.close()
     win.print()
   }
@@ -266,6 +276,12 @@ export default function Ventes() {
             <button onClick={() => deleteVente(v)} className="btn-danger">✕ Supprimer</button>
           </div>
         )}
+        {v.retour_client && (
+          <div className="mt-2 p-2 rounded-lg text-xs" style={{background:'#f0fdf4',border:'1px solid #bbf7d0'}}>
+            <span className="font-bold text-green-700">↩️ Retour:</span> {v.retour_client}
+            {v.retour_montant > 0 && <> — {fmt(v.retour_montant)} DHS {v.retour_restant > 0 ? <span className="text-orange-500">(reste {fmt(v.retour_restant)} DHS)</span> : <span className="text-green-600">(payé)</span>}</>}
+          </div>
+        )}
       </div>
     )
   }
@@ -274,6 +290,10 @@ export default function Ventes() {
   function ClientView() {
     const tQ = filtered.reduce((s,v)=>s+(v.qte||0),0)
     const tV = filtered.reduce((s,v)=>s+(v.total_vente||0),0)
+    const tR = filtered.reduce((s,v)=>s+(v.retour_montant||0),0)
+    const tRP = filtered.reduce((s,v)=>s+(v.retour_paye||0),0)
+    const tRR = filtered.reduce((s,v)=>s+(v.retour_restant||0),0)
+    const hasRetour = filtered.some(v => v.retour_client)
 
     return (
       <div className="card">
@@ -304,6 +324,18 @@ export default function Ventes() {
                   <div className="text-xs text-gray-400">Total DHS</div>
                   <div className="text-lg font-bold text-brand-600">{fmt(tV)}</div>
                 </div>
+                {hasRetour && (
+                  <>
+                    <div className="bg-green-50 rounded-xl p-3 text-center col-span-1">
+                      <div className="text-xs text-gray-400">↩️ Retour total</div>
+                      <div className="text-lg font-bold text-green-600">{fmt(tR)} DHS</div>
+                    </div>
+                    <div className="bg-orange-50 rounded-xl p-3 text-center col-span-1">
+                      <div className="text-xs text-gray-400">Retour restant</div>
+                      <div className="text-lg font-bold text-orange-500">{fmt(tRR)} DHS</div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </>
@@ -315,6 +347,8 @@ export default function Ventes() {
                   <th className="th">Date</th><th className="th">Client</th><th className="th">Produit</th>
                   <th className="th">Transport</th><th className="th text-right">Quantité</th>
                   <th className="th text-right">Prix/u DHS</th><th className="th text-right">Total DHS</th>
+                  <th className="th">Note</th>
+                  {hasRetour && <th className="th text-right">↩️ Retour</th>}
                   {admin && <th className="th"></th>}
                 </tr>
               </thead>
@@ -328,6 +362,20 @@ export default function Ventes() {
                     <td className="td text-right">{fmt(v.qte)}</td>
                     <td className="td text-right">{fmtD(v.prix_vente)}</td>
                     <td className="td text-right font-bold">{fmt(v.total_vente)}</td>
+                    <td className="td text-xs text-gray-400" style={{maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{v.note || '—'}</td>
+                    {hasRetour && (
+                      <td className="td text-right text-xs">
+                        {v.retour_client ? (
+                          <div>
+                            <div className="font-semibold text-green-700">{v.retour_client}</div>
+                            <div className="text-gray-500">{fmt(v.retour_montant)} DHS</div>
+                            {v.retour_restant > 0
+                              ? <div className="text-orange-500">reste {fmt(v.retour_restant)}</div>
+                              : <div className="text-green-600">✓ payé</div>}
+                          </div>
+                        ) : <span className="text-gray-200">—</span>}
+                      </td>
+                    )}
                     {admin && <td className="td">
                       <div className="flex gap-1">
                         <button onClick={() => openEdit(v)} className="btn-secondary text-xs px-2" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️</button>
@@ -336,7 +384,7 @@ export default function Ventes() {
                     </td>}
                   </tr>
                 ))}
-                {filtered.length === 0 && <tr><td colSpan={8} className="td text-center text-gray-400 py-8">Aucune vente</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={hasRetour ? 10 : 9} className="td text-center text-gray-400 py-8">Aucune vente</td></tr>}
               </tbody>
               {filtered.length > 0 && (
                 <tfoot>
@@ -345,6 +393,8 @@ export default function Ventes() {
                     <td className="tfoot-td text-right">{fmt(tQ)}</td>
                     <td className="tfoot-td"></td>
                     <td className="tfoot-td text-right">{fmt(tV)} DHS</td>
+                    <td className="tfoot-td"></td>
+                    {hasRetour && <td className="tfoot-td text-right text-xs">{fmt(tR)} DHS <span className="text-orange-400">({fmt(tRR)} reste)</span></td>}
                     {admin && <td className="tfoot-td"></td>}
                   </tr>
                 </tfoot>
@@ -382,9 +432,9 @@ export default function Ventes() {
   }
 
   const fFiltered = ventes.filter(v => {
-    const d = v.date_fournisseur || v.date
-    if (fFilterFrom && d < fFilterFrom) return false
-    if (fFilterTo   && d > fFilterTo)   return false
+    const fDate = v.date_fournisseur || v.date  // use supplier date, fallback to client date
+    if (fFilterFrom && fDate < fFilterFrom) return false
+    if (fFilterTo   && fDate > fFilterTo)   return false
     if (fFilterFourn && v.fournisseur !== fFilterFourn) return false
     return true
   }).slice().sort((a,b) => (a.date_fournisseur||a.date).localeCompare(b.date_fournisseur||b.date))
@@ -440,9 +490,9 @@ export default function Ventes() {
       const totQte   = data.ops.reduce((s,v)=>s+(v.qte||0),0)
       const totAchat = data.ops.reduce((s,v)=>s+(v.total_achat||0),0)
       const rows = data.ops
-        .sort((a,b)=>a.date.localeCompare(b.date))
+        .sort((a,b)=>(a.date_fournisseur||a.date).localeCompare(b.date_fournisseur||b.date))
         .map(v => `<tr>
-          <td>${fmtDate(v.date)}</td>
+          <td>${fmtDate(v.date_fournisseur || v.date)}</td>
           <td>${v.type_brique||'—'}</td>
           <td style="text-align:right">${fmt(v.qte)}</td>
           <td style="text-align:right">${fmtD(v.prix_achat)}</td>
@@ -526,7 +576,7 @@ export default function Ventes() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
         <div>
           <h1>🏭 DAR SADIK — Rapport Fournisseurs (Achats)</h1>
-          <div class="sub">Période: ${fFilterFrom} → ${fFilterTo} | ${Object.keys(byFourn).length} fournisseur(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+          <div class="sub">Période: ${fmtDate(fFilterFrom)} → ${fmtDate(fFilterTo)} | ${Object.keys(byFourn).length} fournisseur(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
         </div>
         <div style="display:flex;gap:8px">
           <div style="display:flex;gap:8px">
@@ -587,7 +637,7 @@ export default function Ventes() {
       byProduit[prod].totalQte   += v.qte || 0
       byProduit[prod].totalAchat += v.total_achat || 0
       byProduit[prod].ops.push(v)
-      const day = v.date
+      const day = v.date_fournisseur || v.date
       if (!byProduit[prod].days[day]) byProduit[prod].days[day] = { qte: 0, total: 0, prix: v.prix_achat || 0 }
       byProduit[prod].days[day].qte   += v.qte || 0
       byProduit[prod].days[day].total += v.total_achat || 0
@@ -610,7 +660,7 @@ export default function Ventes() {
       byFourn[f].byType[tb].qte   += v.qte || 0
       byFourn[f].byType[tb].total += v.total_achat || 0
       // track per day per type
-      const day = v.date
+      const day = v.date_fournisseur || v.date
       if (!byFourn[f].byType[tb].days[day]) byFourn[f].byType[tb].days[day] = { qte: 0, total: 0, prix: v.prix_achat || 0 }
       byFourn[f].byType[tb].days[day].qte   += v.qte || 0
       byFourn[f].byType[tb].days[day].total += v.total_achat || 0
@@ -674,7 +724,7 @@ export default function Ventes() {
                     .map(([day, d]) => (
                     <div key={day} className="flex items-center justify-between py-2 border-b border-gray-50">
                       <div>
-                        <div className="font-semibold text-gray-900">{day}</div>
+                        <div className="font-semibold text-gray-900">{fmtDate(day)}</div>
                         <div className="text-xs text-gray-400">{fmtD(d.prix)} DHS/u</div>
                       </div>
                       <div className="text-right">
@@ -701,7 +751,7 @@ export default function Ventes() {
                         .sort(([a], [b]) => a.localeCompare(b))
                         .map(([day, d]) => (
                         <tr key={day} className="hover:bg-gray-50">
-                          <td className="td font-semibold text-gray-700">{day}</td>
+                          <td className="td font-semibold text-gray-700">{fmtDate(day)}</td>
                           <td className="td"><span className="badge-blue">{prod}</span></td>
                           <td className="td text-right font-bold text-blue-700">{fmt(d.qte)}</td>
                           <td className="td text-right text-gray-500">{fmtD(d.prix)}</td>
@@ -865,10 +915,10 @@ export default function Ventes() {
                   </thead>
                   <tbody>
                     {data.ops
-                      .sort((a,b) => a.date.localeCompare(b.date))
+                      .sort((a,b) => (a.date_fournisseur||a.date).localeCompare(b.date_fournisseur||b.date))
                       .map(v => (
                       <tr key={v.id} className="hover:bg-gray-50">
-                        <td className="td text-gray-500">{fmtDate(v.date)}</td>
+                        <td className="td text-gray-500">{fmtDate(v.date_fournisseur || v.date)}</td>
                         <td className="td"><span className="badge-blue">{v.type_brique||'—'}</span></td>
                         <td className="td text-right">{fmt(v.qte)}</td>
                         <td className="td text-right text-gray-500">{fmtD(v.prix_achat)}</td>
@@ -933,7 +983,7 @@ export default function Ventes() {
     const byCamion = {}
     filtered.forEach(v => {
       const p = v.camion_plaque || 'Sans camion'
-      if (!byCamion[p]) byCamion[p] = { voyages: 0, qte: 0, vente: 0, chauffeur: v.chauffeur || '', types: {}, ops: [] }
+      if (!byCamion[p]) byCamion[p] = { voyages: 0, qte: 0, vente: 0, chauffeur: v.chauffeur || '', types: {}, ops: [], retourTotal: 0, retourRestant: 0, retours: [] }
       byCamion[p].voyages += 1
       byCamion[p].qte    += v.qte || 0
       byCamion[p].vente  += v.total_vente || 0
@@ -941,6 +991,11 @@ export default function Ventes() {
       if (!byCamion[p].types[tb]) byCamion[p].types[tb] = 0
       byCamion[p].types[tb] += v.qte || 0
       byCamion[p].ops.push(v)
+      if (v.retour_client) {
+        byCamion[p].retourTotal   += v.retour_montant || 0
+        byCamion[p].retourRestant += v.retour_restant || 0
+        byCamion[p].retours.push(v)
+      }
     })
 
     const css = `
@@ -985,7 +1040,6 @@ export default function Ventes() {
           .slice().sort((a, b) => a.date.localeCompare(b.date))
           .map(v => `<tr>
             <td>${fmtDate(v.date)}</td>
-            <td><b>${v.type_brique || '—'}</b></td>
             <td style="text-align:right">${fmt(v.qte)}</td>
             <td>${v.client_nom || '—'}</td>
             <td>${v.fournisseur || '—'}</td>
@@ -1024,6 +1078,26 @@ export default function Ventes() {
                 <td colspan="3"></td>
               </tr></tfoot>
             </table>
+            ${data.retours.length > 0 ? `
+            <div style="margin-top:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+              <div style="font-weight:800;font-size:12px;color:#15803d;margin-bottom:8px">↩️ Retours Transport (${data.retours.length}) — Total: ${fmt(data.retourTotal)} DHS · Restant: ${fmt(data.retourRestant)} DHS</div>
+              <table>
+                <thead><tr>
+                  <th style="background:#15803d">Date</th><th style="background:#15803d">Client retour</th>
+                  <th style="text-align:right;background:#15803d">Montant</th>
+                  <th style="text-align:right;background:#15803d">Payé</th>
+                  <th style="text-align:right;background:#15803d">Restant</th>
+                  <th style="background:#15803d">Note</th>
+                </tr></thead>
+                <tbody>${data.retours.map(v=>`<tr>
+                  <td>${fmtDate(v.date)}</td><td><b>${v.retour_client}</b></td>
+                  <td style="text-align:right">${fmt(v.retour_montant)}</td>
+                  <td style="text-align:right">${fmt(v.retour_paye||0)}</td>
+                  <td style="text-align:right;color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td>
+                  <td>${v.retour_note||'—'}</td>
+                </tr>`).join('')}</tbody>
+              </table>
+            </div>` : ''}
           </div>`
       }).join('')
 
@@ -1068,7 +1142,7 @@ export default function Ventes() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
         <div>
           <h1>🚛 DAR SADIK — Rapport Camions</h1>
-          <div class="sub">Période: ${filterFrom} → ${filterTo} | ${Object.keys(byCamion).length} camion(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+          <div class="sub">Période: ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} | ${Object.keys(byCamion).length} camion(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
         </div>
         <div style="display:flex;gap:8px">
           <div style="display:flex;gap:8px">
@@ -1133,7 +1207,7 @@ export default function Ventes() {
     const byCamion = {}
     filtered.forEach(v => {
       const p = v.camion_plaque || 'Sans camion'
-      if (!byCamion[p]) byCamion[p] = { voyages: 0, qte: 0, vente: 0, dates: new Set(), types: {}, chauffeur: v.chauffeur || '' }
+      if (!byCamion[p]) byCamion[p] = { voyages: 0, qte: 0, vente: 0, dates: new Set(), types: {}, chauffeur: v.chauffeur || '', retourTotal: 0, retourRestant: 0, retours: [] }
       byCamion[p].voyages += 1
       byCamion[p].qte += v.qte || 0
       byCamion[p].vente += v.total_vente || 0
@@ -1141,6 +1215,11 @@ export default function Ventes() {
       const tb = v.type_brique || 'Sans type'
       if (!byCamion[p].types[tb]) byCamion[p].types[tb] = 0
       byCamion[p].types[tb] += v.qte || 0
+      if (v.retour_client) {
+        byCamion[p].retourTotal += v.retour_montant || 0
+        byCamion[p].retourRestant += v.retour_restant || 0
+        byCamion[p].retours.push(v)
+      }
     })
 
     return (
@@ -1191,7 +1270,22 @@ export default function Ventes() {
             {!isMobile && (
               <div className="flex flex-wrap gap-1">
                 {[...data.dates].sort().map(d => (
-                  <span key={d} className="text-xs bg-brand-50 text-brand-700 border border-brand-200 rounded px-2 py-1">{d}</span>
+                  <span key={d} className="text-xs bg-brand-50 text-brand-700 border border-brand-200 rounded px-2 py-1">{fmtDate(d)}</span>
+                ))}
+              </div>
+            )}
+            {data.retours.length > 0 && (
+              <div className="mt-3 p-3 rounded-xl border border-green-200" style={{background:'#f0fdf4'}}>
+                <div className="text-xs font-bold text-green-700 uppercase mb-2">↩️ Retours Transport ({data.retours.length})</div>
+                <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                  <div><span className="text-gray-400">Total retour:</span> <b className="text-green-700">{fmt(data.retourTotal)} DHS</b></div>
+                  <div><span className="text-gray-400">Restant:</span> <b className="text-orange-500">{fmt(data.retourRestant)} DHS</b></div>
+                </div>
+                {data.retours.map(v => (
+                  <div key={v.id} className="text-xs py-1 border-t border-green-100 flex justify-between">
+                    <span>{fmtDate(v.date)} — <b>{v.retour_client}</b></span>
+                    <span>{fmt(v.retour_montant)} DHS {v.retour_restant > 0 ? <span className="text-orange-500">(reste {fmt(v.retour_restant)})</span> : <span className="text-green-600">✓</span>}</span>
+                  </div>
                 ))}
               </div>
             )}
@@ -1222,7 +1316,7 @@ export default function Ventes() {
       {isMobile ? (
         <div className="mb-4">
           <button className="mobile-collapse-btn" onClick={() => setShowFilters(!showFilters)}>
-            <span>🔍 Filtres ({filterFrom} → {filterTo})</span>
+            <span>🔍 Filtres ({fmtDate(filterFrom)} → {fmtDate(filterTo)})</span>
             <span>{showFilters ? '▲' : '▼'}</span>
           </button>
           {showFilters && (
@@ -1284,7 +1378,14 @@ export default function Ventes() {
           {(!isMobile || showForm) && (
             <form onSubmit={saveVente}>
               <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
-                <div><label className="label">Date</label><input type="date" className="input" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} required /></div>
+                <div>
+                  <label className="label">📅 Date livraison client</label>
+                  <input type="date" className="input" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} required />
+                </div>
+                <div>
+                  <label className="label">🏭 Date achat fournisseur</label>
+                  <input type="date" className="input" value={form.date_fournisseur} onChange={e=>setForm({...form,date_fournisseur:e.target.value})} />
+                </div>
                 <div><label className="label">Client</label>
                   <select className="input" value={form.client_id} onChange={e=>setForm({...form,client_id:e.target.value})} required>
                     <option value="">Sélectionner...</option>{clients.map(c=><option key={c.id} value={c.id}>{c.nom}</option>)}
@@ -1295,6 +1396,8 @@ export default function Ventes() {
                     <option value="">Sélectionner...</option>{camions.map(c=><option key={c.id} value={c.id}>{c.plaque}{c.chauffeur?` — ${c.chauffeur}`:''}</option>)}
                   </select>
                 </div>
+              </div>
+              <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
                 <div><label className="label">Fournisseur</label>
                   <select className="input" value={form.fournisseur_id} onChange={e=>setForm({...form,fournisseur_id:e.target.value})}>
                     <option value="">Sélectionner...</option>{fournisseurs.map(f=><option key={f.id} value={f.id}>{f.nom}</option>)}
@@ -1314,6 +1417,43 @@ export default function Ventes() {
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div><label className="label">BON N°</label><input className="input" placeholder="2849" value={form.bon} onChange={e=>setForm({...form,bon:e.target.value})} /></div>
                 <div><label className="label">Note</label><input className="input" placeholder="optionnel" value={form.note} onChange={e=>setForm({...form,note:e.target.value})} /></div>
+              </div>
+
+              {/* ── RETOUR TRANSPORT ── */}
+              <div className="mb-4 rounded-xl border border-green-200 overflow-hidden">
+                <button type="button"
+                  onClick={() => setShowRetour(!showRetour)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-green-700"
+                  style={{background:'#f0fdf4'}}>
+                  <span>↩️ Retour Transport (optionnel)</span>
+                  <span>{showRetour ? '▲' : '▼'}</span>
+                </button>
+                {showRetour && (
+                  <div className="p-4 space-y-3" style={{background:'#f9fffe'}}>
+                    <div className="text-xs text-gray-400 mb-2">Si le camion transporte autre chose au retour, saisir ici (lié au même voyage).</div>
+                    <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
+                      <div><label className="label">Client / Société retour</label>
+                        <input className="input" placeholder="Nom du client retour" value={form.retour_client} onChange={e=>setForm({...form,retour_client:e.target.value})} /></div>
+                      <div><label className="label">Montant retour (DHS)</label>
+                        <input type="number" step="0.01" className="input" placeholder="500" value={form.retour_montant} onChange={e=>setForm({...form,retour_montant:e.target.value})} /></div>
+                      <div><label className="label">Montant payé (DHS)</label>
+                        <input type="number" step="0.01" className="input" placeholder="500" value={form.retour_paye} onChange={e=>setForm({...form,retour_paye:e.target.value})} /></div>
+                      <div><label className="label">Note retour</label>
+                        <input className="input" placeholder="optionnel" value={form.retour_note} onChange={e=>setForm({...form,retour_note:e.target.value})} /></div>
+                    </div>
+                    {form.retour_montant && (
+                      <div className="grid grid-cols-3 gap-3 bg-green-50 rounded-xl p-3 text-center">
+                        <div><div className="text-xs text-gray-400">Montant</div><div className="font-bold text-green-700">{fmt(parseFloat(form.retour_montant)||0)} DHS</div></div>
+                        <div><div className="text-xs text-gray-400">Payé</div><div className="font-bold text-blue-700">{fmt(parseFloat(form.retour_paye)||0)} DHS</div></div>
+                        <div><div className="text-xs text-gray-400">Restant</div>
+                          <div className={`font-bold ${((parseFloat(form.retour_montant)||0)-(parseFloat(form.retour_paye)||0))>0?'text-orange-500':'text-green-600'}`}>
+                            {fmt(Math.max(0,(parseFloat(form.retour_montant)||0)-(parseFloat(form.retour_paye)||0)))} DHS
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               {form.qte && form.prix_vente && (
                 <div className="grid grid-cols-3 gap-3 bg-brand-50 rounded-xl p-4 mb-4 text-center">
@@ -1353,11 +1493,19 @@ export default function Ventes() {
               <button onClick={() => setEditRow(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
             </div>
             <form onSubmit={saveEdit} className="p-5 space-y-3">
-              <div>
-                <label className="label">Date</label>
-                <input type="date" className="input" required
-                  value={editForm.date}
-                  onChange={e => setEditForm({...editForm, date: e.target.value})} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">📅 Date livraison client</label>
+                  <input type="date" className="input" required
+                    value={editForm.date}
+                    onChange={e => setEditForm({...editForm, date: e.target.value})} />
+                </div>
+                <div>
+                  <label className="label">🏭 Date achat fournisseur</label>
+                  <input type="date" className="input"
+                    value={editForm.date_fournisseur}
+                    onChange={e => setEditForm({...editForm, date_fournisseur: e.target.value})} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1392,6 +1540,27 @@ export default function Ventes() {
                 <input type="text" className="input"
                   value={editForm.note}
                   onChange={e => setEditForm({...editForm, note: e.target.value})} />
+              </div>
+
+              {/* Retour Transport in edit */}
+              <div className="rounded-xl border border-green-200 overflow-hidden">
+                <div className="px-4 py-2 text-sm font-bold text-green-700" style={{background:'#f0fdf4'}}>↩️ Retour Transport</div>
+                <div className="p-3 space-y-2" style={{background:'#f9fffe'}}>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><label className="label text-xs">Client retour</label>
+                      <input className="input" placeholder="Nom" value={editForm.retour_client}
+                        onChange={e=>setEditForm({...editForm,retour_client:e.target.value})} /></div>
+                    <div><label className="label text-xs">Montant (DHS)</label>
+                      <input type="number" step="0.01" className="input" value={editForm.retour_montant}
+                        onChange={e=>setEditForm({...editForm,retour_montant:e.target.value})} /></div>
+                    <div><label className="label text-xs">Payé (DHS)</label>
+                      <input type="number" step="0.01" className="input" value={editForm.retour_paye}
+                        onChange={e=>setEditForm({...editForm,retour_paye:e.target.value})} /></div>
+                    <div><label className="label text-xs">Note retour</label>
+                      <input className="input" value={editForm.retour_note}
+                        onChange={e=>setEditForm({...editForm,retour_note:e.target.value})} /></div>
+                  </div>
+                </div>
               </div>
               {editForm.qte && editForm.prix_vente && (
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 grid grid-cols-3 gap-2 text-center text-xs">
