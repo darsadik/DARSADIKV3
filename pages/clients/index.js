@@ -130,12 +130,63 @@ export default function Clients() {
   const filteredVentes = filterByDate(clientVentes)
   const filteredPaiements = filterByDate(clientPaiements)
 
+  // ── MONTHLY CARRY-OVER LOGIC ──
+  // Computes: what did this client owe at the START of the filtered period?
+  // = opening_balance + all ventes BEFORE period start - all payments BEFORE period start
+  function getCarryOver() {
+    const { from } = getDateRange()
+    if (!from || filterType === 'all') return null  // no carry-over for "all time"
+    const openingBal = selected?.opening_balance || 0
+    const ventesBefore   = clientVentes.filter(v => v.date < from).reduce((s, v) => s + (v.total_vente || 0), 0)
+    const paiementsBefore = clientPaiements.filter(p => p.date < from).reduce((s, p) => s + (p.montant || 0), 0)
+    return openingBal + ventesBefore - paiementsBefore
+  }
+
+  function getPeriodLabel() {
+    const { from } = getDateRange()
+    if (!from) return null
+    // e.g. "Avril 2025", "Mars 2025"
+    const d = new Date(from)
+    return d.toLocaleDateString('fr-MA', { month: 'long', year: 'numeric' })
+  }
+
+  const carryOver    = selected ? getCarryOver() : null
+  const periodLabel  = selected ? getPeriodLabel() : null
+
   // ---- PRINT ----
   function printClient() {
     const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
     const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
     const date = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
     const periode = getFilterLabel()
+    const soldeFinPeriode = carryOver !== null
+      ? carryOver + totalVentes - totalPaiements
+      : (selected.solde || 0)
+
+    const carryOverBlock = carryOver !== null ? `
+      <div style="margin-bottom:16px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:11px">
+        <div style="font-weight:800;color:#166534;margin-bottom:8px">📊 Calcul du solde — ${periodLabel}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #bbf7d0;background:#fff">
+              <div style="font-size:9px;color:#6b7280;text-transform:uppercase;font-weight:700">Solde mois précédent</div>
+              <div style="font-weight:800;color:#b45309">${fmt(carryOver)} DHS</div>
+            </td>
+            <td style="padding:4px 8px;border:1px solid #bbf7d0;background:#fff">
+              <div style="font-size:9px;color:#6b7280;text-transform:uppercase;font-weight:700">+ Ventes période</div>
+              <div style="font-weight:800;color:#1d4ed8">+ ${fmt(totalVentes)} DHS</div>
+            </td>
+            <td style="padding:4px 8px;border:1px solid #bbf7d0;background:#fff">
+              <div style="font-size:9px;color:#6b7280;text-transform:uppercase;font-weight:700">− Paiements période</div>
+              <div style="font-weight:800;color:#16a34a">− ${fmt(totalPaiements)} DHS</div>
+            </td>
+            <td style="padding:4px 8px;border:2px solid #c4b5fd;background:#faf5ff">
+              <div style="font-size:9px;color:#6b7280;text-transform:uppercase;font-weight:700">= Solde fin période</div>
+              <div style="font-weight:800;color:#7c3aed">${fmt(soldeFinPeriode)} DHS</div>
+            </td>
+          </tr>
+        </table>
+      </div>` : ''
 
     const win = window.open('', '_blank')
     win.document.write(`<!DOCTYPE html><html lang="fr"><head>
@@ -248,18 +299,20 @@ export default function Clients() {
 
 <div class="summary">
   <div class="sum-box">
-    <div class="sum-lbl">SOLDE DÛ</div>
-    <div class="sum-val c-solde">${fmt(selected.solde || 0)} DHS</div>
+    <div class="sum-lbl">${carryOver !== null ? 'SOLDE MOIS PRÉCÉDENT' : 'SOLDE INITIAL'}</div>
+    <div class="sum-val c-solde">${fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</div>
   </div>
   <div class="sum-box">
-    <div class="sum-lbl">TOTAL VENTES</div>
+    <div class="sum-lbl">VENTES ${filterType !== 'all' ? '(PÉRIODE)' : ''}</div>
     <div class="sum-val c-ventes">${fmt(totalVentes)} DHS</div>
   </div>
   <div class="sum-box">
-    <div class="sum-lbl">TOTAL PAYÉ</div>
+    <div class="sum-lbl">TOTAL PAYÉ ${filterType !== 'all' ? '(PÉRIODE)' : ''}</div>
     <div class="sum-val c-paye">${fmt(totalPaiements)} DHS</div>
   </div>
 </div>
+
+${carryOverBlock}
 
 <div class="section-title">📦 Ventes (${filteredVentes.length})</div>
 <table>
@@ -271,12 +324,13 @@ export default function Clients() {
       <th class="r">QTÉ</th>
       <th class="r">PRIX/U DHS</th>
       <th class="r">TOTAL DHS</th>
+      <th>BON</th>
       <th>NOTE</th>
     </tr>
   </thead>
   <tbody>
     ${filteredVentes.length === 0
-      ? '<tr class="empty-row"><td colspan="7">Aucune vente pour cette période</td></tr>'
+      ? '<tr class="empty-row"><td colspan="8">Aucune vente pour cette période</td></tr>'
       : filteredVentes.map(v => `
         <tr>
           <td>${v.date || '—'}</td>
@@ -285,6 +339,7 @@ export default function Clients() {
           <td class="r num">${fmt(v.qte)}</td>
           <td class="r">${parseFloat(v.prix_vente || 0).toFixed(2)}</td>
           <td class="r num">${fmt(v.total_vente)}</td>
+          <td class="muted">${v.bon || '—'}</td>
           <td class="muted">${v.note || '—'}</td>
         </tr>`).join('')
     }
@@ -296,7 +351,7 @@ export default function Clients() {
       <td class="r"><b>${fmt(filteredVentes.reduce((s,v) => s + (v.qte||0), 0))}</b></td>
       <td></td>
       <td class="r"><b>${fmt(totalVentes)} DHS</b></td>
-      <td></td>
+      <td colspan="2"></td>
     </tr>
   </tfoot>` : ''}
 </table>
@@ -346,9 +401,9 @@ export default function Clients() {
 
     let csv = `FICHE CLIENT — DAR SADIK\n`
     csv += `Nom,${selected.nom}\nDépôt,${selected.depot||''}\nTéléphone,${selected.tel||''}\nSolde DHS,${selected.solde||0}\nPériode,${periode}\nTotal Ventes DHS,${totalVentes}\nTotal Paiements DHS,${totalPaiements}\n\n`
-    csv += `VENTES\nDate,Transport,Type,Quantité,Prix Vente/u,Total DHS,Note\n`
+    csv += `VENTES\nDate,Transport,Type,Quantité,Prix Vente/u,Total DHS\n`
     filteredVentes.forEach(v => {
-      csv += `${v.date},${v.camion_plaque},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.total_vente||0},${v.note||""}\n`
+      csv += `${v.date},${v.camion_plaque},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.total_vente||0}\n`
     })
     csv += `\nPAIEMENTS\nDate,Mode,Montant DHS,Note\n`
     filteredPaiements.forEach(p => {
@@ -560,11 +615,20 @@ export default function Clients() {
 
                 {/* TOTALS */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-100">
-                  <div className="text-center p-3 bg-amber-50 rounded-xl">
-                    <div className="text-xs text-amber-600 font-semibold mb-1">🏦 Solde initial</div>
-                    <div className="text-xl font-bold text-amber-700">{fmt(selected.opening_balance || 0)} DHS</div>
-                    <div className="text-xs text-gray-400 mt-1">Ancien solde</div>
-                  </div>
+                  {/* If period is active: show carry-over, else show opening balance */}
+                  {carryOver !== null ? (
+                    <div className="text-center p-3 rounded-xl border-2" style={{background:'#fffbeb', borderColor:'#fde68a'}}>
+                      <div className="text-xs font-semibold mb-1 text-amber-700">📅 Solde mois précédent</div>
+                      <div className="text-xl font-bold text-amber-700">{fmt(carryOver)} DHS</div>
+                      <div className="text-xs text-gray-400 mt-1">Avant {periodLabel}</div>
+                    </div>
+                  ) : (
+                    <div className="text-center p-3 bg-amber-50 rounded-xl">
+                      <div className="text-xs text-amber-600 font-semibold mb-1">🏦 Solde initial</div>
+                      <div className="text-xl font-bold text-amber-700">{fmt(selected.opening_balance || 0)} DHS</div>
+                      <div className="text-xs text-gray-400 mt-1">Ancien solde</div>
+                    </div>
+                  )}
                   <div className="text-center p-3 bg-blue-50 rounded-xl">
                     <div className="text-xs text-blue-600 font-semibold mb-1">📦 Ventes {filterType !== 'all' ? '(période)' : ''}</div>
                     <div className="text-xl font-bold text-blue-700">{fmt(totalVentesClient)} DHS</div>
@@ -573,13 +637,45 @@ export default function Clients() {
                     <div className="text-xs text-green-600 font-semibold mb-1">💰 Payé {filterType !== 'all' ? '(période)' : ''}</div>
                     <div className="text-xl font-bold text-green-600">{fmt(totalPaiementsClient)} DHS</div>
                   </div>
-                  {/* SOLDE DÛ — purple, not red/orange */}
+                  {/* SOLDE DÛ — with carry-over if period active */}
                   <div className="text-center p-3 rounded-xl border-2" style={{background:'#faf5ff', borderColor:'#e9d5ff'}}>
-                    <div className="text-xs font-semibold mb-1" style={{color:'#7c3aed'}}>⚠️ Solde final dû</div>
-                    <div className="text-xl font-bold" style={{color: (selected.solde || 0) > 0 ? '#7c3aed' : '#16a34a'}}>{fmt(selected.solde || 0)} DHS</div>
-                    <div className="text-xs text-gray-400 mt-1">Initial + Ventes − Paiements</div>
+                    <div className="text-xs font-semibold mb-1" style={{color:'#7c3aed'}}>⚠️ Solde dû {carryOver !== null ? '(période)' : 'final'}</div>
+                    <div className="text-xl font-bold" style={{color: (carryOver !== null ? (carryOver + totalVentesClient - totalPaiementsClient) : (selected.solde || 0)) > 0 ? '#7c3aed' : '#16a34a'}}>
+                      {fmt(carryOver !== null
+                        ? carryOver + totalVentesClient - totalPaiementsClient
+                        : (selected.solde || 0)
+                      )} DHS
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {carryOver !== null ? 'Report + Ventes − Paiements' : 'Initial + Ventes − Paiements'}
+                    </div>
                   </div>
                 </div>
+
+                {/* CARRY-OVER BREAKDOWN — shown when period is active */}
+                {carryOver !== null && (
+                  <div className="mt-3 p-3 rounded-xl text-xs" style={{background:'#f0fdf4', border:'1px solid #bbf7d0'}}>
+                    <div className="font-bold text-green-800 mb-2">📊 Calcul du solde — {periodLabel}</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div className="text-center p-2 bg-white rounded-lg border border-green-100">
+                        <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>Report mois préc.</div>
+                        <div className="font-bold text-amber-700 mt-1">{fmt(carryOver)} DHS</div>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded-lg border border-green-100">
+                        <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>+ Ventes période</div>
+                        <div className="font-bold text-blue-700 mt-1">+ {fmt(totalVentesClient)} DHS</div>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded-lg border border-green-100">
+                        <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>− Paiements période</div>
+                        <div className="font-bold text-green-700 mt-1">− {fmt(totalPaiementsClient)} DHS</div>
+                      </div>
+                      <div className="text-center p-2 rounded-lg border-2 border-purple-200" style={{background:'#faf5ff'}}>
+                        <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>= Solde fin période</div>
+                        <div className="font-bold mt-1" style={{color:'#7c3aed'}}>{fmt(carryOver + totalVentesClient - totalPaiementsClient)} DHS</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {loadingDetail ? (
