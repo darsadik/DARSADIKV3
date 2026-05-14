@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
+const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const today = () => new Date().toISOString().split('T')[0]
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
@@ -333,7 +334,7 @@ ${carryOverBlock}
       ? '<tr class="empty-row"><td colspan="8">Aucune vente pour cette période</td></tr>'
       : filteredVentes.map(v => `
         <tr>
-          <td>${v.date || '—'}</td>
+          <td>${fmtDate(v.date)}</td>
           <td>${v.camion_plaque || '—'}</td>
           <td><span class="type-tag">${v.type_brique || '—'}</span></td>
           <td class="r num">${fmt(v.qte)}</td>
@@ -371,7 +372,7 @@ ${carryOverBlock}
       ? '<tr class="empty-row"><td colspan="4">Aucun paiement pour cette période</td></tr>'
       : filteredPaiements.map(p => `
         <tr>
-          <td>${p.date || '—'}</td>
+          <td>${fmtDate(p.date)}</td>
           <td>${p.mode || '—'}</td>
           <td class="r green num">− ${fmt(p.montant)}</td>
           <td class="muted">${p.note || '—'}</td>
@@ -403,11 +404,11 @@ ${carryOverBlock}
     csv += `Nom,${selected.nom}\nDépôt,${selected.depot||''}\nTéléphone,${selected.tel||''}\nSolde DHS,${selected.solde||0}\nPériode,${periode}\nTotal Ventes DHS,${totalVentes}\nTotal Paiements DHS,${totalPaiements}\n\n`
     csv += `VENTES\nDate,Transport,Type,Quantité,Prix Vente/u,Total DHS\n`
     filteredVentes.forEach(v => {
-      csv += `${v.date},${v.camion_plaque},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.total_vente||0}\n`
+      csv += `${fmtDate(v.date)},${v.camion_plaque},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.total_vente||0}\n`
     })
     csv += `\nPAIEMENTS\nDate,Mode,Montant DHS,Note\n`
     filteredPaiements.forEach(p => {
-      csv += `${p.date},${p.mode},${p.montant||0},${p.note||''}\n`
+      csv += `${fmtDate(p.date)},${p.mode},${p.montant||0},${p.note||''}\n`
     })
 
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -702,7 +703,7 @@ ${carryOverBlock}
                         <tbody>
                           {filteredVentes.map(v => (
                             <tr key={v.id} className="hover:bg-gray-50">
-                              <td className="td" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{v.date}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(v.date)}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{v.camion_plaque || '—'}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{v.fournisseur || '—'}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0'}}><span className="badge-gray">{v.type_brique || '—'}</span></td>
@@ -747,7 +748,7 @@ ${carryOverBlock}
                         <tbody>
                           {filteredPaiements.map(p => (
                             <tr key={p.id} className="hover:bg-gray-50">
-                              <td className="td" style={{border:'1px solid #e2e8f0', color:'#64748b'}}>{p.date}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0', color:'#64748b'}}>{fmtDate(p.date)}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0'}}><span className="badge-green">{p.mode}</span></td>
                               <td className="td text-right font-bold text-green-600" style={{border:'1px solid #e2e8f0', fontSize:'14px'}}>− {fmt(p.montant)}</td>
                               <td className="td text-gray-400 text-xs" style={{border:'1px solid #e2e8f0'}}>{p.note || '—'}</td>
