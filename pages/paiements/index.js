@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
+const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const today = () => new Date().toISOString().split('T')[0]
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 
@@ -50,8 +51,7 @@ export default function Paiements() {
 
   const selectedClient = clients.find(c => c.id === parseInt(form.client_id))
   const montant = parseFloat(form.montant) || 0
-  // No Math.max clamp: negative solde = avance/crédit client
-  const soldeApres = (selectedClient?.solde || 0) - montant
+  const soldeApres = Math.max(0, (selectedClient?.solde || 0) - montant)
 
   async function savePaiement(e) {
     e.preventDefault()
@@ -66,8 +66,7 @@ export default function Paiements() {
       camion_id: form.camion_id ? parseInt(form.camion_id) : null,
       camion_plaque: camion?.plaque || null,
     })
-    // No Math.max clamp: if paiement > solde, solde goes negative = avance client (crédit)
-    if (client) await supabase.from('clients').update({ solde: (client.solde || 0) - montant }).eq('id', client.id)
+    if (client) await supabase.from('clients').update({ solde: Math.max(0, (client.solde || 0) - montant) }).eq('id', client.id)
     setSaving(false)
     setForm({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '', camion_id: '' })
     setShowForm(false)
@@ -112,7 +111,7 @@ export default function Paiements() {
     <h1>DAR SADIK — Paiements ${filterFrom} → ${filterTo}</h1>
     <div class="sub">Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
     <table><thead><tr><th>Date</th><th>Client</th><th>Mode</th><th>Camion</th><th style="text-align:right">Montant DHS</th><th>Référence</th></tr></thead>
-    <tbody>${filtered.map(p=>`<tr><td>${p.date}</td><td><b>${p.client_nom}</b></td><td>${p.mode}</td><td>${p.camion_plaque||'—'}</td><td style="text-align:right;color:green"><b>− ${fmt(p.montant)}</b></td><td>${p.note||'—'}</td></tr>`).join('')}</tbody>
+    <tbody>${filtered.map(p=>`<tr><td>${fmtDate(p.date)}</td><td><b>${p.client_nom}</b></td><td>${p.mode}</td><td>${p.camion_plaque||'—'}</td><td style="text-align:right;color:green"><b>− ${fmt(p.montant)}</b></td><td>${p.note||'—'}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td colspan="4">TOTAL (${filtered.length})</td><td style="text-align:right;color:green">− ${fmt(total)} DHS</td><td></td></tr></tfoot>
     </table></body></html>`)
     win.document.close(); win.print()
@@ -120,7 +119,7 @@ export default function Paiements() {
 
   function exportCSV() {
     let csv = `Date,Client,Mode,Montant DHS,Référence\n`
-    filtered.forEach(p => { csv += `${p.date},${p.client_nom},${p.mode},${p.montant||0},${p.note||''}\n` })
+    filtered.forEach(p => { csv += `${fmtDate(p.date)},${p.client_nom},${p.mode},${p.montant||0},${p.note||''}\n` })
     const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
     a.download = `Paiements-${filterFrom}-${filterTo}.csv`; a.click()
@@ -162,14 +161,9 @@ export default function Paiements() {
             <span className="font-bold text-green-600">− {fmt(montant)} DHS</span>
           </div>
           <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-            <span className="text-gray-700 font-semibold">{soldeApres < 0 ? "🟢 Avance client (crédit)" : "Solde après"}</span>
-            <span className={`font-bold text-lg ${soldeApres > 0 ? "text-amber-600" : "text-green-600"}`}>{soldeApres < 0 ? `+${fmt(Math.abs(soldeApres))} DHS` : `${fmt(soldeApres)} DHS`}</span>
+            <span className="text-gray-700 font-semibold">Solde après</span>
+            <span className={`font-bold text-lg ${soldeApres>0?'text-amber-600':'text-green-600'}`}>{fmt(soldeApres)} DHS</span>
           </div>
-          {soldeApres < 0 && (
-            <div className="text-xs text-green-700 bg-green-50 rounded-lg p-2 mt-1">
-              ✅ Ce client aura une avance de <b>{fmt(Math.abs(soldeApres))} DHS</b> déduite des prochaines ventes.
-            </div>
-          )}
         </div>
       )}
       <button type="submit" disabled={saving} className="btn-success w-full justify-center">
@@ -246,7 +240,7 @@ export default function Paiements() {
                   <div className="card-header">
                     <div>
                       <div className="card-title">{p.client_nom}</div>
-                      <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{p.date}</div>
+                      <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(p.date)}</div>
                     </div>
                     <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
                   </div>
@@ -311,7 +305,7 @@ export default function Paiements() {
                     <tbody>
                       {filtered.map(p=>(
                         <tr key={p.id} className="hover:bg-gray-50">
-                          <td className="td text-gray-500">{p.date}</td>
+                          <td className="td text-gray-500">{fmtDate(p.date)}</td>
                           <td className="td font-semibold">{p.client_nom}</td>
                           <td className="td"><span className="badge-green">{p.mode}</span></td>
                           <td className="td text-gray-500 text-xs">{p.camion_plaque || '—'}</td>
