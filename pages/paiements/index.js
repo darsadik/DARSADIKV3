@@ -51,7 +51,8 @@ export default function Paiements() {
 
   const selectedClient = clients.find(c => c.id === parseInt(form.client_id))
   const montant = parseFloat(form.montant) || 0
-  const soldeApres = Math.max(0, (selectedClient?.solde || 0) - montant)
+  // No Math.max clamp: negative solde = avance/crédit client
+  const soldeApres = (selectedClient?.solde || 0) - montant
 
   async function savePaiement(e) {
     e.preventDefault()
@@ -66,7 +67,8 @@ export default function Paiements() {
       camion_id: form.camion_id ? parseInt(form.camion_id) : null,
       camion_plaque: camion?.plaque || null,
     })
-    if (client) await supabase.from('clients').update({ solde: Math.max(0, (client.solde || 0) - montant) }).eq('id', client.id)
+    // No Math.max clamp: if paiement > solde, solde goes negative = avance client (crédit)
+    if (client) await supabase.from('clients').update({ solde: (client.solde || 0) - montant }).eq('id', client.id)
     setSaving(false)
     setForm({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '', camion_id: '' })
     setShowForm(false)
@@ -161,9 +163,14 @@ export default function Paiements() {
             <span className="font-bold text-green-600">− {fmt(montant)} DHS</span>
           </div>
           <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-            <span className="text-gray-700 font-semibold">Solde après</span>
-            <span className={`font-bold text-lg ${soldeApres>0?'text-amber-600':'text-green-600'}`}>{fmt(soldeApres)} DHS</span>
+            <span className="text-gray-700 font-semibold">{soldeApres < 0 ? "🟢 Avance client (crédit)" : "Solde après"}</span>
+            <span className={`font-bold text-lg ${soldeApres > 0 ? "text-amber-600" : "text-green-600"}`}>{soldeApres < 0 ? `+${fmt(Math.abs(soldeApres))} DHS` : `${fmt(soldeApres)} DHS`}</span>
           </div>
+          {soldeApres < 0 && (
+            <div className="text-xs text-green-700 bg-green-50 rounded-lg p-2 mt-1">
+              ✅ Ce client aura une avance de <b>{fmt(Math.abs(soldeApres))} DHS</b> déduite des prochaines ventes.
+            </div>
+          )}
         </div>
       )}
       <button type="submit" disabled={saving} className="btn-success w-full justify-center">
