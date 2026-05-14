@@ -5,6 +5,7 @@ import { useAuth } from '../_app'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt  = n => Math.round(n || 0).toLocaleString('fr-MA')
+const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const fmtD = n => parseFloat(n || 0).toFixed(2)
 const today = () => new Date().toISOString().split('T')[0]
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
@@ -219,7 +220,7 @@ export default function Grignon() {
       // remove old vente from old client
       if (oldCl && editRow.total_vente) {
         await supabase.from('grignon_clients')
-          .update({ solde: (oldCl.solde || 0) - (editRow.total_vente || 0) })
+          .update({ solde: Math.max(0, (oldCl.solde || 0) - (editRow.total_vente || 0)) })
           .eq('id', oldCl.id)
       }
       // add new vente to new client
@@ -253,7 +254,7 @@ export default function Grignon() {
     await supabase.from('grignon_operations').delete().eq('id', op.id)
     if (op.client_id && op.total_vente) {
       const cl = clients.find(c => c.id === op.client_id)
-      if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - op.total_vente }).eq('id', cl.id)
+      if (cl) await supabase.from('grignon_clients').update({ solde: Math.max(0, (cl.solde || 0) - op.total_vente) }).eq('id', cl.id)
     }
     loadAll()
   }
@@ -418,7 +419,7 @@ export default function Grignon() {
   function printClientView() {
     const rows = filtered.map(op => `
       <tr>
-        <td>${op.date}</td>
+        <td>${fmtDate(op.date)}</td>
         <td><b>${op.client_nom || '—'}</b></td>
         <td style="text-align:right">${fmtD(op.qte)} kg</td>
         <td style="text-align:right">${fmtD(op.prix_vente)}</td>
@@ -583,7 +584,7 @@ export default function Grignon() {
     })
     const sections = Object.entries(byCamion).map(([plaque, ops]) => {
       const rows = ops.map(op => `<tr>
-        <td>${op.date}</td>
+        <td>${fmtDate(op.date)}</td>
         <td>${op.fournisseur_nom||'—'}</td>
         <td>${op.client_nom||'—'}</td>
         <td style="text-align:right">${fmtD(op.qte)} kg</td>
@@ -914,7 +915,7 @@ export default function Grignon() {
               <tbody>
                 {[...operations].reverse().slice(0, 8).map(op => (
                   <tr key={op.id} className="hover:bg-gray-50">
-                    <td className="td text-gray-500">{op.date}</td>
+                    <td className="td text-gray-500">{fmtDate(op.date)}</td>
                     <td className="td font-semibold">{op.client_nom || '—'}</td>
                     <td className="td text-gray-500">{op.fournisseur_nom || '—'}</td>
                     <td className="td text-right">{fmtD(op.qte)} kg</td>
@@ -961,7 +962,7 @@ export default function Grignon() {
             <tbody>
               {filtered.map(op => (
                 <tr key={op.id} className="hover:bg-gray-50">
-                  <td className="td text-gray-500">{op.date}</td>
+                  <td className="td text-gray-500">{fmtDate(op.date)}</td>
                   <td className="td font-semibold">{op.client_nom || '—'}</td>
                   <td className="td text-right">{fmtD(op.qte)}</td>
                   <td className="td text-right text-gray-500">{fmtD(op.prix_vente)}</td>
@@ -1190,7 +1191,7 @@ export default function Grignon() {
       const rows = filteredPai.map(p => {
         const totalAchat = achatByFournId[p.fournisseur_id] || 0
         return `<tr>
-          <td>${p.date}</td>
+          <td>${fmtDate(p.date)}</td>
           <td><b>${p.fournisseur_nom || '—'}</b></td>
           <td style="text-align:right"><b>${fmt(p.montant)}</b></td>
           <td><span class="badge">${p.mode_paiement}</span></td>
@@ -1379,7 +1380,7 @@ export default function Grignon() {
               <tbody>
                 {filteredPai.map(p => (
                   <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="td text-gray-500">{p.date}</td>
+                    <td className="td text-gray-500">{fmtDate(p.date)}</td>
                     <td className="td font-semibold">{p.fournisseur_nom || '—'}</td>
                     <td className="td text-right font-bold text-green-700">{fmt(p.montant)}</td>
                     <td className="td">
@@ -1456,7 +1457,7 @@ export default function Grignon() {
                 <tbody>
                   {data.ops.map(op => (
                     <tr key={op.id} className="hover:bg-gray-50">
-                      <td className="td text-gray-500">{op.date}</td>
+                      <td className="td text-gray-500">{fmtDate(op.date)}</td>
                       <td className="td text-gray-600">{op.fournisseur_nom || '—'}</td>
                       <td className="td font-semibold">{op.client_nom || '—'}</td>
                       <td className="td text-right">{fmtD(op.qte)}</td>
@@ -1685,7 +1686,7 @@ export default function Grignon() {
                 <tbody>
                   {[...operations].reverse().slice(0, 20).map(op => (
                     <tr key={op.id} className="hover:bg-gray-50">
-                      <td className="td text-gray-500">{op.date}</td>
+                      <td className="td text-gray-500">{fmtDate(op.date)}</td>
                       <td className="td font-semibold">{op.client_nom || '—'}</td>
                       <td className="td text-gray-500">{op.fournisseur_nom || '—'}</td>
                       <td className="td text-right">{fmtD(op.qte)}</td>
@@ -1842,7 +1843,7 @@ export default function Grignon() {
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
               <div>
                 <h2 className="font-bold text-gray-900">✏️ Modifier l'opération #{editRow.id}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{editRow.client_nom || '—'} · {editRow.date}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{editRow.client_nom || '—'} · {fmtDate(editRow.date)}</p>
               </div>
               <button onClick={() => setEditRow(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
             </div>
