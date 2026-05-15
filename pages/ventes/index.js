@@ -38,6 +38,9 @@ export default function Ventes() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ date: today(), date_fournisseur: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '', retour_client: '', retour_montant: '', retour_paye: '', retour_note: '' })
   const [showRetour, setShowRetour] = useState(false)
+  const [mdoForm, setMdoForm] = useState({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
+  const [mdoSaving, setMdoSaving] = useState(false)
+  const [mdoMsg, setMdoMsg] = useState('')
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo, setFilterTo] = useState(today())
   const [filterClient, setFilterClient] = useState('')
@@ -185,8 +188,46 @@ export default function Ventes() {
     if (!confirm('Supprimer cette vente ?')) return
     await supabase.from('ventes').delete().eq('id', v.id)
     const cl = clients.find(c => c.id === v.client_id)
-    if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) - v.total_vente }).eq('id', cl.id)
+    const amount = v.type_entree === 'mdo' ? (v.montant_mdo || 0) : (v.total_vente || 0)
+    if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) - amount }).eq('id', cl.id)
     loadAll()
+  }
+
+  async function saveMdo(e) {
+    e.preventDefault()
+    if (!admin) return
+    const montant = parseFloat(mdoForm.montant) || 0
+    if (!mdoForm.client_id || montant <= 0) { setMdoMsg('❌ Client et montant requis'); return }
+    setMdoSaving(true)
+    const cl = clients.find(c => c.id === parseInt(mdoForm.client_id))
+    const ca = camions.find(c => c.id === parseInt(mdoForm.camion_id))
+    const { error } = await supabase.from('ventes').insert({
+      date: mdoForm.date,
+      type_entree: 'mdo',
+      client_id: parseInt(mdoForm.client_id),
+      client_nom: cl?.nom || '',
+      camion_id: mdoForm.camion_id ? parseInt(mdoForm.camion_id) : null,
+      camion_plaque: ca?.plaque || '',
+      chauffeur: ca?.chauffeur || '',
+      montant_mdo: montant,
+      description_mdo: mdoForm.description || null,
+      note: mdoForm.note || null,
+      // brique fields null
+      qte: null, prix_vente: null, prix_achat: null,
+      total_vente: montant, total_achat: 0, marge: montant,
+    })
+    if (!error && cl) {
+      await supabase.from('clients').update({ solde: (cl.solde || 0) + montant }).eq('id', cl.id)
+    }
+    setMdoSaving(false)
+    if (error) {
+      setMdoMsg('❌ ' + error.message)
+    } else {
+      setMdoMsg('✅ Main d\'œuvre enregistrée !')
+      setMdoForm({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
+      setTimeout(() => setMdoMsg(''), 2500)
+      loadAll()
+    }
   }
 
   function printClientView() {
@@ -246,16 +287,19 @@ export default function Ventes() {
   const uniqueFourns = [...new Set(ventes.map(v=>v.fournisseur).filter(Boolean))]
 
   const tabs = [
-    { key: 'client', label: '👥 Clients' },
-    { key: 'fournisseur', label: '🏭 Fournisseur', },
-    { key: 'camion', label: '🚛 Camions' },
-    ...(admin ? [{ key: 'saisie', label: '➕ Saisie' }] : []),
-  ].filter(t => !t.adminOnly || admin)
+    { key: 'client',      label: '👥 Clients' },
+    { key: 'fournisseur', label: '🏭 Fournisseur' },
+    { key: 'camion',      label: '🚛 Camions' },
+    ...(admin ? [
+      { key: 'saisie', label: '➕ Saisie' },
+      { key: 'mdo',    label: '🔧 Main d\'œuvre' },
+    ] : []),
+  ]
 
-  // ── MOBILE CARD for a vente ──
   function VenteCard({ v }) {
+    const isMdo = v.type_entree === 'mdo'
     return (
-      <div className="mobile-row-card">
+      <div className="mobile-row-card" style={isMdo ? {borderLeft:'3px solid #f59e0b'} : {}}>
         <div className="card-header">
           <div>
             <div className="card-title">{v.client_nom}</div>
@@ -264,15 +308,18 @@ export default function Ventes() {
           <div className="card-amount">{fmt(v.total_vente)} DHS</div>
         </div>
         <div className="card-meta">
-          {v.type_brique && <span>📦 {v.type_brique}</span>}
-          <span>🚛 {v.camion_plaque}</span>
-          <span>📏 {fmt(v.qte)} briques</span>
-          {v.fournisseur && <span>🏭 {v.fournisseur}</span>}
+          {isMdo
+            ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🔧 Main d'œuvre</span>
+            : v.type_brique && <span>📦 {v.type_brique}</span>
+          }
+          {v.camion_plaque && <span>🚛 {v.camion_plaque}</span>}
+          {!isMdo && <span>📏 {fmt(v.qte)} briques</span>}
+          {isMdo && v.description_mdo && <span className="text-amber-700">{v.description_mdo}</span>}
           {v.bon && <span>📄 BON {v.bon}</span>}
         </div>
         {admin && (
           <div className="card-actions">
-            {admin && <button onClick={() => openEdit(v)} className="btn-secondary text-xs" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️ Modifier</button>}
+            <button onClick={() => openEdit(v)} className="btn-secondary text-xs" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️ Modifier</button>
             <button onClick={() => deleteVente(v)} className="btn-danger">✕ Supprimer</button>
           </div>
         )}
@@ -354,15 +401,22 @@ export default function Ventes() {
               </thead>
               <tbody>
                 {filtered.map(v => (
-                  <tr key={v.id} className="hover:bg-gray-50">
+                  <tr key={v.id} className="hover:bg-gray-50" style={v.type_entree==='mdo' ? {background:'#fefce8'} : {}}>
                     <td className="td text-gray-500">{fmtDate(v.date)}</td>
                     <td className="td font-semibold">{v.client_nom}</td>
-                    <td className="td"><span className="badge-gray">{v.type_brique||'—'}</span></td>
-                    <td className="td text-gray-500">{v.camion_plaque}</td>
-                    <td className="td text-right">{fmt(v.qte)}</td>
-                    <td className="td text-right">{fmtD(v.prix_vente)}</td>
+                    <td className="td">
+                      {v.type_entree === 'mdo'
+                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>🔧 Main d'œuvre</span>
+                        : <span className="badge-gray">{v.type_brique||'—'}</span>
+                      }
+                    </td>
+                    <td className="td text-gray-500">{v.camion_plaque || '—'}</td>
+                    <td className="td text-right">{v.type_entree === 'mdo' ? <span className="text-gray-300">—</span> : fmt(v.qte)}</td>
+                    <td className="td text-right">{v.type_entree === 'mdo' ? <span className="text-gray-300">—</span> : fmtD(v.prix_vente)}</td>
                     <td className="td text-right font-bold">{fmt(v.total_vente)}</td>
-                    <td className="td text-xs text-gray-400" style={{maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{v.note || '—'}</td>
+                    <td className="td text-xs text-gray-400" style={{maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>
+                      {v.type_entree === 'mdo' && v.description_mdo ? <span className="text-amber-700">{v.description_mdo}</span> : (v.note || '—')}
+                    </td>
                     {hasRetour && (
                       <td className="td text-right text-xs">
                         {v.retour_client ? (
@@ -1474,9 +1528,138 @@ export default function Ventes() {
         <div className="card text-center py-10 text-gray-400">Chargement...</div>
       ) : (
         <>
-          {view === 'client' && <ClientView />}
-          {view === 'fournisseur' && <FournisseurView />}
-          {view === 'camion' && <CamionView />}
+          {view === 'client' && ClientView()}
+          {view === 'fournisseur' && FournisseurView()}
+          {view === 'camion' && CamionView()}
+          {view === 'mdo' && admin && (() => {
+            const mdoVentes = ventes.filter(v => v.type_entree === 'mdo')
+            const mdoFiltered = mdoVentes.filter(v => {
+              if (filterFrom && v.date < filterFrom) return false
+              if (filterTo   && v.date > filterTo)   return false
+              if (filterClient && v.client_id !== parseInt(filterClient)) return false
+              return true
+            }).sort((a,b) => b.date.localeCompare(a.date))
+            const totalMdo = mdoFiltered.reduce((s,v) => s + (v.montant_mdo || 0), 0)
+
+            function printMdo() {
+              const win = window.open('', '_blank')
+              const rows = mdoFiltered.map(v => `<tr>
+                <td>${fmtDate(v.date)}</td>
+                <td><b>${v.client_nom}</b></td>
+                <td>${v.description_mdo || '—'}</td>
+                <td>${v.camion_plaque || '—'}</td>
+                <td style="text-align:right"><b>${fmt(v.montant_mdo)} DHS</b></td>
+                <td>${v.note || '—'}</td>
+              </tr>`).join('')
+              win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Main d'œuvre</title>
+              <style>
+                * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+                body { font-family:Arial,sans-serif; padding:28px; font-size:12px; color:#1e293b; background:#fff; }
+                h1 { font-size:18px; margin:0 0 4px; } .sub { color:#555; font-size:11px; margin-bottom:16px; }
+                table { width:100%; border-collapse:collapse; margin-bottom:8px; }
+                th { background:#92400e !important; color:#fff !important; padding:8px 10px; text-align:left; font-size:11px; font-weight:700; }
+                td { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:11px; }
+                tr:nth-child(even) td { background:#fffbeb !important; }
+                tfoot td { background:#fef3c7 !important; font-weight:800 !important; border-top:2px solid #92400e !important; }
+                @media print { button { display:none !important; } body { padding:0; } }
+              </style></head><body>
+              <h1>🔧 DAR SADIK — Main d'œuvre ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</h1>
+              <div class="sub">Généré le ${new Date().toLocaleDateString('fr-MA')} — ${mdoFiltered.length} entrée(s)</div>
+              <table><thead><tr><th>Date</th><th>Client</th><th>Description</th><th>Camion</th><th style="text-align:right">Montant DHS</th><th>Note</th></tr></thead>
+              <tbody>${rows}</tbody>
+              <tfoot><tr><td colspan="4">TOTAL (${mdoFiltered.length})</td><td style="text-align:right">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
+              </table></body></html>`)
+              win.document.close(); win.print()
+            }
+
+            return (
+              <div className="space-y-4">
+                {/* MDO form */}
+                <div className="card">
+                  <h3 className="font-bold text-gray-900 mb-4">🔧 Saisir une main d'œuvre</h3>
+                  <form onSubmit={saveMdo}>
+                    <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
+                      <div><label className="label">Date</label>
+                        <input type="date" className="input" value={mdoForm.date} onChange={e=>setMdoForm({...mdoForm,date:e.target.value})} required /></div>
+                      <div><label className="label">Client</label>
+                        <select className="input" value={mdoForm.client_id} onChange={e=>setMdoForm({...mdoForm,client_id:e.target.value})} required>
+                          <option value="">Sélectionner...</option>
+                          {clients.map(c=><option key={c.id} value={c.id}>{c.nom}</option>)}
+                        </select></div>
+                      <div><label className="label">Montant (DHS)</label>
+                        <input type="text" inputMode="decimal" className="input" placeholder="ex: 1500" value={mdoForm.montant} onChange={e=>setMdoForm({...mdoForm,montant:e.target.value})} required /></div>
+                      <div><label className="label">Camion (optionnel)</label>
+                        <select className="input" value={mdoForm.camion_id} onChange={e=>setMdoForm({...mdoForm,camion_id:e.target.value})}>
+                          <option value="">— Sans camion —</option>
+                          {camions.map(c=><option key={c.id} value={c.id}>{c.plaque}{c.chauffeur?` — ${c.chauffeur}`:''}</option>)}
+                        </select></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div><label className="label">Description des travaux</label>
+                        <input className="input" placeholder="ex: Chargement, déchargement, pose..." value={mdoForm.description} onChange={e=>setMdoForm({...mdoForm,description:e.target.value})} /></div>
+                      <div><label className="label">Note</label>
+                        <input className="input" placeholder="optionnel" value={mdoForm.note} onChange={e=>setMdoForm({...mdoForm,note:e.target.value})} /></div>
+                    </div>
+                    {mdoMsg && <div className={`text-sm font-semibold p-2 rounded-lg mb-3 ${mdoMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{mdoMsg}</div>}
+                    <button type="submit" disabled={mdoSaving} className={`btn-primary ${isMobile?'w-full justify-center':''}`} style={{background:'#92400e'}}>
+                      {mdoSaving ? 'Enregistrement...' : '🔧 Enregistrer la main d\'œuvre'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* MDO history */}
+                <div className="card">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-bold text-gray-900">📋 Historique main d'œuvre</h3>
+                      <div className="text-xs text-gray-400 mt-1">{mdoFiltered.length} entrée(s) — Total: <b className="text-amber-700">{fmt(totalMdo)} DHS</b></div>
+                    </div>
+                    <button onClick={printMdo} className="btn-primary text-xs px-3 py-1.5" style={{background:'#92400e'}}>🖨️ PDF</button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr>
+                          <th className="th">Date</th>
+                          <th className="th">Client</th>
+                          <th className="th">Description</th>
+                          <th className="th">Camion</th>
+                          <th className="th text-right">Montant DHS</th>
+                          <th className="th">Note</th>
+                          {admin && <th className="th"></th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mdoFiltered.map(v => (
+                          <tr key={v.id} className="hover:bg-amber-50">
+                            <td className="td text-gray-500">{fmtDate(v.date)}</td>
+                            <td className="td font-semibold">{v.client_nom}</td>
+                            <td className="td text-amber-700">{v.description_mdo || '—'}</td>
+                            <td className="td text-gray-500">{v.camion_plaque || '—'}</td>
+                            <td className="td text-right font-bold text-amber-700">{fmt(v.montant_mdo)} DHS</td>
+                            <td className="td text-gray-400 text-xs">{v.note || '—'}</td>
+                            {admin && <td className="td">
+                              <button onClick={() => deleteVente(v)} className="btn-danger text-xs">✕</button>
+                            </td>}
+                          </tr>
+                        ))}
+                        {mdoFiltered.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-8">Aucune main d'œuvre</td></tr>}
+                      </tbody>
+                      {mdoFiltered.length > 0 && (
+                        <tfoot>
+                          <tr>
+                            <td className="tfoot-td" colSpan={4}>TOTAL ({mdoFiltered.length})</td>
+                            <td className="tfoot-td text-right">{fmt(totalMdo)} DHS</td>
+                            <td className="tfoot-td" colSpan={admin ? 2 : 1}></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </>
       )}
 
