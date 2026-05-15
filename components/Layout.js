@@ -9,6 +9,7 @@ const nav = [
   { href: '/ventes',      icon: '📦', label: 'Ventes' },
   { href: '/clients',     icon: '👥', label: 'Clients' },
   { href: '/paiements',   icon: '💰', label: 'Paiements' },
+  { href: '/retours',     icon: '↩️',  label: 'Retours' },
   { href: '/gasoil',      icon: '⛽', label: 'Gasoil' },
   { href: '/grignon', icon: '🫒', label: 'Grignon' },
   { href: '/parametres',  icon: '⚙️', label: 'Paramètres' },
