@@ -41,6 +41,9 @@ export default function Ventes() {
   const [mdoForm, setMdoForm] = useState({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
   const [mdoSaving, setMdoSaving] = useState(false)
   const [mdoMsg, setMdoMsg] = useState('')
+  const [remiseForm, setRemiseForm] = useState({ date: today(), client_id: '', montant: '', note: '' })
+  const [remiseSaving, setRemiseSaving] = useState(false)
+  const [remiseMsg, setRemiseMsg] = useState('')
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo, setFilterTo] = useState(today())
   const [filterClient, setFilterClient] = useState('')
@@ -188,9 +191,38 @@ export default function Ventes() {
     if (!confirm('Supprimer cette vente ?')) return
     await supabase.from('ventes').delete().eq('id', v.id)
     const cl = clients.find(c => c.id === v.client_id)
-    const amount = v.type_entree === 'mdo' ? (v.montant_mdo || 0) : (v.total_vente || 0)
+    const amount = v.type_entree === 'mdo'    ? (v.montant_mdo || 0)
+                 : v.type_entree === 'remise' ? -(v.montant_mdo || 0)
+                 : (v.total_vente || 0)
     if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) - amount }).eq('id', cl.id)
     loadAll()
+  }
+
+  async function saveRemise(e) {
+    e.preventDefault()
+    if (!admin) return
+    const montant = parseFloat(remiseForm.montant) || 0
+    if (!remiseForm.client_id || montant <= 0) { setRemiseMsg('❌ Client et montant requis'); return }
+    setRemiseSaving(true)
+    const cl = clients.find(c => c.id === parseInt(remiseForm.client_id))
+    const { error } = await supabase.from('ventes').insert({
+      date: remiseForm.date, type_entree: 'remise',
+      client_id: parseInt(remiseForm.client_id), client_nom: cl?.nom || '',
+      montant_mdo: montant, description_mdo: remiseForm.note || 'Remise accordée',
+      note: remiseForm.note || null,
+      total_vente: -montant, total_achat: 0, marge: -montant,
+      qte: null, prix_vente: null, prix_achat: null,
+      camion_id: null, camion_plaque: '', chauffeur: '',
+    })
+    if (!error && cl) await supabase.from('clients').update({ solde: (cl.solde||0) - montant }).eq('id', cl.id)
+    setRemiseSaving(false)
+    if (error) { setRemiseMsg('❌ ' + error.message) }
+    else {
+      setRemiseMsg('✅ Remise enregistrée !')
+      setRemiseForm({ date: today(), client_id: '', montant: '', note: '' })
+      setTimeout(() => setRemiseMsg(''), 2500)
+      loadAll()
+    }
   }
 
   async function saveMdo(e) {
@@ -293,28 +325,32 @@ export default function Ventes() {
     ...(admin ? [
       { key: 'saisie', label: '➕ Saisie' },
       { key: 'mdo',    label: '🔧 Main d\'œuvre' },
+      { key: 'remise',  label: '🎁 Remises' },
     ] : []),
   ]
 
   function VenteCard({ v }) {
-    const isMdo = v.type_entree === 'mdo'
+    const isMdo    = v.type_entree === 'mdo'
+    const isRemise = v.type_entree === 'remise'
     return (
-      <div className="mobile-row-card" style={isMdo ? {borderLeft:'3px solid #f59e0b'} : {}}>
+      <div className="mobile-row-card"
+        style={isMdo ? {borderLeft:'3px solid #f59e0b'} : isRemise ? {borderLeft:'3px solid #22c55e'} : {}}>
         <div className="card-header">
           <div>
             <div className="card-title">{v.client_nom}</div>
             <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(v.date)}</div>
           </div>
-          <div className="card-amount">{fmt(v.total_vente)} DHS</div>
+          <div className="card-amount" style={isRemise ? {color:'#15803d'} : {}}>
+            {isRemise ? `− ${fmt(v.montant_mdo)} DHS` : `${fmt(v.total_vente)} DHS`}
+          </div>
         </div>
         <div className="card-meta">
-          {isMdo
-            ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🔧 Main d'œuvre</span>
-            : v.type_brique && <span>📦 {v.type_brique}</span>
-          }
+          {isMdo    && <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🔧 Main d'œuvre</span>}
+          {isRemise && <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🎁 Remise</span>}
+          {!isMdo && !isRemise && v.type_brique && <span>📦 {v.type_brique}</span>}
           {v.camion_plaque && <span>🚛 {v.camion_plaque}</span>}
-          {!isMdo && <span>📏 {fmt(v.qte)} briques</span>}
-          {isMdo && v.description_mdo && <span className="text-amber-700">{v.description_mdo}</span>}
+          {!isMdo && !isRemise && <span>📏 {fmt(v.qte)} briques</span>}
+          {(isMdo || isRemise) && v.description_mdo && <span style={isRemise ? {color:'#15803d'} : {color:'#92400e'}}>{v.description_mdo}</span>}
           {v.bon && <span>📄 BON {v.bon}</span>}
         </div>
         {admin && (
@@ -401,21 +437,30 @@ export default function Ventes() {
               </thead>
               <tbody>
                 {filtered.map(v => (
-                  <tr key={v.id} className="hover:bg-gray-50" style={v.type_entree==='mdo' ? {background:'#fefce8'} : {}}>
+                  <tr key={v.id} className="hover:bg-gray-50"
+                    style={v.type_entree==='mdo' ? {background:'#fefce8'} : v.type_entree==='remise' ? {background:'#f0fdf4'} : {}}>
                     <td className="td text-gray-500">{fmtDate(v.date)}</td>
                     <td className="td font-semibold">{v.client_nom}</td>
                     <td className="td">
                       {v.type_entree === 'mdo'
                         ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>🔧 Main d'œuvre</span>
+                        : v.type_entree === 'remise'
+                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#dcfce7',color:'#15803d'}}>🎁 Remise</span>
                         : <span className="badge-gray">{v.type_brique||'—'}</span>
                       }
                     </td>
                     <td className="td text-gray-500">{v.camion_plaque || '—'}</td>
-                    <td className="td text-right">{v.type_entree === 'mdo' ? <span className="text-gray-300">—</span> : fmt(v.qte)}</td>
-                    <td className="td text-right">{v.type_entree === 'mdo' ? <span className="text-gray-300">—</span> : fmtD(v.prix_vente)}</td>
-                    <td className="td text-right font-bold">{fmt(v.total_vente)}</td>
+                    <td className="td text-right">{v.type_entree === 'mdo' || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmt(v.qte)}</td>
+                    <td className="td text-right">{v.type_entree === 'mdo' || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmtD(v.prix_vente)}</td>
+                    <td className="td text-right font-bold" style={v.type_entree==='remise' ? {color:'#15803d'} : {}}>
+                      {v.type_entree === 'remise' ? `− ${fmt(v.montant_mdo)}` : fmt(v.total_vente)}
+                    </td>
                     <td className="td text-xs text-gray-400" style={{maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>
-                      {v.type_entree === 'mdo' && v.description_mdo ? <span className="text-amber-700">{v.description_mdo}</span> : (v.note || '—')}
+                      {v.type_entree === 'mdo' && v.description_mdo
+                        ? <span className="text-amber-700">{v.description_mdo}</span>
+                        : v.type_entree === 'remise'
+                        ? <span className="text-green-600">{v.description_mdo || v.note || '—'}</span>
+                        : (v.note || '—')}
                     </td>
                     {hasRetour && (
                       <td className="td text-right text-xs">
@@ -1653,6 +1698,156 @@ export default function Ventes() {
                             <td className="tfoot-td" colSpan={admin ? 2 : 1}></td>
                           </tr>
                         </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+          {view === 'remise' && admin && (() => {
+            const remises = ventes.filter(v => v.type_entree === 'remise')
+            const remisesFiltered = remises.filter(v => {
+              if (filterFrom  && v.date < filterFrom)  return false
+              if (filterTo    && v.date > filterTo)    return false
+              if (filterClient && v.client_id !== parseInt(filterClient)) return false
+              return true
+            }).sort((a,b) => b.date.localeCompare(a.date))
+            const totalRemises = remisesFiltered.reduce((s,v) => s + (v.montant_mdo||0), 0)
+
+            function printRemises() {
+              const win = window.open('', '_blank')
+              const rows = remisesFiltered.map(v => `<tr>
+                <td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td>
+                <td style="text-align:right;color:#15803d"><b>− ${fmt(v.montant_mdo)} DHS</b></td>
+                <td>${v.description_mdo||v.note||'—'}</td></tr>`).join('')
+              win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Remises</title>
+                <style>* { -webkit-print-color-adjust:exact !important; }
+                body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#1e293b;}
+                table{width:100%;border-collapse:collapse;}
+                th{background:#15803d !important;color:#fff !important;padding:8px 10px;font-size:11px;font-weight:700;}
+                td{padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:11px;}
+                tr:nth-child(even) td{background:#f0fdf4 !important;}
+                tfoot td{background:#dcfce7 !important;font-weight:800 !important;border-top:2px solid #15803d !important;}
+                @media print{button{display:none !important;}body{padding:0;}}</style></head><body>
+                <h1 style="font-size:18px;margin:0 0 4px">🎁 DAR SADIK — Remises clients</h1>
+                <div style="color:#555;font-size:11px;margin-bottom:16px">${fmtDate(filterFrom)} → ${fmtDate(filterTo)} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+                <table><thead><tr>
+                  <th>Date</th><th>Client</th><th style="text-align:right">Remise DHS</th><th>Note / Motif</th>
+                </tr></thead>
+                <tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#aaa">Aucune remise</td></tr>'}</tbody>
+                ${remisesFiltered.length > 0 ? `<tfoot><tr>
+                  <td colspan="2">TOTAL (${remisesFiltered.length})</td>
+                  <td style="text-align:right;color:#15803d">− ${fmt(totalRemises)} DHS</td>
+                  <td></td>
+                </tr></tfoot>` : ''}
+                </table></body></html>`)
+              win.document.close(); win.print()
+            }
+
+            return (
+              <div className="space-y-4">
+                {/* Remise form */}
+                <div className="card" style={{borderLeft:'4px solid #22c55e'}}>
+                  <h3 className="font-bold text-gray-900 mb-4">🎁 Accorder une remise client</h3>
+                  <form onSubmit={saveRemise}>
+                    <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
+                      <div><label className="label">Date</label>
+                        <input type="date" className="input" value={remiseForm.date}
+                          onChange={e=>setRemiseForm({...remiseForm,date:e.target.value})} required /></div>
+                      <div><label className="label">Client</label>
+                        <select className="input" value={remiseForm.client_id}
+                          onChange={e=>setRemiseForm({...remiseForm,client_id:e.target.value})} required>
+                          <option value="">Sélectionner...</option>
+                          {clients.map(c=><option key={c.id} value={c.id}>{c.nom} — solde: {fmt(c.solde||0)} DHS</option>)}
+                        </select></div>
+                      <div><label className="label">Montant remise (DHS)</label>
+                        <input type="text" inputMode="decimal" className="input" placeholder="ex: 500"
+                          value={remiseForm.montant} onChange={e=>setRemiseForm({...remiseForm,montant:e.target.value})} required /></div>
+                      <div><label className="label">Note / Motif</label>
+                        <input className="input" placeholder="ex: Remise fin de mois"
+                          value={remiseForm.note} onChange={e=>setRemiseForm({...remiseForm,note:e.target.value})} /></div>
+                    </div>
+                    {remiseForm.client_id && remiseForm.montant && (() => {
+                      const cl = clients.find(c => c.id === parseInt(remiseForm.client_id))
+                      const montant = parseFloat(remiseForm.montant) || 0
+                      const soldeApres = (cl?.solde||0) - montant
+                      return (
+                        <div className="grid grid-cols-3 gap-3 p-4 rounded-xl mb-3"
+                          style={{background:'#f0fdf4',border:'1px solid #bbf7d0'}}>
+                          <div className="text-center">
+                            <div className="text-xs text-gray-400">Solde actuel</div>
+                            <div className="font-bold text-gray-700">{fmt(cl?.solde||0)} DHS</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-green-500">🎁 Remise</div>
+                            <div className="font-bold text-green-600">− {fmt(montant)} DHS</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-gray-400">Solde après</div>
+                            <div className="font-bold" style={{color: soldeApres > 0 ? '#92400e' : '#15803d'}}>
+                              {fmt(soldeApres)} DHS
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    {remiseMsg && (
+                      <div className={`text-sm font-semibold p-2 rounded-lg mb-3 ${remiseMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                        {remiseMsg}
+                      </div>
+                    )}
+                    <button type="submit" disabled={remiseSaving}
+                      className={`btn-primary ${isMobile?'w-full justify-center':''}`}
+                      style={{background:'#15803d'}}>
+                      {remiseSaving ? 'Enregistrement...' : '🎁 Enregistrer la remise'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Remise history */}
+                <div className="card">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-bold text-gray-900">📋 Historique des remises</h3>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {remisesFiltered.length} remise(s) — Total: <b className="text-green-700">− {fmt(totalRemises)} DHS</b>
+                      </div>
+                    </div>
+                    <button onClick={printRemises} className="btn-primary text-xs px-3 py-1.5"
+                      style={{background:'#15803d'}}>🖨️ PDF</button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead><tr>
+                        <th className="th">Date</th>
+                        <th className="th">Client</th>
+                        <th className="th text-right">Remise DHS</th>
+                        <th className="th">Note / Motif</th>
+                        {admin && <th className="th"></th>}
+                      </tr></thead>
+                      <tbody>
+                        {remisesFiltered.map(v => (
+                          <tr key={v.id} className="hover:bg-green-50">
+                            <td className="td text-gray-500">{fmtDate(v.date)}</td>
+                            <td className="td font-semibold">{v.client_nom}</td>
+                            <td className="td text-right font-bold text-green-700">− {fmt(v.montant_mdo)} DHS</td>
+                            <td className="td text-gray-500 text-xs">{v.description_mdo||v.note||'—'}</td>
+                            {admin && <td className="td">
+                              <button onClick={()=>deleteVente(v)} className="btn-danger text-xs">✕</button>
+                            </td>}
+                          </tr>
+                        ))}
+                        {remisesFiltered.length === 0 && (
+                          <tr><td colSpan={5} className="td text-center text-gray-400 py-8">Aucune remise pour cette période</td></tr>
+                        )}
+                      </tbody>
+                      {remisesFiltered.length > 0 && (
+                        <tfoot><tr>
+                          <td className="tfoot-td" colSpan={2}>TOTAL ({remisesFiltered.length})</td>
+                          <td className="tfoot-td text-right text-green-700">− {fmt(totalRemises)} DHS</td>
+                          <td className="tfoot-td" colSpan={admin ? 2 : 1}></td>
+                        </tr></tfoot>
                       )}
                     </table>
                   </div>
