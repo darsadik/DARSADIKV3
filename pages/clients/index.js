@@ -4,7 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
-const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
+const fmtDate   = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
+const fmtMois   = d => { if (!d) return ''; const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const [y,m] = d.split('-'); return `${months[parseInt(m)-1]} ${y}` }
 const today = () => new Date().toISOString().split('T')[0]
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
@@ -20,6 +21,9 @@ export default function Clients() {
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', depot: 'EL HAJEB', tel: '', solde: 0, opening_balance: 0 })
+  const [openingModal, setOpeningModal] = useState(null) // client being edited
+  const [openingForm, setOpeningForm] = useState({ montant: '', date: '', note: '' })
+  const [openingSaving, setOpeningSaving] = useState(false)
   const [showCustomDepot, setShowCustomDepot] = useState(false)
   const [customDepotValue, setCustomDepotValue] = useState('')
   const DEFAULT_DEPOTS = ['EL HAJEB', 'BERKANE', 'AHFIR', 'TAOUIMA', 'ZAIO']
@@ -87,17 +91,35 @@ export default function Clients() {
     if (selected?.id === client.id) setSelected({ ...selected, solde: n })
   }
 
-  async function editOpeningBalance(client) {
-    const v = prompt(`Solde initial (ancien solde) de ${client.nom}\nActuel: ${fmt(client.opening_balance || 0)} DHS\n\nCe montant représente ce que le client devait AVANT d'utiliser cette app.`, client.opening_balance || 0)
-    if (v === null) return
-    const n = parseFloat(v)
-    if (isNaN(n)) return
+  function editOpeningBalance(client) {
+    setOpeningModal(client)
+    setOpeningForm({
+      montant: String(client.opening_balance || ''),
+      date:    client.opening_date || '',
+      note:    client.opening_note || '',
+    })
+  }
+
+  async function saveOpeningBalance(e) {
+    e.preventDefault()
+    if (!openingModal) return
+    setOpeningSaving(true)
+    const n = parseFloat(openingForm.montant) || 0
     const totalV = clientVentes.reduce((s, v2) => s + (v2.total_vente || 0), 0)
     const totalP = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
     const newSolde = n + totalV - totalP
-    await supabase.from('clients').update({ opening_balance: n, solde: newSolde }).eq('id', client.id)
+    await supabase.from('clients').update({
+      opening_balance: n,
+      opening_date:    openingForm.date || null,
+      opening_note:    openingForm.note || null,
+      solde:           newSolde,
+    }).eq('id', openingModal.id)
+    setOpeningSaving(false)
+    setOpeningModal(null)
     loadClients()
-    if (selected?.id === client.id) setSelected({ ...selected, opening_balance: n, solde: newSolde })
+    if (selected?.id === openingModal.id) {
+      setSelected({ ...selected, opening_balance: n, opening_date: openingForm.date, opening_note: openingForm.note, solde: newSolde })
+    }
   }
 
   // ---- DATE FILTER LOGIC ----
@@ -300,8 +322,10 @@ export default function Clients() {
 
 <div class="summary">
   <div class="sum-box">
-    <div class="sum-lbl">${carryOver !== null ? 'SOLDE MOIS PRÉCÉDENT' : 'SOLDE INITIAL'}</div>
+    <div class="sum-lbl">${carryOver !== null ? 'SOLDE MOIS PRÉCÉDENT' : 'SOLDE REPORTÉ'}</div>
     <div class="sum-val c-solde">${fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</div>
+    ${!carryOver && selected.opening_date ? `<div style="font-size:10px;color:#b45309;margin-top:2px">${`Solde au ${fmtMois(selected.opening_date)}`}</div>` : ''}
+    ${!carryOver && selected.opening_note ? `<div style="font-size:10px;color:#92400e;font-style:italic">${selected.opening_note}</div>` : ''}
   </div>
   <div class="sum-box">
     <div class="sum-lbl">VENTES ${filterType !== 'all' ? '(PÉRIODE)' : ''}</div>
@@ -624,10 +648,18 @@ ${carryOverBlock}
                       <div className="text-xs text-gray-400 mt-1">Avant {periodLabel}</div>
                     </div>
                   ) : (
-                    <div className="text-center p-3 bg-amber-50 rounded-xl">
-                      <div className="text-xs text-amber-600 font-semibold mb-1">🏦 Solde initial</div>
+                    <div className="text-center p-3 bg-amber-50 rounded-xl" style={{cursor:'pointer'}} onClick={() => editOpeningBalance(selected)}>
+                      <div className="text-xs text-amber-600 font-semibold mb-1">📂 Solde Reporté</div>
                       <div className="text-xl font-bold text-amber-700">{fmt(selected.opening_balance || 0)} DHS</div>
-                      <div className="text-xs text-gray-400 mt-1">Ancien solde</div>
+                      {selected.opening_date && (
+                        <div className="text-xs text-amber-600 mt-1 font-semibold">{`Solde au ${fmtMois(selected.opening_date)}`}</div>
+                      )}
+                      {selected.opening_note && (
+                        <div className="text-xs text-gray-500 mt-0.5 italic">{selected.opening_note}</div>
+                      )}
+                      {!selected.opening_date && !selected.opening_note && (
+                        <div className="text-xs text-gray-400 mt-1">Cliquer pour ajouter détails</div>
+                      )}
                     </div>
                   )}
                   <div className="text-center p-3 bg-blue-50 rounded-xl">
@@ -796,6 +828,62 @@ ${carryOverBlock}
           )}
         </div>
       </div>
+
+      {/* ── SOLDE REPORTÉ MODAL ── */}
+      {openingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">📂 Solde Reporté</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{openingModal.nom}</p>
+              </div>
+              <button onClick={() => setOpeningModal(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={saveOpeningBalance} className="p-5 space-y-4">
+              <div>
+                <label className="label">Montant (DHS)</label>
+                <input type="text" inputMode="decimal" className="input" placeholder="ex: 45000"
+                  value={openingForm.montant}
+                  onChange={e => setOpeningForm({...openingForm, montant: e.target.value})}
+                  required autoFocus />
+                <p className="text-xs text-gray-400 mt-1">Le total dû par ce client avant cette app</p>
+              </div>
+              <div>
+                <label className="label">Date de référence</label>
+                <input type="date" className="input"
+                  value={openingForm.date}
+                  onChange={e => setOpeningForm({...openingForm, date: e.target.value})} />
+                <p className="text-xs text-gray-400 mt-1">ex: 30/04/2026 — s'affichera comme « Solde au avril 2026 »</p>
+              </div>
+              <div>
+                <label className="label">Note / Origine</label>
+                <input type="text" className="input"
+                  placeholder="ex: Solde Excel avril 2026, Factures Q1..."
+                  value={openingForm.note}
+                  onChange={e => setOpeningForm({...openingForm, note: e.target.value})} />
+              </div>
+              {openingForm.montant && (
+                <div className="p-3 rounded-xl text-sm" style={{background:'#fffbeb', border:'1px solid #fde68a'}}>
+                  <div className="font-bold text-amber-700 mb-1">📂 Solde Reporté</div>
+                  <div className="text-gray-700">{openingModal.nom}</div>
+                  <div className="text-xl font-bold text-amber-700">{fmt(parseFloat(openingForm.montant)||0)} DHS</div>
+                  {openingForm.date && <div className="text-xs text-amber-600 mt-1">au {fmtMois(openingForm.date)}</div>}
+                  {openingForm.note && <div className="text-xs text-gray-500 italic mt-0.5">{openingForm.note}</div>}
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={openingSaving}
+                  className="btn-primary flex-1 justify-center" style={{background:'#92400e'}}>
+                  {openingSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+                <button type="button" onClick={() => setOpeningModal(null)} className="btn-secondary">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }
