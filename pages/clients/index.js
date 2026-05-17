@@ -333,15 +333,15 @@ ${carryOverBlock}
     ${filteredVentes.length === 0
       ? '<tr class="empty-row"><td colspan="8">Aucune vente pour cette période</td></tr>'
       : filteredVentes.map(v => `
-        <tr>
+        <tr style="${v.type_entree==='remise' ? 'background:#f0fdf4 !important' : v.type_entree==='mdo' ? 'background:#fffbeb !important' : ''}">
           <td>${fmtDate(v.date)}</td>
           <td>${v.camion_plaque || '—'}</td>
-          <td><span class="type-tag">${v.type_brique || '—'}</span></td>
-          <td class="r num">${fmt(v.qte)}</td>
-          <td class="r">${parseFloat(v.prix_vente || 0).toFixed(2)}</td>
-          <td class="r num">${fmt(v.total_vente)}</td>
+          <td><span class="type-tag">${v.type_entree==='remise' ? '🎁 Remise' : v.type_entree==='mdo' ? '🔧 Main d\'oeuvre' : (v.type_brique || '—')}</span></td>
+          <td class="r num">${v.type_entree==='remise'||v.type_entree==='mdo' ? '—' : fmt(v.qte)}</td>
+          <td class="r">${v.type_entree==='remise'||v.type_entree==='mdo' ? '—' : parseFloat(v.prix_vente || 0).toFixed(2)}</td>
+          <td class="r num" style="${v.type_entree==='remise' ? 'color:#15803d' : ''}">${v.type_entree==='remise' ? '− '+fmt(v.montant_mdo) : fmt(v.total_vente)}</td>
           <td class="muted">${v.bon || '—'}</td>
-          <td class="muted">${v.note || '—'}</td>
+          <td class="muted">${v.type_entree==='remise' ? (v.description_mdo||v.note||'—') : v.type_entree==='mdo' ? (v.description_mdo||'—') : (v.note || '—')}</td>
         </tr>`).join('')
     }
   </tbody>
@@ -702,15 +702,35 @@ ${carryOverBlock}
                         </thead>
                         <tbody>
                           {filteredVentes.map(v => (
-                            <tr key={v.id} className="hover:bg-gray-50">
+                            <tr key={v.id} className="hover:bg-gray-50"
+                              style={v.type_entree==='remise' ? {background:'#f0fdf4'} : v.type_entree==='mdo' ? {background:'#fefce8'} : {}}>
                               <td className="td" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(v.date)}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{v.camion_plaque || '—'}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{v.fournisseur || '—'}</td>
-                              <td className="td" style={{border:'1px solid #e2e8f0'}}><span className="badge-gray">{v.type_brique || '—'}</span></td>
-                              <td className="td text-right font-semibold" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{fmt(v.qte)}</td>
-                              <td className="td text-right" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{parseFloat(v.prix_vente||0).toFixed(2)}</td>
-                              <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'14px',whiteSpace:'nowrap'}}>{fmt(v.total_vente)}</td>
-                              <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>{v.note || '—'}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0'}}>
+                                {v.type_entree === 'remise'
+                                  ? <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🎁 Remise</span>
+                                  : v.type_entree === 'mdo'
+                                  ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🔧 Main d'œuvre</span>
+                                  : <span className="badge-gray">{v.type_brique || '—'}</span>}
+                              </td>
+                              <td className="td text-right font-semibold" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                {v.type_entree==='remise'||v.type_entree==='mdo' ? '—' : fmt(v.qte)}
+                              </td>
+                              <td className="td text-right" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                {v.type_entree==='remise'||v.type_entree==='mdo' ? '—' : parseFloat(v.prix_vente||0).toFixed(2)}
+                              </td>
+                              <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'14px',whiteSpace:'nowrap',
+                                color: v.type_entree==='remise' ? '#15803d' : 'inherit'}}>
+                                {v.type_entree==='remise' ? `− ${fmt(v.montant_mdo)}` : fmt(v.total_vente)}
+                              </td>
+                              <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>
+                                {v.type_entree==='remise'
+                                  ? <span style={{color:'#15803d'}}>{v.description_mdo||v.note||'—'}</span>
+                                  : v.type_entree==='mdo'
+                                  ? <span style={{color:'#92400e'}}>{v.description_mdo||v.note||'—'}</span>
+                                  : (v.note||'—')}
+                              </td>
                             </tr>
                           ))}
                           {filteredVentes.length === 0 && (
