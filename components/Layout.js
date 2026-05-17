@@ -11,6 +11,7 @@ const nav = [
   { href: '/paiements',   icon: '💰', label: 'Paiements' },
   { href: '/retours',     icon: '↩️',  label: 'Retours' },
   { href: '/gasoil',      icon: '⛽', label: 'Gasoil' },
+  { href: '/charges',     icon: '💸', label: 'Charges' },
   { href: '/grignon', icon: '🫒', label: 'Grignon' },
   { href: '/parametres',  icon: '⚙️', label: 'Paramètres' },
 ]
