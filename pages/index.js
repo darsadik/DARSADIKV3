@@ -105,6 +105,7 @@ export default function Dashboard() {
   const [allVentes,  setAllVentes]  = useState([])
   const [allGasoil,  setAllGasoil]  = useState([])
   const [allClients, setAllClients] = useState([])
+  const [allRetours, setAllRetours] = useState([])
   const [loading,    setLoading]    = useState(true)
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo,   setFilterTo]   = useState(today())
@@ -116,12 +117,14 @@ export default function Dashboard() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: v }, { data: g }, { data: c }] = await Promise.all([
+    const [{ data: v }, { data: g }, { data: c }, { data: rt }] = await Promise.all([
       supabase.from('ventes').select('*').order('date', { ascending: true }),
       supabase.from('gasoil').select('*').order('date', { ascending: true }),
       supabase.from('clients').select('*'),
+      supabase.from('retours_transport').select('*').order('date', { ascending: true }),
     ])
     setAllVentes(v || []); setAllGasoil(g || []); setAllClients(c || [])
+    setAllRetours(rt || [])
     setLoading(false)
   }
 
@@ -145,6 +148,12 @@ export default function Dashboard() {
   const totalCreances = allClients.reduce((s,c) => s+(c.solde||0), 0)
   const totalGasoilDHS = fg.reduce((s,g) => s+(g.total||0), 0)
   const totalLitres   = fg.reduce((s,g) => s+(g.qte||0), 0)
+
+  // ── retours transport ────────────────────────────────────────
+  const fr = allRetours.filter(r => (!filterFrom || r.date >= filterFrom) && (!filterTo || r.date <= filterTo))
+  const totalRetoursMontant = fr.reduce((s,r) => s+(r.montant||0), 0)
+  const totalRetoursPaye    = fr.reduce((s,r) => s+(r.montant_paye||0), 0)
+  const totalRetoursRestant = fr.reduce((s,r) => s+(r.restant||0), 0)
 
   // ── client orders (period) ───────────────────────────────────
   const clientOrders = {}
@@ -256,6 +265,10 @@ export default function Dashboard() {
               sub={`${Math.round(totalLitres)} L consommés`} />
             <KPICard label="Créances clients" value={`${fmt(totalCreances)} DHS`} icon="📋"
               sub="Total soldes non payés" red={totalCreances>0} />
+            <KPICard label="Retours transport" value={`${fmt(totalRetoursMontant)} DHS`} icon="🚛"
+              sub={`Encaissé: ${fmt(totalRetoursPaye)} DHS`} green={totalRetoursMontant>0} />
+            <KPICard label="Reste retours" value={`${fmt(totalRetoursRestant)} DHS`} icon="⏳"
+              sub={`${fr.filter(r=>(r.restant||0)>0).length} impayé(s)`} red={totalRetoursRestant>0} />
           </div>
 
           {/* ── 1. COMMANDES CLIENTS (période) ─────────────── */}
