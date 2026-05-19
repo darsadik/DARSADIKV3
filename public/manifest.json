@@ -1,0 +1,43 @@
+{
+  "name": "DAR SADIK — Gestion Commerciale",
+  "short_name": "DAR SADIK",
+  "description": "Gestion commerciale — ventes, clients, paiements, transport",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#1e3a5f",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance"],
+  "shortcuts": [
+    {
+      "name": "Ventes",
+      "url": "/ventes",
+      "description": "Gestion des ventes"
+    },
+    {
+      "name": "Clients",
+      "url": "/clients",
+      "description": "Fiche clients"
+    },
+    {
+      "name": "Paiements",
+      "url": "/paiements",
+      "description": "Paiements clients"
+    }
+  ]
+}
