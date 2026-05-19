@@ -4,6 +4,23 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
+
+// ── Print via hidden iframe — stays on same page (PWA safe) ──
+function printViaIframe(htmlContent) {
+  const existing = document.getElementById('__print_iframe')
+  if (existing) existing.remove()
+  const iframe = document.createElement('iframe')
+  iframe.id = '__print_iframe'
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow.document
+  doc.open(); doc.write(htmlContent); doc.close()
+  setTimeout(() => {
+    iframe.contentWindow.focus()
+    iframe.contentWindow.print()
+  }, 300)
+}
+
 const fmtDate   = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const fmtMois   = d => { if (!d) return ''; const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const [y,m] = d.split('-'); return `${months[parseInt(m)-1]} ${y}` }
 const today = () => new Date().toISOString().split('T')[0]
@@ -89,6 +106,34 @@ export default function Clients() {
     await supabase.from('clients').update({ solde: n }).eq('id', client.id)
     loadClients()
     if (selected?.id === client.id) setSelected({ ...selected, solde: n })
+  }
+
+
+  function exportClientExcel() {
+    const rows = [
+      ['Date', 'Type', 'Camion', 'Fournisseur', 'Produit', 'Quantité', 'Prix/u', 'Total DHS', 'BON', 'Note'],
+      ...filteredVentes.map(v => [
+        fmtDate(v.date),
+        v.type_entree === 'remise' ? 'Remise' : v.type_entree === 'mdo' ? (v.description_mdo || 'Main oeuvre') : 'Vente',
+        v.camion_plaque || '',
+        v.fournisseur || '',
+        v.type_brique || '',
+        v.type_entree === 'remise' || v.type_entree === 'mdo' ? '' : (v.qte || 0),
+        v.type_entree === 'remise' || v.type_entree === 'mdo' ? '' : (v.prix_vente || 0),
+        v.type_entree === 'remise' ? -(v.montant_mdo || 0) : (v.total_vente || 0),
+        v.bon || '',
+        v.note || '',
+      ]),
+      [],
+      ['Date', 'Mode', 'Camion', 'Montant DHS', 'Note'],
+      ...filteredPaiements.map(p => [fmtDate(p.date), p.mode, p.camion_plaque || '', p.montant || 0, p.note || '']),
+    ]
+    const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${selected?.nom || 'Client'}-${today()}.csv`
+    a.click()
   }
 
   function editOpeningBalance(client) {
@@ -211,8 +256,7 @@ export default function Clients() {
         </table>
       </div>` : ''
 
-    const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html lang="fr"><head>
+        win.document.write(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <title>Fiche Client — ${selected.nom}</title>
 <style>
@@ -419,7 +463,7 @@ ${carryOverBlock}
   }
 
   // ---- EXPORT CSV ----
-  function exportClientExcel() {
+
     const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
     const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
     const periode = getFilterLabel()
@@ -590,7 +634,10 @@ ${carryOverBlock}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ Imprimer</button>
+                    <div className="flex gap-2">
+                    <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
+                    <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
+                  </div>
                     <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
                     <button onClick={() => editSolde(selected)} className="btn-secondary text-xs">✎ Solde</button>
                     <button onClick={() => editOpeningBalance(selected)} className="btn-secondary text-xs" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
