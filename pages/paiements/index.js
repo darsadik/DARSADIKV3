@@ -4,6 +4,23 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
+
+// ── Print via hidden iframe — stays on same page (PWA safe) ──
+function printViaIframe(htmlContent) {
+  const existing = document.getElementById('__print_iframe')
+  if (existing) existing.remove()
+  const iframe = document.createElement('iframe')
+  iframe.id = '__print_iframe'
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow.document
+  doc.open(); doc.write(htmlContent); doc.close()
+  setTimeout(() => {
+    iframe.contentWindow.focus()
+    iframe.contentWindow.print()
+  }, 300)
+}
+
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const today = () => new Date().toISOString().split('T')[0]
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
@@ -186,8 +203,7 @@ export default function Paiements() {
 
   // ── PRINT ──
   function printPaiements() {
-    const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000; background: #fff; margin: 0; }
@@ -229,7 +245,7 @@ export default function Paiements() {
       <td colspan="7"><b>TOTAL (${filtered.length})</b></td>
       <td style="text-align:right;color:#166534"><b>− ${fmt(total)} DHS</b></td><td></td>
     </tr></tfoot></table></body></html>`)
-    win.document.close(); win.print()
+    win.document.close();
   }
 
   // ── CSV ──
@@ -539,6 +555,7 @@ export default function Paiements() {
                 <h2 className="font-semibold text-gray-900">Historique des paiements</h2>
                 <div className="flex gap-2">
                   <button onClick={printPaiements} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
+                <button onClick={exportCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
                   <button onClick={exportCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 CSV</button>
                 </div>
               </div>
