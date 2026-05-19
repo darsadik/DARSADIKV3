@@ -5,6 +5,23 @@ import { useAuth } from '../_app'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
+
+// ── Print via hidden iframe — stays on same page (PWA safe) ──
+function printViaIframe(htmlContent) {
+  const existing = document.getElementById('__print_iframe')
+  if (existing) existing.remove()
+  const iframe = document.createElement('iframe')
+  iframe.id = '__print_iframe'
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow.document
+  doc.open(); doc.write(htmlContent); doc.close()
+  setTimeout(() => {
+    iframe.contentWindow.focus()
+    iframe.contentWindow.print()
+  }, 300)
+}
+
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const fmtD = n => parseFloat(n || 0).toFixed(2)
 const today = () => new Date().toISOString().split('T')[0]
@@ -38,7 +55,7 @@ export default function Ventes() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ date: today(), date_fournisseur: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '', retour_client: '', retour_montant: '', retour_paye: '', retour_note: '' })
   const [showRetour, setShowRetour] = useState(false)
-  const [mdoForm, setMdoForm] = useState({ date: today(), client_id: '', camion_id: '', montant: '', sous_type: 'Main d\'œuvre', description: '', note: '' })
+  const [mdoForm, setMdoForm] = useState({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
   const [mdoSaving, setMdoSaving] = useState(false)
   const [mdoMsg, setMdoMsg] = useState('')
   const [remiseForm, setRemiseForm] = useState({ date: today(), client_id: '', montant: '', note: '' })
@@ -242,7 +259,7 @@ export default function Ventes() {
       camion_plaque: ca?.plaque || '',
       chauffeur: ca?.chauffeur || '',
       montant_mdo: montant,
-      description_mdo: mdoForm.sous_type + (mdoForm.description ? ' — ' + mdoForm.description : ''),
+      description_mdo: mdoForm.description || null,
       note: mdoForm.note || null,
       // brique fields null
       qte: null, prix_vente: null, prix_achat: null,
@@ -255,11 +272,27 @@ export default function Ventes() {
     if (error) {
       setMdoMsg('❌ ' + error.message)
     } else {
-      setMdoMsg('✅ Charge enregistrée !')
-      setMdoForm({ date: today(), client_id: '', camion_id: '', montant: '', sous_type: 'Main d\'œuvre', description: '', note: '' })
+      setMdoMsg('✅ Main d\'œuvre enregistrée !')
+      setMdoForm({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
       setTimeout(() => setMdoMsg(''), 2500)
       loadAll()
     }
+  }
+
+
+  function exportCSV() {
+    const rows = [
+      ['Date', 'Client', 'Produit', 'Camion', 'Fournisseur', 'Quantite', 'Prix/u', 'Total DHS', 'BON', 'Note'],
+      ...filtered.map(v => [
+        fmtDate(v.date), v.client_nom, v.type_brique || '', v.camion_plaque || '',
+        v.fournisseur || '', v.qte || '', v.prix_vente || '', v.total_vente || 0,
+        v.bon || '', v.note || '',
+      ]),
+    ]
+    const csv = rows.map(r => r.map(cell => '"'+String(cell).replace(/"/g,'""')+'"').join(',')).join('\n')
+    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'})
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = 'Ventes-'+filterFrom+'-'+filterTo+'.csv'; a.click()
   }
 
   function printClientView() {
@@ -270,7 +303,7 @@ export default function Ventes() {
     const hasRetour = filtered.some(v => v.retour_client)
     const win = window.open('','_blank')
     const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmt(v.retour_montant)}</td><td style="text-align:right">${fmt(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ventes</title>
+    printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ventes</title>
     <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
       body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
@@ -303,8 +336,6 @@ export default function Ventes() {
     <tfoot><tr><td colspan="4">TOTAL RETOURS</td><td style="text-align:right">${fmt(tR)} DHS</td><td></td><td style="text-align:right">${fmt(tRR)} DHS</td></tr></tfoot>
     </table>` : ''}
     </body></html>`)
-    win.document.close()
-    win.print()
   }
 
   function exportClientCSV() {
@@ -324,7 +355,7 @@ export default function Ventes() {
     { key: 'camion',      label: '🚛 Camions' },
     ...(admin ? [
       { key: 'saisie', label: '➕ Saisie' },
-      { key: 'mdo',    label: '🔧 Charges client' },
+      { key: 'mdo',    label: '🔧 Main d\'œuvre' },
       { key: 'remise',  label: '🎁 Remises' },
     ] : []),
   ]
@@ -345,9 +376,7 @@ export default function Ventes() {
           </div>
         </div>
         <div className="card-meta">
-          {isMdo    && <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>
-            {(v.description_mdo||'').startsWith('Frais transport') ? '🚛 Frais transport' : (v.description_mdo||'').startsWith('Autre charge') ? '➕ Autre charge' : "🔧 Main d'œuvre"}
-          </span>}
+          {isMdo    && <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🔧 Main d'œuvre</span>}
           {isRemise && <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🎁 Remise</span>}
           {!isMdo && !isRemise && v.type_brique && <span>📦 {v.type_brique}</span>}
           {v.camion_plaque && <span>🚛 {v.camion_plaque}</span>}
@@ -386,6 +415,7 @@ export default function Ventes() {
           <h3 className="font-bold text-gray-900">{filtered.length} ventes</h3>
           <div className="flex gap-2">
             <button onClick={printClientView} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
+            <button onClick={exportCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
             <button onClick={exportClientCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
           </div>
         </div>
@@ -445,9 +475,7 @@ export default function Ventes() {
                     <td className="td font-semibold">{v.client_nom}</td>
                     <td className="td">
                       {v.type_entree === 'mdo'
-                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>
-                            {(v.description_mdo||'').startsWith('Frais transport') ? '🚛 Frais transport' : (v.description_mdo||'').startsWith('Autre charge') ? '➕ Autre charge' : "🔧 Main d'œuvre"}
-                          </span>
+                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>🔧 Main d'œuvre</span>
                         : v.type_entree === 'remise'
                         ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#dcfce7',color:'#15803d'}}>🎁 Remise</span>
                         : <span className="badge-gray">{v.type_brique||'—'}</span>
@@ -695,10 +723,8 @@ export default function Ventes() {
   }
 
   function printFournisseurReport() {
-    const win = window.open('', '_blank')
-    win.document.write(buildFournisseurReportHTML())
+        win.document.write(buildFournisseurReportHTML())
     win.document.close()
-    setTimeout(() => win.print(), 400)
   }
 
   async function downloadFournisseurPDF() {
@@ -1261,10 +1287,8 @@ export default function Ventes() {
   }
 
   function printCamionReport() {
-    const win = window.open('', '_blank')
-    win.document.write(buildCamionReportHTML())
+        win.document.write(buildCamionReportHTML())
     win.document.close()
-    setTimeout(() => win.print(), 400)
   }
 
   async function downloadCamionPDF() {
@@ -1582,8 +1606,6 @@ export default function Ventes() {
           {view === 'camion' && CamionView()}
           {view === 'mdo' && admin && (() => {
             const mdoVentes = ventes.filter(v => v.type_entree === 'mdo')
-            // helper to get icon per sous_type
-            const chargeIcon = (desc) => { if (!desc) return '🔧'; if (desc.startsWith('Frais transport')) return '🚛'; if (desc.startsWith('Autre charge')) return '➕'; return '🔧' }
             const mdoFiltered = mdoVentes.filter(v => {
               if (filterFrom && v.date < filterFrom) return false
               if (filterTo   && v.date > filterTo)   return false
@@ -1593,8 +1615,7 @@ export default function Ventes() {
             const totalMdo = mdoFiltered.reduce((s,v) => s + (v.montant_mdo || 0), 0)
 
             function printMdo() {
-              const win = window.open('', '_blank')
-              const rows = mdoFiltered.map(v => `<tr>
+                            const rows = mdoFiltered.map(v => `<tr>
                 <td>${fmtDate(v.date)}</td>
                 <td><b>${v.client_nom}</b></td>
                 <td>${v.description_mdo || '—'}</td>
@@ -1620,14 +1641,14 @@ export default function Ventes() {
               <tbody>${rows}</tbody>
               <tfoot><tr><td colspan="4">TOTAL (${mdoFiltered.length})</td><td style="text-align:right">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
               </table></body></html>`)
-              win.document.close(); win.print()
+              win.document.close();
             }
 
             return (
               <div className="space-y-4">
                 {/* MDO form */}
                 <div className="card">
-                  <h3 className="font-bold text-gray-900 mb-4">🔧 Saisir une charge client</h3>
+                  <h3 className="font-bold text-gray-900 mb-4">🔧 Saisir une main d'œuvre</h3>
                   <form onSubmit={saveMdo}>
                     <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
                       <div><label className="label">Date</label>
@@ -1646,14 +1667,8 @@ export default function Ventes() {
                         </select></div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div><label className="label">Type de charge</label>
-                        <select className="input" value={mdoForm.sous_type} onChange={e=>setMdoForm({...mdoForm,sous_type:e.target.value})}>
-                          <option value="Main d'œuvre">🔧 Main d'œuvre</option>
-                          <option value="Frais transport">🚛 Frais transport</option>
-                          <option value="Autre charge">➕ Autre charge</option>
-                        </select></div>
-                      <div><label className="label">Description / Note</label>
-                        <input className="input" placeholder="ex: Livraison chantier, déchargement..." value={mdoForm.description} onChange={e=>setMdoForm({...mdoForm,description:e.target.value})} /></div>
+                      <div><label className="label">Description des travaux</label>
+                        <input className="input" placeholder="ex: Chargement, déchargement, pose..." value={mdoForm.description} onChange={e=>setMdoForm({...mdoForm,description:e.target.value})} /></div>
                       <div><label className="label">Note</label>
                         <input className="input" placeholder="optionnel" value={mdoForm.note} onChange={e=>setMdoForm({...mdoForm,note:e.target.value})} /></div>
                     </div>
@@ -1668,8 +1683,8 @@ export default function Ventes() {
                 <div className="card">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="font-bold text-gray-900">📋 Historique charges client</h3>
-                      <div className="text-xs text-gray-400 mt-1">{mdoFiltered.length} charge(s) — Total: <b className="text-amber-700">{fmt(totalMdo)} DHS</b></div>
+                      <h3 className="font-bold text-gray-900">📋 Historique main d'œuvre</h3>
+                      <div className="text-xs text-gray-400 mt-1">{mdoFiltered.length} entrée(s) — Total: <b className="text-amber-700">{fmt(totalMdo)} DHS</b></div>
                     </div>
                     <button onClick={printMdo} className="btn-primary text-xs px-3 py-1.5" style={{background:'#92400e'}}>🖨️ PDF</button>
                   </div>
@@ -1700,7 +1715,7 @@ export default function Ventes() {
                             </td>}
                           </tr>
                         ))}
-                        {mdoFiltered.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-8">Aucune charge</td></tr>}
+                        {mdoFiltered.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-8">Aucune main d'œuvre</td></tr>}
                       </tbody>
                       {mdoFiltered.length > 0 && (
                         <tfoot>
@@ -1728,8 +1743,7 @@ export default function Ventes() {
             const totalRemises = remisesFiltered.reduce((s,v) => s + (v.montant_mdo||0), 0)
 
             function printRemises() {
-              const win = window.open('', '_blank')
-              const rows = remisesFiltered.map(v => `<tr>
+                            const rows = remisesFiltered.map(v => `<tr>
                 <td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td>
                 <td style="text-align:right;color:#15803d"><b>− ${fmt(v.montant_mdo)} DHS</b></td>
                 <td>${v.description_mdo||v.note||'—'}</td></tr>`).join('')
@@ -1754,7 +1768,7 @@ export default function Ventes() {
                   <td></td>
                 </tr></tfoot>` : ''}
                 </table></body></html>`)
-              win.document.close(); win.print()
+              win.document.close();
             }
 
             return (
