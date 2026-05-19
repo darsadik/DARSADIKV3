@@ -4,13 +4,27 @@ export default function Document() {
   return (
     <Html lang="fr">
       <Head>
-        {/* ── DAR SADIK favicon — inline SVG brick logo ── */}
-        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%231a5fa8'/%3E%3Crect x='7' y='10' width='11' height='6' rx='1' fill='white'/%3E%3Crect x='21' y='10' width='12' height='6' rx='1' fill='white'/%3E%3Crect x='7' y='18' width='7' height='6' rx='1' fill='%23e8f0fb'/%3E%3Crect x='17' y='18' width='11' height='6' rx='1' fill='white'/%3E%3Crect x='31' y='18' width='2' height='6' rx='1' fill='%23e8f0fb'/%3E%3Crect x='7' y='26' width='11' height='6' rx='1' fill='white'/%3E%3Crect x='21' y='26' width='12' height='6' rx='1' fill='white'/%3E%3C/svg%3E" />
-        {/* Apple touch icon for iPhone home screen */}
-        <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%231a5fa8'/%3E%3Crect x='7' y='10' width='11' height='6' rx='1' fill='white'/%3E%3Crect x='21' y='10' width='12' height='6' rx='1' fill='white'/%3E%3Crect x='7' y='18' width='7' height='6' rx='1' fill='%23e8f0fb'/%3E%3Crect x='17' y='18' width='11' height='6' rx='1' fill='white'/%3E%3Crect x='31' y='18' width='2' height='6' rx='1' fill='%23e8f0fb'/%3E%3Crect x='7' y='26' width='11' height='6' rx='1' fill='white'/%3E%3Crect x='21' y='26' width='12' height='6' rx='1' fill='white'/%3E%3C/svg%3E" />
-        <meta name="theme-color" content="#1a5fa8" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#1e3a5f" />
         <meta name="application-name" content="DAR SADIK" />
+        <meta name="apple-mobile-web-app-title" content="DAR SADIK" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="format-detection" content="telephone=no" />
+        <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+        <meta name="msapplication-TileColor" content="#1e3a5f" />
         <title>DAR SADIK — Gestion Commerciale</title>
+        <script dangerouslySetInnerHTML={{__html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js')
+                .then(function(r){ console.log('SW ok'); })
+                .catch(function(e){ console.log('SW err',e); });
+            });
+          }
+        `}} />
       </Head>
       <body>
         <Main />
