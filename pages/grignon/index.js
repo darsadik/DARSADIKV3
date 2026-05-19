@@ -5,6 +5,23 @@ import { useAuth } from '../_app'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt  = n => Math.round(n || 0).toLocaleString('fr-MA')
+
+// ── Print via hidden iframe — stays on same page (PWA safe) ──
+function printViaIframe(htmlContent) {
+  const existing = document.getElementById('__print_iframe')
+  if (existing) existing.remove()
+  const iframe = document.createElement('iframe')
+  iframe.id = '__print_iframe'
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow.document
+  doc.open(); doc.write(htmlContent); doc.close()
+  setTimeout(() => {
+    iframe.contentWindow.focus()
+    iframe.contentWindow.print()
+  }, 300)
+}
+
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const fmtD = n => parseFloat(n || 0).toFixed(2)
 const today = () => new Date().toISOString().split('T')[0]
@@ -53,6 +70,14 @@ function useIsMobile() {
     return () => window.removeEventListener('resize', check)
   }, [])
   return m
+}
+
+function exportGrignonCSV(rows, filename) {
+  const bom = '\uFEFF'
+  const csv = rows.map(r => r.map(cell => '"'+String(cell||'').replace(/"/g,'""')+'"').join(',')).join('\n')
+  const blob = new Blob([bom+csv], {type:'text/csv;charset=utf-8;'})
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+  a.download = filename+'-'+today()+'.csv'; a.click()
 }
 
 export default function Grignon() {
@@ -428,8 +453,7 @@ export default function Grignon() {
       </tr>`).join('')
     const totQte   = filtered.reduce((s, o) => s + (o.qte || 0), 0)
     const totVente = filtered.reduce((s, o) => s + (o.total_vente || 0), 0)
-    const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon (Fitour) — Ventes Clients</title>
       <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -522,8 +546,7 @@ export default function Grignon() {
           <tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmtD(data.total_qte)} kg</td><td></td><td style="text-align:right">${fmt(data.total_achat)} DHS</td></tr></tfoot>
         </table>`
     }).join('')
-    const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon (Fitour) — Achats Fournisseurs</title>
       <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -599,8 +622,7 @@ export default function Grignon() {
           <tfoot><tr><td colspan="3">TOTAL (${ops.length} op.)</td><td style="text-align:right">${fmtD(totKg)} kg</td><td></td></tr></tfoot>
         </table>`
     }).join('')
-    const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon (Fitour) — Camions</title>
       <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -655,8 +677,7 @@ export default function Grignon() {
   // ──────────────────────────────────────────────────────────
 
   function printDashboard() {
-    const win = window.open('', '_blank')
-    const date = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
+        const date = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
     const totalOB = clients.reduce((s,c) => s + (c.opening_balance || 0), 0)
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon — Tableau de bord</title>
@@ -1062,8 +1083,7 @@ export default function Grignon() {
             </table>
           </div>`
       }).join('')
-      const win = window.open('', '_blank')
-      win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+            win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
         <title>Grignon (Fitour) — Achats Fournisseurs</title>
         <style>${PRINT_CSS}
         .section-title{font-weight:800;font-size:13px;margin:18px 0 8px;border-left:4px solid #1a5fa8;padding-left:10px;color:#1a5fa8}
@@ -1082,6 +1102,7 @@ export default function Grignon() {
       <div className="space-y-6">
         <div className="flex justify-end">
           <button onClick={printFournisseurViewWithBalances} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF Fournisseurs</button>
+          <button onClick={()=>exportGrignonCSV([['Fournisseur','Date','Qte kg','Prix achat','Total achat DHS'],...filtered.map(o=>[o.fournisseur_nom||'',fmtDate(o.date),o.qte||0,o.prix_achat||0,o.total_achat||0])],'Grignon-Fournisseurs')} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
         </div>
         {Object.entries(byF).map(([fourn, data]) => {
           const totalPaid = paidByFourn[data.fid] || 0
@@ -1212,8 +1233,7 @@ export default function Grignon() {
         </tr>`
       }).join('')
 
-      const win = window.open('', '_blank')
-      win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+            win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
         <title>Grignon — Paiements Fournisseurs</title>
         <style>${PRINT_CSS}</style></head><body>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
@@ -1333,7 +1353,8 @@ export default function Grignon() {
         <div className="card">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h3 className="font-bold text-gray-900">💳 Historique des paiements</h3>
-            <button onClick={printPaiementsView} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ Imprimer / PDF</button>
+            <button onClick={printPaiementsView} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
+                    <button onClick={()=>exportGrignonCSV([['Date','Fournisseur','Montant DHS','Mode','Note'],...filteredPai.map(p=>[fmtDate(p.date),p.fournisseur_nom||'',p.montant||0,p.mode_paiement,p.note||''])],'Grignon-Paiements')} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
           </div>
 
           {/* Filters */}
