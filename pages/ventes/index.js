@@ -38,7 +38,7 @@ export default function Ventes() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ date: today(), date_fournisseur: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '', retour_client: '', retour_montant: '', retour_paye: '', retour_note: '' })
   const [showRetour, setShowRetour] = useState(false)
-  const [mdoForm, setMdoForm] = useState({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
+  const [mdoForm, setMdoForm] = useState({ date: today(), client_id: '', camion_id: '', montant: '', sous_type: 'Main d\'œuvre', description: '', note: '' })
   const [mdoSaving, setMdoSaving] = useState(false)
   const [mdoMsg, setMdoMsg] = useState('')
   const [remiseForm, setRemiseForm] = useState({ date: today(), client_id: '', montant: '', note: '' })
@@ -242,7 +242,7 @@ export default function Ventes() {
       camion_plaque: ca?.plaque || '',
       chauffeur: ca?.chauffeur || '',
       montant_mdo: montant,
-      description_mdo: mdoForm.description || null,
+      description_mdo: mdoForm.sous_type + (mdoForm.description ? ' — ' + mdoForm.description : ''),
       note: mdoForm.note || null,
       // brique fields null
       qte: null, prix_vente: null, prix_achat: null,
@@ -255,8 +255,8 @@ export default function Ventes() {
     if (error) {
       setMdoMsg('❌ ' + error.message)
     } else {
-      setMdoMsg('✅ Main d\'œuvre enregistrée !')
-      setMdoForm({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
+      setMdoMsg('✅ Charge enregistrée !')
+      setMdoForm({ date: today(), client_id: '', camion_id: '', montant: '', sous_type: 'Main d\'œuvre', description: '', note: '' })
       setTimeout(() => setMdoMsg(''), 2500)
       loadAll()
     }
@@ -324,7 +324,7 @@ export default function Ventes() {
     { key: 'camion',      label: '🚛 Camions' },
     ...(admin ? [
       { key: 'saisie', label: '➕ Saisie' },
-      { key: 'mdo',    label: '🔧 Main d\'œuvre' },
+      { key: 'mdo',    label: '🔧 Charges client' },
       { key: 'remise',  label: '🎁 Remises' },
     ] : []),
   ]
@@ -345,7 +345,9 @@ export default function Ventes() {
           </div>
         </div>
         <div className="card-meta">
-          {isMdo    && <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🔧 Main d'œuvre</span>}
+          {isMdo    && <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>
+            {(v.description_mdo||'').startsWith('Frais transport') ? '🚛 Frais transport' : (v.description_mdo||'').startsWith('Autre charge') ? '➕ Autre charge' : "🔧 Main d'œuvre"}
+          </span>}
           {isRemise && <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🎁 Remise</span>}
           {!isMdo && !isRemise && v.type_brique && <span>📦 {v.type_brique}</span>}
           {v.camion_plaque && <span>🚛 {v.camion_plaque}</span>}
@@ -443,7 +445,9 @@ export default function Ventes() {
                     <td className="td font-semibold">{v.client_nom}</td>
                     <td className="td">
                       {v.type_entree === 'mdo'
-                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>🔧 Main d'œuvre</span>
+                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>
+                            {(v.description_mdo||'').startsWith('Frais transport') ? '🚛 Frais transport' : (v.description_mdo||'').startsWith('Autre charge') ? '➕ Autre charge' : "🔧 Main d'œuvre"}
+                          </span>
                         : v.type_entree === 'remise'
                         ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#dcfce7',color:'#15803d'}}>🎁 Remise</span>
                         : <span className="badge-gray">{v.type_brique||'—'}</span>
@@ -1578,6 +1582,8 @@ export default function Ventes() {
           {view === 'camion' && CamionView()}
           {view === 'mdo' && admin && (() => {
             const mdoVentes = ventes.filter(v => v.type_entree === 'mdo')
+            // helper to get icon per sous_type
+            const chargeIcon = (desc) => { if (!desc) return '🔧'; if (desc.startsWith('Frais transport')) return '🚛'; if (desc.startsWith('Autre charge')) return '➕'; return '🔧' }
             const mdoFiltered = mdoVentes.filter(v => {
               if (filterFrom && v.date < filterFrom) return false
               if (filterTo   && v.date > filterTo)   return false
@@ -1621,7 +1627,7 @@ export default function Ventes() {
               <div className="space-y-4">
                 {/* MDO form */}
                 <div className="card">
-                  <h3 className="font-bold text-gray-900 mb-4">🔧 Saisir une main d'œuvre</h3>
+                  <h3 className="font-bold text-gray-900 mb-4">🔧 Saisir une charge client</h3>
                   <form onSubmit={saveMdo}>
                     <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
                       <div><label className="label">Date</label>
@@ -1640,8 +1646,14 @@ export default function Ventes() {
                         </select></div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div><label className="label">Description des travaux</label>
-                        <input className="input" placeholder="ex: Chargement, déchargement, pose..." value={mdoForm.description} onChange={e=>setMdoForm({...mdoForm,description:e.target.value})} /></div>
+                      <div><label className="label">Type de charge</label>
+                        <select className="input" value={mdoForm.sous_type} onChange={e=>setMdoForm({...mdoForm,sous_type:e.target.value})}>
+                          <option value="Main d'œuvre">🔧 Main d'œuvre</option>
+                          <option value="Frais transport">🚛 Frais transport</option>
+                          <option value="Autre charge">➕ Autre charge</option>
+                        </select></div>
+                      <div><label className="label">Description / Note</label>
+                        <input className="input" placeholder="ex: Livraison chantier, déchargement..." value={mdoForm.description} onChange={e=>setMdoForm({...mdoForm,description:e.target.value})} /></div>
                       <div><label className="label">Note</label>
                         <input className="input" placeholder="optionnel" value={mdoForm.note} onChange={e=>setMdoForm({...mdoForm,note:e.target.value})} /></div>
                     </div>
@@ -1656,8 +1668,8 @@ export default function Ventes() {
                 <div className="card">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="font-bold text-gray-900">📋 Historique main d'œuvre</h3>
-                      <div className="text-xs text-gray-400 mt-1">{mdoFiltered.length} entrée(s) — Total: <b className="text-amber-700">{fmt(totalMdo)} DHS</b></div>
+                      <h3 className="font-bold text-gray-900">📋 Historique charges client</h3>
+                      <div className="text-xs text-gray-400 mt-1">{mdoFiltered.length} charge(s) — Total: <b className="text-amber-700">{fmt(totalMdo)} DHS</b></div>
                     </div>
                     <button onClick={printMdo} className="btn-primary text-xs px-3 py-1.5" style={{background:'#92400e'}}>🖨️ PDF</button>
                   </div>
@@ -1688,7 +1700,7 @@ export default function Ventes() {
                             </td>}
                           </tr>
                         ))}
-                        {mdoFiltered.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-8">Aucune main d'œuvre</td></tr>}
+                        {mdoFiltered.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-8">Aucune charge</td></tr>}
                       </tbody>
                       {mdoFiltered.length > 0 && (
                         <tfoot>
