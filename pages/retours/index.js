@@ -5,6 +5,23 @@ import { useAuth } from '../_app'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
+
+// ── Print via hidden iframe — stays on same page (PWA safe) ──
+function printViaIframe(htmlContent) {
+  const existing = document.getElementById('__print_iframe')
+  if (existing) existing.remove()
+  const iframe = document.createElement('iframe')
+  iframe.id = '__print_iframe'
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow.document
+  doc.open(); doc.write(htmlContent); doc.close()
+  setTimeout(() => {
+    iframe.contentWindow.focus()
+    iframe.contentWindow.print()
+  }, 300)
+}
+
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const today   = () => new Date().toISOString().split('T')[0]
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
@@ -126,6 +143,23 @@ export default function Retours() {
     return                                   { label: '⬤ Impayé',   bg: '#fee2e2', color: '#dc2626' }
   }
 
+
+  function exportCSV() {
+    const rows = [
+      ['Date','Client','Destination','Camion','Chauffeur','Montant DHS','Paye DHS','Restant DHS','Statut','Note'],
+      ...filtered.map(r => [
+        fmtDate(r.date), r.client_nom, r.destination||'', r.camion_plaque||'', r.chauffeur||'',
+        r.montant||0, r.montant_paye||0, r.restant||0,
+        (r.restant||0)===0?'Paye':(r.montant_paye||0)>0?'Partiel':'Impaye',
+        r.note||'',
+      ]),
+    ]
+    const csv = rows.map(r => r.map(cell => '"'+String(cell).replace(/"/g,'""')+'"').join(',')).join('\n')
+    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'})
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = 'Retours-'+filterFrom+'-'+filterTo+'.csv'; a.click()
+  }
+
   function printRetours() {
     const rows = filtered.map(r => {
       const s = getStatus(r)
@@ -138,8 +172,7 @@ export default function Retours() {
         <td><span style="background:${s.bg};color:${s.color};padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700">${s.label}</span></td>
         <td>${r.note||'—'}</td></tr>`
     }).join('')
-    const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Retours Transport</title>
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Retours Transport</title>
     <style>*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
     body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#1e293b;background:#fff;margin:0}
     h1{font-size:18px;margin:0 0 4px}.sub{color:#555;font-size:11px;margin-bottom:20px}
@@ -171,7 +204,7 @@ export default function Retours() {
     <td style="text-align:right;color:#dc2626">${fmt(totalRestant)} DHS</td>
     <td colspan="2"></td></tr></tfoot>`:''}
     </table></body></html>`)
-    win.document.close(); win.print()
+    win.document.close();
   }
 
   return (
