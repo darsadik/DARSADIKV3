@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="90" fill="#1e3a5f"/>
+  <!-- Roof triangle -->
+  <polygon points="40,170 256,50 472,170" fill="#e8b84b"/>
+  <!-- Row 1 bricks (white) -->
+  <rect x="60" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+  <rect x="195" y="175" width="122" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+  <rect x="337" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+  <!-- Row 2 bricks (gold) -->
+  <rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+  <rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+  <rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+  <!-- Row 3 bricks (white) -->
+  <rect x="60" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+  <rect x="195" y="345" width="122" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+  <rect x="337" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+  <!-- Base line -->
+  <rect x="40" y="425" width="432" height="14" rx="7" fill="#e8b84b" opacity="0.5"/>
+  <!-- Company initials -->
+  <text x="256" y="492" text-anchor="middle" fill="#e8b84b" font-size="46" font-weight="900" font-family="Arial,sans-serif" letter-spacing="6" opacity="0.9">DAR SADIK</text>
+</svg>
