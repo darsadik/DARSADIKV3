@@ -172,7 +172,7 @@ export default function Retours() {
         <td><span style="background:${s.bg};color:${s.color};padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700">${s.label}</span></td>
         <td>${r.note||'—'}</td></tr>`
     }).join('')
-        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Retours Transport</title>
+        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Retours Transport</title>
     <style>*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
     body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#1e293b;background:#fff;margin:0}
     h1{font-size:18px;margin:0 0 4px}.sub{color:#555;font-size:11px;margin-bottom:20px}
@@ -204,7 +204,7 @@ export default function Retours() {
     <td style="text-align:right;color:#dc2626">${fmt(totalRestant)} DHS</td>
     <td colspan="2"></td></tr></tfoot>`:''}
     </table></body></html>`)
-    win.document.close();
+
   }
 
   return (
