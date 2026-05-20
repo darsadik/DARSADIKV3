@@ -203,7 +203,7 @@ export default function Paiements() {
 
   // ── PRINT ──
   function printPaiements() {
-        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000; background: #fff; margin: 0; }
@@ -245,7 +245,7 @@ export default function Paiements() {
       <td colspan="7"><b>TOTAL (${filtered.length})</b></td>
       <td style="text-align:right;color:#166534"><b>− ${fmt(total)} DHS</b></td><td></td>
     </tr></tfoot></table></body></html>`)
-    win.document.close();
+
   }
 
   // ── CSV ──
