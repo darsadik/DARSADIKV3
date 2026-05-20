@@ -368,7 +368,7 @@ export default function Clients() {
   <div class="sum-box">
     <div class="sum-lbl">${carryOver !== null ? 'SOLDE MOIS PRÉCÉDENT' : 'SOLDE REPORTÉ'}</div>
     <div class="sum-val c-solde">${fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</div>
-    ${!carryOver && selected.opening_date ? `<div style="font-size:10px;color:#b45309;margin-top:2px">${`Solde au ${fmtMois(selected.opening_date)}`}</div>` : ''}
+    ${!carryOver && selected.opening_date ? '<div style="font-size:10px;color:#b45309;margin-top:2px">Solde au '+fmtMois(selected.opening_date)+'</div>' : ''}
     ${!carryOver && selected.opening_note ? `<div style="font-size:10px;color:#92400e;font-style:italic">${selected.opening_note}</div>` : ''}
   </div>
   <div class="sum-box">
@@ -638,7 +638,6 @@ ${carryOverBlock}
                     <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
                     <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
                   </div>
-                    <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
                     <button onClick={() => editSolde(selected)} className="btn-secondary text-xs">✎ Solde</button>
                     <button onClick={() => editOpeningBalance(selected)} className="btn-secondary text-xs" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
                     <button onClick={() => deleteClient(selected.id)} className="btn-danger">✕</button>
