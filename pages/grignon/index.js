@@ -453,7 +453,7 @@ export default function Grignon() {
       </tr>`).join('')
     const totQte   = filtered.reduce((s, o) => s + (o.qte || 0), 0)
     const totVente = filtered.reduce((s, o) => s + (o.total_vente || 0), 0)
-        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon (Fitour) — Ventes Clients</title>
       <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -518,7 +518,7 @@ export default function Grignon() {
         </tr></tfoot>`:''}
       </table>
       </body></html>`)
-    win.document.close()
+
   }
 
   function printFournisseurView() {
@@ -546,7 +546,7 @@ export default function Grignon() {
           <tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmtD(data.total_qte)} kg</td><td></td><td style="text-align:right">${fmt(data.total_achat)} DHS</td></tr></tfoot>
         </table>`
     }).join('')
-        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon (Fitour) — Achats Fournisseurs</title>
       <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -595,7 +595,7 @@ export default function Grignon() {
       </div>
       ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
       </body></html>`)
-    win.document.close()
+
   }
 
   function printCamionView() {
@@ -622,7 +622,7 @@ export default function Grignon() {
           <tfoot><tr><td colspan="3">TOTAL (${ops.length} op.)</td><td style="text-align:right">${fmtD(totKg)} kg</td><td></td></tr></tfoot>
         </table>`
     }).join('')
-        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon (Fitour) — Camions</title>
       <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -671,7 +671,7 @@ export default function Grignon() {
       </div>
       ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
       </body></html>`)
-    win.document.close()
+
   }
 
   // ──────────────────────────────────────────────────────────
@@ -679,7 +679,7 @@ export default function Grignon() {
   function printDashboard() {
         const date = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
     const totalOB = clients.reduce((s,c) => s + (c.opening_balance || 0), 0)
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon — Tableau de bord</title>
       <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -773,7 +773,7 @@ export default function Grignon() {
         ${clients.length > 0 ? `<tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmt(clients.reduce((s,c)=>s+(c.opening_balance||0),0))}</td><td style="text-align:right;color:#c2410c">${fmt(totalCreances)}</td></tr></tfoot>` : ''}
       </table>
       </body></html>`)
-    win.document.close()
+
   }
 
   //  DASHBOARD — fully separate from main project dashboard
@@ -1083,7 +1083,7 @@ export default function Grignon() {
             </table>
           </div>`
       }).join('')
-            win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+            printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
         <title>Grignon (Fitour) — Achats Fournisseurs</title>
         <style>${PRINT_CSS}
         .section-title{font-weight:800;font-size:13px;margin:18px 0 8px;border-left:4px solid #1a5fa8;padding-left:10px;color:#1a5fa8}
@@ -1095,7 +1095,7 @@ export default function Grignon() {
         </div>
         ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
         </body></html>`)
-      win.document.close()
+
     }
 
     return (
@@ -1233,7 +1233,7 @@ export default function Grignon() {
         </tr>`
       }).join('')
 
-            win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+            printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
         <title>Grignon — Paiements Fournisseurs</title>
         <style>${PRINT_CSS}</style></head><body>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
@@ -1261,7 +1261,7 @@ export default function Grignon() {
           ${filteredPai.length > 0 ? `<tfoot><tr><td colspan="2">TOTAL (${filteredPai.length})</td><td style="text-align:right">${fmt(totalFilteredPaid)}</td><td colspan="2"></td></tr></tfoot>` : ''}
         </table>
         </body></html>`)
-      win.document.close()
+
     }
 
     return (
