@@ -4,28 +4,25 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
-
-// ── Print via hidden iframe — stays on same page (PWA safe) ──
-function printViaIframe(htmlContent) {
-  const existing = document.getElementById('__print_iframe')
-  if (existing) existing.remove()
-  const iframe = document.createElement('iframe')
-  iframe.id = '__print_iframe'
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;'
-  document.body.appendChild(iframe)
-  const doc = iframe.contentWindow.document
-  doc.open(); doc.write(htmlContent); doc.close()
-  setTimeout(() => {
-    iframe.contentWindow.focus()
-    iframe.contentWindow.print()
-  }, 300)
-}
-
 const fmtDate   = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const fmtMois   = d => { if (!d) return ''; const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const [y,m] = d.split('-'); return `${months[parseInt(m)-1]} ${y}` }
 const today = () => new Date().toISOString().split('T')[0]
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
+
+function printViaIframe(html) {
+  const old = document.getElementById('__pif')
+  if (old) old.remove()
+  const f = document.createElement('iframe')
+  f.id = '__pif'
+  f.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none'
+  document.body.appendChild(f)
+  f.contentWindow.document.open()
+  f.contentWindow.document.write(html)
+  f.contentWindow.document.close()
+  setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print() }, 400)
+}
+
 
 export default function Clients() {
   const { user } = useAuth()
@@ -106,34 +103,6 @@ export default function Clients() {
     await supabase.from('clients').update({ solde: n }).eq('id', client.id)
     loadClients()
     if (selected?.id === client.id) setSelected({ ...selected, solde: n })
-  }
-
-
-  function exportClientExcel() {
-    const rows = [
-      ['Date', 'Type', 'Camion', 'Fournisseur', 'Produit', 'Quantité', 'Prix/u', 'Total DHS', 'BON', 'Note'],
-      ...filteredVentes.map(v => [
-        fmtDate(v.date),
-        v.type_entree === 'remise' ? 'Remise' : v.type_entree === 'mdo' ? (v.description_mdo || 'Main oeuvre') : 'Vente',
-        v.camion_plaque || '',
-        v.fournisseur || '',
-        v.type_brique || '',
-        v.type_entree === 'remise' || v.type_entree === 'mdo' ? '' : (v.qte || 0),
-        v.type_entree === 'remise' || v.type_entree === 'mdo' ? '' : (v.prix_vente || 0),
-        v.type_entree === 'remise' ? -(v.montant_mdo || 0) : (v.total_vente || 0),
-        v.bon || '',
-        v.note || '',
-      ]),
-      [],
-      ['Date', 'Mode', 'Camion', 'Montant DHS', 'Note'],
-      ...filteredPaiements.map(p => [fmtDate(p.date), p.mode, p.camion_plaque || '', p.montant || 0, p.note || '']),
-    ]
-    const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `${selected?.nom || 'Client'}-${today()}.csv`
-    a.click()
   }
 
   function editOpeningBalance(client) {
@@ -256,7 +225,7 @@ export default function Clients() {
         </table>
       </div>` : ''
 
-        win.document.write(`<!DOCTYPE html><html lang="fr"><head>
+    printViaIframe(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <title>Fiche Client — ${selected.nom}</title>
 <style>
@@ -368,7 +337,7 @@ export default function Clients() {
   <div class="sum-box">
     <div class="sum-lbl">${carryOver !== null ? 'SOLDE MOIS PRÉCÉDENT' : 'SOLDE REPORTÉ'}</div>
     <div class="sum-val c-solde">${fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</div>
-    ${!carryOver && selected.opening_date ? '<div style="font-size:10px;color:#b45309;margin-top:2px">Solde au '+fmtMois(selected.opening_date)+'</div>' : ''}
+    ${!carryOver && selected.opening_date ? `<div style="font-size:10px;color:#b45309;margin-top:2px">${`Solde au ${fmtMois(selected.opening_date)}`}</div>` : ''}
     ${!carryOver && selected.opening_note ? `<div style="font-size:10px;color:#92400e;font-style:italic">${selected.opening_note}</div>` : ''}
   </div>
   <div class="sum-box">
@@ -459,11 +428,10 @@ ${carryOverBlock}
 
 <div class="doc-footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
 </body></html>`)
-    win.document.close()
   }
 
   // ---- EXPORT CSV ----
-
+  function exportClientExcel() {
     const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
     const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
     const periode = getFilterLabel()
@@ -494,6 +462,30 @@ ${carryOverBlock}
   const totalPaiementsClient = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
 
   const handleBack = () => { setShowDetail(false) }
+
+  function exportClientExcel() {
+    if (!selected) return
+    const header = ['Date','Type','Camion','Fournisseur','Produit','Qte','Prix','Total DHS','BON','Note']
+    const venteRows = filteredVentes.map(v => [
+      fmtDate(v.date),
+      v.type_entree === 'remise' ? 'Remise' : v.type_entree === 'mdo' ? 'Charge' : 'Vente',
+      v.camion_plaque || '', v.fournisseur || '', v.type_brique || '',
+      v.type_entree === 'brique' ? (v.qte || 0) : '',
+      v.type_entree === 'brique' ? (v.prix_vente || 0) : '',
+      v.type_entree === 'remise' ? -(v.montant_mdo || 0) : (v.total_vente || 0),
+      v.bon || '', v.note || ''
+    ])
+    const pHeader = ['Date','Mode','Camion','Montant DHS','Note']
+    const pRows = filteredPaiements.map(p => [fmtDate(p.date), p.mode, p.camion_plaque || '', p.montant || 0, p.note || ''])
+    const all = [header, ...venteRows, [], pHeader, ...pRows]
+    const csv = all.map(r => r.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = (selected.nom || 'Client') + '-' + today() + '.csv'
+    a.click()
+  }
+
 
   return (
     <Layout title="Clients" subtitle="Gestion des clients et suivi des comptes">
@@ -634,10 +626,11 @@ ${carryOverBlock}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex gap-2">
+                    <div style={{display:'flex',gap:'6px'}}>
                     <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
                     <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
                   </div>
+                    <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
                     <button onClick={() => editSolde(selected)} className="btn-secondary text-xs">✎ Solde</button>
                     <button onClick={() => editOpeningBalance(selected)} className="btn-secondary text-xs" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
                     <button onClick={() => deleteClient(selected.id)} className="btn-danger">✕</button>
