@@ -301,7 +301,6 @@ export default function Ventes() {
     const tR = filtered.reduce((s,v)=>s+(v.retour_montant||0),0)
     const tRR = filtered.reduce((s,v)=>s+(v.retour_restant||0),0)
     const hasRetour = filtered.some(v => v.retour_client)
-    const win = window.open('','_blank')
     const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmt(v.retour_montant)}</td><td style="text-align:right">${fmt(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
     printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ventes</title>
     <style>
@@ -723,8 +722,8 @@ export default function Ventes() {
   }
 
   function printFournisseurReport() {
-        win.document.write(buildFournisseurReportHTML())
-    win.document.close()
+        printViaIframe(buildFournisseurReportHTML())
+
   }
 
   async function downloadFournisseurPDF() {
@@ -1287,8 +1286,8 @@ export default function Ventes() {
   }
 
   function printCamionReport() {
-        win.document.write(buildCamionReportHTML())
-    win.document.close()
+        printViaIframe(buildCamionReportHTML())
+
   }
 
   async function downloadCamionPDF() {
@@ -1623,7 +1622,7 @@ export default function Ventes() {
                 <td style="text-align:right"><b>${fmt(v.montant_mdo)} DHS</b></td>
                 <td>${v.note || '—'}</td>
               </tr>`).join('')
-              win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Main d'œuvre</title>
+              printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Main d'œuvre</title>
               <style>
                 * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
                 body { font-family:Arial,sans-serif; padding:28px; font-size:12px; color:#1e293b; background:#fff; }
@@ -1641,7 +1640,7 @@ export default function Ventes() {
               <tbody>${rows}</tbody>
               <tfoot><tr><td colspan="4">TOTAL (${mdoFiltered.length})</td><td style="text-align:right">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
               </table></body></html>`)
-              win.document.close();
+
             }
 
             return (
@@ -1747,7 +1746,7 @@ export default function Ventes() {
                 <td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td>
                 <td style="text-align:right;color:#15803d"><b>− ${fmt(v.montant_mdo)} DHS</b></td>
                 <td>${v.description_mdo||v.note||'—'}</td></tr>`).join('')
-              win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Remises</title>
+              printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Remises</title>
                 <style>* { -webkit-print-color-adjust:exact !important; }
                 body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#1e293b;}
                 table{width:100%;border-collapse:collapse;}
@@ -1768,7 +1767,7 @@ export default function Ventes() {
                   <td></td>
                 </tr></tfoot>` : ''}
                 </table></body></html>`)
-              win.document.close();
+
             }
 
             return (
