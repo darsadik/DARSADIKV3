@@ -5,15 +5,17 @@ import { useAuth } from '../pages/_app'
 
 const SUPER_ADMIN = 'abdelhafidbaadi@gmail.com'
 const nav = [
-  { href: '/',            icon: '📊', label: 'Dashboard' },
-  { href: '/ventes',      icon: '📦', label: 'Ventes' },
-  { href: '/clients',     icon: '👥', label: 'Clients' },
-  { href: '/paiements',   icon: '💰', label: 'Paiements' },
-  { href: '/retours',     icon: '↩️',  label: 'Retours' },
-  { href: '/gasoil',      icon: '⛽', label: 'Gasoil' },
-  { href: '/charges',     icon: '💸', label: 'Charges' },
-  { href: '/grignon', icon: '🫒', label: 'Grignon' },
-  { href: '/parametres',  icon: '⚙️', label: 'Paramètres' },
+  { href: '/',             icon: '📊', label: 'Dashboard' },
+  { href: '/voyages',      icon: '🚛', label: 'Voyages',      highlight: true },
+  { href: '/rentabilite',  icon: '📈', label: 'Rentabilité',  highlight: true },
+  { href: '/ventes',       icon: '📦', label: 'Ventes' },
+  { href: '/clients',      icon: '👥', label: 'Clients' },
+  { href: '/paiements',    icon: '💰', label: 'Paiements' },
+  { href: '/retours',      icon: '↩️',  label: 'Retours' },
+  { href: '/gasoil',       icon: '⛽', label: 'Gasoil' },
+  { href: '/charges',      icon: '💸', label: 'Charges' },
+  { href: '/grignon',      icon: '🫒', label: 'Grignon' },
+  { href: '/parametres',   icon: '⚙️', label: 'Paramètres' },
 ]
 
 
@@ -101,9 +103,10 @@ export default function Layout({ children, title, subtitle }) {
                   return (
                     <Link key={item.href} href={item.href}
                       className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all
-                        ${active ? 'bg-white text-brand-700' : 'text-brand-100 hover:bg-brand-600 hover:text-white'}`}>
+                        ${active ? 'bg-white text-brand-700' : item.highlight ? 'text-amber-300 hover:bg-brand-600 hover:text-amber-100' : 'text-brand-100 hover:bg-brand-600 hover:text-white'}`}>
                       <span className="text-base">{item.icon}</span>
-                      <span>{item.label}</span>
+                      <span className="flex-1">{item.label}</span>
+                      {item.highlight && !active && <span className="text-[8px] bg-amber-400 text-amber-900 font-bold px-1.5 py-0.5 rounded-full">NEW</span>}
                     </Link>
                   )
                 })}
@@ -145,7 +148,7 @@ export default function Layout({ children, title, subtitle }) {
 
         {/* MOBILE BOTTOM NAV */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-lg z-30 flex">
-          {nav.slice(0, 5).map(item => {
+          {nav.filter(i => ["\/","\/voyages","\/rentabilite","\/clients","\/ventes"].includes(i.href)).map(item => {
             const active = router.pathname === item.href
             return (
               <Link key={item.href} href={item.href}
@@ -183,9 +186,10 @@ export default function Layout({ children, title, subtitle }) {
             return (
               <Link key={item.href} href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                  ${active ? 'bg-white text-brand-700' : 'text-brand-100 hover:bg-brand-600 hover:text-white'}`}>
+                  ${active ? 'bg-white text-brand-700' : item.highlight ? 'text-amber-300 hover:bg-brand-600 hover:text-amber-100' : 'text-brand-100 hover:bg-brand-600 hover:text-white'}`}>
                 <span className="text-base flex-shrink-0">{item.icon}</span>
-                {sidebarOpen && <span>{item.label}</span>}
+                {sidebarOpen && <span className="flex-1">{item.label}</span>}
+                {sidebarOpen && item.highlight && !active && <span className="text-[8px] bg-amber-400 text-amber-900 font-bold px-1.5 py-0.5 rounded-full">NEW</span>}
               </Link>
             )
           })}
