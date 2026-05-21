@@ -75,7 +75,7 @@ export default function Voyages() {
       { data: gas },
       { data: chgs },
     ] = await Promise.all([
-      supabase.from('voyage_livraisons').select('voyage_id,total_vente,total_achat,marge').in('voyage_id', ids),
+      supabase.from('voyage_livraisons').select('voyage_id,total_vente,qte,prix_achat').in('voyage_id', ids),
       supabase.from('voyage_retours').select('voyage_id,montant_paye').in('voyage_id', ids),
       supabase.from('voyage_gasoil').select('voyage_id,total').in('voyage_id', ids),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client').in('voyage_id', ids),
@@ -93,7 +93,7 @@ export default function Voyages() {
       const chargesClient    = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
       const revenuBrut       = revenuLivraisons + revenuRetours + chargesClient
 
-      const coutAchat  = myLivs.reduce((s, l) => s + (l.total_achat || 0), 0)
+      const coutAchat  = myLivs.reduce((s, l) => s + ((l.qte||0)*(l.prix_achat||0)), 0)
       const coutGasoil = myGas.reduce((s, g) => s + (g.total || 0), 0)
       const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
       const coutTotal  = coutAchat + coutGasoil + coutCharges
@@ -113,13 +113,7 @@ export default function Voyages() {
     if (!form.camion_id) { setMsg('❌ Sélectionner un camion'); return }
     setSaving(true)
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
-    // Generate reference
-    const year = new Date().getFullYear()
-    const { count } = await supabase.from('voyages').select('*', { count: 'exact', head: true })
-    const ref = `V-${year}-${String((count || 0) + 1).padStart(3, '0')}`
-
     const { data, error } = await supabase.from('voyages').insert({
-      reference: ref,
       date_depart: form.date_depart,
       camion_id: parseInt(form.camion_id),
       camion_plaque: camion?.plaque || '',
