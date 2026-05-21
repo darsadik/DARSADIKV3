@@ -5,575 +5,242 @@ import { useAuth } from './_app'
 import Link from 'next/link'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
+const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const today = () => new Date().toISOString().split('T')[0]
-const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
-
-function KPICard({ label, value, sub, icon, red, green }) {
-  const valColor = red ? 'text-red-500' : green ? 'text-emerald-500' : 'text-slate-800'
-  const border   = red ? 'border-red-100' : green ? 'border-emerald-100' : 'border-slate-100'
-  return (
-    <div className={`bg-white rounded-2xl border ${border} p-4 shadow-sm flex flex-col gap-1`}>
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">{label}</span>
-        <span className="text-base">{icon}</span>
-      </div>
-      <div className={`text-2xl font-black leading-tight ${valColor}`}>{value}</div>
-      {sub && <div className="text-[11px] text-slate-300 mt-0.5">{sub}</div>}
-    </div>
-  )
-}
-
-function Bar({ label, value, max, color, rank }) {
-  const pct = max > 0 ? Math.round(value / max * 100) : 0
-  return (
-    <div className="flex items-center gap-3">
-      {rank !== undefined && <span className="text-[11px] font-bold text-slate-300 w-4 flex-shrink-0">#{rank+1}</span>}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-semibold text-slate-700 truncate">{label}</span>
-          <span className="text-xs font-bold ml-2 tabular-nums" style={{color}}>{fmt(value)} DHS</span>
-        </div>
-        <div className="w-full bg-slate-100 rounded-full h-1.5">
-          <div className="h-1.5 rounded-full" style={{width:pct+'%', background:color}} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MiniChart({ data }) {
-  if (!data || data.length === 0) return (
-    <div className="flex items-center justify-center h-32 text-slate-300 text-xs">Aucune donnée</div>
-  )
-  const max = Math.max(...data.map(d => Math.abs(d.value)), 1)
-  const bw  = Math.max(8, Math.min(28, Math.floor(500 / data.length) - 2))
-  const sw  = data.length * (bw + 2)
-  return (
-    <div className="overflow-x-auto">
-      <svg width={Math.max(sw, 260)} height={120} style={{minWidth:'100%', display:'block'}}>
-        {[0, 0.5, 1].map(p => (
-          <line key={p} x1={0} x2="100%" y1={6+(1-p)*85} y2={6+(1-p)*85} stroke="#f1f5f9" strokeWidth={1}/>
-        ))}
-        {data.map((d, i) => {
-          const h  = Math.max(3, Math.round(Math.abs(d.value)/max*80))
-          const x  = i*(bw+2)+1
-          const ng = d.value < 0
-          return (
-            <g key={i}>
-              <rect x={x} y={ng?91:91-h} width={bw} height={h} rx={2} fill={ng?'#f87171':'#34d399'} opacity={0.9}/>
-              <text x={x+bw/2} y={112} textAnchor="middle" fontSize={6.5} fill="#cbd5e1">{d.label}</text>
-            </g>
-          )
-        })}
-      </svg>
-    </div>
-  )
-}
-
-function Card({ title, action, children, noPad }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-50">
-        <h2 className="font-bold text-slate-700 text-[13px] tracking-tight">{title}</h2>
-        {action}
-      </div>
-      <div className={noPad ? '' : 'p-5'}>{children}</div>
-    </div>
-  )
-}
-
-function Skeleton() {
-  return (
-    <div className="animate-pulse space-y-5">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[...Array(4)].map((_,i)=><div key={i} className="h-24 bg-slate-100 rounded-2xl"/>)}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {[...Array(2)].map((_,i)=><div key={i} className="h-56 bg-slate-100 rounded-2xl"/>)}
-      </div>
-      <div className="h-72 bg-slate-100 rounded-2xl"/>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {[...Array(2)].map((_,i)=><div key={i} className="h-52 bg-slate-100 rounded-2xl"/>)}
-      </div>
-    </div>
-  )
-}
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [allVentes,  setAllVentes]  = useState([])
-  const [allGasoil,  setAllGasoil]  = useState([])
-  const [allClients, setAllClients] = useState([])
-  const [allRetours, setAllRetours] = useState([])
-  const [allVoyages,  setAllVoyages]  = useState([])
-  const [voyLivs,     setVoyLivs]     = useState([])
-  const [voyGas,      setVoyGas]      = useState([])
-  const [voyChgs,     setVoyChgs]     = useState([])
-  const [loading,    setLoading]    = useState(true)
-  const [filterFrom, setFilterFrom] = useState(startOfMonth())
-  const [filterTo,   setFilterTo]   = useState(today())
-  const [quick,      setQuick]      = useState('month')
-  const [chartMode,  setChartMode]  = useState('day')
-  const [fournFilter,setFournFilter]= useState('')
+  const [loading, setLoading] = useState(true)
+
+  // Data
+  const [voyages,    setVoyages]    = useState([])
+  const [livraisons, setLivraisons] = useState([])
+  const [gasoilVoy,  setGasoilVoy]  = useState([])
+  const [chargesVoy, setChargesVoy] = useState([])
+  const [retoursVoy, setRetoursVoy] = useState([])
+  const [clients,    setClients]    = useState([])
+  const [grignonCl,  setGrignonCl]  = useState([])
+  const [gasoilAll,  setGasoilAll]  = useState([])
 
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: v }, { data: g }, { data: c }, { data: rt }, { data: voyData }, { data: vlData }, { data: vgData }, { data: vcData }] = await Promise.all([
-      supabase.from('ventes').select('*').order('date', { ascending: true }),
-      supabase.from('gasoil').select('*').order('date', { ascending: true }),
-      supabase.from('clients').select('*'),
-      supabase.from('retours_transport').select('*').order('date', { ascending: true }),
-      supabase.from('voyages').select('*').order('date_depart', { ascending: false }).limit(5),
-      supabase.from('voyage_livraisons').select('voyage_id,total_vente,qte,prix_achat'),
+    const month = startOfMonth()
+    const [
+      { data: v },
+      { data: li },
+      { data: gv },
+      { data: cv },
+      { data: rv },
+      { data: cl },
+      { data: gc },
+      { data: ga },
+    ] = await Promise.all([
+      supabase.from('voyages').select('*').order('date_depart', { ascending: false }).limit(20),
+      supabase.from('voyage_livraisons').select('voyage_id,total_vente,qte,prix_achat,type_produit,client_id'),
       supabase.from('voyage_gasoil').select('voyage_id,total'),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
+      supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
+      supabase.from('clients').select('id,nom,solde').order('solde', { ascending: false }),
+      supabase.from('grignon_clients').select('id,nom,solde').order('solde', { ascending: false }),
+      supabase.from('gasoil').select('total,date').gte('date', month),
     ])
-    setAllVentes(v || []); setAllGasoil(g || []); setAllClients(c || [])
-    setAllRetours(rt || [])
-    setAllVoyages(voyData || []); setVoyLivs(vlData || []); setVoyGas(vgData || []); setVoyChgs(vcData || [])
+    setVoyages(v || [])
+    setLivraisons(li || [])
+    setGasoilVoy(gv || [])
+    setChargesVoy(cv || [])
+    setRetoursVoy(rv || [])
+    setClients(cl || [])
+    setGrignonCl(gc || [])
+    setGasoilAll(ga || [])
     setLoading(false)
   }
 
-  function applyQuick(q) {
-    setQuick(q)
-    const t = today()
-    if (q==='today') { setFilterFrom(t); setFilterTo(t) }
-    if (q==='week')  { setFilterFrom(startOfWeek()); setFilterTo(t) }
-    if (q==='month') { setFilterFrom(startOfMonth()); setFilterTo(t) }
-    if (q==='all')   { setFilterFrom('2020-01-01'); setFilterTo(t) }
+  // ── Compute profit for a voyage ─────────────────────────────────────────────
+  function voyageProfit(vid) {
+    const li = livraisons.filter(l => l.voyage_id === vid)
+    const ga = gasoilVoy.filter(g => g.voyage_id === vid)
+    const ch = chargesVoy.filter(c => c.voyage_id === vid)
+    const re = retoursVoy.filter(r => r.voyage_id === vid)
+    const revenu = li.reduce((s,l)=>s+(l.total_vente||0),0)
+      + re.reduce((s,r)=>s+(r.montant_paye||0),0)
+      + ch.filter(c=>c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
+    const cout = li.reduce((s,l)=>s+((l.qte||0)*(l.prix_achat||0)),0)
+      + ga.reduce((s,g)=>s+(g.total||0),0)
+      + ch.filter(c=>!c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
+    return { revenu, cout, profit: revenu - cout }
   }
 
-  // ── filtered ────────────────────────────────────────────────
-  const fv = allVentes.filter(v => (!filterFrom || v.date >= filterFrom) && (!filterTo || v.date <= filterTo))
-  const fg = allGasoil.filter(g => (!filterFrom || g.date >= filterFrom) && (!filterTo || g.date <= filterTo))
+  // ── Global KPIs (all voyages loaded = last 20) ──────────────────────────────
+  const allIds   = voyages.map(v => v.id)
+  const totRev   = allIds.reduce((s,id) => s + voyageProfit(id).revenu, 0)
+  const totCout  = allIds.reduce((s,id) => s + voyageProfit(id).cout, 0)
+  const totProfit = totRev - totCout
+  const totGasoil = gasoilAll.reduce((s,g) => s+(g.total||0), 0)
 
-  // ── KPIs ────────────────────────────────────────────────────
-  const totalVentes   = fv.reduce((s,v) => s+(v.total_vente||0), 0)
-  const totalQte      = fv.reduce((s,v) => s+(v.qte||0), 0)
-  const totalMarge    = fv.reduce((s,v) => s+(v.marge||0), 0)
-  const totalCreances = allClients.reduce((s,c) => s+(c.solde||0), 0)
-  const totalGasoilDHS = fg.reduce((s,g) => s+(g.total||0), 0)
-  const totalLitres   = fg.reduce((s,g) => s+(g.qte||0), 0)
+  // ── Client debts ────────────────────────────────────────────────────────────
+  const debtClients  = clients.filter(c => (c.solde||0) > 0).slice(0,5)
+  const debtGrignon  = grignonCl.filter(c => (c.solde||0) > 0).slice(0,3)
+  const totalDebt    = clients.reduce((s,c)=>s+(c.solde||0),0)
+  const totalDebtGr  = grignonCl.reduce((s,c)=>s+(c.solde||0),0)
+  const urgentClients = clients.filter(c => (c.solde||0) >= 100000)
 
-  // ── retours transport ────────────────────────────────────────
-  const fr = allRetours.filter(r => (!filterFrom || r.date >= filterFrom) && (!filterTo || r.date <= filterTo))
-  const totalRetoursMontant = fr.reduce((s,r) => s+(r.montant||0), 0)
-  const totalRetoursPaye    = fr.reduce((s,r) => s+(r.montant_paye||0), 0)
-  const totalRetoursRestant = fr.reduce((s,r) => s+(r.restant||0), 0)
-
-  // ── client orders (period) ───────────────────────────────────
-  const clientOrders = {}
-  fv.forEach(v => {
-    if (!v.client_id) return
-    if (!clientOrders[v.client_id]) clientOrders[v.client_id] = { nom: v.client_nom, qte: 0, total: 0 }
-    clientOrders[v.client_id].qte   += v.qte || 0
-    clientOrders[v.client_id].total += v.total_vente || 0
-  })
-  const clientRows   = Object.values(clientOrders).sort((a,b) => b.total-a.total)
-  const maxClientTot = clientRows[0]?.total || 1
-
-  // ── top 3 all time ──────────────────────────────────────────
-  const allTimePurchases = {}
-  allVentes.forEach(v => {
-    if (!v.client_id) return
-    if (!allTimePurchases[v.client_id]) allTimePurchases[v.client_id] = { nom: v.client_nom, total: 0 }
-    allTimePurchases[v.client_id].total += v.total_vente || 0
-  })
-  const top3    = Object.values(allTimePurchases).sort((a,b) => b.total-a.total).slice(0,3)
-  const maxTop3 = top3[0]?.total || 1
-
-  // ── fournisseur ──────────────────────────────────────────────
-  const uniqueFourns = [...new Set(allVentes.map(v=>v.fournisseur).filter(Boolean))]
-  const fournVentes  = fv.filter(v => !fournFilter || v.fournisseur === fournFilter)
-  const byFournProd  = {}
-  fournVentes.forEach(v => {
-    const f  = v.fournisseur || 'Sans fournisseur'
-    const tb = v.type_brique || 'N/A'
-    if (!byFournProd[f]) byFournProd[f] = {}
-    if (!byFournProd[f][tb]) byFournProd[f][tb] = { qte: 0, achat: 0 }
-    byFournProd[f][tb].qte   += v.qte || 0
-    byFournProd[f][tb].achat += v.total_achat || 0
-  })
-
-  // ── products ─────────────────────────────────────────────────
-  const byType = {}
-  fv.forEach(v => { const k = v.type_brique||'N/A'; byType[k]=(byType[k]||0)+(v.qte||0) })
-  const byTypeSorted = Object.entries(byType).sort((a,b) => b[1]-a[1])
-  const maxTypeQte   = byTypeSorted[0]?.[1] || 1
-
-  // ── chart ────────────────────────────────────────────────────
-  const chartData = (() => {
-    if (chartMode === 'day') {
-      const m = {}
-      fv.forEach(v => { m[v.date]=(m[v.date]||0)+(v.total_vente||0) })
-      return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0])).slice(-30).map(([d,val])=>({label:d.slice(5),value:val}))
-    }
-    const m = {}
-    fv.forEach(v => { const mo=v.date?.slice(0,7)||'?'; m[mo]=(m[mo]||0)+(v.total_vente||0) })
-    return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0])).map(([mo,val])=>({label:mo.slice(2),value:val}))
-  })()
-
-  // ── debt / alerts ────────────────────────────────────────────
-  const highDebt    = [...allClients].filter(c=>(c.solde||0)>0).sort((a,b)=>(b.solde||0)-(a.solde||0)).slice(0,7)
-  const urgentDebt  = allClients.filter(c=>(c.solde||0)>=100000)
+  // ── Recent voyages (last 5) ─────────────────────────────────────────────────
+  const recentVoyages = voyages.slice(0, 5)
 
   return (
     <Layout title="Dashboard" subtitle="Vue d'ensemble">
+      <div className="max-w-5xl mx-auto space-y-4">
 
-      {/* ALERTS */}
-      {urgentDebt.length > 0 && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-5">
-          <span className="text-red-400 text-base flex-shrink-0 mt-0.5">⚠️</span>
-          <div>
-            <div className="text-red-600 font-bold text-sm">{urgentDebt.length} client(s) avec solde ≥ 100 000 DHS</div>
-            <div className="text-red-400 text-xs mt-0.5">{urgentDebt.map(c=>c.nom).join(' · ')}</div>
-          </div>
-        </div>
-      )}
-
-      {/* DATE FILTER */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-3 mb-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Période</span>
-          <div className="flex gap-1.5 flex-wrap">
-            {[['today',"Auj."],['week','Semaine'],['month','Mois'],['all','Tout']].map(([k,l])=>(
-              <button key={k} onClick={()=>applyQuick(k)}
-                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${quick===k?'bg-slate-800 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                {l}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-400">De</span>
-              <input type="date" value={filterFrom} className="input text-xs py-1.5 w-36"
-                onChange={e=>{setFilterFrom(e.target.value);setQuick('custom')}}/>
+        {/* ── URGENT ALERT ── */}
+        {urgentClients.length > 0 && (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+            <span className="text-xl">🔴</span>
+            <div>
+              <div className="font-bold text-red-600 text-sm">{urgentClients.length} client(s) avec solde ≥ 100 000 DHS</div>
+              <div className="text-red-400 text-xs mt-0.5">{urgentClients.map(c=>c.nom).join(' · ')}</div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-400">À</span>
-              <input type="date" value={filterTo} className="input text-xs py-1.5 w-36"
-                onChange={e=>{setFilterTo(e.target.value);setQuick('custom')}}/>
+            <Link href="/clients" className="ml-auto text-xs text-red-500 font-bold hover:underline">Voir →</Link>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-pulse">
+            {[...Array(4)].map((_,i) => <div key={i} className="h-24 bg-slate-100 rounded-2xl"/>)}
+          </div>
+        ) : (
+          <>
+            {/* ── KPI ROW ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Revenu total', value: fmt(totRev)+' DHS', icon: '💰', color: 'text-slate-800', border: 'border-slate-100' },
+                { label: 'Profit net',   value: fmt(totProfit)+' DHS', icon: totProfit>=0?'📈':'📉', color: totProfit>=0?'text-emerald-600':'text-red-500', border: totProfit>=0?'border-emerald-100':'border-red-100' },
+                { label: 'Gasoil mois', value: fmt(totGasoil)+' DHS', icon: '⛽', color: 'text-orange-500', border: 'border-orange-100' },
+                { label: 'Créances',    value: fmt(totalDebt)+' DHS', icon: '📋', color: totalDebt>0?'text-red-500':'text-emerald-600', border: totalDebt>0?'border-red-100':'border-emerald-100' },
+              ].map((k,i) => (
+                <div key={i} className={`bg-white rounded-2xl border ${k.border} shadow-sm p-4`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{k.label}</span>
+                    <span className="text-lg">{k.icon}</span>
+                  </div>
+                  <div className={`text-xl font-black ${k.color}`}>{k.value}</div>
+                </div>
+              ))}
             </div>
-          </div>
-        </div>
-      </div>
 
-      {loading ? <Skeleton /> : (
-        <div className="space-y-4">
+            {/* ── MAIN ROW: Voyages + Debts ── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          {/* ── KPIs ───────────────────────────────────────── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KPICard label="Ventes" value={`${fmt(totalVentes)} DHS`} icon="📦"
-              sub={`${fmt(totalQte)} briques`} green />
-            <KPICard label="Marge brute" value={`${fmt(totalMarge)} DHS`} icon="📈"
-              sub={totalVentes>0?`${Math.round(totalMarge/totalVentes*100)}% du CA`:''} green={totalMarge>0} red={totalMarge<0} />
-            <KPICard label="Gasoil — charge" value={`${fmt(totalGasoilDHS)} DHS`} icon="⛽"
-              sub={`${Math.round(totalLitres)} L consommés`} />
-            <KPICard label="Créances clients" value={`${fmt(totalCreances)} DHS`} icon="📋"
-              sub="Total soldes non payés" red={totalCreances>0} />
-            <KPICard label="Retours transport" value={`${fmt(totalRetoursMontant)} DHS`} icon="🚛"
-              sub={`Encaissé: ${fmt(totalRetoursPaye)} DHS`} green={totalRetoursMontant>0} />
-            <KPICard label="Reste retours" value={`${fmt(totalRetoursRestant)} DHS`} icon="⏳"
-              sub={`${fr.filter(r=>(r.restant||0)>0).length} impayé(s)`} red={totalRetoursRestant>0} />
-          </div>
-
-          {/* ── 1. COMMANDES CLIENTS (période) ─────────────── */}
-          <Card
-            title={`👥 Commandes clients — ${clientRows.length} client(s)`}
-            action={<Link href="/clients" className="text-[11px] text-blue-400 hover:underline">Voir tout →</Link>}
-          >
-            {clientRows.length === 0 ? (
-              <div className="text-center text-slate-300 py-8 text-sm">Aucune commande sur cette période</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      <th className="th text-slate-400">#</th>
-                      <th className="th text-slate-400">Client</th>
-                      <th className="th text-slate-400 text-right">Briques</th>
-                      <th className="th text-slate-400 text-right">Total DHS</th>
-                      <th className="th text-slate-400">Répartition</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientRows.map((c,i) => (
-                      <tr key={c.nom} className="hover:bg-slate-50 transition-colors">
-                        <td className="td text-slate-300 text-xs">{i+1}</td>
-                        <td className="td font-semibold text-slate-800">{c.nom}</td>
-                        <td className="td text-right text-slate-500">{fmt(c.qte)}</td>
-                        <td className="td text-right font-bold text-emerald-600">{fmt(c.total)} DHS</td>
-                        <td className="td" style={{width:140}}>
-                          <div className="bg-slate-100 rounded-full h-1.5">
-                            <div className="h-1.5 rounded-full bg-emerald-400"
-                              style={{width:Math.round(c.total/maxClientTot*100)+'%'}}/>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td className="tfoot-td" colSpan={2}>TOTAL ({clientRows.length})</td>
-                      <td className="tfoot-td text-right">{fmt(totalQte)}</td>
-                      <td className="tfoot-td text-right">{fmt(totalVentes)} DHS</td>
-                      <td className="tfoot-td"></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </Card>
-
-          {/* ── 2. FOURNISSEURS ─────────────────────────────── */}
-          <Card
-            title="🏭 Fournisseurs — briques par produit"
-            action={
-              <select value={fournFilter} onChange={e=>setFournFilter(e.target.value)}
-                className="input text-xs py-1 w-36">
-                <option value="">Tous</option>
-                {uniqueFourns.map(f=><option key={f}>{f}</option>)}
-              </select>
-            }
-          >
-            {Object.keys(byFournProd).length === 0 ? (
-              <div className="text-center text-slate-300 py-8 text-sm">Aucune donnée fournisseur</div>
-            ) : (
-              <div className="space-y-8">
-                {Object.entries(byFournProd).map(([fourn, prods]) => {
-                  const grandQte   = Object.values(prods).reduce((s,d)=>s+d.qte,0)
-                  const grandAchat = Object.values(prods).reduce((s,d)=>s+d.achat,0)
-                  const maxQ       = Math.max(...Object.values(prods).map(d=>d.qte), 1)
-                  const prodsSorted = Object.entries(prods).sort((a,b)=>b[1].qte-a[1].qte)
-                  return (
-                    <div key={fourn}>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="font-bold text-slate-800 text-sm">🏭 {fourn}</span>
-                        <div className="flex gap-4 text-xs text-slate-400">
-                          <span>Total : <b className="text-slate-700">{fmt(grandQte)} briques</b></span>
-                          <span>Achat : <b className="text-amber-600">{fmt(grandAchat)} DHS</b></span>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr>
-                              <th className="th text-slate-400">Produit</th>
-                              <th className="th text-slate-400 text-right">Quantité briques</th>
-                              <th className="th text-slate-400 text-right">Total achat DHS</th>
-                              <th className="th text-slate-400">Part</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {prodsSorted.map(([prod, d]) => (
-                              <tr key={prod} className="hover:bg-slate-50">
-                                <td className="td"><span className="badge-blue">{prod}</span></td>
-                                <td className="td text-right font-bold text-slate-800">{fmt(d.qte)}</td>
-                                <td className="td text-right font-bold text-amber-600">{fmt(d.achat)} DHS</td>
-                                <td className="td" style={{width:120}}>
-                                  <div className="bg-slate-100 rounded-full h-1.5">
-                                    <div className="h-1.5 rounded-full bg-amber-400"
-                                      style={{width:Math.round(d.qte/maxQ*100)+'%'}}/>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr>
-                              <td className="tfoot-td">TOTAL {fourn}</td>
-                              <td className="tfoot-td text-right">{fmt(grandQte)}</td>
-                              <td className="tfoot-td text-right">{fmt(grandAchat)} DHS</td>
-                              <td className="tfoot-td"></td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
+              {/* Recent voyages */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-50">
+                  <span className="font-bold text-slate-700 text-sm">🚛 Voyages récents</span>
+                  <Link href="/voyages" className="text-xs text-blue-500 font-semibold hover:underline">Voir tous →</Link>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {recentVoyages.length === 0 ? (
+                    <div className="text-center py-8 text-slate-300 text-sm">
+                      <Link href="/voyages" className="text-blue-500 font-semibold">Créer un voyage →</Link>
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </Card>
-
-          {/* ── CHART + TOP 3 ───────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card
-              title="📈 Ventes — évolution"
-              action={
-                <div className="flex gap-1">
-                  {[['day','Jour'],['month','Mois']].map(([m,l])=>(
-                    <button key={m} onClick={()=>setChartMode(m)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${chartMode===m?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'}`}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-              }
-            >
-              <MiniChart data={chartData} />
-              <p className="text-[11px] text-slate-300 mt-2 text-center">Vert = ventes · Rouge = 0</p>
-            </Card>
-
-            <Card title="🏆 Top 3 clients — tous temps">
-              <div className="space-y-5">
-                {top3.map((c,i) => (
-                  <div key={c.nom} className="flex items-center gap-3">
-                    <span className="text-lg flex-shrink-0">{i===0?'🥇':i===1?'🥈':'🥉'}</span>
-                    <div className="flex-1 min-w-0">
-                      <Bar label={c.nom} value={c.total} max={maxTop3}
-                        color={i===0?'#f59e0b':i===1?'#94a3b8':'#d97706'} />
-                    </div>
-                  </div>
-                ))}
-                {top3.length===0 && <div className="text-center text-slate-300 py-6 text-sm">Aucune donnée</div>}
-              </div>
-            </Card>
-          </div>
-
-          {/* ── PRODUITS + DETTES ───────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card
-              title="🧱 Types de briques — période"
-              action={byTypeSorted[0] && (
-                <span className="text-[11px] bg-yellow-50 text-yellow-600 border border-yellow-100 px-2 py-0.5 rounded-full font-bold">
-                  ⭐ {byTypeSorted[0][0]}
-                </span>
-              )}
-            >
-              {byTypeSorted.length === 0 ? (
-                <div className="text-center text-slate-300 py-6 text-sm">Aucune donnée</div>
-              ) : (
-                <div className="space-y-4">
-                  {byTypeSorted.map(([type, qte], i) => (
-                    <Bar key={type} rank={i} label={type} value={qte} max={maxTypeQte}
-                      color={i===0?'#3b82f6':i===1?'#93c5fd':'#bfdbfe'} />
-                  ))}
-                  <div className="pt-3 border-t border-slate-50 flex justify-between text-xs text-slate-400">
-                    <span>Total période</span>
-                    <span className="font-bold text-slate-700">{fmt(totalQte)} briques</span>
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            <Card
-              title="💸 Dettes clients"
-              action={<Link href="/clients" className="text-[11px] text-blue-400 hover:underline">Voir tout →</Link>}
-            >
-              {highDebt.length === 0 ? (
-                <div className="flex flex-col items-center py-8 text-slate-300">
-                  <span className="text-3xl mb-2">✅</span>
-                  <span className="text-sm">Aucun solde en attente</span>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {highDebt.map(c => {
-                    const s = c.solde || 0
+                  ) : recentVoyages.map(v => {
+                    const { revenu, profit } = voyageProfit(v.id)
                     return (
-                      <div key={c.id} className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-800">{c.nom}</div>
-                          <div className="text-[11px] text-slate-400">{c.depot||'—'}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-sm font-bold ${s>=100000?'text-red-500':s>=50000?'text-amber-500':'text-slate-600'}`}>
-                            {fmt(s)} DHS
+                      <Link key={v.id} href={`/voyages/${v.id}`}>
+                        <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition cursor-pointer">
+                          <div>
+                            <div className="font-bold text-slate-800 text-sm">{v.reference || `#${v.id}`}</div>
+                            <div className="text-[10px] text-slate-400">{fmtDate(v.date_depart)} · {v.camion_plaque}{v.destination ? ' → '+v.destination : ''}</div>
                           </div>
-                          <span className={`text-[10px] font-bold ${s>=100000?'text-red-400':s>=50000?'text-amber-400':'text-blue-400'}`}>
-                            {s>=100000?'🔴 Urgent':s>=50000?'🟡 Élevé':'🔵 Normal'}
-                          </span>
+                          <div className="text-right">
+                            {revenu > 0 ? (
+                              <>
+                                <div className={`font-black text-sm ${profit>=0?'text-emerald-600':'text-red-500'}`}>
+                                  {profit>=0?'+':''}{fmt(profit)} DHS
+                                </div>
+                                <div className="text-[10px] text-slate-400">Rev: {fmt(revenu)}</div>
+                              </>
+                            ) : (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                v.statut === 'termine' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-500 border-amber-200'
+                              }`}>{v.statut === 'termine' ? 'Terminé' : 'En cours'}</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      </Link>
                     )
                   })}
                 </div>
-              )}
-            </Card>
-          </div>
+              </div>
 
-          {/* ── GASOIL ──────────────────────────────────────── */}
-          <Card
-            title="⛽ Gasoil — charge transport (période)"
-            action={<Link href="/gasoil" className="text-[11px] text-blue-400 hover:underline">Détails →</Link>}
-          >
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-                <div className="text-[11px] text-amber-500 font-bold uppercase tracking-wide mb-1">Coût total</div>
-                <div className="text-2xl font-black text-amber-700">{fmt(totalGasoilDHS)} DHS</div>
-              </div>
-              <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
-                <div className="text-[11px] text-orange-500 font-bold uppercase tracking-wide mb-1">Total litres</div>
-                <div className="text-2xl font-black text-orange-700">{Math.round(totalLitres)} L</div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {(()=>{
-                const byCamion = {}
-                fg.forEach(g => {
-                  const k = g.camion_plaque||'—'
-                  if (!byCamion[k]) byCamion[k]={litres:0,total:0}
-                  byCamion[k].litres += g.qte||0
-                  byCamion[k].total  += g.total||0
-                })
-                const rows = Object.entries(byCamion).sort((a,b)=>b[1].total-a[1].total)
-                if (rows.length===0) return <div className="text-center text-slate-300 py-4 text-sm">Aucune entrée gasoil</div>
-                return rows.map(([plaque,d])=>(
-                  <div key={plaque} className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
-                    <div className="font-semibold text-slate-700 text-sm">🚛 {plaque}</div>
-                    <div className="text-right">
-                      <div className="text-[11px] text-slate-400">{Math.round(d.litres)} L</div>
-                      <div className="font-bold text-amber-600 text-sm">{fmt(d.total)} DHS</div>
+              {/* Client debts */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-50">
+                  <span className="font-bold text-slate-700 text-sm">💸 Créances clients</span>
+                  <Link href="/clients" className="text-xs text-blue-500 font-semibold hover:underline">Gérer →</Link>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {debtClients.length === 0 ? (
+                    <div className="flex flex-col items-center py-8 text-slate-300">
+                      <span className="text-3xl mb-1">✅</span>
+                      <span className="text-sm">Aucune créance</span>
                     </div>
-                  </div>
-                ))
-              })()}
+                  ) : debtClients.map(c => (
+                    <div key={c.id} className="flex items-center justify-between px-4 py-3">
+                      <span className="text-sm font-semibold text-slate-700">{c.nom}</span>
+                      <span className={`font-black text-sm ${(c.solde||0)>=100000?'text-red-500':(c.solde||0)>=50000?'text-amber-500':'text-slate-600'}`}>
+                        {fmt(c.solde)} DHS
+                      </span>
+                    </div>
+                  ))}
+                  {debtClients.length > 0 && (
+                    <div className="flex justify-between px-4 py-2 bg-slate-50">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Total créances briques</span>
+                      <span className="font-black text-sm text-red-500">{fmt(totalDebt)} DHS</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Grignon debts */}
+                {debtGrignon.length > 0 && (
+                  <>
+                    <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">🫒 Créances grignon</span>
+                      <span className="font-black text-sm text-orange-500">{fmt(totalDebtGr)} DHS</span>
+                    </div>
+                    {debtGrignon.map(c => (
+                      <div key={c.id} className="flex items-center justify-between px-4 py-2 border-t border-slate-50">
+                        <span className="text-xs font-semibold text-slate-600">{c.nom}</span>
+                        <span className="font-bold text-xs text-orange-500">{fmt(c.solde)} DHS</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
             </div>
-          </Card>
 
-          {/* ── VOYAGES RÉCENTS ── */}
-          <Card title="🚛 Voyages récents" action={<a href="/voyages" className="text-xs text-blue-500 font-semibold hover:underline">Voir tous →</a>}>
-            {allVoyages.length === 0 ? (
-              <div className="text-center py-4 text-slate-400 text-xs">
-                <a href="/voyages" className="text-blue-500 font-semibold hover:underline">Créer votre premier voyage →</a>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {allVoyages.map(v => {
-                  const myLivs = voyLivs.filter(l => l.voyage_id === v.id)
-                  const myGas  = voyGas.filter(g => g.voyage_id === v.id)
-                  const myChgs = voyChgs.filter(c => c.voyage_id === v.id)
-                  const revenu = myLivs.reduce((s,l)=>s+(l.total_vente||0),0)
-                  const cout   = myLivs.reduce((s,l)=>s+((l.qte||0)*(l.prix_achat||0)),0) + myGas.reduce((s,g)=>s+(g.total||0),0) + myChgs.filter(c=>!c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
-                  const profit = revenu - cout
-                  return (
-                    <a key={v.id} href={`/voyages/${v.id}`} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition border border-slate-50">
-                      <div>
-                        <div className="font-bold text-slate-800 text-sm">{v.reference || `Voyage #${v.id}`}</div>
-                        <div className="text-[10px] text-slate-400">{v.date_depart ? v.date_depart.split('-').reverse().join('/') : '—'} • {v.camion_plaque}</div>
-                      </div>
-                      <div className="text-right">
-                        {revenu > 0 ? (
-                          <>
-                            <div className={`font-black text-sm ${profit>=0?'text-emerald-600':'text-red-500'}`}>{profit>=0?'+':''}{fmt(profit)} DHS</div>
-                            <div className="text-[10px] text-slate-400">Rev: {fmt(revenu)}</div>
-                          </>
-                        ) : (
-                          <span className="text-[10px] text-slate-300">En cours</span>
-                        )}
-                      </div>
-                    </a>
-                  )
-                })}
-              </div>
-            )}
-          </Card>
-
-        </div>
-      )}
+            {/* ── QUICK LINKS ── */}
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+              {[
+                { href: '/voyages',     icon: '🚛', label: 'Voyages' },
+                { href: '/clients',     icon: '👥', label: 'Clients' },
+                { href: '/paiements',   icon: '💰', label: 'Paiements' },
+                { href: '/grignon',     icon: '🫒', label: 'Grignon' },
+                { href: '/gasoil',      icon: '⛽', label: 'Gasoil' },
+                { href: '/rentabilite', icon: '📈', label: 'Rentabilité' },
+              ].map(l => (
+                <Link key={l.href} href={l.href}>
+                  <div className="bg-white border border-slate-100 rounded-2xl p-3 text-center hover:border-blue-200 hover:shadow-sm transition cursor-pointer">
+                    <div className="text-2xl mb-1">{l.icon}</div>
+                    <div className="text-[10px] font-bold text-slate-600">{l.label}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </Layout>
   )
 }
