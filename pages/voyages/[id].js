@@ -70,6 +70,7 @@ export default function VoyageDetail() {
   const [clients,   setClients]   = useState([])
   const [fournisseurs, setFournisseurs] = useState([])
   const [grignonFournisseurs, setGrignonFournisseurs] = useState([])
+  const [grignonClients, setGrignonClients] = useState([])
   const [typeBriques, setTypeBriques] = useState([])
   const [loading,   setLoading]   = useState(true)
 
@@ -91,7 +92,14 @@ export default function VoyageDetail() {
   const [livForm,   setLivForm]   = useState({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', note: '' })
   const [retForm,   setRetForm]   = useState({ date_retour: today(), client_nom: '', destination: '', montant: '', montant_paye: '', note: '' })
   const [gasForm,   setGasForm]   = useState({ date_gasoil: today(), station: 'HMIDA ZAIO — Station Petrom', qte_litres: '', prix_unitaire: '12.40', note: '' })
-  const [chgForm,   setChgForm]   = useState({ date_charge: today(), categorie: 'ouvriers', description: '', montant: '', facture_client: false, client_id: '', note: '' })
+  // Charges: grid state — one row per category all visible at once
+  const emptyChgGrid = () => Object.fromEntries(
+    ['ouvriers','chauffeur','autoroute','gendarmerie','controle','nourriture','reparation','chargement','autres']
+    .map(k => [k, ''])
+  )
+  const [chgDate,      setChgDate]      = useState(today())
+  const [chgGrid,      setChgGrid]      = useState(emptyChgGrid())
+  const [chgFactureMap,setChgFactureMap]= useState({}) // key -> client_id if billed
 
   const [savingAchat,  setSavingAchat]  = useState(false)
   const [savingLiv,    setSavingLiv]    = useState(false)
@@ -111,6 +119,7 @@ export default function VoyageDetail() {
       { data: fo },
       { data: gf },
       { data: ty },
+      { data: gc },
       { data: ac },
       { data: li },
       { data: re },
@@ -122,6 +131,7 @@ export default function VoyageDetail() {
       supabase.from('clients').select('*').order('nom'),
       supabase.from('fournisseurs').select('*').order('nom'),
       supabase.from('grignon_fournisseurs').select('*').order('nom'),
+      supabase.from('grignon_clients').select('*').order('nom'),
       supabase.from('type_briques').select('*').order('nom'),
       supabase.from('voyage_achats').select('*').eq('voyage_id', id).order('created_at'),
       supabase.from('voyage_livraisons').select('*').eq('voyage_id', id).order('created_at'),
@@ -134,6 +144,7 @@ export default function VoyageDetail() {
     setClients(cl || [])
     setFournisseurs(fo || [])
     setGrignonFournisseurs(gf || [])
+    setGrignonClients(gc || [])
     setTypeBriques(ty || [])
     setAchats(ac || [])
     setLivraisons(li || [])
@@ -213,7 +224,9 @@ export default function VoyageDetail() {
     const total_vente = Math.round(qte * prix_vente * 100) / 100
     const total_achat = Math.round(qte * prix_achat * 100) / 100
     const marge       = Math.round((total_vente - total_achat) * 100) / 100
-    const cl  = clients.find(c => c.id === parseInt(livForm.client_id))
+    const cl  = livForm.type_produit === 'grignon'
+      ? grignonClients.find(c => c.id === parseInt(livForm.client_id))
+      : clients.find(c => c.id === parseInt(livForm.client_id))
     const ty  = typeBriques.find(t => t.id === parseInt(livForm.type_brique_id))
 
     // Save to voyage_livraisons
@@ -267,8 +280,8 @@ export default function VoyageDetail() {
         total_vente, total_achat, marge,
         voyage_id:      parseInt(id),
       })
-      // Update grignon client solde
-      if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) + total_vente }).eq('id', cl.id)
+      // Update grignon_clients solde (separate from brique clients)
+      if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) + total_vente }).eq('id', cl.id)
     }
 
     setSavingLiv(false)
@@ -354,45 +367,52 @@ export default function VoyageDetail() {
     loadVoyage()
   }
 
-  // ── SAVE CHARGE ────────────────────────────────────────────────────────────
-  async function saveCharge(e) {
+  // ── SAVE CHARGES GRID ─────────────────────────────────────────────────────
+  async function saveChargeGrid(e) {
     e.preventDefault()
-    if (!chgForm.montant) { showMsg('❌ Montant requis'); return }
+    // Collect only categories with a non-zero amount
+    const rows = CHARGE_CATS.filter(cat => parseFloat(chgGrid[cat.key]) > 0)
+    if (rows.length === 0) { showMsg('❌ Entrez au moins un montant'); return }
     setSavingChg(true)
-    const montant = parseFloat(chgForm.montant) || 0
-    const cl = clients.find(c => c.id === parseInt(chgForm.client_id))
 
-    await supabase.from('voyage_charges').insert({
-      voyage_id:     parseInt(id),
-      date_charge:   chgForm.date_charge,
-      categorie:     chgForm.categorie,
-      description:   chgForm.description || null,
-      montant,
-      facture_client: chgForm.facture_client,
-      client_id:     chgForm.facture_client && chgForm.client_id ? parseInt(chgForm.client_id) : null,
-      client_nom:    chgForm.facture_client ? (cl?.nom || '') : null,
-      note: chgForm.note || null,
-    })
+    for (const cat of rows) {
+      const montant = parseFloat(chgGrid[cat.key]) || 0
+      const clientId = chgFactureMap[cat.key] || null
+      const cl = clientId ? clients.find(c => c.id === parseInt(clientId)) : null
 
-    // If billed to client, also add MDO entry to ventes
-    if (chgForm.facture_client && chgForm.client_id && cl) {
-      await supabase.from('ventes').insert({
-        date: chgForm.date_charge,
-        client_id: parseInt(chgForm.client_id),
-        client_nom: cl.nom,
-        camion_id: voyage?.camion_id || null,
-        camion_plaque: voyage?.camion_plaque || '',
-        type_entree: 'mdo',
-        montant_mdo: montant,
-        description_mdo: chgForm.description || chgForm.categorie,
-        voyage_id: parseInt(id),
+      await supabase.from('voyage_charges').insert({
+        voyage_id:      parseInt(id),
+        date_charge:    chgDate,
+        categorie:      cat.key,
+        description:    cat.label,
+        montant,
+        facture_client: !!cl,
+        client_id:      cl ? parseInt(clientId) : null,
+        client_nom:     cl?.nom || null,
       })
-      await supabase.from('clients').update({ solde: (cl.solde || 0) + montant }).eq('id', cl.id)
+
+      // If billed to client → add MDO to ventes + update client solde
+      if (cl) {
+        await supabase.from('ventes').insert({
+          date:            chgDate,
+          client_id:       parseInt(clientId),
+          client_nom:      cl.nom,
+          camion_id:       voyage?.camion_id || null,
+          camion_plaque:   voyage?.camion_plaque || '',
+          type_entree:     'mdo',
+          montant_mdo:     montant,
+          description_mdo: cat.label,
+          voyage_id:       parseInt(id),
+        })
+        await supabase.from('clients').update({ solde: (cl.solde || 0) + montant }).eq('id', cl.id)
+      }
     }
 
     setSavingChg(false)
     setShowCharge(false)
-    setChgForm({ date_charge: today(), categorie: 'ouvriers', description: '', montant: '', facture_client: false, client_id: '', note: '' })
+    setChgGrid(emptyChgGrid())
+    setChgFactureMap({})
+    setChgDate(today())
     loadVoyage()
   }
 
@@ -406,9 +426,12 @@ export default function VoyageDetail() {
     await supabase.from('voyage_livraisons').delete().eq('id', row.id)
     // Remove linked vente + reverse client solde
     if (row.vente_id) {
-      const cl = clients.find(c => c.id === row.client_id)
+      const cl = row.type_produit === 'grignon'
+        ? grignonClients.find(c => c.id === row.client_id)
+        : clients.find(c => c.id === row.client_id)
       await supabase.from('ventes').delete().eq('id', row.vente_id)
-      if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) - (row.total_vente || 0) }).eq('id', cl.id)
+      const soldeTable = row.type_produit === 'grignon' ? 'grignon_clients' : 'clients'
+      if (cl) await supabase.from(soldeTable).update({ solde: (cl.solde || 0) - (row.total_vente || 0) }).eq('id', cl.id)
     }
     loadVoyage()
   }
@@ -680,7 +703,7 @@ export default function VoyageDetail() {
                 <select value={livForm.client_id} onChange={e => setLivForm({...livForm, client_id: e.target.value})}
                   className="input w-full text-sm" required>
                   <option value="">— Sélectionner —</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                  {(livForm.type_produit === 'grignon' ? grignonClients : clients).map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
               {livForm.type_produit === 'brique' && (
@@ -958,57 +981,83 @@ export default function VoyageDetail() {
           action={
             <button onClick={() => setShowCharge(v => !v)}
               className="text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-red-600 transition">
-              {showCharge ? 'Fermer' : '+ Ajouter charge'}
+              {showCharge ? 'Fermer' : '+ Saisir charges'}
             </button>
           }>
 
           {showCharge && (
-            <form onSubmit={saveCharge} className="bg-white border border-red-100 rounded-xl p-4 mb-4 grid grid-cols-2 md:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>
-                <input type="date" value={chgForm.date_charge} onChange={e => setChgForm({...chgForm, date_charge: e.target.value})}
-                  className="input w-full text-sm" />
+            <form onSubmit={saveChargeGrid} className="bg-white border border-red-100 rounded-xl p-4 mb-4">
+              {/* Date row */}
+              <div className="flex items-center gap-3 mb-4">
+                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Date</label>
+                <input type="date" value={chgDate} onChange={e => setChgDate(e.target.value)}
+                  className="input text-sm" />
+                <span className="text-[10px] text-slate-400 ml-2">Saisissez les montants des charges présentes sur ce voyage. Laissez vide si absent.</span>
               </div>
-              <div>
-                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Catégorie</label>
-                <select value={chgForm.categorie} onChange={e => setChgForm({...chgForm, categorie: e.target.value})}
-                  className="input w-full text-sm">
-                  {CHARGE_CATS.map(c => <option key={c.key} value={c.key}>{c.icon} {c.label}</option>)}
-                </select>
+              {/* Grid: all categories at once */}
+              <div className="space-y-2">
+                {CHARGE_CATS.map(cat => (
+                  <div key={cat.key} className="grid grid-cols-12 gap-2 items-center py-2 border-b border-slate-50">
+                    {/* Category label */}
+                    <div className="col-span-3 flex items-center gap-2">
+                      <span className="text-base">{cat.icon}</span>
+                      <span className="text-xs font-semibold text-slate-700">{cat.label}</span>
+                    </div>
+                    {/* Amount input */}
+                    <div className="col-span-3">
+                      <input
+                        type="number"
+                        value={chgGrid[cat.key]}
+                        onChange={e => setChgGrid(g => ({...g, [cat.key]: e.target.value}))}
+                        className={`input w-full text-sm text-right ${parseFloat(chgGrid[cat.key]) > 0 ? 'border-red-300 bg-red-50 font-bold' : ''}`}
+                        placeholder="0"
+                      />
+                    </div>
+                    {/* DHS label */}
+                    <div className="col-span-1 text-[10px] text-slate-400 font-semibold">DHS</div>
+                    {/* Facturé client toggle + selector */}
+                    <div className="col-span-5 flex items-center gap-2">
+                      {parseFloat(chgGrid[cat.key]) > 0 && (
+                        <>
+                          <input
+                            type="checkbox"
+                            id={`fc_${cat.key}`}
+                            checked={!!chgFactureMap[cat.key]}
+                            onChange={e => setChgFactureMap(m => ({...m, [cat.key]: e.target.checked ? '' : undefined}))}
+                            className="rounded flex-shrink-0"
+                          />
+                          <label htmlFor={`fc_${cat.key}`} className="text-[10px] text-slate-500 cursor-pointer whitespace-nowrap">Facturé client</label>
+                          {chgFactureMap[cat.key] !== undefined && (
+                            <select
+                              value={chgFactureMap[cat.key] || ''}
+                              onChange={e => setChgFactureMap(m => ({...m, [cat.key]: e.target.value}))}
+                              className="input text-xs flex-1">
+                              <option value="">— Client —</option>
+                              {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                            </select>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant *</label>
-                <input type="number" value={chgForm.montant} onChange={e => setChgForm({...chgForm, montant: e.target.value})}
-                  className="input w-full text-sm" placeholder="800" required />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Description</label>
-                <input type="text" value={chgForm.description} onChange={e => setChgForm({...chgForm, description: e.target.value})}
-                  className="input w-full text-sm" placeholder="Ex: 3 ouvriers chargement..." />
-              </div>
-              <div className="flex items-center gap-2 pt-5">
-                <input type="checkbox" id="facture_client" checked={chgForm.facture_client}
-                  onChange={e => setChgForm({...chgForm, facture_client: e.target.checked, client_id: ''})}
-                  className="rounded" />
-                <label htmlFor="facture_client" className="text-xs font-semibold text-slate-600 cursor-pointer">
-                  Facturé au client ?
-                </label>
-              </div>
-              {chgForm.facture_client && (
-                <div>
-                  <label className="text-[10px] font-semibold text-slate-500 block mb-1">Client concerné</label>
-                  <select value={chgForm.client_id} onChange={e => setChgForm({...chgForm, client_id: e.target.value})}
-                    className="input w-full text-sm">
-                    <option value="">— Sélectionner —</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                  </select>
+              {/* Total + submit */}
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                <div className="text-sm font-bold text-slate-700">
+                  Total: <span className="text-red-600">{fmt(CHARGE_CATS.reduce((s,c) => s + (parseFloat(chgGrid[c.key])||0), 0))} DHS</span>
+                  <span className="text-[10px] text-slate-400 ml-2">
+                    ({CHARGE_CATS.filter(c => parseFloat(chgGrid[c.key]) > 0).length} catégorie(s))
+                  </span>
                 </div>
-              )}
-              <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1">
-                <button type="button" onClick={() => setShowCharge(false)} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
-                <button type="submit" disabled={savingChg} className="text-xs bg-red-500 text-white px-4 py-1.5 rounded-lg font-semibold">
-                  {savingChg ? '...' : '✅ Enregistrer'}
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { setShowCharge(false); setChgGrid(emptyChgGrid()); setChgFactureMap({}) }}
+                    className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
+                  <button type="submit" disabled={savingChg}
+                    className="text-xs bg-red-500 text-white px-5 py-1.5 rounded-lg font-bold hover:bg-red-600 transition">
+                    {savingChg ? '...' : '✅ Enregistrer les charges'}
+                  </button>
+                </div>
               </div>
             </form>
           )}
