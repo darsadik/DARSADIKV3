@@ -106,6 +106,10 @@ export default function Dashboard() {
   const [allGasoil,  setAllGasoil]  = useState([])
   const [allClients, setAllClients] = useState([])
   const [allRetours, setAllRetours] = useState([])
+  const [allVoyages,  setAllVoyages]  = useState([])
+  const [voyLivs,     setVoyLivs]     = useState([])
+  const [voyGas,      setVoyGas]      = useState([])
+  const [voyChgs,     setVoyChgs]     = useState([])
   const [loading,    setLoading]    = useState(true)
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo,   setFilterTo]   = useState(today())
@@ -117,14 +121,20 @@ export default function Dashboard() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: v }, { data: g }, { data: c }, { data: rt }] = await Promise.all([
+    const [{ data: v }, { data: g }, { data: c }, { data: rt }, { data: voyData }, { data: vlData }, { data: vgData }, { data: vcData }] = await Promise.all([
       supabase.from('ventes').select('*').order('date', { ascending: true }),
       supabase.from('gasoil').select('*').order('date', { ascending: true }),
       supabase.from('clients').select('*'),
       supabase.from('retours_transport').select('*').order('date', { ascending: true }),
+      supabase.from('voyages').select('*').order('date_depart', { ascending: false }).limit(5),
+      supabase.from('voyage_livraisons').select('voyage_id,total_vente,total_achat'),
+      supabase.from('voyage_gasoil').select('voyage_id,total'),
+      supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
     ])
     setAllVentes(v || []); setAllGasoil(g || []); setAllClients(c || [])
     setAllRetours(rt || [])
+    setAllVoyages(voyData || []); setVoyLivs(vlData || []); setVoyGas(vgData || []); setVoyChgs(vcData || [])
+    setAllVoyages(voy || []); setVoyLivs(vl || []); setVoyGas(vg || []); setVoyChgs(vc || [])
     setLoading(false)
   }
 
@@ -523,6 +533,44 @@ export default function Dashboard() {
                 ))
               })()}
             </div>
+          </Card>
+
+          {/* ── VOYAGES RÉCENTS ── */}
+          <Card title="🚛 Voyages récents" action={<a href="/voyages" className="text-xs text-blue-500 font-semibold hover:underline">Voir tous →</a>}>
+            {allVoyages.length === 0 ? (
+              <div className="text-center py-4 text-slate-400 text-xs">
+                <a href="/voyages" className="text-blue-500 font-semibold hover:underline">Créer votre premier voyage →</a>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {allVoyages.map(v => {
+                  const myLivs = voyLivs.filter(l => l.voyage_id === v.id)
+                  const myGas  = voyGas.filter(g => g.voyage_id === v.id)
+                  const myChgs = voyChgs.filter(c => c.voyage_id === v.id)
+                  const revenu = myLivs.reduce((s,l)=>s+(l.total_vente||0),0)
+                  const cout   = myLivs.reduce((s,l)=>s+(l.total_achat||0),0) + myGas.reduce((s,g)=>s+(g.total||0),0) + myChgs.filter(c=>!c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
+                  const profit = revenu - cout
+                  return (
+                    <a key={v.id} href={`/voyages/${v.id}`} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition border border-slate-50">
+                      <div>
+                        <div className="font-bold text-slate-800 text-sm">{v.reference || `Voyage #${v.id}`}</div>
+                        <div className="text-[10px] text-slate-400">{v.date_depart ? v.date_depart.split('-').reverse().join('/') : '—'} • {v.camion_plaque}</div>
+                      </div>
+                      <div className="text-right">
+                        {revenu > 0 ? (
+                          <>
+                            <div className={`font-black text-sm ${profit>=0?'text-emerald-600':'text-red-500'}`}>{profit>=0?'+':''}{fmt(profit)} DHS</div>
+                            <div className="text-[10px] text-slate-400">Rev: {fmt(revenu)}</div>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-300">En cours</span>
+                        )}
+                      </div>
+                    </a>
+                  )
+                })}
+              </div>
+            )}
           </Card>
 
         </div>
