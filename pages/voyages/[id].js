@@ -255,16 +255,20 @@ export default function VoyageDetail() {
     // Also save to grignon_operations (for grignon accounting)
     if (livForm.type_produit === 'grignon') {
       await supabase.from('grignon_operations').insert({
-        date:          livForm.date_livraison,
-        client_id:     parseInt(livForm.client_id),
-        client_nom:    cl?.nom || '',
-        camion_id:     voyage?.camion_id || null,
-        camion_plaque: voyage?.camion_plaque || '',
-        chauffeur:     voyage?.chauffeur || '',
+        date:           livForm.date_livraison,
+        client_id:      parseInt(livForm.client_id),
+        client_nom:     cl?.nom || '',
+        camion_id:      voyage?.camion_id || null,
+        camion_plaque:  voyage?.camion_plaque || '',
+        chauffeur:      voyage?.chauffeur || '',
+        fournisseur_id:  null,
+        fournisseur_nom: '',
         qte, prix_vente, prix_achat,
         total_vente, total_achat, marge,
-        voyage_id:     parseInt(id),
+        voyage_id:      parseInt(id),
       })
+      // Update grignon client solde
+      if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) + total_vente }).eq('id', cl.id)
     }
 
     setSavingLiv(false)
@@ -287,7 +291,6 @@ export default function VoyageDetail() {
       voyage_id:    parseInt(id),
       date_retour:  retForm.date_retour,
       client_nom:   retForm.client_nom.trim(),
-      destination:  retForm.destination || null,
       montant, montant_paye,
       note: retForm.note || null,
     })
@@ -762,7 +765,7 @@ export default function VoyageDetail() {
                   <tr className="bg-slate-50 font-bold">
                     <td colSpan={4} className="py-2 pr-3 text-right text-[10px] uppercase text-slate-700">Total livraisons</td>
                     <td></td>
-                    <td className="py-2 pr-3 text-right text-emerald-600">{fmt(totalRevenuLivraisons)} DHS</td>
+                    <td className="py-2 pr-3 text-right text-emerald-600">{fmt(totalRevenuLivs)} DHS</td>
                     <td className="py-2 pr-3 text-right text-blue-600">{fmt(livraisons.reduce((s,l)=>s+((l.total_vente||0)-(l.prix_achat||0)*(l.qte||0)),0))} DHS</td>
                     <td></td>
                   </tr>
