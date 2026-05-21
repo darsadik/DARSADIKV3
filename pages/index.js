@@ -127,14 +127,13 @@ export default function Dashboard() {
       supabase.from('clients').select('*'),
       supabase.from('retours_transport').select('*').order('date', { ascending: true }),
       supabase.from('voyages').select('*').order('date_depart', { ascending: false }).limit(5),
-      supabase.from('voyage_livraisons').select('voyage_id,total_vente,total_achat'),
+      supabase.from('voyage_livraisons').select('voyage_id,total_vente,qte,prix_achat'),
       supabase.from('voyage_gasoil').select('voyage_id,total'),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
     ])
     setAllVentes(v || []); setAllGasoil(g || []); setAllClients(c || [])
     setAllRetours(rt || [])
     setAllVoyages(voyData || []); setVoyLivs(vlData || []); setVoyGas(vgData || []); setVoyChgs(vcData || [])
-    setAllVoyages(voy || []); setVoyLivs(vl || []); setVoyGas(vg || []); setVoyChgs(vc || [])
     setLoading(false)
   }
 
@@ -548,7 +547,7 @@ export default function Dashboard() {
                   const myGas  = voyGas.filter(g => g.voyage_id === v.id)
                   const myChgs = voyChgs.filter(c => c.voyage_id === v.id)
                   const revenu = myLivs.reduce((s,l)=>s+(l.total_vente||0),0)
-                  const cout   = myLivs.reduce((s,l)=>s+(l.total_achat||0),0) + myGas.reduce((s,g)=>s+(g.total||0),0) + myChgs.filter(c=>!c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
+                  const cout   = myLivs.reduce((s,l)=>s+((l.qte||0)*(l.prix_achat||0)),0) + myGas.reduce((s,g)=>s+(g.total||0),0) + myChgs.filter(c=>!c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
                   const profit = revenu - cout
                   return (
                     <a key={v.id} href={`/voyages/${v.id}`} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition border border-slate-50">
