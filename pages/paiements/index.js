@@ -81,6 +81,8 @@ export default function Paiements() {
   const [showFilters, setShowFilters] = useState(false)
   const [showGrignonForm, setShowGrignonForm] = useState(false)
   const [activeTab, setActiveTab] = useState('all') // 'all' | 'cheques' | 'fournisseurs' | 'grignon'
+  const [verifiedPmt, setVerifiedPmt] = useState(new Set())
+  const toggleVerifyPmt = id => setVerifiedPmt(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   // ── GRIGNON FORM ──
   const emptyGrignonForm = () => ({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '' })
@@ -603,10 +605,12 @@ ${filtered.map(p => {
                 {grignonPaiements.filter(p => (!filterFrom || p.date >= filterFrom) && (!filterTo || p.date <= filterTo))
                   .sort((a,b) => b.date.localeCompare(a.date))
                   .map(p => (
-                  <div key={p.id} className="mobile-row-card">
+                  <div key={p.id} className="mobile-row-card"
+                    onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyPmt(p.id) }}
+                    style={{cursor:'pointer', ...(verifiedPmt.has(p.id) ? {background:'#dcfce7', borderLeft:'3px solid #16a34a'} : {})}}>
                     <div className="card-header">
                       <div>
-                        <div className="card-title">{p.client_nom}</div>
+                        <div className="card-title">{p.client_nom}{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginLeft:6,fontSize:14}}>✓</span>}</div>
                         <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(p.date)}</div>
                       </div>
                       <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
@@ -627,10 +631,13 @@ ${filtered.map(p => {
           loading ? <div className="text-center text-gray-400 py-10">Chargement...</div> : (
             <div className="mobile-card-list">
               {filtered.map(p => (
-                <div key={p.id} className={`mobile-row-card ${p.cheque_status==='rejected'?'border-l-4 border-red-400':''}`}>
+                <div key={p.id}
+                className={`mobile-row-card ${!verifiedPmt.has(p.id) && p.cheque_status==='rejected'?'border-l-4 border-red-400':''}`}
+                onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyPmt(p.id) }}
+                style={{cursor:'pointer', ...(verifiedPmt.has(p.id) ? {background:'#dcfce7', borderLeft:'3px solid #16a34a'} : {})}}>
                   <div className="card-header">
                     <div>
-                      <div className="card-title">{p.client_nom}</div>
+                      <div className="card-title">{p.client_nom}{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginLeft:6,fontSize:14}}>✓</span>}</div>
                       <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(p.date)}</div>
                     </div>
                     <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
@@ -831,8 +838,10 @@ ${filtered.map(p => {
                           .filter(p => (!filterFrom||p.date>=filterFrom)&&(!filterTo||p.date<=filterTo))
                           .sort((a,b) => b.date.localeCompare(a.date))
                           .map(p => (
-                          <tr key={p.id} className="hover:bg-gray-50">
-                            <td className="td text-gray-500">{fmtDate(p.date)}</td>
+                          <tr key={p.id} className="hover:bg-gray-50"
+                            onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyPmt(p.id) }}
+                            style={{cursor:'pointer', ...(verifiedPmt.has(p.id) ? {background:'#dcfce7', boxShadow:'inset 3px 0 0 #16a34a'} : {})}}>
+                            <td className="td text-gray-500">{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginRight:4}}>✓</span>}{fmtDate(p.date)}</td>
                             <td className="td font-semibold">{p.client_nom}</td>
                             <td className="td"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span></td>
                             <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
@@ -863,8 +872,11 @@ ${filtered.map(p => {
                     </tr></thead>
                     <tbody>
                       {filtered.map(p => (
-                        <tr key={p.id} className={`hover:bg-gray-50 ${p.cheque_status==='rejected'?'bg-red-50':''}`}>
-                          <td className="td text-gray-500">{fmtDate(p.date)}</td>
+                        <tr key={p.id}
+                          className={`hover:bg-gray-50 ${!verifiedPmt.has(p.id) && p.cheque_status==='rejected'?'bg-red-50':''}`}
+                          onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyPmt(p.id) }}
+                          style={{cursor:'pointer', ...(verifiedPmt.has(p.id) ? {background:'#dcfce7', boxShadow:'inset 3px 0 0 #16a34a'} : {})}}>
+                          <td className="td text-gray-500">{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginRight:4}}>✓</span>}{fmtDate(p.date)}</td>
                           <td className="td font-semibold">{p.client_nom}</td>
                           <td className="td">
                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span>

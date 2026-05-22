@@ -77,6 +77,8 @@ export default function Ventes() {
   const [showFilters, setShowFilters] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [fournTab, setFournTab] = useState('produit')
+  const [verifiedVentes, setVerifiedVentes] = useState(new Set())
+  const toggleVerifyVente = id => setVerifiedVentes(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   useEffect(() => { loadAll() }, [])
 
@@ -432,12 +434,19 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
   function VenteCard({ v }) {
     const isMdo    = v.type_entree === 'mdo'
     const isRemise = v.type_entree === 'remise'
+    const isVerified = verifiedVentes.has(v.id)
     return (
       <div className="mobile-row-card"
-        style={isMdo ? {borderLeft:'3px solid #f59e0b'} : isRemise ? {borderLeft:'3px solid #22c55e'} : {}}>
+        onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyVente(v.id) }}
+        style={{
+          cursor: 'pointer',
+          ...(isVerified ? {background:'#dcfce7', borderLeft:'3px solid #16a34a'}
+            : isMdo ? {borderLeft:'3px solid #f59e0b'}
+            : isRemise ? {borderLeft:'3px solid #22c55e'} : {})
+        }}>
         <div className="card-header">
           <div>
-            <div className="card-title">{v.client_nom}</div>
+            <div className="card-title">{v.client_nom}{isVerified && <span style={{color:'#16a34a',fontWeight:900,marginLeft:6,fontSize:14}}>✓</span>}</div>
             <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(v.date)}</div>
           </div>
           <div className="card-amount" style={isRemise ? {color:'#15803d'} : {}}>
@@ -539,8 +548,9 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
               <tbody>
                 {filtered.map(v => (
                   <tr key={v.id} className="hover:bg-gray-50"
-                    style={v.type_entree==='mdo' ? {background:'#fefce8'} : v.type_entree==='remise' ? {background:'#f0fdf4'} : {}}>
-                    <td className="td text-gray-500">{fmtDate(v.date)}</td>
+                    onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyVente(v.id) }}
+                    style={{cursor:'pointer', ...(verifiedVentes.has(v.id) ? {background:'#dcfce7', boxShadow:'inset 3px 0 0 #16a34a'} : v.type_entree==='mdo' ? {background:'#fefce8'} : v.type_entree==='remise' ? {background:'#f0fdf4'} : {})}}>
+                    <td className="td text-gray-500">{verifiedVentes.has(v.id) && <span style={{color:'#16a34a',fontWeight:900,marginRight:4}}>✓</span>}{fmtDate(v.date)}</td>
                     <td className="td font-semibold">{v.client_nom}</td>
                     <td className="td">
                       {v.type_entree === 'mdo'
