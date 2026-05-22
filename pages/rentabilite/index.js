@@ -2,88 +2,71 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
+import Link from 'next/link'
 
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const today   = () => new Date().toISOString().split('T')[0]
+const startOfYear  = () => `${new Date().getFullYear()}-01-01`
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
+const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
 
-function KPI({ label, value, sub, color = 'slate', icon }) {
-  const colors = {
-    green:  'text-emerald-600',
-    red:    'text-red-500',
-    blue:   'text-blue-600',
-    orange: 'text-orange-500',
-    slate:  'text-slate-800',
-  }
+// ── MINI COMPONENTS ────────────────────────────────────────────────────────────
+
+function KPI({ label, value, sub, color = 'slate', icon, large }) {
+  const colors = { green:'text-emerald-600', red:'text-red-500', blue:'text-blue-600', orange:'text-orange-500', slate:'text-slate-800', purple:'text-purple-600' }
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{label}</span>
-        {icon && <span className="text-lg">{icon}</span>}
+        {icon && <span className="text-xl">{icon}</span>}
       </div>
-      <div className={`text-2xl font-black ${colors[color]}`}>{value}</div>
+      <div className={`font-black ${colors[color]} ${large ? 'text-3xl' : 'text-2xl'}`}>{value}</div>
       {sub && <div className="text-[10px] text-slate-400 mt-1">{sub}</div>}
     </div>
   )
 }
 
-function BarChart({ rows, colorKey }) {
-  const max = Math.max(...rows.map(r => Math.abs(r.value)), 1)
-  return (
-    <div className="space-y-2">
-      {rows.map((r, i) => {
-        const pct = Math.round(Math.abs(r.value) / max * 100)
-        const pos = r.value >= 0
-        return (
-          <div key={i}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold text-slate-700 truncate max-w-[180px]">{r.label}</span>
-              <span className={`text-xs font-bold ml-2 tabular-nums ${pos ? 'text-emerald-600' : 'text-red-500'}`}>
-                {pos ? '+' : ''}{fmt(r.value)} DHS
-              </span>
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-2">
-              <div className="h-2 rounded-full transition-all" style={{ width: pct + '%', background: pos ? '#10b981' : '#ef4444' }} />
-            </div>
-            {r.sub && <div className="text-[10px] text-slate-400 mt-0.5">{r.sub}</div>}
-          </div>
-        )
-      })}
-    </div>
-  )
+function MargeBadge({ marge }) {
+  const cls = marge > 15 ? 'bg-emerald-50 text-emerald-700' : marge > 0 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'
+  return <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${cls}`}>{marge}%</span>
+}
+
+function ProfitCell({ v }) {
+  return <span className={`font-black ${v >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{v >= 0 ? '+' : ''}{fmt(v)}</span>
+}
+
+function ColHeader({ label, right, center }) {
+  return <th className={`py-2.5 px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider ${right ? 'text-right' : center ? 'text-center' : 'text-left'}`}>{label}</th>
 }
 
 function MiniDonut({ parts }) {
-  // Simple pie chart using SVG
   const total = parts.reduce((s, p) => s + p.value, 0)
   if (total === 0) return <div className="text-slate-300 text-xs text-center py-4">Aucune donnée</div>
-  let cumAngle = -90
-  const cx = 60, cy = 60, r = 45, ir = 25
+  let cum = -90
+  const cx = 60, cy = 60, r = 45, ir = 28
   const paths = parts.map(p => {
     const angle = (p.value / total) * 360
-    const startAngle = cumAngle * Math.PI / 180
-    const endAngle   = (cumAngle + angle) * Math.PI / 180
-    cumAngle += angle
-    const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle)
-    const x2 = cx + r * Math.cos(endAngle),   y2 = cy + r * Math.sin(endAngle)
-    const xi1 = cx + ir * Math.cos(startAngle), yi1 = cy + ir * Math.sin(startAngle)
-    const xi2 = cx + ir * Math.cos(endAngle),   yi2 = cy + ir * Math.sin(endAngle)
+    const s = cum * Math.PI / 180, e = (cum + angle) * Math.PI / 180
+    cum += angle
     const large = angle > 180 ? 1 : 0
-    return { d: `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`, color: p.color }
+    return {
+      d: `M ${cx+r*Math.cos(s)} ${cy+r*Math.sin(s)} A ${r} ${r} 0 ${large} 1 ${cx+r*Math.cos(e)} ${cy+r*Math.sin(e)} L ${cx+ir*Math.cos(e)} ${cy+ir*Math.sin(e)} A ${ir} ${ir} 0 ${large} 0 ${cx+ir*Math.cos(s)} ${cy+ir*Math.sin(s)} Z`,
+      color: p.color,
+    }
   })
   return (
-    <div className="flex items-center gap-4">
-      <svg width="120" height="120" viewBox="0 0 120 120">
+    <div className="flex items-center gap-5">
+      <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
         {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} />)}
       </svg>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {parts.map((p, i) => (
           <div key={i} className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
+            <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: p.color }} />
             <div>
-              <div className="text-[10px] font-semibold text-slate-700">{p.label}</div>
-              <div className="text-[10px] text-slate-400">{fmt(p.value)} DHS ({total > 0 ? Math.round(p.value/total*100) : 0}%)</div>
+              <div className="text-[11px] font-semibold text-slate-700">{p.label}</div>
+              <div className="text-[10px] text-slate-400">{fmt(p.value)} DHS · {total > 0 ? Math.round(p.value/total*100) : 0}%</div>
             </div>
           </div>
         ))}
@@ -92,47 +75,94 @@ function MiniDonut({ parts }) {
   )
 }
 
-function MonthlyChart({ data }) {
-  if (!data || data.length === 0) return <div className="text-slate-300 text-xs text-center py-8">Aucune donnée</div>
-  const maxV = Math.max(...data.map(d => Math.abs(d.profit)), 1)
-  const maxR = Math.max(...data.map(d => d.revenu), 1)
+function BarViz({ data }) {
+  const max = Math.max(...data.map(d => d.revenu), 1)
+  return (
+    <div className="space-y-3">
+      {data.map((d, i) => {
+        const pct = Math.round(d.revenu / max * 100)
+        const profitPct = d.revenu > 0 ? Math.round(d.profit / d.revenu * 100) : 0
+        return (
+          <div key={i}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-semibold text-slate-700 truncate max-w-[200px]">{d.label}</span>
+              <div className="flex items-center gap-3 ml-2">
+                <span className="text-xs text-slate-400">{fmt(d.revenu)} DHS</span>
+                <ProfitCell v={d.profit} />
+              </div>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2.5 relative">
+              <div className="h-2.5 rounded-full" style={{ width: pct + '%', background: '#bfdbfe' }} />
+              <div className="h-2.5 rounded-full absolute top-0 left-0" style={{ width: Math.max(0, profitPct) + '%', background: d.profit >= 0 ? '#10b981' : '#ef4444', opacity: 0.7 }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function MonthBars({ data }) {
+  if (!data.length) return <div className="text-slate-300 text-xs text-center py-8">Aucune donnée</div>
+  const maxR = Math.max(...data.map(d => d.revenuBrut), 1)
+  const maxP = Math.max(...data.map(d => Math.abs(d.profit)), 1)
   return (
     <div className="overflow-x-auto">
-      <div style={{ minWidth: data.length * 60 + 'px' }} className="flex items-end gap-1 h-32 px-2">
+      <div style={{ minWidth: data.length * 72 + 'px' }} className="flex items-end gap-2 h-40 px-1">
         {data.map((d, i) => {
-          const hR = Math.max(4, Math.round(d.revenu / maxR * 100))
-          const hP = Math.max(4, Math.round(Math.abs(d.profit) / maxV * 100))
-          const pos = d.profit >= 0
+          const hR = Math.max(4, Math.round(d.revenuBrut / maxR * 100))
+          const hP = Math.max(4, Math.round(Math.abs(d.profit) / maxP * 100))
           return (
-            <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
-              <div className="absolute bottom-full mb-1 bg-slate-800 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10 pointer-events-none">
-                {d.label}: Rev {fmt(d.revenu)} / Profit {fmt(d.profit)} DHS
+            <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative min-w-[60px]">
+              <div className="absolute bottom-full mb-1 bg-slate-800 text-white text-[9px] px-2 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10 pointer-events-none text-center">
+                <div className="font-bold">{d.label}</div>
+                <div>Rev: {fmt(d.revenuBrut)} DHS</div>
+                <div className={d.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}>Profit: {fmt(d.profit)} DHS</div>
               </div>
-              <div className="w-full flex items-end gap-0.5 h-28">
-                <div className="flex-1 rounded-t" style={{ height: hR + '%', background: '#bfdbfe' }} />
-                <div className="flex-1 rounded-t" style={{ height: hP + '%', background: pos ? '#10b981' : '#ef4444' }} />
+              <div className="w-full flex items-end gap-0.5 h-32">
+                <div className="flex-1 rounded-t-sm transition-all" style={{ height: hR + '%', background: '#bfdbfe' }} />
+                <div className="flex-1 rounded-t-sm transition-all" style={{ height: hP + '%', background: d.profit >= 0 ? '#10b981' : '#ef4444' }} />
               </div>
-              <div className="text-[8px] text-slate-400 text-center truncate w-full">{d.label}</div>
+              <div className="text-[9px] text-slate-500 font-semibold text-center">{d.label}</div>
             </div>
           )
         })}
       </div>
-      <div className="flex items-center gap-4 mt-2 px-2">
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-blue-200" /><span className="text-[10px] text-slate-500">Revenu</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-emerald-500" /><span className="text-[10px] text-slate-500">Profit net</span></div>
+      <div className="flex items-center gap-5 mt-3 px-2">
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-blue-200" /><span className="text-[10px] text-slate-500">Revenu brut</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-emerald-500" /><span className="text-[10px] text-slate-500">Profit net</span></div>
       </div>
     </div>
   )
 }
 
-export default function Rentabilite() {
-  const { user } = useAuth()
-  const [loading, setLoading] = useState(true)
-  const [filterFrom, setFilterFrom] = useState(startOfMonth())
-  const [filterTo,   setFilterTo]   = useState(today())
-  const [tab, setTab] = useState('global') // 'global' | 'camions' | 'clients'
+function TotalsFooter({ global }) {
+  return (
+    <tr className="border-t-2 border-slate-300 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
+      <td colSpan={3} className="py-3 px-3 font-black text-sm uppercase tracking-wide">Total période</td>
+      <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(global.revenuBrut)}</td>
+      <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.coutAchat)}</td>
+      <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(global.coutGasoil)}</td>
+      <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.coutCharges)}</td>
+      <td className={`py-3 px-3 text-right font-black text-lg ${global.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+        {global.profit >= 0 ? '+' : ''}{fmt(global.profit)}
+      </td>
+      <td className="py-3 px-3 text-right font-black text-blue-300">{global.marge}%</td>
+    </tr>
+  )
+}
 
-  // raw data
+// ── MAIN ──────────────────────────────────────────────────────────────────────
+
+export default function Rentabilite() {
+  useAuth()
+  const [loading,    setLoading]    = useState(true)
+  const [filterFrom, setFilterFrom] = useState(startOfYear())
+  const [filterTo,   setFilterTo]   = useState(today())
+  const [tab,        setTab]        = useState('global')
+  const [sortKey,    setSortKey]    = useState('date_depart')
+  const [sortAsc,    setSortAsc]    = useState(false)
+
   const [voyages,    setVoyages]    = useState([])
   const [livraisons, setLivraisons] = useState([])
   const [achats,     setAchats]     = useState([])
@@ -145,21 +175,13 @@ export default function Rentabilite() {
 
   async function loadAll() {
     setLoading(true)
-    const [
-      { data: v },
-      { data: li },
-      { data: ac },
-      { data: ga },
-      { data: ch },
-      { data: re },
-      { data: ca },
-    ] = await Promise.all([
-      supabase.from('voyages').select('*').gte('date_depart', filterFrom).lte('date_depart', filterTo),
-      supabase.from('voyage_livraisons').select('voyage_id,type_produit,client_id,client_nom,qte,prix_vente,prix_achat,total_vente'),
-      supabase.from('voyage_achats').select('*'),
-      supabase.from('voyage_gasoil').select('*'),
-      supabase.from('voyage_charges').select('*'),
-      supabase.from('voyage_retours').select('*'),
+    const [{ data: v }, { data: li }, { data: ac }, { data: ga }, { data: ch }, { data: re }, { data: ca }] = await Promise.all([
+      supabase.from('voyages').select('*').gte('date_depart', filterFrom).lte('date_depart', filterTo).order('date_depart', { ascending: false }),
+      supabase.from('voyage_livraisons').select('voyage_id,type_produit,client_id,client_nom,qte,prix_achat,total_vente,total_achat'),
+      supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
+      supabase.from('voyage_gasoil').select('voyage_id,total,qte_litres'),
+      supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
+      supabase.from('voyage_retours').select('voyage_id,montant,montant_paye'),
       supabase.from('camions').select('*').order('plaque'),
     ])
     const vIds = (v || []).map(x => x.id)
@@ -173,126 +195,150 @@ export default function Rentabilite() {
     setLoading(false)
   }
 
-  // ── COMPUTE PROFIT FOR A SET OF VOYAGE IDS ────────────────────────────────
-  function computeProfit(vIds) {
+  // ── PROFIT CALCULATOR ───────────────────────────────────────────────────────
+  function calc(vIds) {
+    const myAcs  = achats.filter(a => vIds.includes(a.voyage_id))
     const myLivs = livraisons.filter(l => vIds.includes(l.voyage_id))
     const myGas  = gasoil.filter(g => vIds.includes(g.voyage_id))
     const myChgs = charges.filter(c => vIds.includes(c.voyage_id))
     const myRets = retours.filter(r => vIds.includes(r.voyage_id))
 
-    const revenuLivs   = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0)
-    const revenuRets   = myRets.reduce((s, r) => s + (r.montant_paye || 0), 0)
-    const chgClient    = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    const revenuBrut   = revenuLivs + revenuRets + chgClient
+    const revenuLivs  = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0)
+    const revenuRets  = myRets.reduce((s, r) => s + (r.montant_paye || 0), 0)
+    const chgCli      = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
+    const revenuBrut  = revenuLivs + revenuRets + chgCli
 
-    const coutAchat    = myLivs.reduce((s, l) => s + ((l.qte||0)*(l.prix_achat||0)), 0)
-    const coutGasoil   = myGas.reduce((s, g) => s + (g.total || 0), 0)
-    const coutCharges  = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    const coutTotal    = coutAchat + coutGasoil + coutCharges
+    const coutAchat   = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte||0)*(a.prix_achat||0)), 0)
+    const coutGasoil  = myGas.reduce((s, g) => s + (g.total || 0), 0)
+    const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
+    const coutTotal   = coutAchat + coutGasoil + coutCharges
+    const profit      = revenuBrut - coutTotal
+    const marge       = revenuBrut > 0 ? Math.round(profit / revenuBrut * 100) : 0
 
-    return { revenuBrut, coutAchat, coutGasoil, coutCharges, coutTotal, profit: revenuBrut - coutTotal }
+    return { revenuBrut, coutAchat, coutGasoil, coutCharges, coutTotal, profit, marge }
   }
 
-  // ── GLOBAL KPIs ───────────────────────────────────────────────────────────
-  const allIds   = voyages.map(v => v.id)
-  const global   = computeProfit(allIds)
-  const marge    = global.revenuBrut > 0 ? Math.round(global.profit / global.revenuBrut * 100) : 0
-  const nbVoyages = voyages.length
-  const nbTermines = voyages.filter(v => v.statut === 'termine').length
+  // ── AGGREGATIONS ────────────────────────────────────────────────────────────
+  const allIds    = voyages.map(v => v.id)
+  const global    = calc(allIds)
+  const nbTermin  = voyages.filter(v => v.statut === 'termine').length
 
-  // ── PER CAMION ────────────────────────────────────────────────────────────
+  // Per voyage
+  const voyageStats = voyages.map(v => {
+    const p = calc([v.id])
+    const nbCli = new Set(livraisons.filter(l => l.voyage_id === v.id).map(l => l.client_id).filter(Boolean)).size
+    return { ...v, ...p, nbCli }
+  })
+  const sortedVoyages = [...voyageStats].sort((a, b) => {
+    const av = a[sortKey], bv = b[sortKey]
+    if (typeof av === 'string') return sortAsc ? av.localeCompare(bv||'') : (bv||'').localeCompare(av)
+    return sortAsc ? (av||0)-(bv||0) : (bv||0)-(av||0)
+  })
+  function toggleSort(k) { setSortKey(k); setSortAsc(s => sortKey === k ? !s : false) }
+  const Th = ({ k, label, right, center }) => (
+    <th onClick={() => toggleSort(k)}
+      className={`py-2.5 px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-600 select-none ${right?'text-right':center?'text-center':'text-left'}`}>
+      {label}{sortKey===k ? (sortAsc?' ↑':' ↓') : ''}
+    </th>
+  )
+
+  // Per camion
   const camionStats = camions.map(ca => {
     const myVoyages = voyages.filter(v => v.camion_id === ca.id)
-    const myIds = myVoyages.map(v => v.id)
-    const p = computeProfit(myIds)
-    return { ...ca, ...p, nbVoyages: myVoyages.length }
-  }).filter(c => c.nbVoyages > 0).sort((a, b) => b.profit - a.profit)
+    const p = calc(myVoyages.map(v => v.id))
+    return { ...ca, ...p, nbV: myVoyages.length }
+  }).filter(c => c.nbV > 0).sort((a, b) => b.profit - a.profit)
 
-  // ── PER CLIENT ────────────────────────────────────────────────────────────
-  const clientMap = {}
+  // Per client
+  const cliMap = {}
   livraisons.forEach(l => {
     if (!l.client_id) return
-    if (!clientMap[l.client_id]) clientMap[l.client_id] = { id: l.client_id, nom: l.client_nom, revenu: 0, achat: 0, gasoilShare: 0, chargesShare: 0, qte: 0 }
-    clientMap[l.client_id].revenu += (l.total_vente || 0)
-    clientMap[l.client_id].achat  += ((l.qte||0)*(l.prix_achat||0))
-    clientMap[l.client_id].qte    += (l.qte || 0)
+    if (!cliMap[l.client_id]) cliMap[l.client_id] = { id: l.client_id, nom: l.client_nom, revenu: 0, achat: 0, gas: 0, chg: 0, qte: 0 }
+    cliMap[l.client_id].revenu += (l.total_vente || 0)
+    cliMap[l.client_id].achat  += (l.total_achat || (l.qte||0)*(l.prix_achat||0))
+    cliMap[l.client_id].qte    += (l.qte || 0)
   })
-  // Add per-voyage gasoil/charges share equally
   voyages.forEach(v => {
     const myLivs = livraisons.filter(l => l.voyage_id === v.id)
-    const myGas  = gasoil.filter(g => g.voyage_id === v.id)
-    const myChgs = charges.filter(c => c.voyage_id === v.id && !c.facture_client)
-    const clientsOnVoyage = [...new Set(myLivs.map(l => l.client_id).filter(Boolean))]
-    const nb = clientsOnVoyage.length
-    if (nb === 0) return
-    const totalGas = myGas.reduce((s, g) => s + (g.total || 0), 0)
-    const totalChg = myChgs.reduce((s, c) => s + (c.montant || 0), 0)
-    clientsOnVoyage.forEach(cid => {
-      if (!clientMap[cid]) return
-      clientMap[cid].gasoilShare  += totalGas / nb
-      clientMap[cid].chargesShare += totalChg / nb
-    })
+    const cids   = [...new Set(myLivs.map(l => l.client_id).filter(Boolean))]
+    const nb     = cids.length || 1
+    const totalG = gasoil.filter(g => g.voyage_id === v.id).reduce((s, g) => s + (g.total||0), 0)
+    const totalC = charges.filter(c => c.voyage_id === v.id && !c.facture_client).reduce((s, c) => s + (c.montant||0), 0)
+    cids.forEach(cid => { if (cliMap[cid]) { cliMap[cid].gas += totalG/nb; cliMap[cid].chg += totalC/nb } })
   })
-  // Add billed charges per client
   charges.filter(c => c.facture_client && c.client_id).forEach(c => {
-    if (!clientMap[c.client_id]) clientMap[c.client_id] = { id: c.client_id, nom: c.client_nom, revenu: 0, achat: 0, gasoilShare: 0, chargesShare: 0, qte: 0 }
-    clientMap[c.client_id].revenu += (c.montant || 0)
+    if (!cliMap[c.client_id]) cliMap[c.client_id] = { id: c.client_id, nom: c.client_nom, revenu: 0, achat: 0, gas: 0, chg: 0, qte: 0 }
+    cliMap[c.client_id].revenu += (c.montant || 0)
   })
-  const clientStats = Object.values(clientMap).map(c => ({
-    ...c,
-    cout: c.achat + c.gasoilShare + c.chargesShare,
-    profit: c.revenu - c.achat - c.gasoilShare - c.chargesShare,
+  const clientStats = Object.values(cliMap).map(c => ({
+    ...c, profit: c.revenu - c.achat - c.gas - c.chg,
+    marge: c.revenu > 0 ? Math.round((c.revenu-c.achat-c.gas-c.chg)/c.revenu*100) : 0,
   })).sort((a, b) => b.profit - a.profit)
 
-  // ── MONTHLY DATA ──────────────────────────────────────────────────────────
-  const monthlyMap = {}
+  // Per month
+  const mMap = {}
   voyages.forEach(v => {
-    const key = v.date_depart?.slice(0, 7) // YYYY-MM
-    if (!key) return
-    if (!monthlyMap[key]) monthlyMap[key] = []
-    monthlyMap[key].push(v.id)
+    const k = v.date_depart?.slice(0, 7)
+    if (!k) return
+    if (!mMap[k]) mMap[k] = []
+    mMap[k].push(v.id)
   })
-  const monthlyData = Object.keys(monthlyMap).sort().map(key => {
-    const p = computeProfit(monthlyMap[key])
-    const [y, m] = key.split('-')
-    const mNames = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
-    return { label: mNames[parseInt(m)-1] + ' ' + y.slice(2), ...p }
+  const monthlyData = Object.keys(mMap).sort().map(k => {
+    const p = calc(mMap[k])
+    const [y, m] = k.split('-')
+    return { key: k, label: MONTHS[parseInt(m)-1] + ' ' + y, nbV: mMap[k].length, ...p }
   })
 
-  // ── TOP VOYAGES ───────────────────────────────────────────────────────────
-  const topVoyages = voyages.map(v => {
-    const p = computeProfit([v.id])
-    return { ...v, ...p }
-  }).sort((a, b) => b.profit - a.profit).slice(0, 5)
+  const TABS = [
+    { key: 'global',  label: '📊 Global' },
+    { key: 'voyages', label: '🚛 Par voyage' },
+    { key: 'mois',    label: '📅 Par mois' },
+    { key: 'camions', label: '🚚 Par camion' },
+    { key: 'clients', label: '👤 Par client' },
+  ]
 
   return (
-    <Layout title="Rentabilité" subtitle="Analyse de la performance financière">
-      <div className="max-w-6xl mx-auto space-y-5">
+    <Layout title="Rentabilité" subtitle="Revenus − Achats − Gasoil − Charges = Profit net">
+      <div className="max-w-7xl mx-auto space-y-4">
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* ── FILTERS ── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <label className="text-xs font-semibold text-slate-500">Du</label>
-            <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
-              className="input text-sm px-3 py-1.5 rounded-xl border border-slate-200 bg-white" />
+            <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="input text-sm px-3 py-1.5 rounded-xl" />
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs font-semibold text-slate-500">Au</label>
-            <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
-              className="input text-sm px-3 py-1.5 rounded-xl border border-slate-200 bg-white" />
+            <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="input text-sm px-3 py-1.5 rounded-xl" />
           </div>
-          {loading && <span className="text-xs text-slate-400 animate-pulse">Chargement...</span>}
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => { setFilterFrom(startOfMonth()); setFilterTo(today()) }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition">Ce mois</button>
+            <button onClick={() => { setFilterFrom(startOfYear()); setFilterTo(today()) }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition">Cette année</button>
+          </div>
+          {loading && <span className="text-xs text-blue-500 animate-pulse ml-auto">Chargement...</span>}
         </div>
 
-        {/* Tab nav */}
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-          {[
-            { key: 'global',  label: '📊 Vue globale' },
-            { key: 'camions', label: '🚛 Par camion' },
-            { key: 'clients', label: '👤 Par client' },
-          ].map(t => (
+        {/* ── KPI BAR ── */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <KPI label="Revenu brut"  icon="💰" color="slate"
+            value={fmt(global.revenuBrut) + ' DHS'}
+            sub={`${voyages.length} voyages · ${nbTermin} terminés`} />
+          <KPI label="Achats"       icon="📦" color="red"    value={fmt(global.coutAchat)   + ' DHS'} sub="Briques + grignon" />
+          <KPI label="Gasoil"       icon="⛽" color="orange" value={fmt(global.coutGasoil)  + ' DHS'} />
+          <KPI label="Charges"      icon="💸" color="red"    value={fmt(global.coutCharges) + ' DHS'} sub="Fixes entreprise" />
+          <KPI label="Profit net"   icon={global.profit >= 0 ? '✅' : '❌'}
+            color={global.profit >= 0 ? 'green' : 'red'} large
+            value={fmt(global.profit) + ' DHS'}
+            sub={`Marge ${global.marge}%`} />
+        </div>
+
+        {/* ── TABS ── */}
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
+          {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+              className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition flex-shrink-0 ${
                 tab === t.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}>
               {t.label}
@@ -300,19 +346,14 @@ export default function Rentabilite() {
           ))}
         </div>
 
-        {/* ── TAB: GLOBAL ── */}
+        {/* ══════════════════════════════════════════════════
+            TAB: GLOBAL
+        ══════════════════════════════════════════════════ */}
         {tab === 'global' && (
-          <div className="space-y-5">
-            {/* KPI row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KPI label="Revenu brut"  value={fmt(global.revenuBrut) + ' DHS'} icon="💰" color="slate" sub={`${nbVoyages} voyages`} />
-              <KPI label="Coût total"   value={fmt(global.coutTotal) + ' DHS'}  icon="📉" color="red"   sub="Achats + gasoil + charges" />
-              <KPI label="Profit net"   value={fmt(global.profit) + ' DHS'}     icon={global.profit >= 0 ? '✅' : '❌'} color={global.profit >= 0 ? 'green' : 'red'} sub={`Marge ${marge}%`} />
-              <KPI label="Voyages"      value={nbVoyages}                        icon="🚛" color="blue"  sub={`${nbTermines} terminés`} />
-            </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            {/* Cost breakdown */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Donut */}
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <h3 className="font-bold text-slate-700 text-sm mb-4">Répartition des coûts</h3>
                 <MiniDonut parts={[
@@ -322,71 +363,87 @@ export default function Rentabilite() {
                 ]} />
               </div>
 
+              {/* Voyage statuses */}
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <h3 className="font-bold text-slate-700 text-sm mb-4">Évolution mensuelle</h3>
-                <MonthlyChart data={monthlyData} />
+                <h3 className="font-bold text-slate-700 text-sm mb-4">État des voyages</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl">
+                    <span className="font-semibold text-amber-700 text-sm">🔄 En cours</span>
+                    <span className="font-black text-amber-700 text-2xl">{voyages.length - nbTermin}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-xl">
+                    <span className="font-semibold text-emerald-700 text-sm">✅ Terminés</span>
+                    <span className="font-black text-emerald-700 text-2xl">{nbTermin}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Detail table */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-              <h3 className="font-bold text-slate-700 text-sm mb-4">Détail financier</h3>
-              <div className="space-y-3">
+            {/* P&L */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="font-bold text-slate-700 text-sm">Compte de résultat</h3>
+                <span className="text-xs text-slate-400">{fmtDate(filterFrom)} → {fmtDate(filterTo)}</span>
+              </div>
+              <div className="p-5 space-y-1.5">
+                {/* Revenue lines */}
                 {[
-                  { label: 'Revenu livraisons briques', value: livraisons.filter(l=>l.type_produit==='brique').reduce((s,l)=>s+(l.total_vente||0),0), color: 'text-emerald-600' },
-                  { label: 'Revenu livraisons grignon',  value: livraisons.filter(l=>l.type_produit==='grignon').reduce((s,l)=>s+(l.total_vente||0),0), color: 'text-emerald-500' },
-                  { label: 'Revenu retours transport',   value: retours.reduce((s,r)=>s+(r.montant_paye||0),0), color: 'text-purple-600' },
-                  { label: 'Charges facturées clients',  value: charges.filter(c=>c.facture_client).reduce((s,c)=>s+(c.montant||0),0), color: 'text-blue-600' },
-                ].map((row, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">{row.label}</span>
-                    <span className={`font-bold text-sm ${row.color}`}>{fmt(row.value)} DHS</span>
+                  { label: 'Ventes briques',           value: livraisons.filter(l=>l.type_produit==='brique').reduce((s,l)=>s+(l.total_vente||0),0), color:'text-emerald-600' },
+                  { label: 'Ventes grignon',            value: livraisons.filter(l=>l.type_produit==='grignon').reduce((s,l)=>s+(l.total_vente||0),0), color:'text-emerald-500' },
+                  { label: 'Retours transport reçus',   value: retours.reduce((s,r)=>s+(r.montant_paye||0),0), color:'text-purple-600' },
+                  { label: 'Charges facturées clients', value: charges.filter(c=>c.facture_client).reduce((s,c)=>s+(c.montant||0),0), color:'text-blue-600' },
+                ].map((r, i) => (
+                  <div key={i} className="flex justify-between py-2 border-b border-slate-50 text-sm">
+                    <span className="text-slate-500">{r.label}</span>
+                    <span className={`font-bold ${r.color}`}>+ {fmt(r.value)} DHS</span>
                   </div>
                 ))}
-                <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                  <span className="text-sm font-bold text-slate-800">= Revenu brut total</span>
+                <div className="flex justify-between py-2.5 bg-slate-50 rounded-xl px-3 text-sm">
+                  <span className="font-black text-slate-800">= REVENU BRUT</span>
                   <span className="font-black text-slate-800">{fmt(global.revenuBrut)} DHS</span>
                 </div>
+                {/* Cost lines */}
                 {[
-                  { label: '− Achats (briques + grignon)', value: global.coutAchat,   color: 'text-red-500' },
-                  { label: '− Gasoil total',               value: global.coutGasoil,  color: 'text-orange-500' },
-                  { label: '− Charges voyage',             value: global.coutCharges, color: 'text-red-400' },
-                ].map((row, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50">
-                    <span className="text-sm text-slate-600">{row.label}</span>
-                    <span className={`font-bold text-sm ${row.color}`}>−{fmt(row.value)} DHS</span>
+                  { label: '− Achats (briques + grignon)', value: global.coutAchat,   color:'text-red-500' },
+                  { label: '− Gasoil',                     value: global.coutGasoil,  color:'text-orange-500' },
+                  { label: '− Charges voyage',             value: global.coutCharges, color:'text-red-400' },
+                ].map((r, i) => (
+                  <div key={i} className="flex justify-between py-2 border-b border-slate-50 text-sm">
+                    <span className="text-slate-500">{r.label}</span>
+                    <span className={`font-bold ${r.color}`}>− {fmt(r.value)} DHS</span>
                   </div>
                 ))}
-                <div className="flex items-center justify-between py-3 bg-slate-50 rounded-xl px-3 mt-2">
-                  <span className="font-black text-slate-800">= PROFIT NET</span>
-                  <span className={`font-black text-xl ${global.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                {/* Net profit */}
+                <div className="flex justify-between py-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl px-4 mt-2">
+                  <span className="font-black text-white">= PROFIT NET</span>
+                  <span className={`font-black text-2xl ${global.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {global.profit >= 0 ? '+' : ''}{fmt(global.profit)} DHS
+                    <span className="text-xs font-normal text-slate-400 ml-2">({global.marge}%)</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Top voyages */}
-            {topVoyages.length > 0 && (
+            {/* Top 5 voyages */}
+            {voyageStats.length > 0 && (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                <h3 className="font-bold text-slate-700 text-sm mb-4">🏆 Top 5 voyages les plus profitables</h3>
+                <h3 className="font-bold text-slate-700 text-sm mb-4">🏆 Top voyages</h3>
                 <div className="space-y-2">
-                  {topVoyages.map((v, i) => (
-                    <a key={v.id} href={`/voyages/${v.id}`} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition">
+                  {[...voyageStats].sort((a,b) => b.profit - a.profit).slice(0, 5).map((v, i) => (
+                    <Link key={v.id} href={`/voyages/${v.id}`}
+                      className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition">
                       <div className="flex items-center gap-3">
-                        <span className={`text-sm font-black w-6 ${i === 0 ? 'text-amber-500' : i === 1 ? 'text-slate-400' : i === 2 ? 'text-orange-400' : 'text-slate-300'}`}>#{i+1}</span>
+                        <span className={`text-sm font-black w-6 flex-shrink-0 ${i===0?'text-amber-500':i===1?'text-slate-400':i===2?'text-orange-400':'text-slate-300'}`}>#{i+1}</span>
                         <div>
                           <div className="font-bold text-sm text-slate-800">{v.reference || `Voyage #${v.id}`}</div>
-                          <div className="text-[10px] text-slate-400">{fmtDate(v.date_depart)} • {v.camion_plaque}{v.destination ? ' → ' + v.destination : ''}</div>
+                          <div className="text-[10px] text-slate-400">{fmtDate(v.date_depart)} · {v.camion_plaque}{v.destination ? ' → '+v.destination : ''}</div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`font-black text-sm ${v.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {v.profit >= 0 ? '+' : ''}{fmt(v.profit)} DHS
-                        </div>
-                        <div className="text-[10px] text-slate-400">Rev: {fmt(v.revenuBrut)}</div>
+                        <ProfitCell v={v.profit} />
+                        <div className="text-[10px] text-slate-400">Rev: {fmt(v.revenuBrut)} DHS</div>
                       </div>
-                    </a>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -394,152 +451,255 @@ export default function Rentabilite() {
           </div>
         )}
 
-        {/* ── TAB: CAMIONS ── */}
+        {/* ══════════════════════════════════════════════════
+            TAB: PAR VOYAGE
+        ══════════════════════════════════════════════════ */}
+        {tab === 'voyages' && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <h3 className="font-bold text-slate-700 text-sm">Résultat par voyage — {voyageStats.length} voyages</h3>
+              <span className="text-[10px] text-slate-400">Cliquez sur un en-tête de colonne pour trier</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <Th k="date_depart"   label="Date" />
+                    <Th k="camion_plaque" label="Camion" />
+                    <ColHeader label="Destination" />
+                    <Th k="nbCli"         label="Clients" center />
+                    <Th k="revenuBrut"    label="Revenu DHS" right />
+                    <Th k="coutAchat"     label="Achats" right />
+                    <Th k="coutGasoil"    label="Gasoil" right />
+                    <Th k="coutCharges"   label="Charges" right />
+                    <Th k="profit"        label="= Profit" right />
+                    <Th k="marge"         label="Marge" right />
+                    <ColHeader label="Statut" />
+                    <th className="py-2.5 px-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedVoyages.length === 0 ? (
+                    <tr><td colSpan={12} className="py-16 text-center text-slate-400">Aucun voyage sur cette période</td></tr>
+                  ) : sortedVoyages.map(v => (
+                    <tr key={v.id} className="border-b border-slate-50 hover:bg-blue-50/20 transition">
+                      <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{fmtDate(v.date_depart)}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{v.camion_plaque}</td>
+                      <td className="py-2.5 px-3 text-slate-500 max-w-[120px] truncate">{v.destination || '—'}</td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{v.nbCli || 0}</span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(v.revenuBrut)}</td>
+                      <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.coutAchat)}</td>
+                      <td className="py-2.5 px-3 text-right text-orange-400 whitespace-nowrap">−{fmt(v.coutGasoil)}</td>
+                      <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.coutCharges)}</td>
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap"><ProfitCell v={v.profit} /></td>
+                      <td className="py-2.5 px-3 text-right"><MargeBadge marge={v.marge} /></td>
+                      <td className="py-2.5 px-3">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${v.statut==='termine'?'bg-emerald-50 text-emerald-600 border-emerald-200':'bg-amber-50 text-amber-600 border-amber-200'}`}>
+                          {v.statut==='termine'?'Terminé':'En cours'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <Link href={`/voyages/${v.id}`} className="text-blue-500 hover:text-blue-700 font-semibold text-[10px] whitespace-nowrap">Détails →</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {sortedVoyages.length > 0 && (
+                  <tfoot><TotalsFooter global={global} /></tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            TAB: PAR MOIS
+        ══════════════════════════════════════════════════ */}
+        {tab === 'mois' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <h3 className="font-bold text-slate-700 text-sm mb-4">Évolution mensuelle</h3>
+              <MonthBars data={monthlyData} />
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-700 text-sm">Détail par mois — Revenus − Achats − Gasoil − Charges = Profit</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <ColHeader label="Mois" />
+                      <ColHeader label="Voyages" center />
+                      <ColHeader label="Revenu DHS" right />
+                      <ColHeader label="Achats" right />
+                      <ColHeader label="Gasoil" right />
+                      <ColHeader label="Charges" right />
+                      <ColHeader label="= Profit" right />
+                      <ColHeader label="Marge" right />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyData.length === 0 ? (
+                      <tr><td colSpan={8} className="py-16 text-center text-slate-400">Aucune donnée sur cette période</td></tr>
+                    ) : monthlyData.map(d => (
+                      <tr key={d.key} className="border-b border-slate-50 hover:bg-slate-50 transition">
+                        <td className="py-3 px-3 font-bold text-slate-800">{d.label}</td>
+                        <td className="py-3 px-3 text-center"><span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{d.nbV}</span></td>
+                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(d.revenuBrut)}</td>
+                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.coutAchat)}</td>
+                        <td className="py-3 px-3 text-right text-orange-400">−{fmt(d.coutGasoil)}</td>
+                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.coutCharges)}</td>
+                        <td className="py-3 px-3 text-right"><ProfitCell v={d.profit} /></td>
+                        <td className="py-3 px-3 text-right"><MargeBadge marge={d.marge} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {monthlyData.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t-2 border-slate-200 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
+                        <td className="py-3 px-3 font-black text-sm">TOTAL</td>
+                        <td className="py-3 px-3 text-center font-black">{voyages.length}</td>
+                        <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(global.revenuBrut)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.coutAchat)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(global.coutGasoil)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.coutCharges)}</td>
+                        <td className={`py-3 px-3 text-right font-black text-lg ${global.profit>=0?'text-emerald-400':'text-red-400'}`}>
+                          {global.profit>=0?'+':''}{fmt(global.profit)}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black text-blue-300">{global.marge}%</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════
+            TAB: PAR CAMION
+        ══════════════════════════════════════════════════ */}
         {tab === 'camions' && (
           <div className="space-y-4">
             {camionStats.length === 0 ? (
-              <div className="text-center py-16 text-slate-400">
-                <div className="text-4xl mb-3">🚛</div>
-                <div>Aucun camion avec des voyages sur cette période</div>
-              </div>
+              <div className="text-center py-16 text-slate-400"><div className="text-5xl mb-3">🚛</div><div>Aucun camion avec voyages sur cette période</div></div>
             ) : (
               <>
-                {/* Bar chart */}
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                  <h3 className="font-bold text-slate-700 text-sm mb-4">Profit par camion</h3>
-                  <BarChart rows={camionStats.map(c => ({
-                    label: c.plaque + (c.chauffeur ? ` (${c.chauffeur})` : ''),
-                    value: c.profit,
-                    sub:   `Rev: ${fmt(c.revenuBrut)} DHS • ${c.nbVoyages} voyages`,
+                  <h3 className="font-bold text-slate-700 text-sm mb-4">Performance par camion</h3>
+                  <BarViz data={camionStats.map(c => ({
+                    label: c.plaque + (c.chauffeur ? ` · ${c.chauffeur}` : ''),
+                    revenu: c.revenuBrut, profit: c.profit,
                   }))} />
                 </div>
-
-                {/* Cards per camion */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {camionStats.map(c => (
-                    <div key={c.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <div className="font-black text-slate-800">{c.plaque}</div>
-                          {c.chauffeur && <div className="text-xs text-slate-500">{c.chauffeur}</div>}
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-xl font-black ${c.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {c.profit >= 0 ? '+' : ''}{fmt(c.profit)} DHS
-                          </div>
-                          <div className="text-[10px] text-slate-400">{c.nbVoyages} voyage{c.nbVoyages > 1 ? 's' : ''}</div>
-                        </div>
-                      </div>
-                      <div className="space-y-2 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Revenu brut</span>
-                          <span className="font-bold text-emerald-600">{fmt(c.revenuBrut)} DHS</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Achats</span>
-                          <span className="font-semibold text-red-400">−{fmt(c.coutAchat)} DHS</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Gasoil</span>
-                          <span className="font-semibold text-orange-400">−{fmt(c.coutGasoil)} DHS</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Charges</span>
-                          <span className="font-semibold text-red-400">−{fmt(c.coutCharges)} DHS</span>
-                        </div>
-                        <div className="border-t border-slate-100 pt-2 flex justify-between">
-                          <span className="font-bold text-slate-700">Profit net</span>
-                          <span className={`font-black ${c.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {c.profit >= 0 ? '+' : ''}{fmt(c.profit)} DHS
-                          </span>
-                        </div>
-                        {c.revenuBrut > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Marge</span>
-                            <span className="font-bold text-blue-600">{Math.round(c.profit / c.revenuBrut * 100)}%</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <ColHeader label="Camion" />
+                          <ColHeader label="Chauffeur" />
+                          <ColHeader label="Voyages" center />
+                          <ColHeader label="Revenu DHS" right />
+                          <ColHeader label="Achats" right />
+                          <ColHeader label="Gasoil" right />
+                          <ColHeader label="Charges" right />
+                          <ColHeader label="= Profit" right />
+                          <ColHeader label="Marge" right />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {camionStats.map(c => (
+                          <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition">
+                            <td className="py-3 px-3 font-black text-slate-800">{c.plaque}</td>
+                            <td className="py-3 px-3 text-slate-500">{c.chauffeur || '—'}</td>
+                            <td className="py-3 px-3 text-center"><span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{c.nbV}</span></td>
+                            <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(c.revenuBrut)}</td>
+                            <td className="py-3 px-3 text-right text-red-400">−{fmt(c.coutAchat)}</td>
+                            <td className="py-3 px-3 text-right text-orange-400">−{fmt(c.coutGasoil)}</td>
+                            <td className="py-3 px-3 text-right text-red-400">−{fmt(c.coutCharges)}</td>
+                            <td className="py-3 px-3 text-right"><ProfitCell v={c.profit} /></td>
+                            <td className="py-3 px-3 text-right"><MargeBadge marge={c.marge} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot><TotalsFooter global={global} /></tfoot>
+                    </table>
+                  </div>
                 </div>
               </>
             )}
           </div>
         )}
 
-        {/* ── TAB: CLIENTS ── */}
+        {/* ══════════════════════════════════════════════════
+            TAB: PAR CLIENT
+        ══════════════════════════════════════════════════ */}
         {tab === 'clients' && (
           <div className="space-y-4">
             {clientStats.length === 0 ? (
-              <div className="text-center py-16 text-slate-400">
-                <div className="text-4xl mb-3">👤</div>
-                <div>Aucun client avec des livraisons sur cette période</div>
-              </div>
+              <div className="text-center py-16 text-slate-400"><div className="text-5xl mb-3">👤</div><div>Aucun client avec livraisons sur cette période</div></div>
             ) : (
               <>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                  <h3 className="font-bold text-slate-700 text-sm mb-4">Profit par client (gasoil + charges divisés également)</h3>
-                  <BarChart rows={clientStats.map(c => ({
-                    label: c.nom,
-                    value: c.profit,
-                    sub:   `Rev: ${fmt(c.revenu)} • Qté: ${fmt(c.qte)} unités`,
-                  }))} />
+                  <h3 className="font-bold text-slate-700 text-sm mb-4">Performance par client</h3>
+                  <BarViz data={clientStats.map(c => ({ label: c.nom, revenu: c.revenu, profit: c.profit }))} />
                 </div>
-
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100">
-                        <th className="text-left py-3 px-4 text-[10px] font-semibold text-slate-400 uppercase">Client</th>
-                        <th className="text-right py-3 px-4 text-[10px] font-semibold text-slate-400 uppercase">Revenu</th>
-                        <th className="text-right py-3 px-4 text-[10px] font-semibold text-slate-400 uppercase">Achats</th>
-                        <th className="text-right py-3 px-4 text-[10px] font-semibold text-slate-400 uppercase">Gasoil</th>
-                        <th className="text-right py-3 px-4 text-[10px] font-semibold text-slate-400 uppercase">Charges</th>
-                        <th className="text-right py-3 px-4 text-[10px] font-semibold text-slate-400 uppercase">Profit</th>
-                        <th className="text-right py-3 px-4 text-[10px] font-semibold text-slate-400 uppercase">Marge</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clientStats.map((c, i) => (
-                        <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50">
-                          <td className="py-3 px-4 font-semibold text-slate-800">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-slate-400">#{i+1}</span>
-                              {c.nom}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-right text-emerald-600 font-bold">{fmt(c.revenu)}</td>
-                          <td className="py-3 px-4 text-right text-red-400">−{fmt(c.achat)}</td>
-                          <td className="py-3 px-4 text-right text-orange-400">−{fmt(c.gasoilShare)}</td>
-                          <td className="py-3 px-4 text-right text-red-400">−{fmt(c.chargesShare)}</td>
-                          <td className={`py-3 px-4 text-right font-black ${c.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {c.profit >= 0 ? '+' : ''}{fmt(c.profit)}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            {c.revenu > 0 ? (
-                              <span className={`font-bold ${c.profit/c.revenu > 0.1 ? 'text-emerald-600' : c.profit > 0 ? 'text-amber-500' : 'text-red-500'}`}>
-                                {Math.round(c.profit / c.revenu * 100)}%
-                              </span>
-                            ) : '—'}
-                          </td>
+                  <div className="px-5 py-4 border-b border-slate-100">
+                    <h3 className="font-bold text-slate-700 text-sm">
+                      Détail par client
+                      <span className="font-normal text-slate-400 ml-2 text-xs">— gasoil et charges fixes divisés équitablement entre clients du voyage</span>
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <ColHeader label="#" />
+                          <ColHeader label="Client" />
+                          <ColHeader label="Qté" right />
+                          <ColHeader label="Revenu DHS" right />
+                          <ColHeader label="Achats" right />
+                          <ColHeader label="Gasoil ÷" right />
+                          <ColHeader label="Charges ÷" right />
+                          <ColHeader label="= Profit" right />
+                          <ColHeader label="Marge" right />
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-50 border-t border-slate-200">
-                        <td className="py-3 px-4 font-black text-slate-800">TOTAL</td>
-                        <td className="py-3 px-4 text-right font-black text-emerald-600">{fmt(clientStats.reduce((s,c)=>s+c.revenu,0))}</td>
-                        <td className="py-3 px-4 text-right font-bold text-red-400">−{fmt(clientStats.reduce((s,c)=>s+c.achat,0))}</td>
-                        <td className="py-3 px-4 text-right font-bold text-orange-400">−{fmt(clientStats.reduce((s,c)=>s+c.gasoilShare,0))}</td>
-                        <td className="py-3 px-4 text-right font-bold text-red-400">−{fmt(clientStats.reduce((s,c)=>s+c.chargesShare,0))}</td>
-                        <td className={`py-3 px-4 text-right font-black text-lg ${global.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {global.profit >= 0 ? '+' : ''}{fmt(global.profit)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-black text-blue-600">{marge}%</td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {clientStats.map((c, i) => (
+                          <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition">
+                            <td className="py-2.5 px-3 text-slate-400 font-semibold">{i+1}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-800">{c.nom}</td>
+                            <td className="py-2.5 px-3 text-right text-slate-500">{fmt(c.qte)}</td>
+                            <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{fmt(c.revenu)}</td>
+                            <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.achat)}</td>
+                            <td className="py-2.5 px-3 text-right text-orange-400">−{fmt(c.gas)}</td>
+                            <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.chg)}</td>
+                            <td className="py-2.5 px-3 text-right"><ProfitCell v={c.profit} /></td>
+                            <td className="py-2.5 px-3 text-right"><MargeBadge marge={c.marge} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-200 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
+                          <td colSpan={3} className="py-3 px-3 font-black text-sm">TOTAL</td>
+                          <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(clientStats.reduce((s,c)=>s+c.revenu,0))}</td>
+                          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(clientStats.reduce((s,c)=>s+c.achat,0))}</td>
+                          <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(clientStats.reduce((s,c)=>s+c.gas,0))}</td>
+                          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(clientStats.reduce((s,c)=>s+c.chg,0))}</td>
+                          <td className={`py-3 px-3 text-right font-black text-lg ${global.profit>=0?'text-emerald-400':'text-red-400'}`}>
+                            {global.profit>=0?'+':''}{fmt(global.profit)}
+                          </td>
+                          <td className="py-3 px-3 text-right font-black text-blue-300">{global.marge}%</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               </>
             )}

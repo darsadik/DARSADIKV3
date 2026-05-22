@@ -148,28 +148,34 @@ export default function Charges() {
 
   // ── PRINT ──
   function printCharges() {
+    const _now = new Date()
+    const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    win.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+    <title>Charges Transport — DAR SADIK</title>
     <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 24px; font-size: 11px; color: #000; background:#fff; margin:0; }
-      h1 { font-size:16px; margin:0 0 4px; }
-      .sub { color:#555; font-size:10px; margin-bottom:14px; }
-      table { width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px; }
-      th { background:#1e293b !important; color:#fff !important; padding:6px 8px; text-align:left; }
-      td { padding:5px 8px; border-bottom:1px solid #e2e8f0; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; margin: 0; }
+      table { width:100%; border-collapse:collapse; margin-bottom:10px; }
+      th { background:#1a5fa8 !important; color:#fff !important; padding:9px 12px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; text-align:left; border:1px solid #1355a0; }
+      td { padding:8px 12px; font-size:11px; color:#1e293b; border:1px solid #e2e8f0; vertical-align:middle; }
       tr:nth-child(even) td { background:#f8fafc !important; }
-      tfoot td { background:#f1f5f9 !important; font-weight:800 !important; border-top:2px solid #334155 !important; }
-      .num { text-align:right; }
-      h2 { font-size:13px; margin:14px 0 6px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; }
-      .cat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:14px; }
-      .cat-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 8px; }
-      .cat-label { font-size:9px; color:#6b7280; }
-      .cat-val { font-size:12px; font-weight:700; color:#1e293b; }
-      @media print { body { padding:0; } }
+      tfoot td { background:#e8f0fe !important; font-weight:800 !important; border:1px solid #c7d8f7; border-top:2px solid #1a5fa8 !important; color:#1e293b !important; font-size:12px; }
+      b, strong { color:#1e293b !important; font-weight:800; }
+      .num { text-align:right; font-family:monospace; }
+      .muted { color:#94a3b8; font-size:10px; }
+      .section-title { font-size:13px; font-weight:700; color:#1e293b; border-bottom:2px solid #e2e8f0; padding-bottom:6px; margin:20px 0 10px; }
+      .cat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:16px; }
+      .cat-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 10px; }
+      .cat-label { font-size:9px; color:#64748b; text-transform:uppercase; font-weight:600; }
+      .cat-val { font-size:14px; font-weight:800; color:#1e293b; margin-top:3px; }
+      @media print { button { display:none !important; } body { padding:12px 18px; } }
+      @page { size:A4; margin:10mm 12mm; }
     </style></head><body>
-    <h1>DAR SADIK — Charges Transport</h1>
-    <div class="sub">Période : ${filterFrom} → ${filterTo} ${filterCamion ? '· Camion : '+filterCamion : ''} · Total : ${fmt(totalCharges)} DHS · ${filtered.length} fiches</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
+    <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
+    <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🚛 Charges Transport</div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:18px">Période : ${filterFrom} → ${filterTo}${filterCamion ? ' · Camion : '+filterCamion : ''} &nbsp;·&nbsp; Total : ${fmt(totalCharges)} DHS &nbsp;·&nbsp; ${filtered.length} fiches</div>
 
     <h2>📊 Répartition par catégorie</h2>
     <div class="cat-grid">
@@ -205,6 +211,7 @@ export default function Charges() {
       ${topCategories.map(c => `<td class="num"><b>${fmt(byCategory[c.key])}</b></td>`).join('')}
       <td class="num"><b>${fmt(totalCharges)} DHS</b></td><td></td>
     </tr></tfoot></table>
+    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
     </body></html>`)
     win.document.close(); win.print()
   }

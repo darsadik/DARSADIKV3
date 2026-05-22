@@ -246,26 +246,31 @@ export default function Paiements() {
 
   // ── PRINT ──
   function printPaiements() {
-        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    const _now = new Date()
+    const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+        printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+    <title>Paiements — DAR SADIK</title>
     <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #000; background: #fff; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; }
-      .sub { color: #555; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1e293b !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; margin: 0; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border: 1px solid #1355a0; }
+      td { padding: 8px 12px; font-size: 11px; color: #1e293b; border: 1px solid #e2e8f0; vertical-align: middle; }
       tr:nth-child(even) td { background: #f8fafc !important; }
       tr.rejected td { background: #fef2f2 !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; border-top: 2px solid #334155 !important; }
-      .badge { display:inline-block; padding:2px 7px; border-radius:8px; font-size:10px; font-weight:700; }
+      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; color: #1e293b !important; font-size: 12px; }
+      b, strong { color: #1e293b !important; font-weight: 800; }
+      .badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:10px; font-weight:700; }
       .b-esp { background:#dcfce7; color:#166534; } .b-chq { background:#fef9c3; color:#854d0e; }
       .b-vir { background:#dbeafe; color:#1e40af; } .b-fou { background:#f3e8ff; color:#6b21a8; }
       .s-pending{color:#b45309;} .s-validated{color:#166534;} .s-rejected{color:#dc2626;font-weight:700;}
-      @media print { body { padding: 0; } }
+      @media print { button { display: none !important; } body { padding: 12px 18px; } }
+      @page { size: A4; margin: 10mm 12mm; }
     </style></head><body>
-    <h1>DAR SADIK — Paiements ${filterFrom} → ${filterTo}</h1>
-    <div class="sub">Généré le ${new Date().toLocaleDateString('fr-MA')} · ${filtered.length} paiements · Total : ${fmt(total)} DHS</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
+    <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
+    <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">💰 Paiements Clients</div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:18px">Période : ${filterFrom} → ${filterTo} &nbsp;·&nbsp; ${filtered.length} paiements &nbsp;·&nbsp; Total : ${fmt(total)} DHS</div>
     <table><thead><tr>
       <th>Date</th><th>Client</th><th>Mode</th><th>N° Chèque</th><th>Banque</th><th>Statut</th><th>Fournisseur</th><th style="text-align:right">Montant DHS</th><th>Note</th>
     </tr></thead><tbody>
@@ -287,7 +292,9 @@ export default function Paiements() {
     </tbody><tfoot><tr>
       <td colspan="7"><b>TOTAL (${filtered.length})</b></td>
       <td style="text-align:right;color:#166534"><b>− ${fmt(total)} DHS</b></td><td></td>
-    </tr></tfoot></table></body></html>`)
+    </tr></tfoot></table>
+    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
+    </body></html>`)
 
   }
 

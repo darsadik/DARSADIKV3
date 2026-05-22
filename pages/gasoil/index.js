@@ -283,7 +283,8 @@ export default function Gasoil() {
   })
 
   function printGasoil() {
-    const printDate = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
+    const _now = new Date()
+    const printDate = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     const solde = totalGasoilAll - totalPaiements
 
     const gasoilRows = filtered.map(g =>
@@ -325,10 +326,12 @@ export default function Gasoil() {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; }
 
-  .logo-bar { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 3px solid #475569; margin-bottom: 18px; }
-  .logo-text { font-size: 20px; font-weight: 900; color: #1e293b; letter-spacing: -0.5px; }
-  .logo-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
-  .print-date { font-size: 10px; color: #94a3b8; padding-top: 4px; text-align: right; }
+  .logo-bar { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; margin-bottom: 4px; }
+  .logo-name { font-size: 26px; font-weight: 900; color: #1a3a6b; letter-spacing: -0.5px; line-height: 1.1; }
+  .logo-name-ar { font-size: 15px; font-weight: 700; color: #1a5fa8; direction: rtl; }
+  .logo-tagline { font-size: 11px; color: #475569; margin-top: 2px; direction: rtl; }
+  .logo-sep { height: 3px; background: linear-gradient(90deg,#1a5fa8,#3b82f6); border-radius: 2px; margin-bottom: 20px; }
+  .print-date { font-size: 10px; color: #94a3b8; margin-top: 6px; }
   .btn-print { padding: 7px 14px; background: #475569; color: #fff; border: none; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; margin-right: 6px; }
   .btn-pdf   { padding: 7px 14px; background: #16a34a; color: #fff; border: none; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; }
 
@@ -364,7 +367,7 @@ export default function Gasoil() {
   .solde-row-ok td { background: #f0fdf4 !important; color: #16a34a !important; font-weight: 900; font-size: 13px; border: 2px solid #16a34a !important; }
 
   .empty-row td { text-align: center; color: #94a3b8; padding: 16px; font-style: italic; }
-  .doc-footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
+  .doc-footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
 
   @media print {
     .btn-print, .btn-pdf { display: none !important; }
@@ -377,10 +380,14 @@ export default function Gasoil() {
 <!-- HEADER -->
 <div class="logo-bar">
   <div>
-    <div class="logo-text">⛽ DAR SADIK — Gasoil</div>
-    <div class="logo-sub">Selouane — Nador</div>
+    <div class="logo-name">DAR SADIK</div>
+    <div class="logo-name-ar">دار صديق</div>
+    <div class="logo-tagline">بائع جميع مواد البناء</div>
   </div>
-  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+  <div style="text-align:right;padding-top:4px">
+    <div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div>
+    <div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:8px">📍 Selouane - Nador</div>
     <div>
       <button class="btn-print" onclick="window.print()">🖨️ Imprimer</button>
       <button class="btn-pdf" onclick="window.print()">📥 PDF</button>
@@ -388,6 +395,7 @@ export default function Gasoil() {
     <div class="print-date">Généré le ${printDate}</div>
   </div>
 </div>
+<div class="logo-sep"></div>
 
 <div class="periode">📅 Période : ${filterFrom} → ${filterTo}</div>
 
@@ -481,7 +489,7 @@ export default function Gasoil() {
   </tbody>
 </table>
 
-<div class="doc-footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
+<div class="doc-footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDate}</span></div>
 </body></html>`)
     win.document.close()
   }

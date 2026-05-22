@@ -271,6 +271,29 @@ export default function Layout({ children, title, subtitle }) {
                 )}
               </nav>
 
+              {/* Contact info */}
+              <div className="mx-3 mb-2 px-3 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#475569' }}>Contact</div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px]" style={{ color: '#64748b' }}>Mohamed</span>
+                    <span className="text-[11px] font-bold" style={{ color: '#93c5fd' }}>06 61 32 56 65</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px]" style={{ color: '#64748b' }}>Sadik</span>
+                    <span className="text-[11px] font-bold" style={{ color: '#93c5fd' }}>06 61 97 87 47</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px]" style={{ color: '#64748b' }}>Bureau</span>
+                    <span className="text-[11px] font-bold" style={{ color: '#93c5fd' }}>06 62 82 88 20</span>
+                  </div>
+                  <div className="pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className="text-[10px]" style={{ color: '#475569' }}>✉️ Dar.sadik@hotmail.com</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: '#475569' }}>📍 Selouane - Nador</div>
+                  </div>
+                </div>
+              </div>
+
               {/* Footer */}
               <div className="p-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
                 <div className="flex items-center gap-2.5 mb-3">
@@ -461,23 +484,45 @@ export default function Layout({ children, title, subtitle }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
-              style={{ background: '#f0fdf4', color: '#16a34a' }}
-            >
-              <span
-                className="rounded-full animate-pulse"
-                style={{ width: 6, height: 6, background: '#4ade80', display: 'inline-block' }}
-              />
-              En ligne
+          <div className="flex items-center gap-3">
+
+            {/* Company contact — visible on large screens only */}
+            <div className="hidden lg:flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-2.5 text-[11px] font-medium" style={{ color: '#64748b' }}>
+                <span>📞 Mohamed&nbsp;<strong style={{ color: '#1d4ed8', fontWeight: 700 }}>06 61 32 56 65</strong></span>
+                <span style={{ color: '#e2e8f0' }}>·</span>
+                <span>Sadik&nbsp;<strong style={{ color: '#1d4ed8', fontWeight: 700 }}>06 61 97 87 47</strong></span>
+                <span style={{ color: '#e2e8f0' }}>·</span>
+                <span>Bureau&nbsp;<strong style={{ color: '#1d4ed8', fontWeight: 700 }}>06 62 82 88 20</strong></span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px]" style={{ color: '#94a3b8' }}>
+                <span>✉️ Dar.sadik@hotmail.com</span>
+                <span style={{ color: '#e2e8f0' }}>·</span>
+                <span>📍 Selouane - Nador</span>
+              </div>
             </div>
-            <div
-              className="text-[11px] font-medium px-3 py-1.5 rounded-lg"
-              style={{ background: '#f8fafc', color: '#64748b', border: '1px solid #f1f5f9' }}
-            >
-              {new Date().toLocaleDateString('fr-MA', { weekday: 'long', day: 'numeric', month: 'long' })}
+
+            <div className="hidden lg:block w-px h-7" style={{ background: '#f1f5f9' }} />
+
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
+                style={{ background: '#f0fdf4', color: '#16a34a' }}
+              >
+                <span
+                  className="rounded-full animate-pulse"
+                  style={{ width: 6, height: 6, background: '#4ade80', display: 'inline-block' }}
+                />
+                En ligne
+              </div>
+              <div
+                className="text-[11px] font-medium px-3 py-1.5 rounded-lg"
+                style={{ background: '#f8fafc', color: '#64748b', border: '1px solid #f1f5f9' }}
+              >
+                {new Date().toLocaleDateString('fr-MA', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </div>
             </div>
+
           </div>
         </header>
 

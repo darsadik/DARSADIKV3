@@ -28,19 +28,17 @@ const today = () => new Date().toISOString().split('T')[0]
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 
 const PRINT_CSS = `
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
+      h2 { font-size: 14px; color: #1e293b !important; margin: 18px 0 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+      .sub, .subtitle { color: #64748b !important; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid #1355a0; }
+      td { padding: 8px 12px; border: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; vertical-align: middle; }
       tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
+      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; color: #1e293b !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
       b, strong { color: #1e293b !important; font-weight: 800; }
       .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
       .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
       .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
       .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -48,19 +46,20 @@ const PRINT_CSS = `
       .prod-block { margin-bottom: 12px; }
       .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
       .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; color: #94a3b8 !important; font-size: 10px; }
       .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
       .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
       .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
       .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
       .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
       .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
+      @media print { button, .no-print { display: none !important; } body { padding: 12px 18px; } }
+      @page { size: A4; margin: 10mm 12mm; }
 `
+
+const CO_HEADER = (title, sub) => `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div><div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div><div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">${title}</div><div style="font-size:11px;color:#64748b;margin-bottom:18px">${sub}</div>`
+
+const CO_FOOTER = dt => `<div class="footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${dt}</span></div>`
 
 function useIsMobile() {
   const [m, setM] = useState(false)
@@ -455,50 +454,11 @@ export default function Grignon() {
     const totVente = filtered.reduce((s, o) => s + (o.total_vente || 0), 0)
         printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon (Fitour) — Ventes Clients</title>
-      <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
-</style></head><body>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div><h1>🫒 DAR SADIK — Grignon (Fitour) · Ventes Clients</h1>
-        <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
-        <div style="display:flex;gap:8px">
-          <div style="display:flex;gap:8px">
-        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-        </div>
+      <style>${PRINT_CSS}</style></head><body>
+      ${CO_HEADER('🫒 Grignon (Fitour) — Ventes Clients', 'Période : '+filterFrom+' → '+filterTo+' · '+filtered.length+' opérations · Total : '+fmt(totVente)+' DHS')}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
+        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
       </div>
       <table>
         <thead><tr>
@@ -517,6 +477,7 @@ export default function Grignon() {
           <td></td>
         </tr></tfoot>`:''}
       </table>
+      ${CO_FOOTER(new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'))}
       </body></html>`)
 
   }
@@ -546,54 +507,16 @@ export default function Grignon() {
           <tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmtD(data.total_qte)} kg</td><td></td><td style="text-align:right">${fmt(data.total_achat)} DHS</td></tr></tfoot>
         </table>`
     }).join('')
-        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-      <title>Grignon (Fitour) — Achats Fournisseurs</title>
-      <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
-</style></head><body>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div><h1>🫒 DAR SADIK — Grignon (Fitour) · Achats Fournisseurs</h1>
-        <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
-        <div style="display:flex;gap:8px">
-          <div style="display:flex;gap:8px">
-        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-        </div>
+        printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+      <title>Grignon — Achats Fournisseurs — DAR SADIK</title>
+      <style>${PRINT_CSS}</style></head><body>
+      ${CO_HEADER('🫒 Grignon — Achats Fournisseurs', 'Période : '+filterFrom+' → '+filterTo)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
+        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
       </div>
       ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
+      ${CO_FOOTER(new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'))}
       </body></html>`)
 
   }
@@ -622,54 +545,16 @@ export default function Grignon() {
           <tfoot><tr><td colspan="3">TOTAL (${ops.length} op.)</td><td style="text-align:right">${fmtD(totKg)} kg</td><td></td></tr></tfoot>
         </table>`
     }).join('')
-        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-      <title>Grignon (Fitour) — Camions</title>
-      <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
-</style></head><body>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div><h1>🫒 DAR SADIK — Grignon (Fitour) · Suivi Camions</h1>
-        <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
-        <div style="display:flex;gap:8px">
-          <div style="display:flex;gap:8px">
-        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-        </div>
+        printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+      <title>Grignon — Camions — DAR SADIK</title>
+      <style>${PRINT_CSS}</style></head><body>
+      ${CO_HEADER('🫒 Grignon — Suivi Camions', 'Période : '+filterFrom+' → '+filterTo)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
+        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
       </div>
       ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
+      ${CO_FOOTER(new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'))}
       </body></html>`)
 
   }
@@ -677,56 +562,16 @@ export default function Grignon() {
   // ──────────────────────────────────────────────────────────
 
   function printDashboard() {
-        const date = new Date().toLocaleDateString('fr-MA', { day: 'numeric', month: 'long', year: 'numeric' })
+    const _now = new Date()
+    const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     const totalOB = clients.reduce((s,c) => s + (c.opening_balance || 0), 0)
-    printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-      <title>Grignon — Tableau de bord</title>
-      <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
-</style></head><body>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <div>
-          <h1>🫒 DAR SADIK — Grignon (Fitour) · Tableau de bord</h1>
-          <div class="sub">Généré le ${date}</div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <div style="display:flex;gap:8px">
-        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-        </div>
+    printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+      <title>Grignon — Tableau de bord — DAR SADIK</title>
+      <style>${PRINT_CSS}</style></head><body>
+      ${CO_HEADER('🫒 Grignon (Fitour) — Tableau de bord', 'Généré le '+printDateTime)}
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
+        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
       </div>
 
       ${totalOB > 0 ? `<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:16px">
@@ -772,6 +617,7 @@ export default function Grignon() {
         ${clients.length === 0 ? '<tr><td colspan="3" style="text-align:center;color:#aaa">Aucun client</td></tr>' : ''}</tbody>
         ${clients.length > 0 ? `<tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmt(clients.reduce((s,c)=>s+(c.opening_balance||0),0))}</td><td style="text-align:right;color:#c2410c">${fmt(totalCreances)}</td></tr></tfoot>` : ''}
       </table>
+      ${CO_FOOTER(printDateTime)}
       </body></html>`)
 
   }
@@ -1233,13 +1079,13 @@ export default function Grignon() {
         </tr>`
       }).join('')
 
-            printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-        <title>Grignon — Paiements Fournisseurs</title>
+            printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+        <title>Grignon — Paiements Fournisseurs — DAR SADIK</title>
         <style>${PRINT_CSS}</style></head><body>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div><h1>🫒 DAR SADIK — Grignon (Fitour) · Paiements Fournisseurs</h1>
-          <div class="sub">Période: ${paiFilterFrom} → ${paiFilterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
-          <div><button onclick="window.print()" style="padding:8px 16px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer / PDF</button></div>
+        ${CO_HEADER('🫒 Grignon — Paiements Fournisseurs', 'Période : '+paiFilterFrom+' → '+paiFilterTo+' · '+filteredPai.length+' paiements · Total : '+fmt(totalFilteredPaid)+' DHS')}
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
+          <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
         </div>
 
         <h2>📋 Récapitulatif des soldes fournisseurs</h2>
@@ -1260,6 +1106,7 @@ export default function Grignon() {
           <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#aaa">Aucun paiement</td></tr>'}</tbody>
           ${filteredPai.length > 0 ? `<tfoot><tr><td colspan="2">TOTAL (${filteredPai.length})</td><td style="text-align:right">${fmt(totalFilteredPaid)}</td><td colspan="2"></td></tr></tfoot>` : ''}
         </table>
+        ${CO_FOOTER(new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'))}
         </body></html>`)
 
     }

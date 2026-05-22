@@ -302,29 +302,27 @@ export default function Ventes() {
     const tRR = filtered.reduce((s,v)=>s+(v.retour_restant||0),0)
     const hasRetour = filtered.some(v => v.retour_client)
     const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmt(v.retour_montant)}</td><td style="text-align:right">${fmt(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
-    printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ventes</title>
+    const _now = new Date()
+    const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+    printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Ventes — DAR SADIK</title>
     <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #ffffff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border: 1px solid #1355a0; }
+      td { padding: 8px 12px; font-size: 11px; color: #1e293b !important; border: 1px solid #e2e8f0; vertical-align: middle; }
       tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
+      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; color: #1e293b !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
       b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .section-title { font-size:14px;font-weight:800;margin:20px 0 8px;color:#1a5fa8; }
+      .section-title { font-size:14px; font-weight:800; margin:20px 0 10px; color:#1a5fa8; border-bottom:2px solid #e2e8f0; padding-bottom:6px; }
       .note-cell { color:#64748b !important; font-style:italic; font-size:10px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
+      @media print { button, .no-print { display: none !important; } body { padding: 12px 18px; } }
+      @page { size: A4; margin: 10mm 12mm; }
 </style></head><body>
-    <h1>DAR SADIK — Ventes ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</h1>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
+    <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
+    <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">📦 Ventes — ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:18px">${filtered.length} ventes &nbsp;·&nbsp; Total Qté : ${fmt(tQ)} &nbsp;·&nbsp; Total DHS : ${fmt(tV)} DHS</div>
     <table><thead><tr><th>Date livraison</th><th>Client</th><th>Produit</th><th>Transport</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix/u</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
     <tbody>${filtered.map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.type_brique||'—'}</td><td>${v.camion_plaque}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${fmtD(v.prix_vente)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td class="note-cell">${v.note||''}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td colspan="4">TOTAL (${filtered.length})</td><td style="text-align:right">${fmt(tQ)}</td><td></td><td style="text-align:right">${fmt(tV)} DHS</td><td></td></tr></tfoot>
@@ -334,6 +332,7 @@ export default function Ventes() {
     <tbody>${retourRows}</tbody>
     <tfoot><tr><td colspan="4">TOTAL RETOURS</td><td style="text-align:right">${fmt(tR)} DHS</td><td></td><td style="text-align:right">${fmt(tRR)} DHS</td></tr></tfoot>
     </table>` : ''}
+    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
     </body></html>`)
   }
 
@@ -665,59 +664,47 @@ export default function Ventes() {
         </div>`
     }).join('')
 
+    const _now = new Date()
+    const _dt = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     return `<!DOCTYPE html><html lang="fr"><head>
       <meta charset="UTF-8">
-      <title>DAR SADIK — Rapport Fournisseurs</title>
+      <title>Rapport Fournisseurs — DAR SADIK</title>
       <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #ffffff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border: 1px solid #1355a0; }
+      td { padding: 8px 12px; border: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; vertical-align: middle; }
       tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
+      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; color: #1e293b !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
       b, strong { color: #1e293b !important; font-weight: 800; }
       .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
       .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
       .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #ffffff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #ffffff !important; }
+      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
       .prod-block { margin-bottom: 12px; }
       .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
       .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #1a5fa8 !important; color: #ffffff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; color: #94a3b8 !important; font-size: 10px; }
+      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
       .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
       .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
       .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
+      @media print { button, .no-print { display: none !important; } body { padding: 12px 18px; } }
+      @page { size: A4; margin: 10mm 12mm; }
 </style>
     </head><body>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
-        <div>
-          <h1>🏭 DAR SADIK — Rapport Fournisseurs (Achats)</h1>
-          <div class="sub">Période: ${fmtDate(fFilterFrom)} → ${fmtDate(fFilterTo)} | ${Object.keys(byFourn).length} fournisseur(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <div style="display:flex;gap:8px">
-        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-        </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
+      <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
+      <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🏭 Rapport Fournisseurs (Achats)</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:16px">Période : ${fmtDate(fFilterFrom)} → ${fmtDate(fFilterTo)} &nbsp;·&nbsp; ${Object.keys(byFourn).length} fournisseur(s)</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
+        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
       </div>
       ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
-      <div class="footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
+      <div class="footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_dt}</span></div>
     </body></html>`
   }
 
@@ -1229,59 +1216,47 @@ export default function Ventes() {
           </div>`
       }).join('')
 
+    const _now2 = new Date()
+    const _dt2 = _now2.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now2.getHours()).padStart(2,'0') + ':' + String(_now2.getMinutes()).padStart(2,'0')
     return `<!DOCTYPE html><html lang="fr"><head>
       <meta charset="UTF-8">
-      <title>DAR SADIK — Rapport Camions</title>
+      <title>Rapport Camions — DAR SADIK</title>
       <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; color: #1e293b !important; }
-      h2 { font-size: 15px; color: #1e293b !important; }
-      .sub, .subtitle { color: #555 !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-      th { background: #1a5fa8 !important; color: #ffffff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border: 1px solid #1355a0; }
+      td { padding: 8px 12px; border: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; vertical-align: middle; }
       tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; color: #1e293b !important; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
+      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; color: #1e293b !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
       b, strong { color: #1e293b !important; font-weight: 800; }
       .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .header-block { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #1a5fa8; }
       .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
       .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #ffffff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #ffffff !important; }
+      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
       .prod-block { margin-bottom: 12px; }
       .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
       .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888 !important; font-size: 10px; text-align: center; }
-      .camion-header { background: #1a5fa8 !important; color: #ffffff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; color: #94a3b8 !important; font-size: 10px; }
+      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
       .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
       .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
       .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        button, .no-print { display: none !important; }
-        body { padding: 0; }
-      }
+      @media print { button, .no-print { display: none !important; } body { padding: 12px 18px; } }
+      @page { size: A4; margin: 10mm 12mm; }
 </style>
     </head><body>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
-        <div>
-          <h1>🚛 DAR SADIK — Rapport Camions</h1>
-          <div class="sub">Période: ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} | ${Object.keys(byCamion).length} camion(s) | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <div style="display:flex;gap:8px">
-        <button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-          <button class="pdf-btn" onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 PDF</button>
-        </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
+      <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
+      <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🚛 Rapport Camions</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:16px">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${Object.keys(byCamion).length} camion(s)</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
+        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
       </div>
       ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
-      <div class="footer">DAR SADIK — Selouane, Nador | Document généré automatiquement</div>
+      <div class="footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_dt2}</span></div>
     </body></html>`
   }
 
@@ -1622,24 +1597,29 @@ export default function Ventes() {
                 <td style="text-align:right"><b>${fmt(v.montant_mdo)} DHS</b></td>
                 <td>${v.note || '—'}</td>
               </tr>`).join('')
-              printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Main d'œuvre</title>
+              const _mn = new Date(); const _mdt = _mn.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(_mn.getHours()).padStart(2,'0')+':'+String(_mn.getMinutes()).padStart(2,'0')
+              printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Main d'œuvre — DAR SADIK</title>
               <style>
-                * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
-                body { font-family:Arial,sans-serif; padding:28px; font-size:12px; color:#1e293b; background:#fff; }
-                h1 { font-size:18px; margin:0 0 4px; } .sub { color:#555; font-size:11px; margin-bottom:16px; }
-                table { width:100%; border-collapse:collapse; margin-bottom:8px; }
-                th { background:#92400e !important; color:#fff !important; padding:8px 10px; text-align:left; font-size:11px; font-weight:700; }
-                td { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:11px; }
-                tr:nth-child(even) td { background:#fffbeb !important; }
-                tfoot td { background:#fef3c7 !important; font-weight:800 !important; border-top:2px solid #92400e !important; }
-                @media print { button { display:none !important; } body { padding:0; } }
+                * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; box-sizing:border-box; }
+                body { font-family:Arial,sans-serif; padding:30px 36px; font-size:12px; color:#1e293b; background:#fff; margin:0; }
+                table { width:100%; border-collapse:collapse; margin-bottom:10px; }
+                th { background:#1a5fa8 !important; color:#fff !important; padding:9px 12px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; text-align:left; border:1px solid #1355a0; }
+                td { padding:8px 12px; border:1px solid #e2e8f0; font-size:11px; vertical-align:middle; }
+                tr:nth-child(even) td { background:#f8fafc !important; }
+                tfoot td { background:#e8f0fe !important; font-weight:800 !important; border:1px solid #c7d8f7; border-top:2px solid #1a5fa8 !important; }
+                @media print { button { display:none !important; } body { padding:12px 18px; } }
+                @page { size:A4; margin:10mm 12mm; }
               </style></head><body>
-              <h1>🔧 DAR SADIK — Main d'œuvre ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</h1>
-              <div class="sub">Généré le ${new Date().toLocaleDateString('fr-MA')} — ${mdoFiltered.length} entrée(s)</div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
+              <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
+              <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔧 Main d'œuvre</div>
+              <div style="font-size:11px;color:#64748b;margin-bottom:18px">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${mdoFiltered.length} entrée(s) &nbsp;·&nbsp; Total : ${fmt(totalMdo)} DHS</div>
               <table><thead><tr><th>Date</th><th>Client</th><th>Description</th><th>Camion</th><th style="text-align:right">Montant DHS</th><th>Note</th></tr></thead>
               <tbody>${rows}</tbody>
               <tfoot><tr><td colspan="4">TOTAL (${mdoFiltered.length})</td><td style="text-align:right">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
-              </table></body></html>`)
+              </table>
+              <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_mdt}</span></div>
+              </body></html>`)
 
             }
 
@@ -1746,17 +1726,23 @@ export default function Ventes() {
                 <td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td>
                 <td style="text-align:right;color:#15803d"><b>− ${fmt(v.montant_mdo)} DHS</b></td>
                 <td>${v.description_mdo||v.note||'—'}</td></tr>`).join('')
-              printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Remises</title>
-                <style>* { -webkit-print-color-adjust:exact !important; }
-                body{font-family:Arial,sans-serif;padding:28px;font-size:12px;color:#1e293b;}
-                table{width:100%;border-collapse:collapse;}
-                th{background:#15803d !important;color:#fff !important;padding:8px 10px;font-size:11px;font-weight:700;}
-                td{padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:11px;}
-                tr:nth-child(even) td{background:#f0fdf4 !important;}
-                tfoot td{background:#dcfce7 !important;font-weight:800 !important;border-top:2px solid #15803d !important;}
-                @media print{button{display:none !important;}body{padding:0;}}</style></head><body>
-                <h1 style="font-size:18px;margin:0 0 4px">🎁 DAR SADIK — Remises clients</h1>
-                <div style="color:#555;font-size:11px;margin-bottom:16px">${fmtDate(filterFrom)} → ${fmtDate(filterTo)} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
+              const _rn = new Date(); const _rdt = _rn.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(_rn.getHours()).padStart(2,'0')+':'+String(_rn.getMinutes()).padStart(2,'0')
+              printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Remises — DAR SADIK</title>
+                <style>
+                  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; box-sizing:border-box; }
+                  body { font-family:Arial,sans-serif; padding:30px 36px; font-size:12px; color:#1e293b; background:#fff; margin:0; }
+                  table { width:100%; border-collapse:collapse; margin-bottom:10px; }
+                  th { background:#1a5fa8 !important; color:#fff !important; padding:9px 12px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; text-align:left; border:1px solid #1355a0; }
+                  td { padding:8px 12px; border:1px solid #e2e8f0; font-size:11px; vertical-align:middle; }
+                  tr:nth-child(even) td { background:#f8fafc !important; }
+                  tfoot td { background:#e8f0fe !important; font-weight:800 !important; border:1px solid #c7d8f7; border-top:2px solid #1a5fa8 !important; }
+                  @media print { button { display:none !important; } body { padding:12px 18px; } }
+                  @page { size:A4; margin:10mm 12mm; }
+                </style></head><body>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
+                <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
+                <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🎁 Remises Clients</div>
+                <div style="font-size:11px;color:#64748b;margin-bottom:18px">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${remisesFiltered.length} remise(s) &nbsp;·&nbsp; Total : − ${fmt(totalRemises)} DHS</div>
                 <table><thead><tr>
                   <th>Date</th><th>Client</th><th style="text-align:right">Remise DHS</th><th>Note / Motif</th>
                 </tr></thead>
@@ -1766,7 +1752,9 @@ export default function Ventes() {
                   <td style="text-align:right;color:#15803d">− ${fmt(totalRemises)} DHS</td>
                   <td></td>
                 </tr></tfoot>` : ''}
-                </table></body></html>`)
+                </table>
+                <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_rdt}</span></div>
+                </body></html>`)
 
             }
 
