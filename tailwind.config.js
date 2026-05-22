@@ -5,21 +5,27 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          50:  '#e8f0fb',
-          100: '#c5d8f5',
-          200: '#a0bfee',
-          300: '#7aa6e6',
-          400: '#4d8bdc',
-          500: '#1a5fa8',
-          600: '#145090',
-          700: '#0d3d6e',
-          800: '#0a2d52',
-          900: '#071f3a',
+          50:  '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
         }
       },
       fontFamily: {
-        sans: ['Inter', 'Segoe UI', 'sans-serif'],
-      }
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+      },
+      boxShadow: {
+        card:         '0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)',
+        'card-hover': '0 8px 24px 0 rgba(0,0,0,0.09), 0 3px 8px -2px rgba(0,0,0,0.06)',
+        soft:         '0 2px 8px 0 rgba(0,0,0,0.07)',
+        blue:         '0 4px 14px 0 rgba(37,99,235,0.28)',
+      },
     }
   },
   plugins: [],

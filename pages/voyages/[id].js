@@ -89,7 +89,7 @@ export default function VoyageDetail() {
   const [showCharge,   setShowCharge]   = useState(false)
 
   const [achatForm, setAchatForm] = useState({ date_achat: today(), type_produit: 'brique', fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' })
-  const [livForm,   setLivForm]   = useState({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', note: '' })
+  const [livForm,   setLivForm]   = useState({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
   const [retForm,   setRetForm]   = useState({ date_retour: today(), client_nom: '', destination: '', montant: '', montant_paye: '', note: '' })
   const [gasForm,   setGasForm]   = useState({ date_gasoil: today(), station: 'HMIDA ZAIO — Station Petrom', qte_litres: '', prix_unitaire: '12.40', note: '' })
   // Charges: grid state — one row per category all visible at once
@@ -131,8 +131,8 @@ export default function VoyageDetail() {
       supabase.from('clients').select('*').order('nom'),
       supabase.from('fournisseurs').select('*').order('nom'),
       supabase.from('grignon_fournisseurs').select('*').order('nom'),
-      supabase.from('grignon_clients').select('*').order('nom'),
       supabase.from('type_briques').select('*').order('nom'),
+      supabase.from('grignon_clients').select('*').order('nom'),
       supabase.from('voyage_achats').select('*').eq('voyage_id', id).order('created_at'),
       supabase.from('voyage_livraisons').select('*').eq('voyage_id', id).order('created_at'),
       supabase.from('voyage_retours').select('*').eq('voyage_id', id).order('created_at'),
@@ -157,16 +157,16 @@ export default function VoyageDetail() {
   useEffect(() => { loadVoyage() }, [loadVoyage])
 
   // ── PROFIT CALCULATIONS ────────────────────────────────────────────────────
-  const totalGasoil      = gasoil.reduce((s, g) => s + (g.total || 0), 0)
-  const totalChargesFixed = charges.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
+  const totalGasoil       = gasoil.reduce((s, g) => s + (g.total || 0), 0)
+  const totalChargesFixed  = charges.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
   const totalChargesClient = charges.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-  const totalRevenuLivs  = livraisons.reduce((s, l) => s + (l.total_vente || 0), 0)
-  const totalAchatLivs   = livraisons.reduce((s, l) => s + ((l.qte||0)*(l.prix_achat||0)), 0)
-  const totalRetours     = retours.reduce((s, r) => s + (r.montant_paye || 0), 0)
-  const revenuBrut       = totalRevenuLivs + totalRetours + totalChargesClient
-  const coutTotal        = totalAchatLivs + totalGasoil + totalChargesFixed
-  const profitNet        = revenuBrut - coutTotal
-  const margePercent     = revenuBrut > 0 ? Math.round(profitNet / revenuBrut * 100) : 0
+  const totalRevenuLivs    = livraisons.reduce((s, l) => s + (l.total_vente || 0), 0)
+  const totalAchats        = achats.reduce((s, a) => s + (a.total_achat || (a.qte||0)*(a.prix_achat||0)), 0)
+  const totalRetours       = retours.reduce((s, r) => s + (r.montant_paye || 0), 0)
+  const revenuBrut         = totalRevenuLivs + totalRetours + totalChargesClient
+  const coutTotal          = totalAchats + totalGasoil + totalChargesFixed
+  const profitNet          = revenuBrut - coutTotal
+  const margePercent       = revenuBrut > 0 ? Math.round(profitNet / revenuBrut * 100) : 0
 
   // Unique clients count for gasoil/charge split
   const clientsUniques = [...new Set(livraisons.map(l => l.client_id).filter(Boolean))]
@@ -180,7 +180,7 @@ export default function VoyageDetail() {
     const myLivs = livraisons.filter(l => l.client_id === cid)
     const myCharges = charges.filter(c => c.facture_client && c.client_id === cid)
     const rev = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0) + myCharges.reduce((s, c) => s + (c.montant || 0), 0)
-    const cout = myLivs.reduce((s, l) => s + ((l.qte||0)*(l.prix_achat||0)), 0) + gasoilParClient + chargesFixesParClient
+    const cout = myLivs.reduce((s, l) => s + (l.total_achat || (l.qte||0)*(l.prix_achat||0)), 0) + gasoilParClient + chargesFixesParClient
     return { id: cid, nom: cl?.nom || myLivs[0]?.client_nom || '—', rev, cout, profit: rev - cout }
   })
 
@@ -204,7 +204,7 @@ export default function VoyageDetail() {
       fournisseur_id:  achatForm.fournisseur_id ? parseInt(achatForm.fournisseur_id) : null,
       fournisseur_nom: fourn?.nom || '',
       type_brique:     achatForm.type_produit === 'grignon' ? 'Grignon' : (ty?.nom || ''),
-      qte, prix_achat: prix,
+      qte, prix_achat: prix, total_achat,
       note: achatForm.note || null,
     })
     setSavingAchat(false)
@@ -221,7 +221,8 @@ export default function VoyageDetail() {
     const qte        = parseFloat(livForm.qte)        || 0
     const prix_vente = parseFloat(livForm.prix_vente) || 0
     const prix_achat = parseFloat(livForm.prix_achat) || 0
-    const total_vente = Math.round(qte * prix_vente * 100) / 100
+    const remise      = parseFloat(livForm.remise)    || 0
+    const total_vente = Math.round((qte * prix_vente - remise) * 100) / 100
     const total_achat = Math.round(qte * prix_achat * 100) / 100
     const marge       = Math.round((total_vente - total_achat) * 100) / 100
     const cl  = livForm.type_produit === 'grignon'
@@ -237,7 +238,7 @@ export default function VoyageDetail() {
       client_id:       parseInt(livForm.client_id),
       client_nom:      cl?.nom || '',
       type_brique:     livForm.type_produit === 'grignon' ? 'Grignon' : (ty?.nom || ''),
-      qte, prix_vente, prix_achat,
+      qte, prix_vente, prix_achat, remise, total_vente, total_achat, marge,
       note: livForm.note || null,
     }).select().single()
 
@@ -286,7 +287,7 @@ export default function VoyageDetail() {
 
     setSavingLiv(false)
     setShowLiv(false)
-    setLivForm({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', note: '' })
+    setLivForm({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
     loadVoyage()
   }
 
@@ -299,16 +300,8 @@ export default function VoyageDetail() {
     const montant_paye = parseFloat(retForm.montant_paye)  || 0
     const restant      = Math.max(0, montant - montant_paye)
 
-    // Save to voyage_retours
-    await supabase.from('voyage_retours').insert({
-      voyage_id:    parseInt(id),
-      date_retour:  retForm.date_retour,
-      client_nom:   retForm.client_nom.trim(),
-      montant, montant_paye,
-      note: retForm.note || null,
-    })
-    // Also save to retours_transport
-    await supabase.from('retours_transport').insert({
+    // Save to retours_transport first (global tracking) — get id to link back
+    const { data: rtData } = await supabase.from('retours_transport').insert({
       date:          retForm.date_retour,
       client_nom:    retForm.client_nom.trim(),
       destination:   retForm.destination || null,
@@ -317,7 +310,19 @@ export default function VoyageDetail() {
       chauffeur:     voyage?.chauffeur || null,
       montant, montant_paye, restant,
       voyage_id:     parseInt(id),
+    }).select().single()
+
+    // Save to voyage_retours with link back + destination
+    await supabase.from('voyage_retours').insert({
+      voyage_id:    parseInt(id),
+      date_retour:  retForm.date_retour,
+      client_nom:   retForm.client_nom.trim(),
+      destination:  retForm.destination || null,
+      montant, montant_paye,
+      retour_id:    rtData?.id || null,
+      note: retForm.note || null,
     })
+
     setSavingRetour(false)
     setShowRetour(false)
     setRetForm({ date_retour: today(), client_nom: '', destination: '', montant: '', montant_paye: '', note: '' })
@@ -329,31 +334,35 @@ export default function VoyageDetail() {
     e.preventDefault()
     if (!gasForm.qte_litres || !gasForm.prix_unitaire) { showMsg('❌ Quantité et prix requis'); return }
     setSavingGas(true)
-    const qte = parseFloat(gasForm.qte_litres)    || 0
-    const pu  = parseFloat(gasForm.prix_unitaire) || 0
+    const qte   = parseFloat(gasForm.qte_litres)    || 0
+    const pu    = parseFloat(gasForm.prix_unitaire) || 0
     const total = Math.round(qte * pu * 100) / 100
-
-    // Save to voyage_gasoil
-    await supabase.from('voyage_gasoil').insert({
-      voyage_id:     parseInt(id),
-      date_gasoil:   gasForm.date_gasoil,
-      station:       gasForm.station,
-      qte_litres:    qte,
-      prix_unitaire: pu,
-      note: gasForm.note || null,
-    })
-    // Also save to gasoil table
     const camion = camions.find(c => c.id === voyage?.camion_id)
+
+    // Save to global gasoil table first — get id to link back
     const { data: gasData } = await supabase.from('gasoil').insert({
       date:          gasForm.date_gasoil,
       camion_id:     voyage?.camion_id || null,
       camion_plaque: voyage?.camion_plaque || '',
       chauffeur:     voyage?.chauffeur || '',
       station:       gasForm.station,
-      qte: qte, prix_unitaire: pu, total,
+      qte, prix_unitaire: pu, total,
       voyage_id:     parseInt(id),
     }).select().single()
-    // Update camion stats
+
+    // Save to voyage_gasoil with total + link back
+    await supabase.from('voyage_gasoil').insert({
+      voyage_id:     parseInt(id),
+      date_gasoil:   gasForm.date_gasoil,
+      station:       gasForm.station,
+      qte_litres:    qte,
+      prix_unitaire: pu,
+      total,
+      gasoil_id:     gasData?.id || null,
+      note: gasForm.note || null,
+    })
+
+    // Update camion cumulative stats
     if (camion) {
       await supabase.from('camions').update({
         gasoil_dhs: (camion.gasoil_dhs || 0) + total,
@@ -361,6 +370,7 @@ export default function VoyageDetail() {
         litres:     (camion.litres || 0) + qte,
       }).eq('id', camion.id)
     }
+
     setSavingGas(false)
     setShowGasoil(false)
     setGasForm({ date_gasoil: today(), station: 'HMIDA ZAIO — Station Petrom', qte_litres: '', prix_unitaire: '12.40', note: '' })
@@ -441,17 +451,17 @@ export default function VoyageDetail() {
     loadVoyage()
   }
   async function delGasoil(row) {
+    const camion = camions.find(c => c.id === voyage?.camion_id)
     await supabase.from('voyage_gasoil').delete().eq('id', row.id)
     if (row.gasoil_id) {
-      const camion = camions.find(c => c.id === voyage?.camion_id)
       await supabase.from('gasoil').delete().eq('id', row.gasoil_id)
-      if (camion) {
-        await supabase.from('camions').update({
-          gasoil_dhs: Math.max(0, (camion.gasoil_dhs || 0) - (row.total || 0)),
-          pleins:     Math.max(0, (camion.pleins || 0) - 1),
-          litres:     Math.max(0, (camion.litres || 0) - (row.qte_litres || 0)),
-        }).eq('id', camion.id)
-      }
+    }
+    if (camion && row.total) {
+      await supabase.from('camions').update({
+        gasoil_dhs: Math.max(0, (camion.gasoil_dhs || 0) - row.total),
+        pleins:     Math.max(0, (camion.pleins || 0) - 1),
+        litres:     Math.max(0, (camion.litres || 0) - (row.qte_litres || 0)),
+      }).eq('id', camion.id)
     }
     loadVoyage()
   }
@@ -527,7 +537,7 @@ export default function VoyageDetail() {
             </div>
             <div>
               <div className="text-[10px] text-slate-400 mb-1">Coût achats</div>
-              <div className="text-lg font-black text-red-400">{fmt(totalAchatLivs)} DHS</div>
+              <div className="text-lg font-black text-red-400">{fmt(totalAchats)} DHS</div>
             </div>
             <div>
               <div className="text-[10px] text-slate-400 mb-1">Gasoil + Charges</div>
@@ -732,15 +742,20 @@ export default function VoyageDetail() {
                   className="input w-full text-sm" placeholder="1.20" />
               </div>
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Total vente</label>
+                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Remise (DHS)</label>
+                <input type="number" step="0.01" value={livForm.remise} onChange={e => setLivForm({...livForm, remise: e.target.value})}
+                  className="input w-full text-sm" placeholder="0" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Total vente (après remise)</label>
                 <div className="input w-full text-sm bg-slate-50 font-bold text-emerald-600 flex items-center">
-                  {fmt((parseFloat(livForm.qte)||0) * (parseFloat(livForm.prix_vente)||0))} DHS
+                  {fmt(Math.max(0, (parseFloat(livForm.qte)||0) * (parseFloat(livForm.prix_vente)||0) - (parseFloat(livForm.remise)||0)))} DHS
                 </div>
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 block mb-1">Marge brute</label>
                 <div className="input w-full text-sm bg-slate-50 font-bold text-blue-600 flex items-center">
-                  {fmt((parseFloat(livForm.qte)||0) * ((parseFloat(livForm.prix_vente)||0) - (parseFloat(livForm.prix_achat)||0)))} DHS
+                  {fmt(Math.max(0, (parseFloat(livForm.qte)||0) * (parseFloat(livForm.prix_vente)||0) - (parseFloat(livForm.remise)||0)) - (parseFloat(livForm.qte)||0) * (parseFloat(livForm.prix_achat)||0))} DHS
                 </div>
               </div>
               <div>
@@ -779,9 +794,12 @@ export default function VoyageDetail() {
                       <td className="py-2 pr-3 font-semibold">{l.client_nom}</td>
                       <td className="py-2 pr-3 text-slate-500">{l.type_brique || l.type_produit}</td>
                       <td className="py-2 pr-3 text-right">{fmt(l.qte)}</td>
-                      <td className="py-2 pr-3 text-right">{fmtD(l.prix_vente)}</td>
+                      <td className="py-2 pr-3 text-right">
+                        {fmtD(l.prix_vente)}
+                        {l.remise > 0 && <span className="ml-1 text-orange-500 text-[9px]">-{fmt(l.remise)}</span>}
+                      </td>
                       <td className="py-2 pr-3 text-right font-bold text-emerald-600">{fmt(l.total_vente)} DHS</td>
-                      <td className="py-2 pr-3 text-right font-semibold text-blue-600">{fmt((l.total_vente||0) - (l.prix_achat||0)*(l.qte||0))} DHS</td>
+                      <td className="py-2 pr-3 text-right font-semibold text-blue-600">{fmt(l.marge || ((l.total_vente||0) - (l.prix_achat||0)*(l.qte||0)))} DHS</td>
                       <td className="py-2 pl-2"><DelBtn onDel={() => delLiv(l)} /></td>
                     </tr>
                   ))}
@@ -789,7 +807,7 @@ export default function VoyageDetail() {
                     <td colSpan={4} className="py-2 pr-3 text-right text-[10px] uppercase text-slate-700">Total livraisons</td>
                     <td></td>
                     <td className="py-2 pr-3 text-right text-emerald-600">{fmt(totalRevenuLivs)} DHS</td>
-                    <td className="py-2 pr-3 text-right text-blue-600">{fmt(livraisons.reduce((s,l)=>s+((l.total_vente||0)-(l.prix_achat||0)*(l.qte||0)),0))} DHS</td>
+                    <td className="py-2 pr-3 text-right text-blue-600">{fmt(livraisons.reduce((s,l)=>s+(l.marge||((l.total_vente||0)-(l.prix_achat||0)*(l.qte||0))),0))} DHS</td>
                     <td></td>
                   </tr>
                 </tbody>

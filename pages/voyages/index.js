@@ -74,11 +74,13 @@ export default function Voyages() {
       { data: rets },
       { data: gas },
       { data: chgs },
+      { data: acs },
     ] = await Promise.all([
-      supabase.from('voyage_livraisons').select('voyage_id,total_vente,qte,prix_achat').in('voyage_id', ids),
+      supabase.from('voyage_livraisons').select('voyage_id,total_vente,client_id').in('voyage_id', ids),
       supabase.from('voyage_retours').select('voyage_id,montant_paye').in('voyage_id', ids),
       supabase.from('voyage_gasoil').select('voyage_id,total').in('voyage_id', ids),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client').in('voyage_id', ids),
+      supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat').in('voyage_id', ids),
     ])
 
     const map = {}
@@ -87,16 +89,17 @@ export default function Voyages() {
       const myRets = (rets || []).filter(r => r.voyage_id === id)
       const myGas  = (gas  || []).filter(g => g.voyage_id === id)
       const myChgs = (chgs || []).filter(c => c.voyage_id === id)
+      const myAcs  = (acs  || []).filter(a => a.voyage_id === id)
 
       const revenuLivraisons = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0)
       const revenuRetours    = myRets.reduce((s, r) => s + (r.montant_paye || 0), 0)
       const chargesClient    = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
       const revenuBrut       = revenuLivraisons + revenuRetours + chargesClient
 
-      const coutAchat  = myLivs.reduce((s, l) => s + ((l.qte||0)*(l.prix_achat||0)), 0)
-      const coutGasoil = myGas.reduce((s, g) => s + (g.total || 0), 0)
+      const coutAchat   = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte||0)*(a.prix_achat||0)), 0)
+      const coutGasoil  = myGas.reduce((s, g) => s + (g.total || 0), 0)
       const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-      const coutTotal  = coutAchat + coutGasoil + coutCharges
+      const coutTotal   = coutAchat + coutGasoil + coutCharges
 
       map[id] = {
         revenu: revenuBrut,

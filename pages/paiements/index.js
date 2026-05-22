@@ -62,13 +62,21 @@ export default function Paiements() {
   const [paiements, setPaiements] = useState([])
   const [camions, setCamions] = useState([])
   const [fournisseurs, setFournisseurs] = useState([])
+  const [grignonClients, setGrignonClients] = useState([])
+  const [grignonPaiements, setGrignonPaiements] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingGrignon, setSavingGrignon] = useState(false)
 
   // ── UI ──
   const [showForm, setShowForm] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
-  const [activeTab, setActiveTab] = useState('all') // 'all' | 'cheques' | 'fournisseurs'
+  const [showGrignonForm, setShowGrignonForm] = useState(false)
+  const [activeTab, setActiveTab] = useState('all') // 'all' | 'cheques' | 'fournisseurs' | 'grignon'
+
+  // ── GRIGNON FORM ──
+  const emptyGrignonForm = () => ({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '' })
+  const [grignonForm, setGrignonForm] = useState(emptyGrignonForm())
 
   // ── FILTERS ──
   const [filterClient, setFilterClient] = useState('')
@@ -86,16 +94,20 @@ export default function Paiements() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: cl }, { data: pa }, { data: ca }, { data: fo }] = await Promise.all([
+    const [{ data: cl }, { data: pa }, { data: ca }, { data: fo }, { data: gc }, { data: gp }] = await Promise.all([
       supabase.from('clients').select('*').order('nom'),
       supabase.from('paiements').select('*').order('date', { ascending: true }),
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('fournisseurs').select('*').order('nom'),
+      supabase.from('grignon_clients').select('*').order('nom'),
+      supabase.from('grignon_paiements').select('*').order('date', { ascending: true }),
     ])
     setClients(cl || [])
     setPaiements(pa || [])
     setCamions(ca || [])
     setFournisseurs(fo || [])
+    setGrignonClients(gc || [])
+    setGrignonPaiements(gp || [])
     setLoading(false)
   }
 
@@ -153,6 +165,36 @@ export default function Paiements() {
     loadAll()
   }
 
+  // ── GRIGNON SAVE ──
+  async function saveGrignonPaiement(e) {
+    e.preventDefault()
+    const montantG = parseFloat(grignonForm.montant) || 0
+    if (!grignonForm.client_id || !montantG) return
+    setSavingGrignon(true)
+    const cl = grignonClients.find(c => c.id === parseInt(grignonForm.client_id))
+    await supabase.from('grignon_paiements').insert({
+      date: grignonForm.date,
+      client_id: parseInt(grignonForm.client_id),
+      client_nom: cl?.nom || '',
+      mode: grignonForm.mode,
+      montant: montantG,
+      note: grignonForm.note || null,
+    })
+    if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - montantG }).eq('id', cl.id)
+    setSavingGrignon(false)
+    setGrignonForm(emptyGrignonForm())
+    setShowGrignonForm(false)
+    loadAll()
+  }
+
+  async function deleteGrignonPaiement(id, clientId, m) {
+    if (!confirm('Supprimer ce paiement grignon ?')) return
+    const cl = grignonClients.find(c => c.id === clientId)
+    await supabase.from('grignon_paiements').delete().eq('id', id)
+    if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) + m }).eq('id', clientId)
+    loadAll()
+  }
+
   // ── UPDATE CHEQUE STATUS (inline, no page reload needed) ──
   async function updateChequeStatus(id, status) {
     await supabase.from('paiements').update({ cheque_status: status }).eq('id', id)
@@ -171,6 +213,7 @@ export default function Paiements() {
       if (searchCheque && !(p.cheque_number || '').toLowerCase().includes(searchCheque.toLowerCase())) return false
       if (activeTab === 'cheques' && p.mode !== 'Chèque') return false
       if (activeTab === 'fournisseurs' && !p.fournisseur_id) return false
+      if (activeTab === 'grignon') return false // grignon has its own section
       return true
     })
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -456,7 +499,7 @@ export default function Paiements() {
 
           {/* Tab bar */}
           <div className="flex gap-1 mb-3 bg-gray-100 rounded-xl p-1">
-            {[['all','Tous'],['cheques','📄 Chèques'],['fournisseurs','🏭 Fourn.']].map(([key, label]) => (
+            {[['all','Tous'],['cheques','📄 Chèques'],['fournisseurs','🏭 Fourn.'],['grignon','🫒 Grignon']].map(([key, label]) => (
               <button key={key} onClick={() => setActiveTab(key)}
                 className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${activeTab===key?'bg-white text-gray-900 shadow-sm':'text-gray-500'}`}>
                 {label}
@@ -464,8 +507,66 @@ export default function Paiements() {
             ))}
           </div>
 
-          {/* Mobile list */}
-          {loading ? <div className="text-center text-gray-400 py-10">Chargement...</div> : (
+          {/* Grignon tab content */}
+          {activeTab === 'grignon' ? (
+            <div>
+              <button onClick={() => setShowGrignonForm(!showGrignonForm)}
+                className="w-full mb-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition-all">
+                {showGrignonForm ? '▲ Fermer' : '🫒 + Paiement client grignon'}
+              </button>
+              {showGrignonForm && (
+                <form onSubmit={saveGrignonPaiement} className="card mb-4 space-y-3">
+                  <div><label className="label">Date</label>
+                    <input className="input" type="date" value={grignonForm.date} onChange={e => setGrignonForm({...grignonForm, date: e.target.value})} required />
+                  </div>
+                  <div><label className="label">Client grignon</label>
+                    <select className="input" value={grignonForm.client_id} onChange={e => setGrignonForm({...grignonForm, client_id: e.target.value})} required>
+                      <option value="">Sélectionner...</option>
+                      {grignonClients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmt(c.solde||0)} DHS</option>)}
+                    </select>
+                  </div>
+                  <div><label className="label">Mode</label>
+                    <select className="input" value={grignonForm.mode} onChange={e => setGrignonForm({...grignonForm, mode: e.target.value})}>
+                      {['Espèce','Chèque','Virement'].map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="label">Montant (DHS)</label>
+                    <input className="input" type="number" value={grignonForm.montant} onChange={e => setGrignonForm({...grignonForm, montant: e.target.value})} required />
+                  </div>
+                  <div><label className="label">Note</label>
+                    <input className="input" value={grignonForm.note} onChange={e => setGrignonForm({...grignonForm, note: e.target.value})} />
+                  </div>
+                  <button type="submit" disabled={savingGrignon} className="btn-success w-full justify-center">
+                    {savingGrignon ? '...' : '✓ Enregistrer'}
+                  </button>
+                </form>
+              )}
+              <div className="mobile-card-list">
+                {grignonPaiements.filter(p => (!filterFrom || p.date >= filterFrom) && (!filterTo || p.date <= filterTo))
+                  .sort((a,b) => b.date.localeCompare(a.date))
+                  .map(p => (
+                  <div key={p.id} className="mobile-row-card">
+                    <div className="card-header">
+                      <div>
+                        <div className="card-title">{p.client_nom}</div>
+                        <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(p.date)}</div>
+                      </div>
+                      <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
+                    </div>
+                    <div className="card-meta">
+                      <span>{p.mode}</span>
+                      {p.note && <span>{p.note}</span>}
+                    </div>
+                    <div className="card-actions">
+                      <button className="btn-danger" onClick={() => deleteGrignonPaiement(p.id, p.client_id, p.montant)}>✕ Supprimer</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+          /* Mobile brique list */
+          loading ? <div className="text-center text-gray-400 py-10">Chargement...</div> : (
             <div className="mobile-card-list">
               {filtered.map(p => (
                 <div key={p.id} className={`mobile-row-card ${p.cheque_status==='rejected'?'border-l-4 border-red-400':''}`}>
@@ -501,6 +602,7 @@ export default function Paiements() {
               ))}
               {filtered.length === 0 && <div className="text-center text-gray-400 py-10">Aucun paiement pour cette sélection</div>}
             </div>
+          )
           )}
         </div>
 
@@ -593,7 +695,7 @@ export default function Paiements() {
 
               {/* Tab bar */}
               <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1">
-                {[['all','Tous les paiements'],['cheques','📄 Chèques'],['fournisseurs','🏭 Fournisseurs']].map(([key, label]) => (
+                {[['all','Tous les paiements'],['cheques','📄 Chèques'],['fournisseurs','🏭 Fournisseurs'],['grignon','🫒 Grignon']].map(([key, label]) => (
                   <button key={key} onClick={() => setActiveTab(key)}
                     className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${activeTab===key?'bg-white text-gray-900 shadow-sm':'text-gray-500'}`}>
                     {label}
@@ -612,8 +714,82 @@ export default function Paiements() {
                 {chequesRejected>0 && <span className="text-red-600 font-bold">⚠️ {chequesRejected} rejeté(s)</span>}
               </div>
 
-              {/* Table */}
-              {loading ? <div className="text-center text-gray-400 py-10">Chargement...</div> : (
+              {/* Table / Grignon section */}
+              {activeTab === 'grignon' ? (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-sm font-semibold text-slate-700">
+                      🫒 Paiements clients Grignon — Total: <span className="text-emerald-600">
+                        {fmt(grignonPaiements.filter(p => (!filterFrom||p.date>=filterFrom)&&(!filterTo||p.date<=filterTo)).reduce((s,p)=>s+(p.montant||0),0))} DHS
+                      </span>
+                    </div>
+                    <button onClick={() => setShowGrignonForm(!showGrignonForm)}
+                      className="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-emerald-800 transition">
+                      {showGrignonForm ? 'Fermer' : '+ Nouveau paiement grignon'}
+                    </button>
+                  </div>
+                  {showGrignonForm && (
+                    <form onSubmit={saveGrignonPaiement} className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div><label className="label">Date</label>
+                        <input className="input" type="date" value={grignonForm.date} onChange={e => setGrignonForm({...grignonForm, date: e.target.value})} required />
+                      </div>
+                      <div><label className="label">Client grignon</label>
+                        <select className="input" value={grignonForm.client_id} onChange={e => setGrignonForm({...grignonForm, client_id: e.target.value})} required>
+                          <option value="">Sélectionner...</option>
+                          {grignonClients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmt(c.solde||0)} DHS</option>)}
+                        </select>
+                      </div>
+                      <div><label className="label">Mode</label>
+                        <select className="input" value={grignonForm.mode} onChange={e => setGrignonForm({...grignonForm, mode: e.target.value})}>
+                          {['Espèce','Chèque','Virement'].map(m => <option key={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div><label className="label">Montant (DHS)</label>
+                        <input className="input" type="number" value={grignonForm.montant} onChange={e => setGrignonForm({...grignonForm, montant: e.target.value})} required />
+                      </div>
+                      <div><label className="label">Note</label>
+                        <input className="input" value={grignonForm.note} onChange={e => setGrignonForm({...grignonForm, note: e.target.value})} />
+                      </div>
+                      <div className="flex items-end gap-2">
+                        <button type="button" onClick={() => setShowGrignonForm(false)} className="btn-secondary text-xs">Annuler</button>
+                        <button type="submit" disabled={savingGrignon} className="btn-success text-xs">
+                          {savingGrignon ? '...' : '✓ Enregistrer'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead><tr>
+                        <th className="th">Date</th>
+                        <th className="th">Client</th>
+                        <th className="th">Mode</th>
+                        <th className="th text-right">Montant DHS</th>
+                        <th className="th">Note</th>
+                        <th className="th"></th>
+                      </tr></thead>
+                      <tbody>
+                        {grignonPaiements
+                          .filter(p => (!filterFrom||p.date>=filterFrom)&&(!filterTo||p.date<=filterTo))
+                          .sort((a,b) => b.date.localeCompare(a.date))
+                          .map(p => (
+                          <tr key={p.id} className="hover:bg-gray-50">
+                            <td className="td text-gray-500">{fmtDate(p.date)}</td>
+                            <td className="td font-semibold">{p.client_nom}</td>
+                            <td className="td"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span></td>
+                            <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
+                            <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
+                            <td className="td"><button className="btn-danger" onClick={() => deleteGrignonPaiement(p.id, p.client_id, p.montant)}>✕</button></td>
+                          </tr>
+                        ))}
+                        {grignonPaiements.length === 0 && (
+                          <tr><td colSpan={6} className="td text-center text-gray-400 py-10">Aucun paiement grignon enregistré</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : loading ? <div className="text-center text-gray-400 py-10">Chargement...</div> : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead><tr>

@@ -6,79 +6,118 @@
 * { box-sizing: border-box; }
 
 body {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  background: #f5f6fa;
-  color: #1a1a2e;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* ─────────────────────────────────────────────
+   Scrollbar
+───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+/* ─────────────────────────────────────────────
+   Component classes
+───────────────────────────────────────────── */
 @layer components {
+
+  /* Buttons */
   .btn-primary {
-    @apply bg-brand-500 hover:bg-brand-600 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-all duration-150 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-brand-600 hover:bg-brand-700 active:bg-brand-800
+           text-white font-semibold px-4 py-2 rounded-lg text-sm
+           transition-all duration-150 flex items-center gap-2
+           shadow-sm hover:shadow-blue
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none;
   }
   .btn-secondary {
-    @apply bg-white hover:bg-gray-50 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm border border-gray-200 transition-all duration-150 flex items-center gap-2;
+    @apply bg-white hover:bg-slate-50 active:bg-slate-100
+           text-slate-700 font-medium px-4 py-2 rounded-lg text-sm
+           border border-slate-200 hover:border-slate-300
+           transition-all duration-150 flex items-center gap-2 shadow-sm;
   }
   .btn-danger {
-    @apply bg-white hover:bg-red-50 text-red-600 font-medium px-3 py-1.5 rounded-lg text-xs border border-red-200 transition-all duration-150;
+    @apply bg-white hover:bg-red-50 active:bg-red-100
+           text-red-600 font-medium px-3 py-1.5 rounded-lg text-xs
+           border border-red-200 hover:border-red-300
+           transition-all duration-150 shadow-sm;
   }
   .btn-success {
-    @apply bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-all duration-150 flex items-center gap-2;
+    @apply bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
+           text-white font-semibold px-4 py-2 rounded-lg text-sm
+           transition-all duration-150 flex items-center gap-2 shadow-sm;
   }
+
+  /* Cards */
   .card {
-    @apply bg-white rounded-xl border border-gray-100 shadow-sm p-5;
+    @apply bg-white rounded-xl border border-slate-100 shadow-card p-5;
   }
+
+  /* Inputs */
   .input {
-    @apply w-full text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white transition-all;
+    @apply w-full text-sm px-3 py-2.5 border border-slate-200 rounded-lg
+           focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20
+           bg-white transition-all duration-150 placeholder:text-slate-400;
   }
   .label {
-    @apply block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide;
+    @apply block text-[11px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wider;
   }
-  .badge-red { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700; }
-  .badge-amber { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700; }
-  .badge-green { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700; }
-  .badge-blue { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700; }
-  .badge-gray { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600; }
-  .th { @apply text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100; }
-  .td { @apply py-3 px-4 text-sm text-gray-700 border-b border-gray-50; }
+
+  /* Badges */
+  .badge-red   { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50   text-red-600   ring-1 ring-inset ring-red-100; }
+  .badge-amber { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50  text-amber-600  ring-1 ring-inset ring-amber-100; }
+  .badge-green { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 ring-1 ring-inset ring-emerald-100; }
+  .badge-blue  { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50  text-brand-600  ring-1 ring-inset ring-brand-100; }
+  .badge-gray  { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600  ring-1 ring-inset ring-slate-200; }
+
+  /* Tables */
+  .th { @apply text-left py-3 px-4 text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/80 border-b border-slate-100; }
+  .td { @apply py-3 px-4 text-sm text-slate-700 border-b border-slate-50 transition-colors duration-100; }
   .tfoot-td { @apply py-3 px-4 text-sm font-bold text-brand-700 bg-brand-50 border-t-2 border-brand-200; }
-  .page-title { @apply text-xl font-bold text-gray-900; }
-  .page-subtitle { @apply text-sm text-gray-500 mt-0.5; }
-  .stat-card { @apply bg-white rounded-xl border border-gray-100 shadow-sm p-4; }
-  .stat-label { @apply text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1; }
-  .stat-value { @apply text-2xl font-bold; }
-  .stat-sub { @apply text-xs text-gray-400 mt-1; }
+
+  /* Typography */
+  .page-title    { @apply text-[18px] font-bold text-slate-900 tracking-tight leading-tight; }
+  .page-subtitle { @apply text-[12px] text-slate-400 mt-0.5 leading-tight; }
+
+  /* Stat cards */
+  .stat-card  { @apply bg-white rounded-xl border border-slate-100 shadow-card p-4 transition-all duration-200 hover:shadow-card-hover hover:-translate-y-px; }
+  .stat-label { @apply text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1; }
+  .stat-value { @apply text-2xl font-bold tracking-tight; }
+  .stat-sub   { @apply text-xs text-slate-400 mt-0.5; }
 }
 
-/* ═══════════════════════════════════════════
-   📱 MOBILE RESPONSIVE STYLES
-   ═══════════════════════════════════════════ */
+/* Table row hover (can't use @apply inside media queries, so plain CSS) */
+tbody tr:hover td { background-color: rgba(248, 250, 252, 0.9); }
 
-/* Mobile cards replacing table rows */
+/* ─────────────────────────────────────────────
+   📱 MOBILE STYLES
+───────────────────────────────────────────── */
 @media (max-width: 767px) {
 
-  /* Hide desktop tables on mobile */
   .mobile-hide-table table,
   .mobile-hide-table .overflow-x-auto {
     display: none !important;
   }
 
-  /* Mobile card list */
   .mobile-card-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
 
-  /* Each data row becomes a card */
   .mobile-row-card {
     background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
     padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   }
 
   .mobile-row-card .card-header {
@@ -90,25 +129,25 @@ body {
   .mobile-row-card .card-title {
     font-weight: 700;
     font-size: 15px;
-    color: #111827;
+    color: #0f172a;
   }
 
   .mobile-row-card .card-amount {
     font-weight: 700;
     font-size: 15px;
-    color: #1d4ed8;
+    color: #2563eb;
   }
 
   .mobile-row-card .card-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 5px;
     font-size: 12px;
-    color: #6b7280;
+    color: #64748b;
   }
 
   .mobile-row-card .card-meta span {
-    background: #f3f4f6;
+    background: #f1f5f9;
     border-radius: 6px;
     padding: 2px 8px;
   }
@@ -118,20 +157,19 @@ body {
     justify-content: flex-end;
     gap: 8px;
     padding-top: 4px;
-    border-top: 1px solid #f3f4f6;
+    border-top: 1px solid #f1f5f9;
   }
 
-  /* Collapsible section */
   .mobile-collapse-btn {
     width: 100%;
     text-align: left;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 10px;
     padding: 12px 14px;
     font-weight: 600;
     font-size: 14px;
-    color: #374151;
+    color: #334155;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -139,18 +177,14 @@ body {
     margin-bottom: 4px;
   }
 
-  /* Mobile filters — stack vertically */
   .mobile-filters {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
     gap: 8px !important;
   }
 
-  .mobile-filters .input {
-    font-size: 14px;
-  }
+  .mobile-filters .input { font-size: 14px; }
 
-  /* Mobile tabs — horizontal scroll */
   .mobile-tabs {
     display: flex;
     overflow-x: auto;
@@ -167,55 +201,29 @@ body {
     font-size: 13px;
     padding: 8px 14px;
     border-radius: 10px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #e2e8f0;
     white-space: nowrap;
     background: white;
-    color: #6b7280;
+    color: #64748b;
     font-weight: 600;
     transition: all 0.15s;
   }
 
   .mobile-tabs button.active {
-    background: #1d4ed8;
+    background: #2563eb;
     color: white;
-    border-color: #1d4ed8;
+    border-color: #2563eb;
   }
 
-  /* Stat cards — 2 columns on mobile */
-  .mobile-stats-grid {
-    grid-template-columns: 1fr 1fr !important;
-  }
+  .mobile-stats-grid  { grid-template-columns: 1fr 1fr !important; }
+  .mobile-form-grid   { grid-template-columns: 1fr !important; }
+  .mobile-btn-full    { width: 100% !important; justify-content: center !important; }
+  .page-subtitle      { display: none; }
+  .stat-value         { font-size: 20px !important; }
 
-  /* Reduce padding on mobile */
-  .card {
-    padding: 12px !important;
-  }
-
-  /* Stack form grids on mobile */
-  .mobile-form-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Full width buttons on mobile */
-  .mobile-btn-full {
-    width: 100% !important;
-    justify-content: center !important;
-  }
-
-  /* Hide subtitles on mobile to save space */
-  .page-subtitle {
-    display: none;
-  }
-
-  /* Smaller stat values on mobile */
-  .stat-value {
-    font-size: 20px !important;
-  }
+  .card { padding: 12px !important; }
 }
 
-/* Tablet adjustments */
 @media (min-width: 768px) and (max-width: 1023px) {
-  .card {
-    padding: 14px !important;
-  }
+  .card { padding: 14px !important; }
 }
