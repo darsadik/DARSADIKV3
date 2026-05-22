@@ -88,14 +88,14 @@ export default function Dashboard() {
   // ── Derived KPIs ────────────────────────────────────────────────────────────
   const voyagesEnCours = voyages.filter(v => v.statut === 'en_cours')
   const margePercent   = totRev > 0 ? Math.round(totProfit / totRev * 100) : 0
-  const totalDebtAll   = totalDebt + totalDebtGr
-  const nbDebtors      = clients.filter(c => (c.solde||0) > 0).length + grignonCl.filter(c => (c.solde||0) > 0).length
 
   // ── Client debts ────────────────────────────────────────────────────────────
-  const debtClients  = clients.filter(c => (c.solde||0) > 0).slice(0,5)
-  const debtGrignon  = grignonCl.filter(c => (c.solde||0) > 0).slice(0,3)
-  const totalDebt    = clients.reduce((s,c)=>s+(c.solde||0),0)
-  const totalDebtGr  = grignonCl.reduce((s,c)=>s+(c.solde||0),0)
+  const totalDebt     = clients.reduce((s,c)=>s+(c.solde||0),0)
+  const totalDebtGr   = grignonCl.reduce((s,c)=>s+(c.solde||0),0)
+  const totalDebtAll  = totalDebt + totalDebtGr
+  const nbDebtors     = clients.filter(c => (c.solde||0) > 0).length + grignonCl.filter(c => (c.solde||0) > 0).length
+  const debtClients   = clients.filter(c => (c.solde||0) > 0).slice(0,5)
+  const debtGrignon   = grignonCl.filter(c => (c.solde||0) > 0).slice(0,3)
   const urgentClients = clients.filter(c => (c.solde||0) >= 100000)
 
   // ── Recent voyages (last 5) ─────────────────────────────────────────────────
