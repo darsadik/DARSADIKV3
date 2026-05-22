@@ -7,19 +7,11 @@ const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt  = n => Math.round(n || 0).toLocaleString('fr-MA')
 
 // ── Print via hidden iframe — stays on same page (PWA safe) ──
-function printViaIframe(htmlContent) {
-  const existing = document.getElementById('__print_iframe')
-  if (existing) existing.remove()
-  const iframe = document.createElement('iframe')
-  iframe.id = '__print_iframe'
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;'
-  document.body.appendChild(iframe)
-  const doc = iframe.contentWindow.document
-  doc.open(); doc.write(htmlContent); doc.close()
-  setTimeout(() => {
-    iframe.contentWindow.focus()
-    iframe.contentWindow.print()
-  }, 300)
+function openPrintWindow(html) {
+  const w = window.open('', '_blank')
+  if (!w) return
+  w.document.write(html)
+  w.document.close()
 }
 
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
@@ -452,7 +444,7 @@ export default function Grignon() {
       </tr>`).join('')
     const totQte   = filtered.reduce((s, o) => s + (o.qte || 0), 0)
     const totVente = filtered.reduce((s, o) => s + (o.total_vente || 0), 0)
-        printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Grignon (Fitour) — Ventes Clients</title>
       <style>${PRINT_CSS}</style></head><body>
       ${CO_HEADER('🫒 Grignon (Fitour) — Ventes Clients', 'Période : '+filterFrom+' → '+filterTo+' · '+filtered.length+' opérations · Total : '+fmt(totVente)+' DHS')}
@@ -507,7 +499,7 @@ export default function Grignon() {
           <tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmtD(data.total_qte)} kg</td><td></td><td style="text-align:right">${fmt(data.total_achat)} DHS</td></tr></tfoot>
         </table>`
     }).join('')
-        printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+        openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
       <title>Grignon — Achats Fournisseurs — DAR SADIK</title>
       <style>${PRINT_CSS}</style></head><body>
       ${CO_HEADER('🫒 Grignon — Achats Fournisseurs', 'Période : '+filterFrom+' → '+filterTo)}
@@ -545,7 +537,7 @@ export default function Grignon() {
           <tfoot><tr><td colspan="3">TOTAL (${ops.length} op.)</td><td style="text-align:right">${fmtD(totKg)} kg</td><td></td></tr></tfoot>
         </table>`
     }).join('')
-        printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+        openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
       <title>Grignon — Camions — DAR SADIK</title>
       <style>${PRINT_CSS}</style></head><body>
       ${CO_HEADER('🫒 Grignon — Suivi Camions', 'Période : '+filterFrom+' → '+filterTo)}
@@ -565,7 +557,7 @@ export default function Grignon() {
     const _now = new Date()
     const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     const totalOB = clients.reduce((s,c) => s + (c.opening_balance || 0), 0)
-    printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
       <title>Grignon — Tableau de bord — DAR SADIK</title>
       <style>${PRINT_CSS}</style></head><body>
       ${CO_HEADER('🫒 Grignon (Fitour) — Tableau de bord', 'Généré le '+printDateTime)}
@@ -929,7 +921,7 @@ export default function Grignon() {
             </table>
           </div>`
       }).join('')
-            printViaIframe(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+            openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8">
         <title>Grignon (Fitour) — Achats Fournisseurs</title>
         <style>${PRINT_CSS}
         .section-title{font-weight:800;font-size:13px;margin:18px 0 8px;border-left:4px solid #1a5fa8;padding-left:10px;color:#1a5fa8}
@@ -1079,7 +1071,7 @@ export default function Grignon() {
         </tr>`
       }).join('')
 
-            printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+            openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
         <title>Grignon — Paiements Fournisseurs — DAR SADIK</title>
         <style>${PRINT_CSS}</style></head><body>
         ${CO_HEADER('🫒 Grignon — Paiements Fournisseurs', 'Période : '+paiFilterFrom+' → '+paiFilterTo+' · '+filteredPai.length+' paiements · Total : '+fmt(totalFilteredPaid)+' DHS')}

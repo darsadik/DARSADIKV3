@@ -6,19 +6,11 @@ import { useAuth } from '../_app'
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
 
 // ── Print via hidden iframe — stays on same page (PWA safe) ──
-function printViaIframe(htmlContent) {
-  const existing = document.getElementById('__print_iframe')
-  if (existing) existing.remove()
-  const iframe = document.createElement('iframe')
-  iframe.id = '__print_iframe'
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;'
-  document.body.appendChild(iframe)
-  const doc = iframe.contentWindow.document
-  doc.open(); doc.write(htmlContent); doc.close()
-  setTimeout(() => {
-    iframe.contentWindow.focus()
-    iframe.contentWindow.print()
-  }, 300)
+function openPrintWindow(html) {
+  const w = window.open('', '_blank')
+  if (!w) return
+  w.document.write(html)
+  w.document.close()
 }
 
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
@@ -248,7 +240,7 @@ export default function Paiements() {
   function printPaiements() {
     const _now = new Date()
     const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
-        printViaIframe(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+        openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
     <title>Paiements — DAR SADIK</title>
     <style>
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
