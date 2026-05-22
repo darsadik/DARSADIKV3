@@ -284,7 +284,7 @@ export default function VoyageDetail() {
     const montant = parseFloat(editForm.montant)||0, montant_paye = parseFloat(editForm.montant_paye)||0
     const restant = Math.max(0, montant-montant_paye)
     await supabase.from('voyage_retours').update({ date_retour: editForm.date_retour, client_nom: editForm.client_nom, destination: editForm.destination||null, montant, montant_paye, note: editForm.note||null }).eq('id', old.id)
-    if (old.retour_id) await supabase.from('retours_transport').update({ montant, montant_paye, restant }).eq('id', old.retour_id)
+    if (old.retour_id) try { await supabase.from('retours_transport').update({ montant, montant_paye, restant }).eq('id', old.retour_id) } catch(e) {}
     setEditSaving(false); setEditRow(null); loadVoyage()
   }
 
@@ -294,7 +294,7 @@ export default function VoyageDetail() {
     const qte = parseFloat(editForm.qte_litres)||0, pu = parseFloat(editForm.prix_unitaire)||0
     const total = Math.round(qte*pu*100)/100
     await supabase.from('voyage_gasoil').update({ date_gasoil: editForm.date_gasoil, station: editForm.station, qte_litres: qte, prix_unitaire: pu, total }).eq('id', old.id)
-    if (old.gasoil_id) await supabase.from('gasoil').update({ qte, prix_unitaire: pu, total }).eq('id', old.gasoil_id)
+    if (old.gasoil_id) try { await supabase.from('gasoil').update({ qte, prix_unitaire: pu, total }).eq('id', old.gasoil_id) } catch(e) {}
     const camion = camions.find(c=>c.id===voyage?.camion_id)
     if (camion) await supabase.from('camions').update({
       gasoil_dhs: Math.max(0,(camion.gasoil_dhs||0)-(old.total||0)+total),
@@ -385,14 +385,18 @@ export default function VoyageDetail() {
     setSavingRetour(true)
     const montant = parseFloat(retForm.montant)||0, montant_paye = parseFloat(retForm.montant_paye)||0
     const restant = Math.max(0, montant-montant_paye)
-    const { data: rtData } = await supabase.from('retours_transport').insert({
-      date: retForm.date_retour, client_nom: retForm.client_nom.trim(), destination: retForm.destination||null,
-      camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||null, chauffeur: voyage?.chauffeur||null,
-      montant, montant_paye, restant, voyage_id: parseInt(id),
-    }).select().single()
+    let rtId = null
+    try {
+      const { data: rtData } = await supabase.from('retours_transport').insert({
+        date: retForm.date_retour, client_nom: retForm.client_nom.trim(), destination: retForm.destination||null,
+        camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||null, chauffeur: voyage?.chauffeur||null,
+        montant, montant_paye, restant, voyage_id: parseInt(id),
+      }).select().single()
+      rtId = rtData?.id || null
+    } catch(e) {}
     await supabase.from('voyage_retours').insert({
       voyage_id: parseInt(id), date_retour: retForm.date_retour, client_nom: retForm.client_nom.trim(),
-      destination: retForm.destination||null, montant, montant_paye, retour_id: rtData?.id||null, note: retForm.note||null,
+      destination: retForm.destination||null, montant, montant_paye, retour_id: rtId, note: retForm.note||null,
     })
     setSavingRetour(false); setShowRetour(false)
     setRetForm({ date_retour: today(), client_nom: '', destination: '', montant: '', montant_paye: '', note: '' })
@@ -407,13 +411,17 @@ export default function VoyageDetail() {
     const qte = parseFloat(gasForm.qte_litres)||0, pu = parseFloat(gasForm.prix_unitaire)||0
     const total = Math.round(qte*pu*100)/100
     const camion = camions.find(c=>c.id===voyage?.camion_id)
-    const { data: gasData } = await supabase.from('gasoil').insert({
-      date: gasForm.date_gasoil, camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'',
-      chauffeur: voyage?.chauffeur||'', station: gasForm.station, qte, prix_unitaire: pu, total, voyage_id: parseInt(id),
-    }).select().single()
+    let gasId = null
+    try {
+      const { data: gasData } = await supabase.from('gasoil').insert({
+        date: gasForm.date_gasoil, camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'',
+        chauffeur: voyage?.chauffeur||'', station: gasForm.station, qte, prix_unitaire: pu, total, voyage_id: parseInt(id),
+      }).select().single()
+      gasId = gasData?.id || null
+    } catch(e) {}
     await supabase.from('voyage_gasoil').insert({
       voyage_id: parseInt(id), date_gasoil: gasForm.date_gasoil, station: gasForm.station,
-      qte_litres: qte, prix_unitaire: pu, total, gasoil_id: gasData?.id||null, note: gasForm.note||null,
+      qte_litres: qte, prix_unitaire: pu, total, gasoil_id: gasId, note: gasForm.note||null,
     })
     if (camion) await supabase.from('camions').update({
       gasoil_dhs: (camion.gasoil_dhs||0)+total, pleins: (camion.pleins||0)+1, litres: (camion.litres||0)+qte,
@@ -468,13 +476,13 @@ export default function VoyageDetail() {
   }
   async function delRetour(row) {
     await supabase.from('voyage_retours').delete().eq('id', row.id)
-    if (row.retour_id) await supabase.from('retours_transport').delete().eq('id', row.retour_id)
+    if (row.retour_id) try { await supabase.from('retours_transport').delete().eq('id', row.retour_id) } catch(e) {}
     loadVoyage()
   }
   async function delGasoil(row) {
     const camion = camions.find(c=>c.id===voyage?.camion_id)
     await supabase.from('voyage_gasoil').delete().eq('id', row.id)
-    if (row.gasoil_id) await supabase.from('gasoil').delete().eq('id', row.gasoil_id)
+    if (row.gasoil_id) try { await supabase.from('gasoil').delete().eq('id', row.gasoil_id) } catch(e) {}
     if (camion && row.total) await supabase.from('camions').update({
       gasoil_dhs: Math.max(0,(camion.gasoil_dhs||0)-row.total),
       pleins:     Math.max(0,(camion.pleins||0)-1),
