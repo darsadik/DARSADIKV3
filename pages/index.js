@@ -48,7 +48,7 @@ export default function Dashboard() {
       supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
       supabase.from('clients').select('id,nom,solde').order('solde', { ascending: false }),
       supabase.from('grignon_clients').select('id,nom,solde').order('solde', { ascending: false }),
-      supabase.from('gasoil').select('total,date').gte('date', month),
+      supabase.from('gasoil').select('total,date').gte('date', month).then(r => r).catch(() => ({ data: [] })),
     ])
     setVoyages(v || [])
     setLivraisons(li || [])
