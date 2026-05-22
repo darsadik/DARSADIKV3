@@ -36,38 +36,66 @@ const today = () => new Date().toISOString().split('T')[0]
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 
 const PRINT_CSS = `
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      h2 { font-size: 14px; color: #1e293b !important; margin: 18px 0 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
-      .sub, .subtitle { color: #64748b !important; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid #1355a0; }
-      td { padding: 8px 12px; border: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; vertical-align: middle; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; color: #1e293b !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; color: #94a3b8 !important; font-size: 10px; }
-      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 50px; }
-      .sig { text-align: center; border-top: 1px solid #94a3b8; padding-top: 8px; color: #555 !important; font-size: 11px; }
-      @media print { button, .no-print { display: none !important; } body { padding: 12px 18px; } }
-      @page { size: A4; margin: 10mm 12mm; }
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
+  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
+  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
+  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
+  .co-r strong{color:#fff}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
+  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:18px 24px}
+  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
+  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
+  h2{font-size:13px;font-weight:700;color:#1a3a6b;margin:16px 0 8px;border-bottom:2px solid #1a3a6b;padding-bottom:4px}
+  .section-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .kpi-box{padding:10px 13px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
+  .kpi-box .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:3px}
+  .kpi-box .val{font-size:16px;font-weight:900;line-height:1}
+  .kpi-blue{border-left-color:#1d4ed8 !important}.kpi-blue .val{color:#1d4ed8}
+  .kpi-green{border-left-color:#16a34a !important}.kpi-green .val{color:#16a34a}
+  .kpi-amber{border-left-color:#b45309 !important}.kpi-amber .val{color:#b45309}
+  .kpi-purple{border-left-color:#7c3aed !important}.kpi-purple .val{color:#7c3aed}
+  .kpi-orange{border-left-color:#ea580c !important}.kpi-orange .val{color:#ea580c}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}
+  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th.r,th[style*="text-align:right"]{text-align:right}
+  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .num{font-weight:700;font-size:11px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;background:#e2e8f0;color:#1e293b;border:1px solid #cbd5e1}
+  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
+  .fourn-block{margin-bottom:20px;page-break-inside:avoid}
+  .fourn-header{background:#1a3a6b !important;color:#fff !important;border-radius:6px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .fourn-title{font-size:13px;font-weight:800;color:#fff !important}
+  .info-box{background:#f8fafc !important;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px}
+  .info-box b{display:block;margin-bottom:4px;color:#475569 !important;font-size:9px;text-transform:uppercase;letter-spacing:0.05em}
+  .footer{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  @media print{.btn-p,.btn-d{display:none !important}}
+  @page{size:A4;margin:8mm 10mm}
 `
 
-const CO_HEADER = (title, sub) => `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div><div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div><div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">${title}</div><div style="font-size:11px;color:#64748b;margin-bottom:18px">${sub}</div>`
+const CO_HEADER = (title, sub) => `
+<div class="hdr">
+  <div>
+    <div class="co-n">DAR SADIK</div>
+    <div class="co-ar">دار صديق</div>
+    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
+    <div>Dar.sadik@hotmail.com</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+  </div>
+</div>
+<div class="bdy">
+<div class="ttl">${title}</div>
+<div class="sub">${sub}</div>`
 
-const CO_FOOTER = dt => `<div class="footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${dt}</span></div>`
+const CO_FOOTER = dt => `<div class="footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${dt}</span></div></div>`
 
 function useIsMobile() {
   const [m, setM] = useState(false)
@@ -464,10 +492,6 @@ export default function Grignon() {
       <title>Grignon (Fitour) — Ventes Clients</title>
       <style>${PRINT_CSS}</style></head><body>
       ${CO_HEADER('🫒 Grignon (Fitour) — Ventes Clients', 'Période : '+filterFrom+' → '+filterTo+' · '+filtered.length+' opérations · Total : '+fmt(totVente)+' DHS')}
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
-        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
       <table>
         <thead><tr>
           <th>Date</th><th>Client</th>
@@ -519,10 +543,6 @@ export default function Grignon() {
       <title>Grignon — Achats Fournisseurs — DAR SADIK</title>
       <style>${PRINT_CSS}</style></head><body>
       ${CO_HEADER('🫒 Grignon — Achats Fournisseurs', 'Période : '+filterFrom+' → '+filterTo)}
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
-        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
       ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
       ${CO_FOOTER(new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'))}
       </body></html>`)
@@ -557,10 +577,6 @@ export default function Grignon() {
       <title>Grignon — Camions — DAR SADIK</title>
       <style>${PRINT_CSS}</style></head><body>
       ${CO_HEADER('🫒 Grignon — Suivi Camions', 'Période : '+filterFrom+' → '+filterTo)}
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
-        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
       ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
       ${CO_FOOTER(new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'))}
       </body></html>`)
@@ -577,10 +593,6 @@ export default function Grignon() {
       <title>Grignon — Tableau de bord — DAR SADIK</title>
       <style>${PRINT_CSS}</style></head><body>
       ${CO_HEADER('🫒 Grignon (Fitour) — Tableau de bord', 'Généré le '+printDateTime)}
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
-        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
 
       ${totalOB > 0 ? `<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:16px">
         🏦 <b>Soldes initiaux inclus: ${fmt(totalOB)} DHS</b> — Anciens soldes avant l'utilisation de l'app
@@ -937,18 +949,13 @@ export default function Grignon() {
             </table>
           </div>`
       }).join('')
-            openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-        <title>Grignon (Fitour) — Achats Fournisseurs</title>
-        <style>${PRINT_CSS}
-        .section-title{font-weight:800;font-size:13px;margin:18px 0 8px;border-left:4px solid #1a5fa8;padding-left:10px;color:#1a5fa8}
-        </style></head><body>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div><h1>🫒 DAR SADIK — Grignon · Achats & Soldes Fournisseurs</h1>
-          <div class="sub">Période: ${filterFrom} → ${filterTo} | Généré le ${new Date().toLocaleDateString('fr-MA')}</div></div>
-          <div><button onclick="window.print()" style="padding:8px 16px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer / PDF</button></div>
-        </div>
-        ${sections || '<p style="color:#aaa">Aucune donnée pour cette période</p>'}
-        </body></html>`)
+      const _gdt = new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0')
+            openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+        <title>Grignon — Achats Fournisseurs — DAR SADIK</title>
+        <style>${PRINT_CSS}</style></head><body>
+        ${CO_HEADER('Grignon (Fitour) — Achats & Soldes Fournisseurs', 'Période : '+fmtDate(filterFrom)+' → '+fmtDate(filterTo)+' &nbsp;·&nbsp; Généré le '+_gdt)}
+        ${sections || '<p style="color:#aaa;text-align:center;padding:30px">Aucune donnée pour cette période</p>'}
+        ${CO_FOOTER(_gdt)}`)
 
     }
 
@@ -1087,16 +1094,13 @@ export default function Grignon() {
         </tr>`
       }).join('')
 
+      const _pdt = new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0')
             openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
         <title>Grignon — Paiements Fournisseurs — DAR SADIK</title>
         <style>${PRINT_CSS}</style></head><body>
-        ${CO_HEADER('🫒 Grignon — Paiements Fournisseurs', 'Période : '+paiFilterFrom+' → '+paiFilterTo+' · '+filteredPai.length+' paiements · Total : '+fmt(totalFilteredPaid)+' DHS')}
-        <div style="display:flex;gap:8px;margin-bottom:16px">
-          <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
-          <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
-        </div>
+        ${CO_HEADER('Grignon — Paiements Fournisseurs', 'Période : '+fmtDate(paiFilterFrom)+' → '+fmtDate(paiFilterTo)+' &nbsp;·&nbsp; '+filteredPai.length+' paiements &nbsp;·&nbsp; Total : '+fmt(totalFilteredPaid)+' DHS')}
 
-        <h2>📋 Récapitulatif des soldes fournisseurs</h2>
+        <h2>Récapitulatif des soldes fournisseurs</h2>
         <table>
           <thead><tr><th>Fournisseur</th><th style="text-align:right">Total achats DHS</th><th style="text-align:right">Total payé DHS</th><th style="text-align:right">Reste à payer DHS</th></tr></thead>
           <tbody>${balanceRows}</tbody>
@@ -1108,13 +1112,13 @@ export default function Grignon() {
           </tr></tfoot>
         </table>
 
-        <h2 style="margin-top:24px">💳 Historique des paiements (${filteredPai.length})</h2>
+        <h2>Historique des paiements (${filteredPai.length})</h2>
         <table>
           <thead><tr><th>Date</th><th>Fournisseur</th><th style="text-align:right">Montant DHS</th><th>Mode</th><th>Note</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#aaa">Aucun paiement</td></tr>'}</tbody>
-          ${filteredPai.length > 0 ? `<tfoot><tr><td colspan="2">TOTAL (${filteredPai.length})</td><td style="text-align:right">${fmt(totalFilteredPaid)}</td><td colspan="2"></td></tr></tfoot>` : ''}
+          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#aaa;font-style:italic">Aucun paiement</td></tr>'}</tbody>
+          ${filteredPai.length > 0 ? `<tfoot><tr><td colspan="2">TOTAL (${filteredPai.length})</td><td style="text-align:right">${fmt(totalFilteredPaid)} DHS</td><td colspan="2"></td></tr></tfoot>` : ''}
         </table>
-        ${CO_FOOTER(new Date().toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'))}
+        ${CO_FOOTER(_pdt)}
         </body></html>`)
 
     }

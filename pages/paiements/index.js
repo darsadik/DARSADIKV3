@@ -256,54 +256,97 @@ export default function Paiements() {
   function printPaiements() {
     const _now = new Date()
     const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
-        openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
-    <title>Paiements — DAR SADIK</title>
-    <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; margin: 0; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border: 1px solid #1355a0; }
-      td { padding: 8px 12px; font-size: 11px; color: #1e293b; border: 1px solid #e2e8f0; vertical-align: middle; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tr.rejected td { background: #fef2f2 !important; }
-      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; color: #1e293b !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:10px; font-weight:700; }
-      .b-esp { background:#dcfce7; color:#166534; } .b-chq { background:#fef9c3; color:#854d0e; }
-      .b-vir { background:#dbeafe; color:#1e40af; } .b-fou { background:#f3e8ff; color:#6b21a8; }
-      .s-pending{color:#b45309;} .s-validated{color:#166534;} .s-rejected{color:#dc2626;font-weight:700;}
-      @media print { button { display: none !important; } body { padding: 12px 18px; } }
-      @page { size: A4; margin: 10mm 12mm; }
-    </style></head><body>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
-    <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
-    <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">💰 Paiements Clients</div>
-    <div style="font-size:11px;color:#64748b;margin-bottom:18px">Période : ${filterFrom} → ${filterTo} &nbsp;·&nbsp; ${filtered.length} paiements &nbsp;·&nbsp; Total : ${fmt(total)} DHS</div>
-    <table><thead><tr>
-      <th>Date</th><th>Client</th><th>Mode</th><th>N° Chèque</th><th>Banque</th><th>Statut</th><th>Fournisseur</th><th style="text-align:right">Montant DHS</th><th>Note</th>
-    </tr></thead><tbody>
-    ${filtered.map(p => {
-      const bc = p.mode==='Espèce'?'b-esp':p.mode==='Chèque'?'b-chq':p.mode==='Virement'?'b-vir':'b-fou'
-      const sl = p.cheque_status ? {pending:'⏳ En attente',validated:'✅ Validé',rejected:'❌ Rejeté'}[p.cheque_status] : '—'
-      const sc = p.cheque_status ? `s-${p.cheque_status}` : ''
-      return `<tr class="${p.cheque_status==='rejected'?'rejected':''}">
-        <td>${fmtDate(p.date)}</td><td><b>${p.client_nom}</b></td>
-        <td><span class="badge ${bc}">${p.mode}</span></td>
-        <td style="font-family:monospace">${p.cheque_number||'—'}</td>
-        <td>${p.cheque_bank||'—'}</td>
-        <td class="${sc}">${p.mode==='Chèque'?sl:'—'}</td>
-        <td>${p.fournisseur_nom||'—'}</td>
-        <td style="text-align:right;color:#166534;font-weight:700">− ${fmt(p.montant)}</td>
-        <td>${p.note||'—'}</td>
-      </tr>`
-    }).join('')}
-    </tbody><tfoot><tr>
-      <td colspan="7"><b>TOTAL (${filtered.length})</b></td>
-      <td style="text-align:right;color:#166534"><b>− ${fmt(total)} DHS</b></td><td></td>
-    </tr></tfoot></table>
-    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
-    </body></html>`)
-
+    const pendingCount = filtered.filter(p=>p.cheque_status==='pending').length
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>Paiements — DAR SADIK</title>
+<style>
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
+  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
+  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
+  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
+  .co-r strong{color:#fff}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
+  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:18px 24px}
+  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
+  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
+  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .kpi{padding:10px 13px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
+  .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:3px}
+  .val{font-size:18px;font-weight:900;line-height:1}
+  .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
+  .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
+  .kpi.am{border-left-color:#b45309}.kpi.am .val{color:#b45309}
+  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th.r{text-align:right}
+  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody td.r{text-align:right;font-family:monospace}
+  tbody td.m{color:#94a3b8;font-size:10px}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  tbody tr.rej td{background:#fef2f2 !important}
+  .num{font-weight:700;font-size:11px}.gv{color:#16a34a;font-weight:700}
+  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
+  tfoot td.r{font-size:12px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700}
+  .b-esp{background:#dcfce7;color:#166534}.b-chq{background:#fef9c3;color:#854d0e}
+  .b-vir{background:#dbeafe;color:#1e40af}.b-fou{background:#f3e8ff;color:#6b21a8}
+  .s-pending{color:#b45309}.s-validated{color:#16a34a}.s-rejected{color:#dc2626;font-weight:700}
+  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  @media print{.btn-p,.btn-d{display:none !important}}
+  @page{size:A4;margin:8mm 10mm}
+</style>
+</head><body>
+<div class="hdr">
+  <div>
+    <div class="co-n">DAR SADIK</div>
+    <div class="co-ar">دار صديق</div>
+    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
+    <div>Dar.sadik@hotmail.com</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${printDateTime}</div>
+  </div>
+</div>
+<div class="bdy">
+<div class="ttl">Paiements Clients</div>
+<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${filtered.length} paiements</div>
+<div class="kpi-g">
+  <div class="kpi gn"><div class="lbl">Total encaissé</div><div class="val">${fmt(total)} DHS</div></div>
+  <div class="kpi bl"><div class="lbl">Nombre de paiements</div><div class="val">${filtered.length}</div></div>
+  <div class="kpi am"><div class="lbl">Chèques en attente</div><div class="val">${pendingCount}</div></div>
+</div>
+<div class="sec">Détail des paiements (${filtered.length})</div>
+<table><thead><tr>
+  <th>Date</th><th>Client</th><th>Mode</th><th>N° Chèque</th><th>Banque</th><th>Statut</th><th>Fournisseur</th><th class="r">Montant DHS</th><th>Note</th>
+</tr></thead><tbody>
+${filtered.map(p => {
+  const bc = p.mode==='Espèce'?'b-esp':p.mode==='Chèque'?'b-chq':p.mode==='Virement'?'b-vir':'b-fou'
+  const sl = p.cheque_status ? {pending:'En attente',validated:'Validé',rejected:'Rejeté'}[p.cheque_status] : '—'
+  const sc = p.cheque_status ? `s-${p.cheque_status}` : ''
+  return `<tr class="${p.cheque_status==='rejected'?'rej':''}">
+    <td>${fmtDate(p.date)}</td><td><b>${p.client_nom}</b></td>
+    <td><span class="badge ${bc}">${p.mode}</span></td>
+    <td style="font-family:monospace">${p.cheque_number||'—'}</td>
+    <td>${p.cheque_bank||'—'}</td>
+    <td class="${sc}">${p.mode==='Chèque'?sl:'—'}</td>
+    <td>${p.fournisseur_nom||'—'}</td>
+    <td class="r num gv">− ${fmt(p.montant)}</td>
+    <td class="m">${p.note||'—'}</td>
+  </tr>`
+}).join('')}
+</tbody><tfoot><tr>
+  <td colspan="7">TOTAL (${filtered.length})</td>
+  <td class="r">− ${fmt(total)} DHS</td><td></td>
+</tr></tfoot></table>
+<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
+</div></body></html>`)
   }
 
   // ── CSV ──

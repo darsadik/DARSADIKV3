@@ -313,35 +313,98 @@ export default function Ventes() {
     const _now = new Date()
     const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Ventes — DAR SADIK</title>
-    <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border: 1px solid #1355a0; }
-      td { padding: 8px 12px; font-size: 11px; color: #1e293b !important; border: 1px solid #e2e8f0; vertical-align: middle; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; color: #1e293b !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .section-title { font-size:14px; font-weight:800; margin:20px 0 10px; color:#1a5fa8; border-bottom:2px solid #e2e8f0; padding-bottom:6px; }
-      .note-cell { color:#64748b !important; font-style:italic; font-size:10px; }
-      @media print { button, .no-print { display: none !important; } body { padding: 12px 18px; } }
-      @page { size: A4; margin: 10mm 12mm; }
+<style>
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
+  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
+  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
+  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
+  .co-r strong{color:#fff}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
+  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:18px 24px}
+  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
+  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
+  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .kpi{padding:10px 13px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
+  .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:3px}
+  .val{font-size:18px;font-weight:900;line-height:1}
+  .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
+  .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
+  .kpi.am{border-left-color:#b45309}.kpi.am .val{color:#b45309}
+  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th.r{text-align:right}
+  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody td.r{text-align:right;font-family:monospace}
+  tbody td.m{color:#94a3b8;font-size:10px}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .num{font-weight:700;font-size:11px}
+  .tag{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700}
+  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
+  tfoot td.r{font-size:12px}
+  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  @media print{.btn-p,.btn-d{display:none !important}}
+  @page{size:A4;margin:8mm 10mm}
 </style></head><body>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
-    <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
-    <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">📦 Ventes — ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
-    <div style="font-size:11px;color:#64748b;margin-bottom:18px">${filtered.length} ventes &nbsp;·&nbsp; Total Qté : ${fmt(tQ)} &nbsp;·&nbsp; Total DHS : ${fmt(tV)} DHS</div>
-    <table><thead><tr><th>Date livraison</th><th>Client</th><th>Produit</th><th>Transport</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix/u</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
-    <tbody>${filtered.map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.type_brique||'—'}</td><td>${v.camion_plaque}</td><td style="text-align:right">${fmt(v.qte)}</td><td style="text-align:right">${fmtD(v.prix_vente)}</td><td style="text-align:right"><b>${fmt(v.total_vente)}</b></td><td class="note-cell">${v.note||''}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="4">TOTAL (${filtered.length})</td><td style="text-align:right">${fmt(tQ)}</td><td></td><td style="text-align:right">${fmt(tV)} DHS</td><td></td></tr></tfoot>
-    </table>
-    ${hasRetour ? `<div class="section-title">↩️ Retours Transport</div>
-    <table><thead><tr><th>Date</th><th>Client vente</th><th>Camion</th><th>Retour client</th><th style="text-align:right">Montant</th><th style="text-align:right">Payé</th><th style="text-align:right">Restant</th></tr></thead>
-    <tbody>${retourRows}</tbody>
-    <tfoot><tr><td colspan="4">TOTAL RETOURS</td><td style="text-align:right">${fmt(tR)} DHS</td><td></td><td style="text-align:right">${fmt(tRR)} DHS</td></tr></tfoot>
-    </table>` : ''}
-    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
-    </body></html>`)
+<div class="hdr">
+  <div>
+    <div class="co-n">DAR SADIK</div>
+    <div class="co-ar">دار صديق</div>
+    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
+    <div>Dar.sadik@hotmail.com</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${printDateTime}</div>
+  </div>
+</div>
+<div class="bdy">
+<div class="ttl">Ventes — ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
+<div class="sub">${filtered.length} ventes &nbsp;·&nbsp; Total Qté : ${fmt(tQ)} briques &nbsp;·&nbsp; Total : ${fmt(tV)} DHS</div>
+<div class="kpi-g">
+  <div class="kpi bl"><div class="lbl">Total quantité</div><div class="val">${fmt(tQ)}</div></div>
+  <div class="kpi gn"><div class="lbl">Total ventes</div><div class="val">${fmt(tV)} DHS</div></div>
+  <div class="kpi am"><div class="lbl">Retours transport</div><div class="val">${fmt(tR)} DHS</div></div>
+</div>
+<div class="sec">Détail des ventes (${filtered.length})</div>
+<table><thead><tr>
+  <th>Date</th><th>Client</th><th>Produit</th><th>Transport</th>
+  <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th>Note</th>
+</tr></thead>
+<tbody>${filtered.map(v=>`<tr>
+  <td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td>
+  <td><span class="tag">${v.type_brique||'—'}</span></td>
+  <td>${v.camion_plaque||'—'}</td>
+  <td class="r">${fmt(v.qte)}</td>
+  <td class="r">${fmtD(v.prix_vente)}</td>
+  <td class="r num">${fmt(v.total_vente)}</td>
+  <td class="m">${v.note||'—'}</td>
+</tr>`).join('')}</tbody>
+<tfoot><tr>
+  <td colspan="4">TOTAL (${filtered.length} ventes)</td>
+  <td class="r">${fmt(tQ)}</td><td></td>
+  <td class="r">${fmt(tV)} DHS</td><td></td>
+</tr></tfoot>
+</table>
+${hasRetour ? `<div class="sec">Retours Transport</div>
+<table><thead><tr>
+  <th>Date</th><th>Client vente</th><th>Camion</th><th>Retour client</th>
+  <th class="r">Montant</th><th class="r">Payé</th><th class="r">Restant</th>
+</tr></thead>
+<tbody>${retourRows}</tbody>
+<tfoot><tr>
+  <td colspan="4">TOTAL RETOURS</td>
+  <td class="r">${fmt(tR)} DHS</td><td></td>
+  <td class="r">${fmt(tRR)} DHS</td>
+</tr></tfoot>
+</table>` : ''}
+<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
+</div></body></html>`)
   }
 
   function exportClientCSV() {
@@ -646,27 +709,26 @@ export default function Ventes() {
       return `
         <div class="fourn-block">
           <div class="fourn-header">
-            <div class="fourn-title">🏭 ${fourn}</div>
-            <div style="font-size:11px;opacity:.9">${data.ops.length} op. · ${fmt(totQte)} briques · ${fmt(totAchat)} DHS</div>
+            <div class="fourn-title">${fourn}</div>
+            <div class="fourn-sub">${data.ops.length} op. &nbsp;·&nbsp; ${fmt(totQte)} briques &nbsp;·&nbsp; ${fmt(totAchat)} DHS</div>
           </div>
           <table>
             <thead><tr>
               <th>Date</th><th>Produit</th>
-              <th style="text-align:right">Quantité</th>
-              <th style="text-align:right">Prix achat/u DHS</th>
-              <th style="text-align:right">Total DHS</th>
+              <th class="r">Quantité</th>
+              <th class="r">Prix achat/u DHS</th>
+              <th class="r">Total DHS</th>
             </tr></thead>
             <tbody>
               ${rows}
-              <tr><td colspan="5" style="padding:0;height:4px;background:#f1f5f9"></td></tr>
-              <tr><td colspan="5" style="background:#fffbeb;font-weight:700;font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:.05em;padding:6px 10px 3px">📊 Total par type de brique</td></tr>
+              <tr><td colspan="5" style="padding:4px 10px;background:#fffbeb;font-weight:700;font-size:9px;color:#92400e;text-transform:uppercase;letter-spacing:.05em">Total par type de brique</td></tr>
               ${typeRows}
             </tbody>
             <tfoot><tr>
               <td colspan="2">TOTAL GÉNÉRAL (${data.ops.length} opérations)</td>
-              <td style="text-align:right">${fmt(totQte)}</td>
+              <td class="r">${fmt(totQte)}</td>
               <td></td>
-              <td style="text-align:right">${fmt(totAchat)} DHS</td>
+              <td class="r">${fmt(totAchat)} DHS</td>
             </tr></tfoot>
           </table>
         </div>`
@@ -675,45 +737,59 @@ export default function Ventes() {
     const _now = new Date()
     const _dt = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     return `<!DOCTYPE html><html lang="fr"><head>
-      <meta charset="UTF-8">
-      <title>Rapport Fournisseurs — DAR SADIK</title>
-      <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border: 1px solid #1355a0; }
-      td { padding: 8px 12px; border: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; vertical-align: middle; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; color: #1e293b !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; color: #94a3b8 !important; font-size: 10px; }
-      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      @media print { button, .no-print { display: none !important; } body { padding: 12px 18px; } }
-      @page { size: A4; margin: 10mm 12mm; }
+<meta charset="UTF-8"><title>Rapport Fournisseurs — DAR SADIK</title>
+<style>
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
+  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
+  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
+  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
+  .co-r strong{color:#fff}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
+  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:18px 24px}
+  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
+  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
+  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
+  table{width:100%;border-collapse:collapse;margin-bottom:8px}
+  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th.r{text-align:right}
+  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody td.r{text-align:right;font-family:monospace}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .num{font-weight:700;font-size:11px}
+  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
+  tfoot td.r{font-size:12px}
+  .fourn-block{margin-bottom:20px;page-break-inside:avoid}
+  .fourn-header{background:#1a3a6b !important;color:#fff !important;border-radius:6px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .fourn-title{font-size:13px;font-weight:800;color:#fff !important}
+  .fourn-sub{font-size:11px;color:#bfdbfe}
+  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  @media print{.btn-p,.btn-d{display:none !important}}
+  @page{size:A4;margin:8mm 10mm}
 </style>
-    </head><body>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
-      <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
-      <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🏭 Rapport Fournisseurs (Achats)</div>
-      <div style="font-size:11px;color:#64748b;margin-bottom:16px">Période : ${fmtDate(fFilterFrom)} → ${fmtDate(fFilterTo)} &nbsp;·&nbsp; ${Object.keys(byFourn).length} fournisseur(s)</div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
-        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-      ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
-      <div class="footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_dt}</span></div>
-    </body></html>`
+</head><body>
+<div class="hdr">
+  <div>
+    <div class="co-n">DAR SADIK</div>
+    <div class="co-ar">دار صديق</div>
+    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
+    <div>Dar.sadik@hotmail.com</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${_dt}</div>
+  </div>
+</div>
+<div class="bdy">
+<div class="ttl">Rapport Fournisseurs — Achats</div>
+<div class="sub">Période : ${fmtDate(fFilterFrom)} → ${fmtDate(fFilterTo)} &nbsp;·&nbsp; ${Object.keys(byFourn).length} fournisseur(s)</div>
+${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
+<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_dt}</span></div>
+</div></body></html>`
   }
 
   function printFournisseurReport() {
@@ -1163,10 +1239,11 @@ export default function Ventes() {
           .slice().sort((a, b) => a.date.localeCompare(b.date))
           .map(v => `<tr>
             <td>${fmtDate(v.date)}</td>
-            <td style="text-align:right">${fmt(v.qte)}</td>
             <td>${v.client_nom || '—'}</td>
             <td>${v.fournisseur || '—'}</td>
-            <td><span style="background:${v.client_nom?'#eff6ff':'#f0fdf4'};color:${v.client_nom?'#1d4ed8':'#15803d'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">${v.client_nom ? 'Vente' : 'Achat'}</span></td>
+            <td>${v.type_brique || '—'}</td>
+            <td class="r num">${fmt(v.qte)}</td>
+            <td><span class="tag" style="${v.client_nom?'background:#eff6ff;color:#1d4ed8':'background:#f0fdf4;color:#15803d'}">${v.client_nom ? 'Vente' : 'Achat'}</span></td>
           </tr>`).join('')
 
         const productPills = Object.entries(data.types)
@@ -1174,49 +1251,44 @@ export default function Ventes() {
 
         return `
           <div class="camion-block">
-            <div class="camion-header">
+            <div class="camion-hdr">
               <div>
-                <div class="camion-title">🚛 ${plaque}</div>
-                ${data.chauffeur ? `<div class="camion-sub">👤 ${data.chauffeur}</div>` : ''}
+                <div class="camion-ttl">${plaque}</div>
+                ${data.chauffeur ? `<div class="camion-sub-txt">${data.chauffeur}</div>` : ''}
               </div>
-              <div style="text-align:right;font-size:11px;opacity:.9">
-                ${data.voyages} voyage(s) · ${fmt(data.qte)} briques · ${fmt(data.vente)} DHS
+              <div class="camion-info">
+                ${data.voyages} voyage(s) &nbsp;·&nbsp; ${fmt(data.qte)} briques &nbsp;·&nbsp; ${fmt(data.vente)} DHS
               </div>
             </div>
-            <div class="stats">
-              <div class="stat-box"><div class="lbl">Voyages</div><div class="val">${data.voyages}</div></div>
-              <div class="stat-box"><div class="lbl">Briques</div><div class="val">${fmt(data.qte)}</div></div>
-              <div class="stat-box"><div class="lbl">Total DHS</div><div class="val">${fmt(data.vente)}</div></div>
+            <div class="kpi-g">
+              <div class="kpi bl"><div class="lbl">Voyages</div><div class="val">${data.voyages}</div></div>
+              <div class="kpi gn"><div class="lbl">Briques</div><div class="val">${fmt(data.qte)}</div></div>
+              <div class="kpi am"><div class="lbl">Total DHS</div><div class="val">${fmt(data.vente)}</div></div>
             </div>
-            <div class="products">${productPills}</div>
             <table>
               <thead><tr>
-                <th>Date</th><th>Produit</th><th style="text-align:right">Quantité</th>
-                <th>Client</th><th>Fournisseur</th><th>Type</th>
+                <th>Date</th><th>Client</th><th>Fournisseur</th><th>Produit</th>
+                <th class="r">Quantité</th><th>Type</th>
               </tr></thead>
               <tbody>${opRows}</tbody>
               <tfoot><tr>
-                <td colspan="2">TOTAL (${data.ops.length} op.)</td>
-                <td style="text-align:right">${fmt(data.qte)}</td>
-                <td colspan="3"></td>
+                <td colspan="4">TOTAL (${data.ops.length} op.)</td>
+                <td class="r">${fmt(data.qte)}</td><td></td>
               </tr></tfoot>
             </table>
             ${data.retours.length > 0 ? `
-            <div style="margin-top:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
-              <div style="font-weight:800;font-size:12px;color:#15803d;margin-bottom:8px">↩️ Retours Transport (${data.retours.length}) — Total: ${fmt(data.retourTotal)} DHS · Restant: ${fmt(data.retourRestant)} DHS</div>
+            <div class="retour-blk">
+              <div class="retour-ttl">Retours Transport (${data.retours.length}) — Total: ${fmt(data.retourTotal)} DHS &nbsp;·&nbsp; Restant: ${fmt(data.retourRestant)} DHS</div>
               <table>
                 <thead><tr>
-                  <th style="background:#15803d">Date</th><th style="background:#15803d">Client retour</th>
-                  <th style="text-align:right;background:#15803d">Montant</th>
-                  <th style="text-align:right;background:#15803d">Payé</th>
-                  <th style="text-align:right;background:#15803d">Restant</th>
-                  <th style="background:#15803d">Note</th>
+                  <th>Date</th><th>Client retour</th>
+                  <th class="r">Montant</th><th class="r">Payé</th><th class="r">Restant</th><th>Note</th>
                 </tr></thead>
                 <tbody>${data.retours.map(v=>`<tr>
                   <td>${fmtDate(v.date)}</td><td><b>${v.retour_client}</b></td>
-                  <td style="text-align:right">${fmt(v.retour_montant)}</td>
-                  <td style="text-align:right">${fmt(v.retour_paye||0)}</td>
-                  <td style="text-align:right;color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td>
+                  <td class="r">${fmt(v.retour_montant)}</td>
+                  <td class="r" style="color:#16a34a">${fmt(v.retour_paye||0)}</td>
+                  <td class="r" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant):'Payé'}</td>
                   <td>${v.retour_note||'—'}</td>
                 </tr>`).join('')}</tbody>
               </table>
@@ -1227,45 +1299,70 @@ export default function Ventes() {
     const _now2 = new Date()
     const _dt2 = _now2.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now2.getHours()).padStart(2,'0') + ':' + String(_now2.getMinutes()).padStart(2,'0')
     return `<!DOCTYPE html><html lang="fr"><head>
-      <meta charset="UTF-8">
-      <title>Rapport Camions — DAR SADIK</title>
-      <style>
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
-      body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b !important; background: #fff !important; margin: 0; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-      th { background: #1a5fa8 !important; color: #fff !important; padding: 9px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border: 1px solid #1355a0; }
-      td { padding: 8px 12px; border: 1px solid #e2e8f0; font-size: 11px; color: #1e293b !important; vertical-align: middle; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #e8f0fe !important; font-weight: 800 !important; color: #1e293b !important; border: 1px solid #c7d8f7; border-top: 2px solid #1a5fa8 !important; font-size: 12px; }
-      b, strong { color: #1e293b !important; font-weight: 800; }
-      .right, [style*="text-align:right"], [style*="text-align: right"] { text-align: right; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; background: #e2e8f0 !important; color: #1e293b !important; border: 1px solid #cbd5e1; }
-      .fourn-block { margin-bottom: 24px; page-break-inside: avoid; }
-      .fourn-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .fourn-title { font-size: 13px; font-weight: 800; color: #fff !important; }
-      .prod-block { margin-bottom: 12px; }
-      .prod-header { background: #f1f5f9 !important; border-left: 4px solid #1a5fa8; padding: 5px 10px; font-weight: 700; font-size: 11px; color: #1e293b !important; margin-bottom: 4px; border-radius: 0 4px 4px 0; }
-      .grand-tfoot td { background: #e2e8f0 !important; font-weight: 900 !important; color: #1e293b !important; border-top: 3px solid #1a5fa8 !important; font-size: 13px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; color: #94a3b8 !important; font-size: 10px; }
-      .camion-header { background: #1a5fa8 !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-      .info-box { background: #f8fafc !important; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
-      .info-box b { display: block; margin-bottom: 4px; color: #1e293b !important; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
-      @media print { button, .no-print { display: none !important; } body { padding: 12px 18px; } }
-      @page { size: A4; margin: 10mm 12mm; }
+<meta charset="UTF-8"><title>Rapport Camions — DAR SADIK</title>
+<style>
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
+  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
+  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
+  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
+  .co-r strong{color:#fff}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
+  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:18px 24px}
+  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
+  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
+  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
+  table{width:100%;border-collapse:collapse;margin-bottom:8px}
+  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th.r{text-align:right}
+  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody td.r{text-align:right;font-family:monospace}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .num{font-weight:700;font-size:11px}
+  .tag{background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 8px;font-size:9px;font-weight:700}
+  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
+  tfoot td.r{font-size:12px}
+  .camion-block{margin-bottom:20px;page-break-inside:avoid}
+  .camion-hdr{background:#1a3a6b !important;color:#fff !important;border-radius:6px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .camion-ttl{font-size:13px;font-weight:800;color:#fff !important}
+  .camion-sub-txt{font-size:10px;color:#93c5fd;margin-top:2px}
+  .camion-info{font-size:11px;color:#bfdbfe;text-align:right}
+  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+  .kpi{padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
+  .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:2px}
+  .val{font-size:16px;font-weight:900;line-height:1}
+  .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
+  .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
+  .kpi.am{border-left-color:#b45309}.kpi.am .val{color:#b45309}
+  .retour-blk{margin-top:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px}
+  .retour-ttl{font-weight:800;font-size:11px;color:#15803d;margin-bottom:6px}
+  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  @media print{.btn-p,.btn-d{display:none !important}}
+  @page{size:A4;margin:8mm 10mm}
 </style>
-    </head><body>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
-      <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
-      <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🚛 Rapport Camions</div>
-      <div style="font-size:11px;color:#64748b;margin-bottom:16px">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${Object.keys(byCamion).length} camion(s)</div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button onclick="window.print()" style="padding:7px 14px;background:#475569;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>
-        <button onclick="window.print()" style="padding:7px 14px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
-      </div>
-      ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
-      <div class="footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_dt2}</span></div>
-    </body></html>`
+</head><body>
+<div class="hdr">
+  <div>
+    <div class="co-n">DAR SADIK</div>
+    <div class="co-ar">دار صديق</div>
+    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
+    <div>Dar.sadik@hotmail.com</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${_dt2}</div>
+  </div>
+</div>
+<div class="bdy">
+<div class="ttl">Rapport Camions</div>
+<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${Object.keys(byCamion).length} camion(s)</div>
+${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
+<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_dt2}</span></div>
+</div></body></html>`
   }
 
   function printCamionReport() {
@@ -1606,28 +1703,49 @@ export default function Ventes() {
                 <td>${v.note || '—'}</td>
               </tr>`).join('')
               const _mn = new Date(); const _mdt = _mn.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(_mn.getHours()).padStart(2,'0')+':'+String(_mn.getMinutes()).padStart(2,'0')
-              openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Main d'œuvre — DAR SADIK</title>
-              <style>
-                * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; box-sizing:border-box; }
-                body { font-family:Arial,sans-serif; padding:30px 36px; font-size:12px; color:#1e293b; background:#fff; margin:0; }
-                table { width:100%; border-collapse:collapse; margin-bottom:10px; }
-                th { background:#1a5fa8 !important; color:#fff !important; padding:9px 12px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; text-align:left; border:1px solid #1355a0; }
-                td { padding:8px 12px; border:1px solid #e2e8f0; font-size:11px; vertical-align:middle; }
-                tr:nth-child(even) td { background:#f8fafc !important; }
-                tfoot td { background:#e8f0fe !important; font-weight:800 !important; border:1px solid #c7d8f7; border-top:2px solid #1a5fa8 !important; }
-                @media print { button { display:none !important; } body { padding:12px 18px; } }
-                @page { size:A4; margin:10mm 12mm; }
-              </style></head><body>
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
-              <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
-              <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🔧 Main d'œuvre</div>
-              <div style="font-size:11px;color:#64748b;margin-bottom:18px">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${mdoFiltered.length} entrée(s) &nbsp;·&nbsp; Total : ${fmt(totalMdo)} DHS</div>
-              <table><thead><tr><th>Date</th><th>Client</th><th>Description</th><th>Camion</th><th style="text-align:right">Montant DHS</th><th>Note</th></tr></thead>
-              <tbody>${rows}</tbody>
-              <tfoot><tr><td colspan="4">TOTAL (${mdoFiltered.length})</td><td style="text-align:right">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
-              </table>
-              <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_mdt}</span></div>
-              </body></html>`)
+              openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Main d'oeuvre — DAR SADIK</title>
+<style>
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
+  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}.co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}.co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}.co-r strong{color:#fff}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}.btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:18px 24px}.ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}.sub{font-size:11px;color:#64748b;margin-bottom:14px}
+  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:14px 0 8px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th.r{text-align:right}
+  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody td.r{text-align:right;font-family:monospace}.tbody td.m{color:#94a3b8;font-size:10px}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .num{font-weight:700;font-size:11px}
+  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
+  tfoot td.r{font-size:12px}
+  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  @media print{.btn-p,.btn-d{display:none !important}}@page{size:A4;margin:8mm 10mm}
+</style></head><body>
+<div class="hdr">
+  <div><div class="co-n">DAR SADIK</div><div class="co-ar">دار صديق</div><div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div></div>
+  <div class="co-r">
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
+    <div>Dar.sadik@hotmail.com</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${_mdt}</div>
+  </div>
+</div>
+<div class="bdy">
+<div class="ttl">Main d'oeuvre</div>
+<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${mdoFiltered.length} entrée(s) &nbsp;·&nbsp; Total : ${fmt(totalMdo)} DHS</div>
+<div class="sec">Détail main d'oeuvre (${mdoFiltered.length})</div>
+<table><thead><tr>
+  <th>Date</th><th>Client</th><th>Description</th><th>Camion</th><th class="r">Montant DHS</th><th>Note</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+<tfoot><tr><td colspan="4">TOTAL (${mdoFiltered.length})</td><td class="r">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
+</table>
+<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_mdt}</span></div>
+</div></body></html>`)
 
             }
 
@@ -1736,33 +1854,51 @@ export default function Ventes() {
                 <td>${v.description_mdo||v.note||'—'}</td></tr>`).join('')
               const _rn = new Date(); const _rdt = _rn.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(_rn.getHours()).padStart(2,'0')+':'+String(_rn.getMinutes()).padStart(2,'0')
               openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Remises — DAR SADIK</title>
-                <style>
-                  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; box-sizing:border-box; }
-                  body { font-family:Arial,sans-serif; padding:30px 36px; font-size:12px; color:#1e293b; background:#fff; margin:0; }
-                  table { width:100%; border-collapse:collapse; margin-bottom:10px; }
-                  th { background:#1a5fa8 !important; color:#fff !important; padding:9px 12px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; text-align:left; border:1px solid #1355a0; }
-                  td { padding:8px 12px; border:1px solid #e2e8f0; font-size:11px; vertical-align:middle; }
-                  tr:nth-child(even) td { background:#f8fafc !important; }
-                  tfoot td { background:#e8f0fe !important; font-weight:800 !important; border:1px solid #c7d8f7; border-top:2px solid #1a5fa8 !important; }
-                  @media print { button { display:none !important; } body { padding:12px 18px; } }
-                  @page { size:A4; margin:10mm 12mm; }
-                </style></head><body>
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:4px"><div><div style="font-size:26px;font-weight:900;color:#1a3a6b;letter-spacing:-0.5px;line-height:1.1">DAR SADIK</div><div style="font-size:15px;font-weight:700;color:#1a5fa8;direction:rtl">دار صديق</div><div style="font-size:11px;color:#475569;margin-top:2px;direction:rtl">بائع جميع مواد البناء</div></div><div style="text-align:right;padding-top:4px"><div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div><div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div><div style="font-size:11px;color:#64748b">📍 Selouane - Nador</div></div></div>
-                <div style="height:3px;background:linear-gradient(90deg,#1a5fa8,#3b82f6);border-radius:2px;margin-bottom:20px"></div>
-                <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px">🎁 Remises Clients</div>
-                <div style="font-size:11px;color:#64748b;margin-bottom:18px">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${remisesFiltered.length} remise(s) &nbsp;·&nbsp; Total : − ${fmt(totalRemises)} DHS</div>
-                <table><thead><tr>
-                  <th>Date</th><th>Client</th><th style="text-align:right">Remise DHS</th><th>Note / Motif</th>
-                </tr></thead>
-                <tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#aaa">Aucune remise</td></tr>'}</tbody>
-                ${remisesFiltered.length > 0 ? `<tfoot><tr>
-                  <td colspan="2">TOTAL (${remisesFiltered.length})</td>
-                  <td style="text-align:right;color:#15803d">− ${fmt(totalRemises)} DHS</td>
-                  <td></td>
-                </tr></tfoot>` : ''}
-                </table>
-                <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_rdt}</span></div>
-                </body></html>`)
+<style>
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
+  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}.co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}.co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}.co-r strong{color:#fff}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}.btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:18px 24px}.ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}.sub{font-size:11px;color:#64748b;margin-bottom:14px}
+  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:14px 0 8px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th.r{text-align:right}
+  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody td.r{text-align:right;font-family:monospace}.tbody td.m{color:#94a3b8;font-size:10px}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .gv{color:#16a34a;font-weight:700}.num{font-weight:700;font-size:11px}
+  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
+  tfoot td.r{font-size:12px}
+  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  @media print{.btn-p,.btn-d{display:none !important}}@page{size:A4;margin:8mm 10mm}
+</style></head><body>
+<div class="hdr">
+  <div><div class="co-n">DAR SADIK</div><div class="co-ar">دار صديق</div><div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div></div>
+  <div class="co-r">
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
+    <div>Dar.sadik@hotmail.com</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${_rdt}</div>
+  </div>
+</div>
+<div class="bdy">
+<div class="ttl">Remises Clients</div>
+<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${remisesFiltered.length} remise(s) &nbsp;·&nbsp; Total : − ${fmt(totalRemises)} DHS</div>
+<div class="sec">Détail des remises (${remisesFiltered.length})</div>
+<table><thead><tr>
+  <th>Date</th><th>Client</th><th class="r">Remise DHS</th><th>Note / Motif</th>
+</tr></thead>
+<tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#aaa;padding:14px;font-style:italic">Aucune remise</td></tr>'}</tbody>
+${remisesFiltered.length > 0 ? `<tfoot><tr>
+  <td colspan="2">TOTAL (${remisesFiltered.length})</td>
+  <td class="r gv num">− ${fmt(totalRemises)} DHS</td><td></td>
+</tr></tfoot>` : ''}
+</table>
+<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_rdt}</span></div>
+</div></body></html>`)
 
             }
 

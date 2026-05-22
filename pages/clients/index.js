@@ -212,240 +212,128 @@ export default function Clients() {
       : (selected.solde || 0)
 
     const carryOverBlock = carryOver !== null ? `
-      <div style="margin-bottom:16px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:11px">
-        <div style="font-weight:800;color:#166534;margin-bottom:8px">📊 Calcul du solde — ${periodLabel}</div>
-        <table style="width:100%;border-collapse:collapse">
-          <tr>
-            <td style="padding:4px 8px;border:1px solid #bbf7d0;background:#fff">
-              <div style="font-size:9px;color:#6b7280;text-transform:uppercase;font-weight:700">Solde mois précédent</div>
-              <div style="font-weight:800;color:#b45309">${fmt(carryOver)} DHS</div>
-            </td>
-            <td style="padding:4px 8px;border:1px solid #bbf7d0;background:#fff">
-              <div style="font-size:9px;color:#6b7280;text-transform:uppercase;font-weight:700">+ Ventes période</div>
-              <div style="font-weight:800;color:#1d4ed8">+ ${fmt(totalVentes)} DHS</div>
-            </td>
-            <td style="padding:4px 8px;border:1px solid #bbf7d0;background:#fff">
-              <div style="font-size:9px;color:#6b7280;text-transform:uppercase;font-weight:700">− Paiements période</div>
-              <div style="font-weight:800;color:#16a34a">− ${fmt(totalPaiements)} DHS</div>
-            </td>
-            <td style="padding:4px 8px;border:2px solid #c4b5fd;background:#faf5ff">
-              <div style="font-size:9px;color:#6b7280;text-transform:uppercase;font-weight:700">= Solde fin période</div>
-              <div style="font-weight:800;color:#7c3aed">${fmt(soldeFinPeriode)} DHS</div>
-            </td>
-          </tr>
-        </table>
+      <div class="calc-block">
+        <div class="calc-ttl">Calcul du solde — ${periodLabel}</div>
+        <div class="calc-g">
+          <div class="calc-c"><div class="clbl">Solde mois précédent</div><div class="cval c-am">${fmt(carryOver)} DHS</div></div>
+          <div class="calc-c"><div class="clbl">+ Ventes période</div><div class="cval c-bl">+ ${fmt(totalVentes)} DHS</div></div>
+          <div class="calc-c"><div class="clbl">− Paiements période</div><div class="cval c-gn">− ${fmt(totalPaiements)} DHS</div></div>
+          <div class="calc-c res"><div class="clbl">= Solde fin période</div><div class="cval c-pr">${fmt(soldeFinPeriode)} DHS</div></div>
+        </div>
       </div>` : ''
 
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
-<meta charset="UTF-8">
-<title>Fiche Client — ${selected.nom}</title>
+<meta charset="UTF-8"><title>Fiche Client — ${selected.nom}</title>
 <style>
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; }
-
-  .logo-bar { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; margin-bottom: 4px; }
-  .logo-left {}
-  .logo-name { font-size: 26px; font-weight: 900; color: #1a3a6b; letter-spacing: -0.5px; line-height: 1.1; }
-  .logo-name-ar { font-size: 15px; font-weight: 700; color: #1a5fa8; direction: rtl; }
-  .logo-tagline { font-size: 11px; color: #475569; margin-top: 2px; direction: rtl; }
-  .logo-right { text-align: right; padding-top: 4px; }
-  .logo-phones { font-size: 11px; color: #334155; margin-bottom: 4px; font-weight: 600; }
-  .logo-email { font-size: 11px; color: #334155; margin-bottom: 4px; }
-  .logo-city { font-size: 11px; color: #64748b; }
-  .logo-sep { height: 3px; background: linear-gradient(90deg,#1a5fa8,#3b82f6); border-radius: 2px; margin-bottom: 20px; }
-  .print-date { font-size: 10px; color: #94a3b8; margin-top: 8px; }
-  .btn-print { padding: 7px 16px; background: #475569; color: #fff; border: none; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; }
-
-  .client-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
-  .client-avatar { width: 44px; height: 44px; border-radius: 8px; background: #f1f5f9; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #475569; flex-shrink: 0; }
-  .client-name { font-size: 17px; font-weight: 800; color: #1e293b; }
-  .client-meta { font-size: 10px; color: #64748b; margin-top: 2px; }
-
-  .periode { display: inline-flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 16px; }
-
-  .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
-  .sum-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 11px 14px; }
-  .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 5px; }
-  .sum-val { font-size: 20px; font-weight: 900; line-height: 1; }
-  .c-solde  { color: #7c3aed; }
-  .c-ventes { color: #1e40af; }
-  .c-paye   { color: #16a34a; }
-
-  .section-title { font-size: 12px; font-weight: 700; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin: 18px 0 0; }
-
-  table { width: 100%; border-collapse: collapse; margin-top: 0; }
-  th {
-    background: #475569 !important;
-    color: #ffffff !important;
-    padding: 9px 12px;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    text-align: left;
-    border: 1px solid #334155;
-  }
-  th.r { text-align: right; }
-  td {
-    padding: 9px 12px;
-    font-size: 12px;
-    color: #1e293b;
-    border: 1px solid #e2e8f0;
-    vertical-align: middle;
-  }
-  td.r { text-align: right; font-family: monospace; font-size: 13px; }
-  td.muted { color: #94a3b8; font-size: 11px; }
-  tr:nth-child(even) td { background: #f8fafc !important; }
-  .num { font-weight: 700; font-size: 13px; }
-  .green { color: #16a34a; font-weight: 700; }
-  .type-tag { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 3px; padding: 2px 7px; font-size: 10px; font-weight: 700; }
-
-  tfoot td {
-    background: #f1f5f9 !important;
-    color: #1e293b !important;
-    font-weight: 800;
-    font-size: 12px;
-    border: 1px solid #cbd5e1;
-    border-top: 2px solid #475569 !important;
-  }
-  tfoot td.r { font-size: 14px; color: #1e293b !important; }
-
-  .empty-row td { text-align: center; color: #94a3b8; padding: 18px; font-style: italic; border: 1px solid #e2e8f0; }
-  .doc-footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
-
-  @media print {
-    .btn-print { display: none !important; }
-    .btn-pdf { display: none !important; }
-    body { padding: 12px 18px; }
-  }
-  @page { size: A4; margin: 10mm 12mm; }
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
+  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
+  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
+  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
+  .co-r strong{color:#fff}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
+  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:18px 24px}
+  .client-card{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;border-left:4px solid #1a3a6b;margin-bottom:10px}
+  .cli-ini{width:36px;height:36px;background:#1a3a6b;color:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0}
+  .cli-n{font-size:14px;font-weight:800}.cli-m{font-size:10px;color:#64748b;margin-top:1px}
+  .pbadge{display:inline-flex;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:3px 10px;font-size:10px;font-weight:700;color:#1d4ed8;margin-bottom:12px}
+  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .kpi{padding:10px 13px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
+  .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:3px}
+  .val{font-size:18px;font-weight:900;line-height:1}
+  .kpi.pr{border-left-color:#7c3aed}.kpi.pr .val{color:#7c3aed}
+  .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
+  .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
+  .kpi-sub{font-size:9px;color:#b45309;margin-top:2px}
+  .calc-block{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 14px;margin-bottom:14px}
+  .calc-ttl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#166534;margin-bottom:8px}
+  .calc-g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .calc-c{padding:6px 8px;background:#fff;border:1px solid #bbf7d0;border-radius:4px}
+  .calc-c.res{border:2px solid #c4b5fd;background:#faf5ff}
+  .clbl{font-size:8px;text-transform:uppercase;font-weight:700;color:#6b7280;margin-bottom:2px}
+  .cval{font-weight:800;font-size:12px}
+  .c-am{color:#b45309}.c-bl{color:#1d4ed8}.c-gn{color:#16a34a}.c-pr{color:#7c3aed}
+  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 0}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th.r{text-align:right}
+  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody td.r{text-align:right;font-family:monospace}
+  tbody td.m{color:#94a3b8;font-size:10px}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .num{font-weight:700;font-size:11px}.gv{color:#16a34a;font-weight:700}
+  .tag{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700}
+  .remise-row td{background:#f0fdf4 !important}.mdo-row td{background:#fffbeb !important}
+  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
+  tfoot td.r{font-size:12px}
+  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  @media print{.btn-p,.btn-d{display:none !important}}
+  @page{size:A4;margin:8mm 10mm}
 </style>
 </head><body>
-
-<div class="logo-bar">
-  <div class="logo-left">
-    <div class="logo-name">DAR SADIK</div>
-    <div class="logo-name-ar">دار صديق</div>
-    <div class="logo-tagline">بائع جميع مواد البناء</div>
-  </div>
-  <div class="logo-right">
-    <div class="logo-phones">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div>
-    <div class="logo-email">✉️ Dar.sadik@hotmail.com</div>
-    <div class="logo-city">📍 Selouane - Nador</div>
-    <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px">
-      <button class="btn-print" onclick="window.print()">🖨️ Imprimer</button>
-      <button class="btn-pdf" onclick="window.print()" style="padding:7px 16px;background:#16a34a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">📥 PDF</button>
-    </div>
-    <div class="print-date">Généré le ${date}</div>
-  </div>
-</div>
-<div class="logo-sep"></div>
-
-<div class="client-row">
-  <div class="client-avatar">${selected.nom[0].toUpperCase()}</div>
+<div class="hdr">
   <div>
-    <div class="client-name">${selected.nom}</div>
-    <div class="client-meta">Dépôt: ${selected.depot || '—'}${selected.tel ? '  |  📞 ' + selected.tel : ''}</div>
+    <div class="co-n">DAR SADIK</div>
+    <div class="co-ar">دار صديق</div>
+    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
+    <div>Dar.sadik@hotmail.com</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${date}</div>
   </div>
 </div>
-
-<div class="periode">📅 Période: ${periode}</div>
-
-<div class="summary">
-  <div class="sum-box">
-    <div class="sum-lbl">${carryOver !== null ? 'SOLDE MOIS PRÉCÉDENT' : 'SOLDE REPORTÉ'}</div>
-    <div class="sum-val c-solde">${fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</div>
-    ${!carryOver && selected.opening_date ? `<div style="font-size:10px;color:#b45309;margin-top:2px">${`Solde au ${fmtMois(selected.opening_date)}`}</div>` : ''}
-    ${!carryOver && selected.opening_note ? `<div style="font-size:10px;color:#92400e;font-style:italic">${selected.opening_note}</div>` : ''}
-  </div>
-  <div class="sum-box">
-    <div class="sum-lbl">VENTES ${filterType !== 'all' ? '(PÉRIODE)' : ''}</div>
-    <div class="sum-val c-ventes">${fmt(totalVentes)} DHS</div>
-  </div>
-  <div class="sum-box">
-    <div class="sum-lbl">TOTAL PAYÉ ${filterType !== 'all' ? '(PÉRIODE)' : ''}</div>
-    <div class="sum-val c-paye">${fmt(totalPaiements)} DHS</div>
-  </div>
+<div class="bdy">
+<div class="client-card">
+  <div class="cli-ini">${selected.nom[0].toUpperCase()}</div>
+  <div><div class="cli-n">${selected.nom}</div><div class="cli-m">Dépôt : ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; '+selected.tel:''}</div></div>
 </div>
-
+<div class="pbadge">Période : ${periode}</div>
+<div class="kpi-g">
+  <div class="kpi pr">
+    <div class="lbl">${carryOver !== null ? 'Solde mois précédent' : 'Solde reporté'}</div>
+    <div class="val">${fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</div>
+    ${!carryOver && selected.opening_date ? `<div class="kpi-sub">Solde au ${fmtMois(selected.opening_date)}</div>` : ''}
+  </div>
+  <div class="kpi bl"><div class="lbl">Ventes ${filterType !== 'all' ? '(période)' : ''}</div><div class="val">${fmt(totalVentes)} DHS</div></div>
+  <div class="kpi gn"><div class="lbl">Total payé ${filterType !== 'all' ? '(période)' : ''}</div><div class="val">${fmt(totalPaiements)} DHS</div></div>
+</div>
 ${carryOverBlock}
-
-<div class="section-title">📦 Ventes (${filteredVentes.length})</div>
+<div class="sec">Ventes (${filteredVentes.length})</div>
 <table>
-  <thead>
-    <tr>
-      <th>DATE</th>
-      <th>CAMION</th>
-      <th>TYPE</th>
-      <th class="r">QTÉ</th>
-      <th class="r">PRIX/U DHS</th>
-      <th class="r">TOTAL DHS</th>
-      <th>BON</th>
-      <th>NOTE</th>
-    </tr>
-  </thead>
+  <thead><tr><th>Date</th><th>Camion</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/U</th><th class="r">Total DHS</th><th>Bon</th><th>Note</th></tr></thead>
   <tbody>
     ${filteredVentes.length === 0
-      ? '<tr class="empty-row"><td colspan="8">Aucune vente pour cette période</td></tr>'
+      ? '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune vente pour cette période</td></tr>'
       : filteredVentes.map(v => `
-        <tr style="${v.type_entree==='remise' ? 'background:#f0fdf4 !important' : v.type_entree==='mdo' ? 'background:#fffbeb !important' : ''}">
-          <td>${fmtDate(v.date)}</td>
-          <td>${v.camion_plaque || '—'}</td>
-          <td><span class="type-tag">${v.type_entree==='remise' ? '🎁 Remise' : v.type_entree==='mdo' ? '🔧 Main d\'oeuvre' : (v.type_brique || '—')}</span></td>
-          <td class="r num">${v.type_entree==='remise'||v.type_entree==='mdo' ? '—' : fmt(v.qte)}</td>
-          <td class="r">${v.type_entree==='remise'||v.type_entree==='mdo' ? '—' : parseFloat(v.prix_vente || 0).toFixed(2)}</td>
-          <td class="r num" style="${v.type_entree==='remise' ? 'color:#15803d' : ''}">${v.type_entree==='remise' ? '− '+fmt(v.montant_mdo) : fmt(v.total_vente)}</td>
-          <td class="muted">${v.bon || '—'}</td>
-          <td class="muted">${v.type_entree==='remise' ? (v.description_mdo||v.note||'—') : v.type_entree==='mdo' ? (v.description_mdo||'—') : (v.note || '—')}</td>
-        </tr>`).join('')
-    }
+        <tr class="${v.type_entree==='remise'?'remise-row':v.type_entree==='mdo'?'mdo-row':''}">
+          <td>${fmtDate(v.date)}</td><td>${v.camion_plaque||'—'}</td>
+          <td><span class="tag">${v.type_entree==='remise'?'Remise':v.type_entree==='mdo'?'Main d\'oeuvre':(v.type_brique||'—')}</span></td>
+          <td class="r num">${v.type_entree==='remise'||v.type_entree==='mdo'?'—':fmt(v.qte)}</td>
+          <td class="r">${v.type_entree==='remise'||v.type_entree==='mdo'?'—':parseFloat(v.prix_vente||0).toFixed(2)}</td>
+          <td class="r num ${v.type_entree==='remise'?'gv':''}">${v.type_entree==='remise'?'− '+fmt(v.montant_mdo):fmt(v.total_vente)}</td>
+          <td class="m">${v.bon||'—'}</td>
+          <td class="m">${v.type_entree==='remise'?(v.description_mdo||v.note||'—'):v.type_entree==='mdo'?(v.description_mdo||'—'):(v.note||'—')}</td>
+        </tr>`).join('')}
   </tbody>
-  ${filteredVentes.length > 0 ? `
-  <tfoot>
-    <tr>
-      <td colspan="3"><b>TOTAL (${filteredVentes.length} ventes)</b></td>
-      <td class="r"><b>${fmt(filteredVentes.reduce((s,v) => s + (v.qte||0), 0))}</b></td>
-      <td></td>
-      <td class="r"><b>${fmt(totalVentes)} DHS</b></td>
-      <td colspan="2"></td>
-    </tr>
-  </tfoot>` : ''}
+  ${filteredVentes.length > 0 ? `<tfoot><tr><td colspan="3">Total — ${filteredVentes.length} ventes</td><td class="r">${fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td><td></td><td class="r">${fmt(totalVentes)} DHS</td><td colspan="2"></td></tr></tfoot>` : ''}
 </table>
-
-<div class="section-title" style="margin-top:22px">💰 Paiements (${filteredPaiements.length})</div>
+<div class="sec" style="margin-top:16px">Paiements (${filteredPaiements.length})</div>
 <table>
-  <thead>
-    <tr>
-      <th>DATE</th>
-      <th>MODE</th>
-      <th class="r">MONTANT DHS</th>
-      <th>NOTE</th>
-    </tr>
-  </thead>
+  <thead><tr><th>Date</th><th>Mode</th><th class="r">Montant DHS</th><th>Note</th></tr></thead>
   <tbody>
     ${filteredPaiements.length === 0
-      ? '<tr class="empty-row"><td colspan="4">Aucun paiement pour cette période</td></tr>'
-      : filteredPaiements.map(p => `
-        <tr>
-          <td>${fmtDate(p.date)}</td>
-          <td>${p.mode || '—'}</td>
-          <td class="r green num">− ${fmt(p.montant)}</td>
-          <td class="muted">${p.note || '—'}</td>
-        </tr>`).join('')
-    }
+      ? '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucun paiement pour cette période</td></tr>'
+      : filteredPaiements.map(p => `<tr><td>${fmtDate(p.date)}</td><td>${p.mode||'—'}</td><td class="r gv num">− ${fmt(p.montant)}</td><td class="m">${p.note||'—'}</td></tr>`).join('')}
   </tbody>
-  ${filteredPaiements.length > 0 ? `
-  <tfoot>
-    <tr>
-      <td colspan="2"><b>TOTAL REÇU</b></td>
-      <td class="r"><b>− ${fmt(totalPaiements)} DHS</b></td>
-      <td></td>
-    </tr>
-  </tfoot>` : ''}
+  ${filteredPaiements.length > 0 ? `<tfoot><tr><td colspan="2">Total reçu</td><td class="r">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>` : ''}
 </table>
-
-<div class="doc-footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${date}</span></div>
-</body></html>`)
+<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${date}</span></div>
+</div></body></html>`)
   }
 
   // ---- EXPORT CSV ----
