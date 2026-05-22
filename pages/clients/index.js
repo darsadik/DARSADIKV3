@@ -191,7 +191,7 @@ export default function Clients() {
   const periodLabel  = selected ? getPeriodLabel() : null
 
   // ---- PRINT ----
-  function printClient() {
+  async function printClient() {
     const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
     const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
     const _now = new Date()
@@ -226,7 +226,15 @@ export default function Clients() {
         </table>
       </div>` : ''
 
-    printViaIframe(`<!DOCTYPE html><html lang="fr"><head>
+    if (!window.html2pdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+        s.onload = resolve; s.onerror = reject
+        document.head.appendChild(s)
+      })
+    }
+    const __htmlContent = `<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8">
 <title>Fiche Client — ${selected.nom}</title>
 <style>
@@ -435,7 +443,24 @@ ${carryOverBlock}
 </table>
 
 <div class="doc-footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${date}</span></div>
-</body></html>`)
+</body></html>`
+    const tmp = document.createElement('div')
+    tmp.innerHTML = __htmlContent
+    const bodyEl = tmp.querySelector('body')
+    const container = document.createElement('div')
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;font-family:Arial,sans-serif;font-size:12px;color:#111;padding:20px;background:#fff'
+    container.innerHTML = bodyEl ? bodyEl.innerHTML : tmp.innerHTML
+    container.querySelectorAll('.btn-print,.btn-pdf').forEach(el => el.remove())
+    document.body.appendChild(container)
+    await window.html2pdf().set({
+      margin: [10, 10, 10, 10],
+      filename: `Client-${selected.nom}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css'] },
+    }).from(container).save()
+    document.body.removeChild(container)
   }
 
   // ---- EXPORT CSV ----
