@@ -7,11 +7,50 @@ const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
 
 // ── Print via hidden iframe — stays on same page (PWA safe) ──
-function openPrintWindow(html) {
-  const w = window.open('', '_blank')
-  if (!w) return
-  w.document.write(html)
-  w.document.close()
+function openPrintWindow(html, filename) {
+  if (window.innerWidth < 768) {
+    ;(async () => {
+      if (!window.html2pdf) {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script')
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+          s.onload = res; s.onerror = rej
+          document.head.appendChild(s)
+        })
+      }
+      const tmp = document.createElement('div')
+      tmp.innerHTML = html
+      const bodyEl = tmp.querySelector('body')
+      const el = document.createElement('div')
+      el.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;font-family:Arial,sans-serif;background:#fff;padding:20px'
+      el.innerHTML = bodyEl ? bodyEl.innerHTML : tmp.innerHTML
+      el.querySelectorAll('.btn-print,.btn-pdf').forEach(e => e.remove())
+      document.body.appendChild(el)
+      await window.html2pdf().set({
+        margin:[8,8,8,8], filename: filename||'DAR-SADIK.pdf',
+        image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true},
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}, pagebreak:{mode:['avoid-all','css']},
+      }).from(el).save()
+      document.body.removeChild(el)
+    })()
+    return
+  }
+  const old = document.getElementById('__print_overlay')
+  if (old) old.remove()
+  const overlay = document.createElement('div')
+  overlay.id = '__print_overlay'
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#1e293b;display:flex;flex-direction:column'
+  const bar = document.createElement('div')
+  bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 16px;background:#0f172a;flex-shrink:0'
+  bar.innerHTML = '<button onclick="document.getElementById(\'__pframe\').contentWindow.print()" style="padding:7px 18px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer</button><button onclick="document.getElementById(\'__print_overlay\').remove()" style="padding:7px 18px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✕ Fermer</button>'
+  const iframe = document.createElement('iframe')
+  iframe.id = '__pframe'
+  iframe.style.cssText = 'flex:1;border:none;width:100%;background:#fff'
+  overlay.appendChild(bar)
+  overlay.appendChild(iframe)
+  document.body.appendChild(overlay)
+  iframe.contentWindow.document.write(html)
+  iframe.contentWindow.document.close()
 }
 
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
