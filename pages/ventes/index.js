@@ -63,7 +63,7 @@ export default function Ventes() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ date: today(), date_fournisseur: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '', retour_client: '', retour_montant: '', retour_paye: '', retour_note: '' })
   const [showRetour, setShowRetour] = useState(false)
-  const [mdoForm, setMdoForm] = useState({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
+  const [mdoForm, setMdoForm] = useState({ date: today(), client_id: '', camion_id: '', montant: '', type: 'mdo', description: '', note: '' })
   const [mdoSaving, setMdoSaving] = useState(false)
   const [mdoMsg, setMdoMsg] = useState('')
   const [remiseForm, setRemiseForm] = useState({ date: today(), client_id: '', montant: '', note: '' })
@@ -218,7 +218,7 @@ export default function Ventes() {
     if (!confirm('Supprimer cette vente ?')) return
     await supabase.from('ventes').delete().eq('id', v.id)
     const cl = clients.find(c => c.id === v.client_id)
-    const amount = v.type_entree === 'mdo'    ? (v.montant_mdo || 0)
+    const amount = ['mdo','gasoil','autre'].includes(v.type_entree) ? (v.montant_mdo || 0)
                  : v.type_entree === 'remise' ? -(v.montant_mdo || 0)
                  : (v.total_vente || 0)
     if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) - amount }).eq('id', cl.id)
@@ -262,7 +262,7 @@ export default function Ventes() {
     const ca = camions.find(c => c.id === parseInt(mdoForm.camion_id))
     const { error } = await supabase.from('ventes').insert({
       date: mdoForm.date,
-      type_entree: 'mdo',
+      type_entree: mdoForm.type,
       client_id: parseInt(mdoForm.client_id),
       client_nom: cl?.nom || '',
       camion_id: mdoForm.camion_id ? parseInt(mdoForm.camion_id) : null,
@@ -282,8 +282,8 @@ export default function Ventes() {
     if (error) {
       setMdoMsg('❌ ' + error.message)
     } else {
-      setMdoMsg('✅ Main d\'œuvre enregistrée !')
-      setMdoForm({ date: today(), client_id: '', camion_id: '', montant: '', description: '', note: '' })
+      setMdoMsg(mdoForm.type === 'gasoil' ? '✅ Frais gasoil enregistré !' : mdoForm.type === 'autre' ? '✅ Charge enregistrée !' : '✅ Main d\'œuvre enregistrée !')
+      setMdoForm({ date: today(), client_id: '', camion_id: '', montant: '', type: 'mdo', description: '', note: '' })
       setTimeout(() => setMdoMsg(''), 2500)
       loadAll()
     }
@@ -426,13 +426,13 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
     { key: 'camion',      label: '🚛 Camions' },
     ...(admin ? [
       { key: 'saisie', label: '➕ Saisie' },
-      { key: 'mdo',    label: '🔧 Main d\'œuvre' },
+      { key: 'mdo',    label: '🔧 MDO / Gasoil / Autre' },
       { key: 'remise',  label: '🎁 Remises' },
     ] : []),
   ]
 
   function VenteCard({ v }) {
-    const isMdo    = v.type_entree === 'mdo'
+    const isMdo    = ['mdo','gasoil','autre'].includes(v.type_entree)
     const isRemise = v.type_entree === 'remise'
     const isVerified = verifiedVentes.has(v.id)
     return (
@@ -454,7 +454,7 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
           </div>
         </div>
         <div className="card-meta">
-          {isMdo    && <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🔧 Main d'œuvre</span>}
+          {isMdo    && <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>{v.type_entree==='gasoil'?'⛽ Frais Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 Main d\'œuvre'}</span>}
           {isRemise && <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🎁 Remise</span>}
           {!isMdo && !isRemise && v.type_brique && <span>📦 {v.type_brique}</span>}
           {v.camion_plaque && <span>🚛 {v.camion_plaque}</span>}
@@ -549,20 +549,24 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
                 {filtered.map(v => (
                   <tr key={v.id} className="hover:bg-gray-50"
                     onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyVente(v.id) }}
-                    style={{cursor:'pointer', ...(verifiedVentes.has(v.id) ? {background:'#dcfce7', boxShadow:'inset 3px 0 0 #16a34a'} : v.type_entree==='mdo' ? {background:'#fefce8'} : v.type_entree==='remise' ? {background:'#f0fdf4'} : {})}}>
+                    style={{cursor:'pointer', ...(verifiedVentes.has(v.id) ? {background:'#dcfce7', boxShadow:'inset 3px 0 0 #16a34a'} : ['mdo','gasoil','autre'].includes(v.type_entree) ? {background:'#fefce8'} : v.type_entree==='remise' ? {background:'#f0fdf4'} : {})}}>
                     <td className="td text-gray-500">{verifiedVentes.has(v.id) && <span style={{color:'#16a34a',fontWeight:900,marginRight:4}}>✓</span>}{fmtDate(v.date)}</td>
                     <td className="td font-semibold">{v.client_nom}</td>
                     <td className="td">
                       {v.type_entree === 'mdo'
                         ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>🔧 Main d'œuvre</span>
+                        : v.type_entree === 'gasoil'
+                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>⛽ Frais Gasoil</span>
+                        : v.type_entree === 'autre'
+                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>📌 Autre</span>
                         : v.type_entree === 'remise'
                         ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#dcfce7',color:'#15803d'}}>🎁 Remise</span>
                         : <span className="badge-gray">{v.type_brique||'—'}</span>
                       }
                     </td>
                     <td className="td text-gray-500">{v.camion_plaque || '—'}</td>
-                    <td className="td text-right">{v.type_entree === 'mdo' || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmt(v.qte)}</td>
-                    <td className="td text-right">{v.type_entree === 'mdo' || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmtD(v.prix_vente)}</td>
+                    <td className="td text-right">{['mdo','gasoil','autre'].includes(v.type_entree) || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmt(v.qte)}</td>
+                    <td className="td text-right">{['mdo','gasoil','autre'].includes(v.type_entree) || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmtD(v.prix_vente)}</td>
                     <td className="td text-right font-bold" style={v.type_entree==='remise' ? {color:'#15803d'} : {}}>
                       {v.type_entree === 'remise' ? `− ${fmt(v.montant_mdo)}` : fmt(v.total_vente)}
                     </td>
@@ -1694,7 +1698,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
           {view === 'fournisseur' && FournisseurView()}
           {view === 'camion' && CamionView()}
           {view === 'mdo' && admin && (() => {
-            const mdoVentes = ventes.filter(v => v.type_entree === 'mdo')
+            const mdoVentes = ventes.filter(v => ['mdo','gasoil','autre'].includes(v.type_entree))
             const mdoFiltered = mdoVentes.filter(v => {
               if (filterFrom && v.date < filterFrom) return false
               if (filterTo   && v.date > filterTo)   return false
@@ -1707,6 +1711,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                             const rows = mdoFiltered.map(v => `<tr>
                 <td>${fmtDate(v.date)}</td>
                 <td><b>${v.client_nom}</b></td>
+                <td>${v.type_entree==='gasoil'?'⛽ Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 MDO'}</td>
                 <td>${v.description_mdo || '—'}</td>
                 <td>${v.camion_plaque || '—'}</td>
                 <td style="text-align:right"><b>${fmt(v.montant_mdo)} DHS</b></td>
@@ -1745,14 +1750,14 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
   </div>
 </div>
 <div class="bdy">
-<div class="ttl">Main d'oeuvre</div>
+<div class="ttl">MDO / Frais Gasoil / Autre</div>
 <div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${mdoFiltered.length} entrée(s) &nbsp;·&nbsp; Total : ${fmt(totalMdo)} DHS</div>
-<div class="sec">Détail main d'oeuvre (${mdoFiltered.length})</div>
+<div class="sec">Détail (${mdoFiltered.length})</div>
 <table><thead><tr>
-  <th>Date</th><th>Client</th><th>Description</th><th>Camion</th><th class="r">Montant DHS</th><th>Note</th>
+  <th>Date</th><th>Client</th><th>Type</th><th>Description</th><th>Camion</th><th class="r">Montant DHS</th><th>Note</th>
 </tr></thead>
 <tbody>${rows}</tbody>
-<tfoot><tr><td colspan="4">TOTAL (${mdoFiltered.length})</td><td class="r">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
+<tfoot><tr><td colspan="5">TOTAL (${mdoFiltered.length})</td><td class="r">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
 </table>
 <div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_mdt}</span></div>
 </div></body></html>`)
@@ -1763,9 +1768,17 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
               <div className="space-y-4">
                 {/* MDO form */}
                 <div className="card">
-                  <h3 className="font-bold text-gray-900 mb-4">🔧 Saisir une main d'œuvre</h3>
+                  <h3 className="font-bold text-gray-900 mb-4">
+                    {mdoForm.type==='gasoil'?'⛽ Frais Gasoil':mdoForm.type==='autre'?'📌 Autre charge':'🔧 Saisir une main d\'œuvre'}
+                  </h3>
                   <form onSubmit={saveMdo}>
                     <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'} gap-3 mb-3`}>
+                      <div><label className="label">Type</label>
+                        <select className="input" value={mdoForm.type} onChange={e=>setMdoForm({...mdoForm,type:e.target.value})}>
+                          <option value="mdo">🔧 Main d'œuvre</option>
+                          <option value="gasoil">⛽ Frais Gasoil</option>
+                          <option value="autre">📌 Autre</option>
+                        </select></div>
                       <div><label className="label">Date</label>
                         <input type="date" className="input" value={mdoForm.date} onChange={e=>setMdoForm({...mdoForm,date:e.target.value})} required /></div>
                       <div><label className="label">Client</label>
@@ -1789,7 +1802,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                     </div>
                     {mdoMsg && <div className={`text-sm font-semibold p-2 rounded-lg mb-3 ${mdoMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{mdoMsg}</div>}
                     <button type="submit" disabled={mdoSaving} className={`btn-primary ${isMobile?'w-full justify-center':''}`} style={{background:'#92400e'}}>
-                      {mdoSaving ? 'Enregistrement...' : '🔧 Enregistrer la main d\'œuvre'}
+                      {mdoSaving ? 'Enregistrement...' : mdoForm.type==='gasoil'?'⛽ Enregistrer frais gasoil':mdoForm.type==='autre'?'📌 Enregistrer charge':'🔧 Enregistrer la main d\'œuvre'}
                     </button>
                   </form>
                 </div>
@@ -1798,7 +1811,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                 <div className="card">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="font-bold text-gray-900">📋 Historique main d'œuvre</h3>
+                      <h3 className="font-bold text-gray-900">📋 Historique MDO / Gasoil / Autre</h3>
                       <div className="text-xs text-gray-400 mt-1">{mdoFiltered.length} entrée(s) — Total: <b className="text-amber-700">{fmt(totalMdo)} DHS</b></div>
                     </div>
                     <button onClick={printMdo} className="btn-primary text-xs px-3 py-1.5" style={{background:'#92400e'}}>🖨️ PDF</button>
@@ -1809,6 +1822,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                         <tr>
                           <th className="th">Date</th>
                           <th className="th">Client</th>
+                          <th className="th">Type</th>
                           <th className="th">Description</th>
                           <th className="th">Camion</th>
                           <th className="th text-right">Montant DHS</th>
@@ -1821,6 +1835,11 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                           <tr key={v.id} className="hover:bg-amber-50">
                             <td className="td text-gray-500">{fmtDate(v.date)}</td>
                             <td className="td font-semibold">{v.client_nom}</td>
+                            <td className="td">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>
+                                {v.type_entree==='gasoil'?'⛽ Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 MDO'}
+                              </span>
+                            </td>
                             <td className="td text-amber-700">{v.description_mdo || '—'}</td>
                             <td className="td text-gray-500">{v.camion_plaque || '—'}</td>
                             <td className="td text-right font-bold text-amber-700">{fmt(v.montant_mdo)} DHS</td>
@@ -1830,12 +1849,12 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                             </td>}
                           </tr>
                         ))}
-                        {mdoFiltered.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-8">Aucune main d'œuvre</td></tr>}
+                        {mdoFiltered.length === 0 && <tr><td colSpan={8} className="td text-center text-gray-400 py-8">Aucune entrée</td></tr>}
                       </tbody>
                       {mdoFiltered.length > 0 && (
                         <tfoot>
                           <tr>
-                            <td className="tfoot-td" colSpan={4}>TOTAL ({mdoFiltered.length})</td>
+                            <td className="tfoot-td" colSpan={5}>TOTAL ({mdoFiltered.length})</td>
                             <td className="tfoot-td text-right">{fmt(totalMdo)} DHS</td>
                             <td className="tfoot-td" colSpan={admin ? 2 : 1}></td>
                           </tr>
