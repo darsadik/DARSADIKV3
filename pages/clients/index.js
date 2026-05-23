@@ -226,65 +226,85 @@ export default function Clients() {
 <meta charset="UTF-8"><title>Fiche Client — ${selected.nom}</title>
 <style>
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
-  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
-  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
-  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
-  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
-  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
-  .co-r strong{color:#fff}
-  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff}
+  .hdr{background:linear-gradient(135deg,#0f2444 0%,#1a3a6b 60%,#1e4080 100%);padding:18px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #e8b84b}
+  .co-left{display:flex;align-items:center;gap:16px}
+  .co-logo{width:62px;height:62px;flex-shrink:0}
+  .co-n{font-size:26px;font-weight:900;color:#fff;letter-spacing:1px;line-height:1;text-transform:uppercase}
+  .co-tag{font-size:12px;color:#e8b84b;margin-top:4px;font-weight:600;letter-spacing:0.5px}
+  .co-addr{font-size:11px;color:#93c5fd;margin-top:3px}
+  .co-r{text-align:right;font-size:12px;color:#bfdbfe;line-height:2}
+  .co-r strong{color:#e8b84b;font-size:13px}
+  .co-email{font-size:11px;color:#93c5fd}
+  .btn-p,.btn-d{padding:6px 14px;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;margin-right:5px}
   .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:18px 24px}
-  .client-card{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;border-left:4px solid #1a3a6b;margin-bottom:10px}
-  .cli-ini{width:36px;height:36px;background:#1a3a6b;color:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0}
-  .cli-n{font-size:14px;font-weight:800}.cli-m{font-size:10px;color:#64748b;margin-top:1px}
-  .pbadge{display:inline-flex;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:3px 10px;font-size:10px;font-weight:700;color:#1d4ed8;margin-bottom:12px}
-  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
-  .kpi{padding:10px 13px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
-  .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:3px}
-  .val{font-size:18px;font-weight:900;line-height:1}
+  .bdy{padding:20px 28px}
+  .client-card{display:flex;align-items:center;gap:14px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;border-left:4px solid #1a3a6b;margin-bottom:12px}
+  .cli-ini{width:42px;height:42px;background:#1a3a6b;color:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;flex-shrink:0}
+  .cli-n{font-size:16px;font-weight:800}.cli-m{font-size:12px;color:#64748b;margin-top:2px}
+  .pbadge{display:inline-flex;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:4px 12px;font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:14px}
+  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .kpi{padding:12px 14px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
+  .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:4px}
+  .val{font-size:20px;font-weight:900;line-height:1}
   .kpi.pr{border-left-color:#7c3aed}.kpi.pr .val{color:#7c3aed}
   .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
   .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
-  .kpi-sub{font-size:9px;color:#b45309;margin-top:2px}
-  .calc-block{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 14px;margin-bottom:14px}
-  .calc-ttl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#166534;margin-bottom:8px}
-  .calc-g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-  .calc-c{padding:6px 8px;background:#fff;border:1px solid #bbf7d0;border-radius:4px}
+  .kpi-sub{font-size:10px;color:#b45309;margin-top:3px}
+  .calc-block{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px 16px;margin-bottom:16px}
+  .calc-ttl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#166534;margin-bottom:9px}
+  .calc-g{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+  .calc-c{padding:7px 9px;background:#fff;border:1px solid #bbf7d0;border-radius:4px}
   .calc-c.res{border:2px solid #c4b5fd;background:#faf5ff}
-  .clbl{font-size:8px;text-transform:uppercase;font-weight:700;color:#6b7280;margin-bottom:2px}
-  .cval{font-weight:800;font-size:12px}
+  .clbl{font-size:10px;text-transform:uppercase;font-weight:700;color:#6b7280;margin-bottom:3px}
+  .cval{font-weight:800;font-size:13px}
   .c-am{color:#b45309}.c-bl{color:#1d4ed8}.c-gn{color:#16a34a}.c-pr{color:#7c3aed}
-  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 0}
+  .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#0f2444;border-bottom:2px solid #e8b84b;padding-bottom:5px;margin:18px 0 0}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
   thead th.r{text-align:right}
-  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tbody td{padding:8px 11px;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
   tbody td.r{text-align:right;font-family:monospace}
-  tbody td.m{color:#94a3b8;font-size:10px}
+  tbody td.m{color:#94a3b8;font-size:11px}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .num{font-weight:700;font-size:11px}.gv{color:#16a34a;font-weight:700}
-  .tag{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700}
+  .num{font-weight:700;font-size:12px}.gv{color:#16a34a;font-weight:700}
+  .tag{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:3px;padding:2px 7px;font-size:10px;font-weight:700}
   .remise-row td{background:#f0fdf4 !important}.mdo-row td{background:#fffbeb !important}
-  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
-  tfoot td.r{font-size:12px}
-  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+  tfoot td{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-weight:700;font-size:12px;border:none !important}
+  tfoot td.r{font-size:13px}
+  .foot{margin-top:20px;padding-top:9px;border-top:2px solid #e8b84b;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}
   @media print{.btn-p,.btn-d{display:none !important}}
   @page{size:A4;margin:8mm 10mm}
 </style>
 </head><body>
 <div class="hdr">
-  <div>
-    <div class="co-n">DAR SADIK</div>
-    <div class="co-ar">دار صديق</div>
-    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
+  <div class="co-left">
+    <svg class="co-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+      <rect width="512" height="512" rx="90" fill="#1e3a5f"/>
+      <polygon points="40,170 256,50 472,170" fill="#e8b84b"/>
+      <rect x="60" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+      <rect x="195" y="175" width="122" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+      <rect x="337" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+      <rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+      <rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+      <rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+      <rect x="60" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+      <rect x="195" y="345" width="122" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+      <rect x="337" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+      <rect x="40" y="425" width="432" height="14" rx="7" fill="#e8b84b" opacity="0.5"/>
+    </svg>
+    <div>
+      <div class="co-n">DAR SADIK</div>
+      <div class="co-tag">Matériaux de Construction</div>
+      <div class="co-addr">Selouane, Nador</div>
+    </div>
   </div>
   <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
-    <div>Dar.sadik@hotmail.com</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${date}</div>
+    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47</div>
+    <div><strong>Bureau</strong> 06 62 82 88 20</div>
+    <div class="co-email">Dar.sadik@hotmail.com</div>
+    <div style="margin-top:8px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:10px;color:#93c5fd;margin-top:4px">Généré le ${date}</div>
   </div>
 </div>
 <div class="bdy">
@@ -332,7 +352,7 @@ ${carryOverBlock}
   </tbody>
   ${filteredPaiements.length > 0 ? `<tfoot><tr><td colspan="2">Total reçu</td><td class="r">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>` : ''}
 </table>
-<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${date}</span></div>
+<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
 
