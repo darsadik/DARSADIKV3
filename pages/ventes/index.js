@@ -1794,12 +1794,14 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                           {camions.map(c=><option key={c.id} value={c.id}>{c.plaque}{c.chauffeur?` — ${c.chauffeur}`:''}</option>)}
                         </select></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div><label className="label">Description des travaux</label>
-                        <input className="input" placeholder="ex: Chargement, déchargement, pose..." value={mdoForm.description} onChange={e=>setMdoForm({...mdoForm,description:e.target.value})} /></div>
-                      <div><label className="label">Note</label>
-                        <input className="input" placeholder="optionnel" value={mdoForm.note} onChange={e=>setMdoForm({...mdoForm,note:e.target.value})} /></div>
-                    </div>
+                    {mdoForm.type !== 'gasoil' && (
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div><label className="label">{mdoForm.type === 'autre' ? 'Description' : 'Description des travaux'}</label>
+                          <input className="input" placeholder={mdoForm.type === 'autre' ? 'ex: Frais divers...' : 'ex: Chargement, déchargement, pose...'} value={mdoForm.description} onChange={e=>setMdoForm({...mdoForm,description:e.target.value})} /></div>
+                        <div><label className="label">Note</label>
+                          <input className="input" placeholder="optionnel" value={mdoForm.note} onChange={e=>setMdoForm({...mdoForm,note:e.target.value})} /></div>
+                      </div>
+                    )}
                     {mdoMsg && <div className={`text-sm font-semibold p-2 rounded-lg mb-3 ${mdoMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{mdoMsg}</div>}
                     <button type="submit" disabled={mdoSaving} className={`btn-primary ${isMobile?'w-full justify-center':''}`} style={{background:'#92400e'}}>
                       {mdoSaving ? 'Enregistrement...' : mdoForm.type==='gasoil'?'⛽ Enregistrer frais gasoil':mdoForm.type==='autre'?'📌 Enregistrer charge':'🔧 Enregistrer la main d\'œuvre'}
@@ -1840,10 +1842,10 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                                 {v.type_entree==='gasoil'?'⛽ Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 MDO'}
                               </span>
                             </td>
-                            <td className="td text-amber-700">{v.description_mdo || '—'}</td>
+                            <td className="td text-amber-700">{v.type_entree === 'gasoil' ? <span className="text-gray-300">—</span> : (v.description_mdo || '—')}</td>
                             <td className="td text-gray-500">{v.camion_plaque || '—'}</td>
                             <td className="td text-right font-bold text-amber-700">{fmt(v.montant_mdo)} DHS</td>
-                            <td className="td text-gray-400 text-xs">{v.note || '—'}</td>
+                            <td className="td text-gray-400 text-xs">{v.type_entree === 'gasoil' ? <span className="text-gray-300">—</span> : (v.note || '—')}</td>
                             {admin && <td className="td">
                               <button onClick={() => deleteVente(v)} className="btn-danger text-xs">✕</button>
                             </td>}
