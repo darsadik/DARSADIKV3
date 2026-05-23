@@ -83,6 +83,8 @@ export default function Paiements() {
   const [activeTab, setActiveTab] = useState('all') // 'all' | 'cheques' | 'fournisseurs' | 'grignon'
   const [verifiedPmt, setVerifiedPmt] = useState(new Set())
   const toggleVerifyPmt = id => setVerifiedPmt(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const [editingPmt, setEditingPmt] = useState(null) // { id, montant }
+  const [editingGrignonPmt, setEditingGrignonPmt] = useState(null)
 
   // ── GRIGNON FORM ──
   const emptyGrignonForm = () => ({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '' })
@@ -202,6 +204,31 @@ export default function Paiements() {
     const cl = grignonClients.find(c => c.id === clientId)
     await supabase.from('grignon_paiements').delete().eq('id', id)
     if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) + m }).eq('id', clientId)
+    loadAll()
+  }
+
+  // ── UPDATE MONTANT ──
+  async function updatePaiementMontant(id, oldMontant, clientId, newMontant) {
+    if (!newMontant || newMontant === oldMontant) { setEditingPmt(null); return }
+    const diff = newMontant - oldMontant
+    await supabase.from('paiements').update({ montant: newMontant }).eq('id', id)
+    const client = clients.find(c => c.id === clientId)
+    if (client && diff !== 0) {
+      await supabase.from('clients').update({ solde: (client.solde || 0) - diff }).eq('id', clientId)
+    }
+    setEditingPmt(null)
+    loadAll()
+  }
+
+  async function updateGrignonPaiementMontant(id, oldMontant, clientId, newMontant) {
+    if (!newMontant || newMontant === oldMontant) { setEditingGrignonPmt(null); return }
+    const diff = newMontant - oldMontant
+    await supabase.from('grignon_paiements').update({ montant: newMontant }).eq('id', id)
+    const cl = grignonClients.find(c => c.id === clientId)
+    if (cl && diff !== 0) {
+      await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - diff }).eq('id', clientId)
+    }
+    setEditingGrignonPmt(null)
     loadAll()
   }
 
@@ -615,11 +642,25 @@ ${filtered.map(p => {
                       </div>
                       <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
                     </div>
+                    {editingGrignonPmt?.id === p.id && (
+                      <div className="flex items-center gap-2 mt-2 px-1" onClick={e => e.stopPropagation()}>
+                        <input type="number" autoFocus className="input font-bold flex-1" placeholder="Nouveau montant"
+                          value={editingGrignonPmt.montant}
+                          onChange={e => setEditingGrignonPmt({...editingGrignonPmt, montant: e.target.value})}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') updateGrignonPaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingGrignonPmt.montant)||0)
+                            if (e.key === 'Escape') setEditingGrignonPmt(null)
+                          }} />
+                        <button className="btn-success text-xs px-3" onClick={() => updateGrignonPaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingGrignonPmt.montant)||0)}>✓</button>
+                        <button className="btn-secondary text-xs px-3" onClick={() => setEditingGrignonPmt(null)}>✕</button>
+                      </div>
+                    )}
                     <div className="card-meta">
                       <span>{p.mode}</span>
                       {p.note && <span>{p.note}</span>}
                     </div>
                     <div className="card-actions">
+                      <button className="btn-secondary text-xs" onClick={e => { e.stopPropagation(); setEditingGrignonPmt({id: p.id, montant: p.montant}) }}>✎ Modifier</button>
                       <button className="btn-danger" onClick={() => deleteGrignonPaiement(p.id, p.client_id, p.montant)}>✕ Supprimer</button>
                     </div>
                   </div>
@@ -642,6 +683,19 @@ ${filtered.map(p => {
                     </div>
                     <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
                   </div>
+                  {editingPmt?.id === p.id && (
+                    <div className="flex items-center gap-2 mt-2 px-1" onClick={e => e.stopPropagation()}>
+                      <input type="number" autoFocus className="input font-bold flex-1" placeholder="Nouveau montant"
+                        value={editingPmt.montant}
+                        onChange={e => setEditingPmt({...editingPmt, montant: e.target.value})}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') updatePaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingPmt.montant)||0)
+                          if (e.key === 'Escape') setEditingPmt(null)
+                        }} />
+                      <button className="btn-success text-xs px-3" onClick={() => updatePaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingPmt.montant)||0)}>✓</button>
+                      <button className="btn-secondary text-xs px-3" onClick={() => setEditingPmt(null)}>✕</button>
+                    </div>
+                  )}
                   <div className="card-meta">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span>
                     {p.cheque_number && <span className="font-mono text-xs">📄 {p.cheque_number}</span>}
@@ -661,6 +715,7 @@ ${filtered.map(p => {
                     </div>
                   )}
                   <div className="card-actions">
+                    <button className="btn-secondary text-xs" onClick={e => { e.stopPropagation(); setEditingPmt({id: p.id, montant: p.montant}) }}>✎ Modifier</button>
                     <button className="btn-danger" onClick={() => deletePaiement(p.id, p.client_id, p.montant)}>✕ Supprimer</button>
                   </div>
                 </div>
@@ -844,7 +899,28 @@ ${filtered.map(p => {
                             <td className="td text-gray-500">{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginRight:4}}>✓</span>}{fmtDate(p.date)}</td>
                             <td className="td font-semibold">{p.client_nom}</td>
                             <td className="td"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span></td>
-                            <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
+                            <td className="td text-right">
+                              {editingGrignonPmt?.id === p.id ? (
+                                <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
+                                  <input type="number" autoFocus
+                                    className="input text-right font-bold" style={{width:100}}
+                                    value={editingGrignonPmt.montant}
+                                    onChange={e => setEditingGrignonPmt({...editingGrignonPmt, montant: e.target.value})}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') updateGrignonPaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingGrignonPmt.montant)||0)
+                                      if (e.key === 'Escape') setEditingGrignonPmt(null)
+                                    }} />
+                                  <button className="text-green-600 font-bold text-xs" onClick={() => updateGrignonPaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingGrignonPmt.montant)||0)}>✓</button>
+                                  <button className="text-gray-400 text-xs" onClick={() => setEditingGrignonPmt(null)}>✕</button>
+                                </div>
+                              ) : (
+                                <span className="font-bold text-green-600 cursor-pointer hover:underline"
+                                  title="Cliquer pour modifier"
+                                  onClick={e => { e.stopPropagation(); setEditingGrignonPmt({id: p.id, montant: p.montant}) }}>
+                                  − {fmt(p.montant)}
+                                </span>
+                              )}
+                            </td>
                             <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
                             <td className="td"><button className="btn-danger" onClick={() => deleteGrignonPaiement(p.id, p.client_id, p.montant)}>✕</button></td>
                           </tr>
@@ -907,7 +983,28 @@ ${filtered.map(p => {
                               ? <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{p.fournisseur_nom}</span>
                               : <span className="text-gray-300">—</span>}
                           </td>
-                          <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
+                          <td className="td text-right">
+                            {editingPmt?.id === p.id ? (
+                              <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
+                                <input type="number" autoFocus
+                                  className="input text-right font-bold" style={{width:100}}
+                                  value={editingPmt.montant}
+                                  onChange={e => setEditingPmt({...editingPmt, montant: e.target.value})}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') updatePaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingPmt.montant)||0)
+                                    if (e.key === 'Escape') setEditingPmt(null)
+                                  }} />
+                                <button className="text-green-600 font-bold text-xs" onClick={() => updatePaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingPmt.montant)||0)}>✓</button>
+                                <button className="text-gray-400 text-xs" onClick={() => setEditingPmt(null)}>✕</button>
+                              </div>
+                            ) : (
+                              <span className="font-bold text-green-600 cursor-pointer hover:underline"
+                                title="Cliquer pour modifier"
+                                onClick={e => { e.stopPropagation(); setEditingPmt({id: p.id, montant: p.montant}) }}>
+                                − {fmt(p.montant)}
+                              </span>
+                            )}
+                          </td>
                           <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
                           <td className="td">
                             <button className="btn-danger" onClick={() => deletePaiement(p.id, p.client_id, p.montant)}>✕</button>
