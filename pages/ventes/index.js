@@ -454,7 +454,7 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
           </div>
         </div>
         <div className="card-meta">
-          {isMdo    && <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>{v.type_entree==='gasoil'?'⛽ Frais Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 Main d\'œuvre'}</span>}
+          {isMdo    && <span style={{color:'#92400e',fontWeight:700,fontSize:12}}>{v.type_entree==='gasoil'?'⛽ Frais Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 Main d\'œuvre'}</span>}
           {isRemise && <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,padding:'2px 8px',borderRadius:999,fontSize:11}}>🎁 Remise</span>}
           {!isMdo && !isRemise && v.type_brique && <span>📦 {v.type_brique}</span>}
           {v.camion_plaque && <span>🚛 {v.camion_plaque}</span>}
@@ -554,13 +554,13 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
                     <td className="td font-semibold">{v.client_nom}</td>
                     <td className="td">
                       {v.type_entree === 'mdo'
-                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>🔧 Main d'œuvre</span>
+                        ? <span className="font-bold" style={{color:'#92400e'}}>🔧 Main d'œuvre</span>
                         : v.type_entree === 'gasoil'
-                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>⛽ Frais Gasoil</span>
+                        ? <span className="font-bold" style={{color:'#92400e'}}>⛽ Frais Gasoil</span>
                         : v.type_entree === 'autre'
-                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>📌 Autre</span>
+                        ? <span className="font-bold" style={{color:'#92400e'}}>📌 Autre</span>
                         : v.type_entree === 'remise'
-                        ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:'#dcfce7',color:'#15803d'}}>🎁 Remise</span>
+                        ? <span className="font-bold" style={{color:'#15803d'}}>🎁 Remise</span>
                         : <span className="badge-gray">{v.type_brique||'—'}</span>
                       }
                     </td>
