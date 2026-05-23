@@ -1711,7 +1711,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                             const rows = mdoFiltered.map(v => `<tr>
                 <td>${fmtDate(v.date)}</td>
                 <td><b>${v.client_nom}</b></td>
-                <td>${v.type_entree==='gasoil'?'⛽ Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 MDO'}</td>
+                <td>${v.type_entree==='gasoil'?'⛽ Frais Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 Main d\'oeuvre'}</td>
                 <td>${v.description_mdo || '—'}</td>
                 <td>${v.camion_plaque || '—'}</td>
                 <td style="text-align:right"><b>${fmt(v.montant_mdo)} DHS</b></td>
@@ -1839,7 +1839,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                             <td className="td font-semibold">{v.client_nom}</td>
                             <td className="td">
                               <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:'#fef08a',color:'#92400e'}}>
-                                {v.type_entree==='gasoil'?'⛽ Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 MDO'}
+                                {v.type_entree==='gasoil'?'⛽ Frais Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 Main d\'œuvre'}
                               </span>
                             </td>
                             <td className="td text-amber-700">{v.type_entree === 'gasoil' ? <span className="text-gray-300">—</span> : (v.description_mdo || '—')}</td>
