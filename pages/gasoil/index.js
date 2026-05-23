@@ -55,6 +55,7 @@ export default function Gasoil() {
   const [camions, setCamions] = useState([])
   const [gasoil, setGasoil] = useState([])
   const [gasoilPaiements, setGasoilPaiements] = useState([])
+  const [voyages, setVoyages] = useState([])
   const [paiForm, setPaiForm] = useState({ date: '', montant: '', note: '' })
   const [savingPai, setSavingPai] = useState(false)
   const [showPaiForm, setShowPaiForm] = useState(false)
@@ -84,15 +85,17 @@ export default function Gasoil() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: ca }, { data: ga }, { data: gp }] = await Promise.all([
+    const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       // ✅ date ASC — oldest to newest
       supabase.from('gasoil').select('*').order('date', { ascending: true }),
       supabase.from('gasoil_paiements').select('*').order('date', { ascending: true }),
+      supabase.from('voyages').select('id,reference,date_depart,camion_id,camion_plaque,destination,km_depart,km_arrivee').order('date_depart', { ascending: true }),
     ])
     setCamions(ca || [])
     setGasoil(ga || [])
     setGasoilPaiements(gp || [])
+    setVoyages(vg || [])
     setLoading(false)
   }
 
@@ -271,6 +274,51 @@ export default function Gasoil() {
       })
       .filter(d => d.liters > 0)
       .sort((a, b) => a.plaque.localeCompare(b.plaque))
+  })()
+
+  // ── FUEL CYCLES: cost per km between consecutive refills ─────────────────────
+  const fuelCycles = (() => {
+    const cycles = []
+    const byCam = {}
+    gasoil
+      .filter(g => g.km)
+      .sort((a, b) => (a.camion_id - b.camion_id) || parseFloat(a.km) - parseFloat(b.km))
+      .forEach(g => {
+        if (!byCam[g.camion_id]) byCam[g.camion_id] = []
+        byCam[g.camion_id].push(g)
+      })
+
+    Object.entries(byCam).forEach(([camionId, refills]) => {
+      for (let i = 0; i < refills.length - 1; i++) {
+        const g1 = refills[i], g2 = refills[i + 1]
+        const kmStart   = parseFloat(g1.km)
+        const kmEnd     = parseFloat(g2.km)
+        const cycleKm   = kmEnd - kmStart
+        if (cycleKm <= 0) continue
+        const costPerKm = (g1.total || 0) / cycleKm
+        const cycleVoyages = voyages.filter(v =>
+          v.camion_id === parseInt(camionId) &&
+          v.km_depart !== null && v.km_arrivee !== null &&
+          parseFloat(v.km_depart) >= kmStart &&
+          parseFloat(v.km_arrivee) <= kmEnd
+        ).map(v => {
+          const vKm   = parseFloat(v.km_arrivee) - parseFloat(v.km_depart)
+          const alloc = Math.round(vKm * costPerKm * 100) / 100
+          return { ...v, vKm, alloc }
+        })
+        cycles.push({
+          camionId: parseInt(camionId),
+          camionPlaque: g1.camion_plaque,
+          g1, g2,
+          kmStart, kmEnd, cycleKm,
+          fuelCost: g1.total || 0,
+          costPerKm,
+          voyages: cycleVoyages,
+          allocatedTotal: cycleVoyages.reduce((s, v) => s + v.alloc, 0),
+        })
+      }
+    })
+    return cycles
   })()
 
   // Stats by camion (from ALL gasoil)
@@ -675,6 +723,83 @@ export default function Gasoil() {
             )}
             <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400">
               Distance = dernier KM − premier KM du mois
+            </div>
+          </div>
+
+          {/* ── FUEL CYCLES ── */}
+          <div className="card mt-4">
+            <h3 className="font-semibold text-gray-900 mb-3">⛽ Cycles carburant (coût/km)</h3>
+            {fuelCycles.length === 0 ? (
+              <div className="text-center text-gray-400 text-xs py-4">
+                Aucun cycle détectable — enregistrez les KM compteur sur les pleins et les KM départ/arrivée sur les voyages
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
+                {fuelCycles.map((c, i) => (
+                  <div key={i} className="border border-gray-100 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                      <div>
+                        <span className="font-bold text-gray-900 text-sm">{c.camionPlaque}</span>
+                        <span className="ml-2 text-xs text-gray-400">
+                          {c.g1.date} → {c.g2.date}
+                        </span>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-lg">
+                          {fmt(c.cycleKm)} km
+                        </span>
+                        <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-lg">
+                          {c.costPerKm.toFixed(2)} DHS/km
+                        </span>
+                        <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-0.5 rounded-lg">
+                          {fmt(c.fuelCost)} DHS
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center mb-2">
+                      <div className="bg-gray-50 rounded-lg p-1.5">
+                        <div className="text-[10px] text-gray-400">KM début</div>
+                        <div className="text-xs font-bold text-gray-700">{fmt(c.kmStart)}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-1.5">
+                        <div className="text-[10px] text-gray-400">KM fin</div>
+                        <div className="text-xs font-bold text-gray-700">{fmt(c.kmEnd)}</div>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-1.5">
+                        <div className="text-[10px] text-orange-400">Alloué</div>
+                        <div className="text-xs font-bold text-orange-700">{fmt(c.allocatedTotal)} DHS</div>
+                      </div>
+                    </div>
+                    {c.voyages.length > 0 ? (
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">
+                          Voyages dans ce cycle ({c.voyages.length})
+                        </div>
+                        {c.voyages.map(v => (
+                          <div key={v.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-2 py-1.5 text-xs">
+                            <div>
+                              <span className="font-semibold text-gray-800">{v.reference || `#${v.id}`}</span>
+                              <span className="text-gray-400 ml-2">{v.date_depart}</span>
+                              {v.destination && <span className="text-gray-400 ml-1">→ {v.destination}</span>}
+                            </div>
+                            <div className="flex gap-3 text-right">
+                              <span className="text-blue-600 font-semibold">{fmt(v.vKm)} km</span>
+                              <span className="text-amber-600 font-bold">{fmt(v.alloc)} DHS</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-gray-400 italic">
+                        Aucun voyage avec KM enregistré dans ce cycle
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400">
+              Coût alloué = km voyage × (coût plein ÷ km cycle). Renseignez les KM départ/arrivée sur chaque voyage.
             </div>
           </div>
 

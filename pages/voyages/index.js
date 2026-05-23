@@ -103,7 +103,7 @@ export default function Voyages() {
 
   // ── FORM ──
   const [form, setForm] = useState({
-    date_depart: today(), camion_id: '', destination: '', note: '',
+    date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '', km_arrivee: '',
   })
 
   useEffect(() => { loadAll() }, [])
@@ -175,6 +175,8 @@ export default function Voyages() {
       destination:   editVoyageForm.destination || null,
       note:          editVoyageForm.note || null,
       statut:        editVoyageForm.statut,
+      km_depart:     editVoyageForm.km_depart  ? parseFloat(editVoyageForm.km_depart)  : null,
+      km_arrivee:    editVoyageForm.km_arrivee ? parseFloat(editVoyageForm.km_arrivee) : null,
     }).eq('id', editingVoyage.id)
     setSavingEditVoyage(false)
     setEditingVoyage(null)
@@ -211,11 +213,13 @@ export default function Voyages() {
       destination:   form.destination || null,
       note:          form.note || null,
       statut:        'en_cours',
+      km_depart:     form.km_depart  ? parseFloat(form.km_depart)  : null,
+      km_arrivee:    form.km_arrivee ? parseFloat(form.km_arrivee) : null,
     }).select().single()
     setSaving(false)
     if (error) { setMsg('❌ ' + error.message); return }
     setShowForm(false)
-    setForm({ date_depart: today(), camion_id: '', destination: '', note: '' })
+    setForm({ date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '', km_arrivee: '' })
     window.location.href = `/voyages/${data.id}`
   }
 
@@ -420,6 +424,16 @@ export default function Voyages() {
                 <label className="text-xs text-slate-500 font-semibold mb-1 block">Note</label>
                 <input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})}
                   className="input w-full" placeholder="Optionnel..." />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 font-semibold mb-1 block">KM Départ (optionnel)</label>
+                <input type="number" value={form.km_depart} onChange={e => setForm({...form, km_depart: e.target.value})}
+                  className="input w-full" placeholder="Ex: 85000" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 font-semibold mb-1 block">KM Arrivée (optionnel)</label>
+                <input type="number" value={form.km_arrivee} onChange={e => setForm({...form, km_arrivee: e.target.value})}
+                  className="input w-full" placeholder="Ex: 87500" />
               </div>
               {msg && <div className="col-span-2 text-sm text-red-500 font-semibold">{msg}</div>}
               <div className="col-span-2 flex justify-end gap-3">

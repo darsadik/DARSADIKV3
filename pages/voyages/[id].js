@@ -118,6 +118,12 @@ export default function VoyageDetail() {
   const [editForm,   setEditForm]   = useState({})
   const [editSaving, setEditSaving] = useState(false)
 
+  // ── km tracking ──
+  const [vehicleGasoil, setVehicleGasoil] = useState([])
+  const [kmForm,        setKmForm]        = useState({ km_depart: '', km_arrivee: '' })
+  const [editingKm,     setEditingKm]     = useState(false)
+  const [savingKm,      setSavingKm]      = useState(false)
+
   // ── LOAD VOYAGE ──────────────────────────────────────────────────────────────
   const loadVoyage = useCallback(async () => {
     if (!id) return
@@ -165,6 +171,17 @@ export default function VoyageDetail() {
   }, [id])
 
   useEffect(() => { loadVoyage() }, [loadVoyage])
+
+  // ── LOAD VEHICLE GASOIL FOR KM-BASED ALLOCATION ──────────────────────────────
+  useEffect(() => {
+    if (!voyage?.camion_id) return
+    supabase.from('gasoil')
+      .select('id,km,total,date,qte')
+      .eq('camion_id', voyage.camion_id)
+      .not('km', 'is', null)
+      .order('km', { ascending: true })
+      .then(({ data }) => setVehicleGasoil(data || []))
+  }, [voyage?.camion_id])
 
   // ── LOAD SIDEBAR ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -218,6 +235,28 @@ export default function VoyageDetail() {
     const cout = myLivs.reduce((s,l)=>s+(l.total_achat||(l.qte||0)*(l.prix_achat||0)),0) + gasoilParClient + chargesFixesParClient
     return { id: cid, nom: cl?.nom || myLivs[0]?.client_nom || '—', rev, cout, profit: rev-cout }
   })
+
+  // ── KM-BASED FUEL ALLOCATION ─────────────────────────────────────────────────
+  const voyageKm = (voyage?.km_arrivee && voyage?.km_depart)
+    ? Math.max(0, parseFloat(voyage.km_arrivee) - parseFloat(voyage.km_depart))
+    : null
+
+  const kmBasedFuelCost = (() => {
+    if (!voyageKm || voyageKm <= 0 || vehicleGasoil.length < 2) return null
+    const vStart = parseFloat(voyage.km_depart)
+    const vEnd   = parseFloat(voyage.km_arrivee)
+    for (let i = 0; i < vehicleGasoil.length - 1; i++) {
+      const g1 = vehicleGasoil[i], g2 = vehicleGasoil[i + 1]
+      const cStart = parseFloat(g1.km), cEnd = parseFloat(g2.km)
+      if (cStart <= vStart && cEnd >= vEnd) {
+        const cycleKm = cEnd - cStart
+        if (cycleKm <= 0) return null
+        const costPerKm = (g1.total || 0) / cycleKm
+        return Math.round(voyageKm * costPerKm * 100) / 100
+      }
+    }
+    return null
+  })()
 
   // ── SIDEBAR NAVIGATION ───────────────────────────────────────────────────────
   const sidebarFiltered = sidebarSearch
@@ -500,6 +539,17 @@ export default function VoyageDetail() {
     setSavingStatut(false); loadVoyage()
   }
 
+  async function updateKm() {
+    setSavingKm(true)
+    await supabase.from('voyages').update({
+      km_depart:  kmForm.km_depart  ? parseFloat(kmForm.km_depart)  : null,
+      km_arrivee: kmForm.km_arrivee ? parseFloat(kmForm.km_arrivee) : null,
+    }).eq('id', id)
+    setSavingKm(false)
+    setEditingKm(false)
+    loadVoyage()
+  }
+
   function showMsg(m) { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
   if (loading) return <Layout title="Voyage"><div className="text-center py-20 text-slate-400">Chargement...</div></Layout>
@@ -719,6 +769,70 @@ export default function VoyageDetail() {
             </div>
           </div>
 
+          {/* ── KM TRACKING BAR ── */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">KM Départ</div>
+                  {editingKm ? (
+                    <input type="number" value={kmForm.km_depart}
+                      onChange={e => setKmForm({ ...kmForm, km_depart: e.target.value })}
+                      className="input text-sm w-28" placeholder="85000" />
+                  ) : (
+                    <div className="text-sm font-bold text-slate-700">
+                      {voyage.km_depart ? fmt(voyage.km_depart) : <span className="text-slate-300 font-normal">—</span>}
+                    </div>
+                  )}
+                </div>
+                <div className="text-slate-300 text-lg mt-3">→</div>
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">KM Arrivée</div>
+                  {editingKm ? (
+                    <input type="number" value={kmForm.km_arrivee}
+                      onChange={e => setKmForm({ ...kmForm, km_arrivee: e.target.value })}
+                      className="input text-sm w-28" placeholder="87500" />
+                  ) : (
+                    <div className="text-sm font-bold text-slate-700">
+                      {voyage.km_arrivee ? fmt(voyage.km_arrivee) : <span className="text-slate-300 font-normal">—</span>}
+                    </div>
+                  )}
+                </div>
+                {voyageKm !== null && voyageKm > 0 && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5">
+                    <div className="text-[10px] text-blue-400 uppercase tracking-wide">Distance</div>
+                    <div className="text-sm font-black text-blue-700">{fmt(voyageKm)} km</div>
+                  </div>
+                )}
+                {kmBasedFuelCost !== null && (
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-1.5">
+                    <div className="text-[10px] text-amber-500 uppercase tracking-wide">Gasoil réel (km)</div>
+                    <div className="text-sm font-black text-amber-700">{fmt(kmBasedFuelCost)} DHS</div>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {editingKm ? (
+                  <>
+                    <button onClick={updateKm} disabled={savingKm}
+                      className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-blue-700 transition">
+                      {savingKm ? '...' : '✓ Enregistrer'}
+                    </button>
+                    <button onClick={() => setEditingKm(false)}
+                      className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 transition">
+                      Annuler
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => { setKmForm({ km_depart: voyage.km_depart || '', km_arrivee: voyage.km_arrivee || '' }); setEditingKm(true) }}
+                    className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 transition">
+                    ✏️ Saisir KM
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* ── PROFIT SUMMARY ── */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-lg">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Résultat du voyage</div>
@@ -732,8 +846,16 @@ export default function VoyageDetail() {
                 <div className="text-lg font-black text-red-400">{fmt(totalAchats)} DHS</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-400 mb-1">Gasoil + Charges</div>
+                <div className="text-[10px] text-slate-400 mb-1">
+                  Gasoil + Charges
+                  {kmBasedFuelCost !== null && <span className="ml-1 text-[9px] text-amber-400">(enregistré)</span>}
+                </div>
                 <div className="text-lg font-black text-orange-400">{fmt(totalGasoil+totalChargesFixed)} DHS</div>
+                {kmBasedFuelCost !== null && (
+                  <div className="text-[10px] text-amber-300 mt-0.5">
+                    Réel km: {fmt(kmBasedFuelCost + totalChargesFixed)} DHS
+                  </div>
+                )}
               </div>
               <div>
                 <div className="text-[10px] text-slate-400 mb-1">Profit net</div>
@@ -741,12 +863,21 @@ export default function VoyageDetail() {
                   {profitNet>=0?'+':''}{fmt(profitNet)} DHS
                 </div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Marge: {margePercent}%</div>
+                {kmBasedFuelCost !== null && (() => {
+                  const profitKm = revenuBrut - totalAchats - kmBasedFuelCost - totalChargesFixed
+                  return (
+                    <div className={`text-[10px] font-bold mt-0.5 ${profitKm>=0?'text-emerald-300':'text-red-300'}`}>
+                      Réel km: {profitKm>=0?'+':''}{fmt(profitKm)} DHS
+                    </div>
+                  )
+                })()}
               </div>
             </div>
             {clientProfits.length > 0 && (
               <div className="border-t border-slate-700 pt-4">
                 <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-2">
                   Profit par client — Gasoil ({fmt(gasoilParClient)} DHS) + Charges ({fmt(chargesFixesParClient)} DHS) divisés en {nbClients}
+                  {kmBasedFuelCost !== null && <span className="ml-2 text-amber-400">· Réel km: {fmt(kmBasedFuelCost/nbClients)} DHS/client</span>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {clientProfits.map(cp => (
@@ -756,6 +887,15 @@ export default function VoyageDetail() {
                       <div className={`text-base font-black mt-1 ${cp.profit>=0?'text-emerald-400':'text-red-400'}`}>
                         {cp.profit>=0?'+':''}{fmt(cp.profit)} DHS
                       </div>
+                      {kmBasedFuelCost !== null && (() => {
+                        const diffGas = (kmBasedFuelCost - totalGasoil) / nbClients
+                        const profitAdj = cp.profit - diffGas
+                        return (
+                          <div className={`text-[10px] font-semibold mt-0.5 ${profitAdj>=0?'text-emerald-300':'text-red-300'}`}>
+                            Réel km: {profitAdj>=0?'+':''}{fmt(profitAdj)} DHS
+                          </div>
+                        )
+                      })()}
                     </div>
                   ))}
                 </div>
