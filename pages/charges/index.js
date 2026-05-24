@@ -56,11 +56,15 @@ export default function Charges() {
   const isMobile = useIsMobile()
   const [charges, setCharges]     = useState([])
   const [camions, setCamions]     = useState([])
+  const [voyages, setVoyages]     = useState([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
   const [showForm, setShowForm]   = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [expandedId, setExpandedId]   = useState(null)
+  const [activeTab, setActiveTab]     = useState('historique')
+  const [syncMsg, setSyncMsg]         = useState('')
+  const [expandedCamionId, setExpandedCamionId] = useState(null)
 
   // ── FILTERS ──
   const [filterFrom, setFilterFrom]     = useState(startOfMonth())
@@ -74,23 +78,26 @@ export default function Charges() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: ch }, { data: ca }] = await Promise.all([
+    const [{ data: ch }, { data: ca }, { data: vo }] = await Promise.all([
       supabase.from('charges').select('*').order('date', { ascending: false }),
       supabase.from('camions').select('*').order('plaque'),
+      supabase.from('voyages').select('id,camion_id,camion_plaque,date_depart').order('date_depart', { ascending: false }),
     ])
     setCharges(ch || [])
     setCamions(ca || [])
+    setVoyages(vo || [])
     setLoading(false)
   }
 
   // ── TOTAL FORM ──
   const totalForm = CATEGORIES.reduce((s, c) => s + (parseFloat(form[c.key]) || 0), 0)
 
-  // ── SAVE ──
+  // ── SAVE ─────────────────────────────────────────────────────────────────────
   async function saveCharge(e) {
     e.preventDefault()
     if (!form.camion_id) return
     setSaving(true)
+    setSyncMsg('')
 
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
 
@@ -105,11 +112,46 @@ export default function Charges() {
       payload[c.key] = parseFloat(form[c.key]) || 0
     })
 
+    // 1. Insert into charges table (existing behaviour)
     await supabase.from('charges').insert(payload)
+
+    // 2. Look for a voyage on the same date for the same camion
+    const { data: matchedVoyage } = await supabase
+      .from('voyages')
+      .select('id')
+      .eq('camion_id', parseInt(form.camion_id))
+      .eq('date_depart', form.date)
+      .limit(1)
+      .maybeSingle()
+
+    if (matchedVoyage) {
+      // 3. Insert one row per category that has a value > 0
+      const catRows = CATEGORIES
+        .filter(cat => parseFloat(form[cat.key]) > 0)
+        .map(cat => ({
+          voyage_id:     matchedVoyage.id,
+          date_charge:   form.date,
+          categorie:     cat.key,
+          description:   cat.label,
+          montant:       parseFloat(form[cat.key]) || 0,
+          facture_client: false,
+          client_id:     null,
+          client_nom:    null,
+          source:        'charges_page',
+        }))
+      if (catRows.length > 0) {
+        await supabase.from('voyage_charges').insert(catRows)
+      }
+      setSyncMsg(`✅ Charge synchronisée avec le voyage du ${fmtDate(form.date)} (${camion?.plaque || ''}).`)
+    } else {
+      setSyncMsg(`ℹ️ Charge enregistrée. Aucun voyage trouvé pour ce camion à cette date.`)
+    }
+
     setSaving(false)
     setForm(emptyForm())
     setShowForm(false)
     loadAll()
+    setTimeout(() => setSyncMsg(''), 6000)
   }
 
   // ── DELETE ──
@@ -129,7 +171,7 @@ export default function Charges() {
 
   const totalCharges = filtered.reduce((s, c) => s + (c.total || 0), 0)
 
-  // ── STATS PAR CAMION ──
+  // ── STATS PAR CAMION (filtered — for existing left panel) ──
   const byCamion = {}
   filtered.forEach(c => {
     if (!byCamion[c.camion_plaque]) byCamion[c.camion_plaque] = 0
@@ -145,6 +187,71 @@ export default function Charges() {
     .map(c => ({ ...c, total: byCategory[c.key] }))
     .filter(c => c.total > 0)
     .sort((a, b) => b.total - a.total)
+
+  // ── ENHANCED CAMION STATS (all-time, for left panel extras) ──
+  const camionEnhanced = Object.fromEntries(
+    camions.map(cam => {
+      const allRecs  = charges.filter(c => c.camion_plaque === cam.plaque)
+      const nbVoys   = voyages.filter(v => v.camion_id === cam.id).length
+      const totalAll = allRecs.reduce((s, c) => s + (c.total || 0), 0)
+      const avg      = nbVoys > 0 ? Math.round(totalAll / nbVoys) : 0
+      const catTots  = CATEGORIES
+        .map(cat => ({ ...cat, total: allRecs.reduce((s, c) => s + (c[cat.key] || 0), 0) }))
+        .filter(c => c.total > 0)
+        .sort((a, b) => b.total - a.total)
+      const topCat = catTots[0] || null
+      return [cam.plaque, { avg, topCat }]
+    })
+  )
+
+  // ── PAR CAMION TAB — COMPUTED DATA ────────────────────────────────────────────
+  const now = new Date()
+  const thisYearStr  = `${now.getFullYear()}`
+  const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+
+  const last6Months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)
+    return {
+      key:   `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,
+      label: d.toLocaleDateString('fr-MA', { month: 'short' }) + ' ' + String(d.getFullYear()).slice(2),
+    }
+  })
+
+  const camionChargesData = camions.map(cam => {
+    const records = charges.filter(c => c.camion_plaque === cam.plaque)
+    if (!records.length) return null
+
+    const totalAllTime   = records.reduce((s, c) => s + (c.total || 0), 0)
+    const totalThisMonth = records.filter(c => c.date && c.date.startsWith(thisMonthStr)).reduce((s, c) => s + (c.total || 0), 0)
+    const totalThisYear  = records.filter(c => c.date && c.date.startsWith(thisYearStr)).reduce((s, c) => s + (c.total || 0), 0)
+
+    const catTotals = CATEGORIES
+      .map(cat => ({ ...cat, total: records.reduce((s, c) => s + (c[cat.key] || 0), 0) }))
+      .filter(c => c.total > 0)
+      .sort((a, b) => b.total - a.total)
+
+    const monthly = last6Months.map(m => ({
+      ...m,
+      total: records.filter(c => c.date && c.date.startsWith(m.key)).reduce((s, c) => s + (c.total || 0), 0),
+    }))
+
+    const camionVoys   = voyages.filter(v => v.camion_id === cam.id)
+    const avgPerVoyage = camionVoys.length > 0 ? Math.round(totalAllTime / camionVoys.length) : 0
+    const bestCat      = catTotals[0] || null
+
+    return {
+      ...cam,
+      records:        records.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+      totalAllTime,
+      totalThisMonth,
+      totalThisYear,
+      catTotals,
+      monthly,
+      avgPerVoyage,
+      bestCat,
+      nbVoyages: camionVoys.length,
+    }
+  }).filter(Boolean).sort((a, b) => b.totalAllTime - a.totalAllTime)
 
   // ── PRINT ──
   function printCharges() {
@@ -222,7 +329,7 @@ export default function Charges() {
     filtered.forEach(ch => {
       csv += `${fmtDate(ch.date)},${ch.camion_plaque},${CATEGORIES.map(c=>ch[c.key]||0).join(',')},${ch.total||0},"${ch.note||''}"\n`
     })
-    const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
     a.download = `Charges-${filterFrom}-${filterTo}.csv`; a.click()
   }
@@ -307,274 +414,491 @@ export default function Charges() {
     </form>
   )
 
+  // ── PAR CAMION TAB UI ─────────────────────────────────────────────────────────
+  const ParCamionContent = (
+    <div className="space-y-4">
+      {loading ? (
+        <div className="text-center text-gray-400 py-16">Chargement...</div>
+      ) : camionChargesData.length === 0 ? (
+        <div className="text-center text-gray-400 py-16">
+          <div className="text-5xl mb-3">🚛</div>
+          <div className="font-semibold">Aucune charge enregistrée</div>
+        </div>
+      ) : camionChargesData.map(cam => {
+        const maxMonthly = Math.max(...cam.monthly.map(m => m.total), 1)
+        const isExpanded = expandedCamionId === cam.id
+        return (
+          <div key={cam.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+
+            {/* ── CAMION HEADER ── */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🚛</span>
+                <div>
+                  <div className="font-black text-slate-800 text-base">{cam.plaque}</div>
+                  {cam.chauffeur && <div className="text-xs text-slate-400">{cam.chauffeur}</div>}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-black text-red-600 text-xl">{fmt(cam.totalAllTime)} <span className="text-xs font-normal text-slate-400">DHS</span></div>
+                <div className="text-[10px] text-slate-400 mt-0.5">{cam.records.length} fiche{cam.records.length > 1 ? 's' : ''} au total</div>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-5">
+
+              {/* ── STATS ROW ── */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                  <div className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Ce mois</div>
+                  <div className="font-black text-orange-700 text-sm mt-0.5">{fmt(cam.totalThisMonth)} DHS</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                  <div className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide">Cette année</div>
+                  <div className="font-black text-blue-700 text-sm mt-0.5">{fmt(cam.totalThisYear)} DHS</div>
+                </div>
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+                  <div className="text-[10px] text-purple-500 font-semibold uppercase tracking-wide">Moy / voyage</div>
+                  <div className="font-black text-purple-700 text-sm mt-0.5">
+                    {cam.nbVoyages > 0 ? fmt(cam.avgPerVoyage) + ' DHS' : '—'}
+                  </div>
+                  <div className="text-[10px] text-slate-400">{cam.nbVoyages} voyage{cam.nbVoyages !== 1 ? 's' : ''}</div>
+                </div>
+                <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+                  <div className="text-[10px] text-red-500 font-semibold uppercase tracking-wide">Top catégorie</div>
+                  <div className="font-bold text-red-700 text-sm mt-0.5 truncate">
+                    {cam.bestCat ? `${cam.bestCat.icon} ${cam.bestCat.label.split('/')[0]}` : '—'}
+                  </div>
+                  {cam.bestCat && <div className="text-[10px] text-slate-400">{fmt(cam.bestCat.total)} DHS</div>}
+                </div>
+              </div>
+
+              {/* ── MONTHLY BAR CHART ── */}
+              <div>
+                <div className="text-xs font-bold text-slate-600 mb-3">📊 Charges mensuelles — 6 derniers mois</div>
+                <div className="space-y-2">
+                  {cam.monthly.map(m => (
+                    <div key={m.key} className="flex items-center gap-3">
+                      <span className="text-[11px] text-slate-400 w-16 text-right flex-shrink-0 font-mono">{m.label}</span>
+                      <div className="flex-1 bg-slate-100 rounded-md h-6 relative overflow-hidden">
+                        {m.total > 0 && (
+                          <div
+                            className="absolute inset-y-0 left-0 bg-red-400 rounded-md transition-all"
+                            style={{ width: `${Math.max(4, (m.total / maxMonthly) * 100)}%` }}
+                          />
+                        )}
+                        {m.total > 0 ? (
+                          <span className="absolute inset-0 flex items-center pl-2 text-[11px] font-bold text-white z-10 whitespace-nowrap">
+                            {fmt(m.total)} DHS
+                          </span>
+                        ) : (
+                          <span className="absolute inset-0 flex items-center pl-2 text-[11px] text-slate-300">—</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── CATEGORY BREAKDOWN ── */}
+              {cam.catTotals.length > 0 && (
+                <div>
+                  <div className="text-xs font-bold text-slate-600 mb-3">💸 Répartition par catégorie (tout temps)</div>
+                  <div className="space-y-2">
+                    {cam.catTotals.map(cat => (
+                      <div key={cat.key} className="flex items-center gap-2">
+                        <span className="text-sm w-5 flex-shrink-0">{cat.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] text-slate-600 truncate">{cat.label}</div>
+                          <div className="h-1.5 rounded-full bg-slate-100 mt-0.5">
+                            <div className="h-1.5 rounded-full bg-red-400"
+                              style={{ width: `${cam.totalAllTime > 0 ? Math.min(100, (cat.total / cam.totalAllTime) * 100) : 0}%` }} />
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <span className="text-xs font-bold text-red-700">{fmt(cat.total)} DHS</span>
+                          <span className="text-[10px] text-slate-400 ml-1">
+                            {cam.totalAllTime > 0 ? Math.round((cat.total / cam.totalAllTime) * 100) : 0}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── RECORD LIST (expandable) ── */}
+              <div>
+                <button
+                  onClick={() => setExpandedCamionId(isExpanded ? null : cam.id)}
+                  className="w-full flex items-center justify-between text-xs font-semibold text-blue-600 hover:text-blue-800 py-2 border-t border-slate-100 transition">
+                  <span>{isExpanded ? '▲ Masquer les fiches' : `▼ Voir toutes les fiches (${cam.records.length})`}</span>
+                </button>
+                {isExpanded && (
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="py-2 px-3 text-left text-[10px] font-semibold text-slate-400 uppercase">Date</th>
+                          <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Total</th>
+                          <th className="py-2 px-3 text-left text-[10px] font-semibold text-slate-400 uppercase">Détail</th>
+                          <th className="py-2 px-3 text-left text-[10px] font-semibold text-slate-400 uppercase">Note</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cam.records.map(ch => (
+                          <tr key={ch.id} className="border-b border-slate-50 hover:bg-slate-50 transition">
+                            <td className="py-2 px-3 text-slate-500 whitespace-nowrap">{fmtDate(ch.date)}</td>
+                            <td className="py-2 px-3 text-right font-black text-red-600 whitespace-nowrap">{fmt(ch.total)} DHS</td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-wrap gap-1">
+                                {CATEGORIES.filter(c => ch[c.key] > 0).map(c => (
+                                  <span key={c.key} className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-md whitespace-nowrap">
+                                    {c.icon} {fmt(ch[c.key])}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-slate-400 text-[10px]">{ch.note || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-800 text-white">
+                          <td className="py-2 px-3 font-bold text-xs">TOTAL ({cam.records.length})</td>
+                          <td className="py-2 px-3 text-right font-black text-red-300 text-xs">{fmt(cam.totalAllTime)} DHS</td>
+                          <td colSpan={2}></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+
   return (
     <Layout title="Charges" subtitle="Suivi des charges de transport par voyage">
 
-      {isMobile ? (
-        // ══ MOBILE ══════════════════════════════════════════════
-        <div>
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="stat-card border border-red-100 bg-red-50 text-center">
-              <div className="stat-label text-red-600">Total charges</div>
-              <div className="stat-value text-red-700" style={{fontSize:18}}>{fmt(totalCharges)} DHS</div>
-            </div>
-            <div className="stat-card border border-gray-100 bg-gray-50 text-center">
-              <div className="stat-label text-gray-600">Fiches</div>
-              <div className="stat-value text-gray-700" style={{fontSize:18}}>{filtered.length}</div>
-            </div>
-          </div>
-
-          <button onClick={() => setShowForm(!showForm)}
-            className="w-full mb-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all">
-            {showForm ? '▲ Fermer' : '💸 + Nouvelle fiche charges'}
+      {/* ── TABS ── */}
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl mb-4">
+        {[
+          { key: 'historique', label: '📋 Historique' },
+          { key: 'par_camion', label: '📊 Par Camion' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition flex-shrink-0
+              ${activeTab === t.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            {t.label}
           </button>
-          {showForm && <div className="card mb-4">{FormContent}</div>}
+        ))}
+      </div>
 
-          <button className="mobile-collapse-btn mb-2" onClick={() => setShowFilters(!showFilters)}>
-            <span>🔍 Filtres</span><span>{showFilters ? '▲' : '▼'}</span>
-          </button>
-          {showFilters && (
-            <div className="card mb-4 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className="label">Du</label><input type="date" className="input" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} /></div>
-                <div><label className="label">Au</label><input type="date" className="input" value={filterTo} onChange={e => setFilterTo(e.target.value)} /></div>
-              </div>
-              <div><label className="label">Camion</label>
-                <select className="input" value={filterCamion} onChange={e => setFilterCamion(e.target.value)}>
-                  <option value="">Tous</option>
-                  {camions.map(c => <option key={c.id} value={c.plaque}>{c.plaque}</option>)}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => { setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterCamion('') }}
-                  className="btn-secondary text-xs flex-1 justify-center">↺ Reset</button>
-                <button onClick={printCharges} className="btn-primary text-xs flex-1 justify-center" style={{background:'#4f46e5'}}>🖨️ PDF</button>
-                <button onClick={exportCSV} className="btn-primary text-xs flex-1 justify-center" style={{background:'#16a34a'}}>📥 CSV</button>
-              </div>
-            </div>
-          )}
-
-          {/* Top catégories mobile */}
-          {topCategories.length > 0 && (
-            <div className="card mb-4">
-              <div className="text-xs font-bold text-gray-600 mb-3">📊 Top charges</div>
-              <div className="space-y-2">
-                {topCategories.slice(0,5).map(c => (
-                  <div key={c.key} className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600">{c.icon} {c.label}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 rounded-full bg-red-100 w-16">
-                        <div className="h-1.5 rounded-full bg-red-500"
-                          style={{width: `${totalCharges > 0 ? Math.min(100,(c.total/totalCharges)*100) : 0}%`}} />
-                      </div>
-                      <span className="text-xs font-bold text-red-700 w-20 text-right">{fmt(c.total)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Mobile list */}
-          {loading ? <div className="text-center text-gray-400 py-10">Chargement...</div> : (
-            <div className="mobile-card-list">
-              {filtered.map(ch => (
-                <div key={ch.id} className="mobile-row-card">
-                  <div className="card-header">
-                    <div>
-                      <div className="card-title">🚛 {ch.camion_plaque}</div>
-                      <div style={{fontSize:12, color:'#6b7280', marginTop:2}}>{fmtDate(ch.date)}</div>
-                    </div>
-                    <div style={{color:'#dc2626', fontWeight:700, fontSize:16}}>{fmt(ch.total)} DHS</div>
-                  </div>
-
-                  {/* Mini détail */}
-                  <div className="card-meta flex-wrap">
-                    {CATEGORIES.filter(c => ch[c.key] > 0).map(c => (
-                      <span key={c.key} className="text-xs bg-gray-50 px-1.5 py-0.5 rounded">
-                        {c.icon} {fmt(ch[c.key])}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Expand */}
-                  <button onClick={() => setExpandedId(expandedId === ch.id ? null : ch.id)}
-                    className="text-xs text-blue-500 mt-1">
-                    {expandedId === ch.id ? '▲ Réduire' : '▼ Voir détail'}
-                  </button>
-
-                  {expandedId === ch.id && (
-                    <div className="mt-2 space-y-1 border-t border-gray-100 pt-2">
-                      {CATEGORIES.filter(c => ch[c.key] > 0).map(c => (
-                        <div key={c.key} className="flex justify-between text-xs">
-                          <span className="text-gray-500">{c.icon} {c.label}</span>
-                          <span className="font-bold text-red-700">{fmt(ch[c.key])} DHS</span>
-                        </div>
-                      ))}
-                      {ch.note && <div className="text-xs text-gray-400 pt-1">📝 {ch.note}</div>}
-                    </div>
-                  )}
-
-                  <div className="card-actions">
-                    <button className="btn-danger" onClick={() => deleteCharge(ch.id)}>✕ Supprimer</button>
-                  </div>
-                </div>
-              ))}
-              {filtered.length === 0 && (
-                <div className="text-center text-gray-400 py-10">Aucune charge pour cette sélection</div>
-              )}
-            </div>
-          )}
+      {/* ── SYNC MESSAGE ── */}
+      {syncMsg && (
+        <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-semibold border ${
+          syncMsg.startsWith('✅')
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+            : 'bg-blue-50 border-blue-200 text-blue-700'
+        }`}>
+          {syncMsg}
         </div>
+      )}
 
-      ) : (
-        // ══ DESKTOP ══════════════════════════════════════════════
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* ── LEFT: FORM + STATS ── */}
-          <div className="lg:col-span-1 space-y-4">
-            <div className="card">
-              <h2 className="font-semibold text-gray-900 mb-4">💸 Nouvelle fiche charges</h2>
-              {FormContent}
+      {/* ════════════════════════════════════════════
+          TAB: HISTORIQUE (existing layout unchanged)
+      ════════════════════════════════════════════ */}
+      {activeTab === 'historique' && (
+        isMobile ? (
+          // ══ MOBILE ══════════════════════════════════════════════
+          <div>
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="stat-card border border-red-100 bg-red-50 text-center">
+                <div className="stat-label text-red-600">Total charges</div>
+                <div className="stat-value text-red-700" style={{fontSize:18}}>{fmt(totalCharges)} DHS</div>
+              </div>
+              <div className="stat-card border border-gray-100 bg-gray-50 text-center">
+                <div className="stat-label text-gray-600">Fiches</div>
+                <div className="stat-value text-gray-700" style={{fontSize:18}}>{filtered.length}</div>
+              </div>
             </div>
 
-            {/* Répartition par catégorie */}
-            {topCategories.length > 0 && (
-              <div className="card">
-                <h3 className="font-semibold text-gray-900 text-sm mb-3">📊 Charges par catégorie</h3>
-                <div className="space-y-2">
-                  {topCategories.map(c => (
-                    <div key={c.key} className="flex items-center gap-2">
-                      <span className="text-sm w-5">{c.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs text-gray-600 truncate">{c.label}</div>
-                        <div className="h-1.5 rounded-full bg-gray-100 mt-0.5">
-                          <div className="h-1.5 rounded-full bg-red-400"
-                            style={{width:`${totalCharges>0?Math.min(100,(c.total/totalCharges)*100):0}%`}} />
-                        </div>
-                      </div>
-                      <span className="text-xs font-bold text-red-700 flex-shrink-0 w-24 text-right">{fmt(c.total)} DHS</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between text-sm border-t border-gray-100 pt-2 mt-2">
-                    <span className="font-bold text-gray-900">TOTAL</span>
-                    <span className="font-black text-red-700">{fmt(totalCharges)} DHS</span>
-                  </div>
-                </div>
-              </div>
-            )}
+            <button onClick={() => setShowForm(!showForm)}
+              className="w-full mb-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all">
+              {showForm ? '▲ Fermer' : '💸 + Nouvelle fiche charges'}
+            </button>
+            {showForm && <div className="card mb-4">{FormContent}</div>}
 
-            {/* Répartition par camion */}
-            {Object.keys(byCamion).length > 0 && (
-              <div className="card">
-                <h3 className="font-semibold text-gray-900 text-sm mb-3">🚛 Charges par camion</h3>
-                <div className="space-y-2">
-                  {Object.entries(byCamion).sort((a,b)=>b[1]-a[1]).map(([plaque, total]) => (
-                    <div key={plaque} className="flex justify-between items-center text-sm py-1 border-b border-gray-100">
-                      <span className="font-medium text-gray-800">{plaque}</span>
-                      <div className="text-right">
-                        <div className="font-bold text-red-700">{fmt(total)} DHS</div>
-                        <div className="text-xs text-gray-400">
-                          {totalCharges > 0 ? ((total/totalCharges)*100).toFixed(1) : 0}%
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+            <button className="mobile-collapse-btn mb-2" onClick={() => setShowFilters(!showFilters)}>
+              <span>🔍 Filtres</span><span>{showFilters ? '▲' : '▼'}</span>
+            </button>
+            {showFilters && (
+              <div className="card mb-4 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="label">Du</label><input type="date" className="input" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} /></div>
+                  <div><label className="label">Au</label><input type="date" className="input" value={filterTo} onChange={e => setFilterTo(e.target.value)} /></div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── RIGHT: TABLE ── */}
-          <div className="lg:col-span-2">
-            <div className="card">
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                <h2 className="font-semibold text-gray-900">Historique des charges</h2>
-                <div className="flex gap-2">
-                  <button onClick={printCharges} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
-                  <button onClick={exportCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 CSV</button>
-                </div>
-              </div>
-
-              {/* Filters */}
-              <div className="flex flex-wrap gap-3 mb-4 items-end">
-                <div><label className="label">Du</label><input type="date" className="input" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} /></div>
-                <div><label className="label">Au</label><input type="date" className="input" value={filterTo} onChange={e => setFilterTo(e.target.value)} /></div>
                 <div><label className="label">Camion</label>
-                  <select className="input" value={filterCamion} onChange={e => setFilterCamion(e.target.value)} style={{minWidth:'130px'}}>
+                  <select className="input" value={filterCamion} onChange={e => setFilterCamion(e.target.value)}>
                     <option value="">Tous</option>
                     {camions.map(c => <option key={c.id} value={c.plaque}>{c.plaque}</option>)}
                   </select>
                 </div>
-                <button onClick={() => { setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterCamion('') }}
-                  className="btn-secondary text-xs">↺</button>
+                <div className="flex gap-2">
+                  <button onClick={() => { setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterCamion('') }}
+                    className="btn-secondary text-xs flex-1 justify-center">↺ Reset</button>
+                  <button onClick={printCharges} className="btn-primary text-xs flex-1 justify-center" style={{background:'#4f46e5'}}>🖨️ PDF</button>
+                  <button onClick={exportCSV} className="btn-primary text-xs flex-1 justify-center" style={{background:'#16a34a'}}>📥 CSV</button>
+                </div>
               </div>
+            )}
 
-              {/* Summary */}
-              <div className="flex gap-4 mb-3 text-sm flex-wrap items-center">
-                <span className="font-bold text-red-600">Total charges : {fmt(totalCharges)} DHS</span>
-                <span className="text-gray-300">|</span>
-                <span className="text-gray-500">{filtered.length} fiche(s)</span>
+            {/* Top catégories mobile */}
+            {topCategories.length > 0 && (
+              <div className="card mb-4">
+                <div className="text-xs font-bold text-gray-600 mb-3">📊 Top charges</div>
+                <div className="space-y-2">
+                  {topCategories.slice(0,5).map(c => (
+                    <div key={c.key} className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">{c.icon} {c.label}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 rounded-full bg-red-100 w-16">
+                          <div className="h-1.5 rounded-full bg-red-500"
+                            style={{width: `${totalCharges > 0 ? Math.min(100,(c.total/totalCharges)*100) : 0}%`}} />
+                        </div>
+                        <span className="text-xs font-bold text-red-700 w-20 text-right">{fmt(c.total)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
 
-              {/* Table */}
-              {loading ? (
-                <div className="text-center text-gray-400 py-10">Chargement...</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead><tr>
-                      <th className="th">Date</th>
-                      <th className="th">Camion</th>
-                      <th className="th text-right">Total DHS</th>
-                      <th className="th">Détail charges</th>
-                      <th className="th">Note</th>
-                      <th className="th"></th>
-                    </tr></thead>
-                    <tbody>
-                      {filtered.map(ch => (
-                        <tr key={ch.id} className="hover:bg-gray-50">
-                          <td className="td text-gray-500">{fmtDate(ch.date)}</td>
-                          <td className="td font-semibold">{ch.camion_plaque}</td>
-                          <td className="td text-right font-black text-red-600 text-base">{fmt(ch.total)} DHS</td>
-                          <td className="td">
-                            <div className="flex flex-wrap gap-1">
-                              {CATEGORIES.filter(c => ch[c.key] > 0).map(c => (
-                                <span key={c.key}
-                                  className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-md whitespace-nowrap"
-                                  title={c.label}>
-                                  {c.icon} {c.label.split('/')[0]} <b>{fmt(ch[c.key])}</b>
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="td text-gray-400 text-xs">{ch.note || '—'}</td>
-                          <td className="td">
-                            <button className="btn-danger" onClick={() => deleteCharge(ch.id)}>✕</button>
-                          </td>
-                        </tr>
+            {/* Mobile list */}
+            {loading ? <div className="text-center text-gray-400 py-10">Chargement...</div> : (
+              <div className="mobile-card-list">
+                {filtered.map(ch => (
+                  <div key={ch.id} className="mobile-row-card">
+                    <div className="card-header">
+                      <div>
+                        <div className="card-title">🚛 {ch.camion_plaque}</div>
+                        <div style={{fontSize:12, color:'#6b7280', marginTop:2}}>{fmtDate(ch.date)}</div>
+                      </div>
+                      <div style={{color:'#dc2626', fontWeight:700, fontSize:16}}>{fmt(ch.total)} DHS</div>
+                    </div>
+
+                    {/* Mini détail */}
+                    <div className="card-meta flex-wrap">
+                      {CATEGORIES.filter(c => ch[c.key] > 0).map(c => (
+                        <span key={c.key} className="text-xs bg-gray-50 px-1.5 py-0.5 rounded">
+                          {c.icon} {fmt(ch[c.key])}
+                        </span>
                       ))}
-                      {filtered.length === 0 && (
-                        <tr><td colSpan={6} className="td text-center text-gray-400 py-10">
-                          Aucune charge pour cette sélection
-                        </td></tr>
-                      )}
-                    </tbody>
-                    {filtered.length > 0 && (
-                      <tfoot><tr>
-                        <td className="tfoot-td" colSpan={2}>TOTAL ({filtered.length} fiches)</td>
-                        <td className="tfoot-td text-right text-red-700">{fmt(totalCharges)} DHS</td>
-                        <td className="tfoot-td" colSpan={3}></td>
-                      </tr></tfoot>
+                    </div>
+
+                    {/* Expand */}
+                    <button onClick={() => setExpandedId(expandedId === ch.id ? null : ch.id)}
+                      className="text-xs text-blue-500 mt-1">
+                      {expandedId === ch.id ? '▲ Réduire' : '▼ Voir détail'}
+                    </button>
+
+                    {expandedId === ch.id && (
+                      <div className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+                        {CATEGORIES.filter(c => ch[c.key] > 0).map(c => (
+                          <div key={c.key} className="flex justify-between text-xs">
+                            <span className="text-gray-500">{c.icon} {c.label}</span>
+                            <span className="font-bold text-red-700">{fmt(ch[c.key])} DHS</span>
+                          </div>
+                        ))}
+                        {ch.note && <div className="text-xs text-gray-400 pt-1">📝 {ch.note}</div>}
+                      </div>
                     )}
-                  </table>
+
+                    <div className="card-actions">
+                      <button className="btn-danger" onClick={() => deleteCharge(ch.id)}>✕ Supprimer</button>
+                    </div>
+                  </div>
+                ))}
+                {filtered.length === 0 && (
+                  <div className="text-center text-gray-400 py-10">Aucune charge pour cette sélection</div>
+                )}
+              </div>
+            )}
+          </div>
+
+        ) : (
+          // ══ DESKTOP ══════════════════════════════════════════════
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {/* ── LEFT: FORM + STATS ── */}
+            <div className="lg:col-span-1 space-y-4">
+              <div className="card">
+                <h2 className="font-semibold text-gray-900 mb-4">💸 Nouvelle fiche charges</h2>
+                {FormContent}
+              </div>
+
+              {/* Répartition par catégorie */}
+              {topCategories.length > 0 && (
+                <div className="card">
+                  <h3 className="font-semibold text-gray-900 text-sm mb-3">📊 Charges par catégorie</h3>
+                  <div className="space-y-2">
+                    {topCategories.map(c => (
+                      <div key={c.key} className="flex items-center gap-2">
+                        <span className="text-sm w-5">{c.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-gray-600 truncate">{c.label}</div>
+                          <div className="h-1.5 rounded-full bg-gray-100 mt-0.5">
+                            <div className="h-1.5 rounded-full bg-red-400"
+                              style={{width:`${totalCharges>0?Math.min(100,(c.total/totalCharges)*100):0}%`}} />
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-red-700 flex-shrink-0 w-24 text-right">{fmt(c.total)} DHS</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-sm border-t border-gray-100 pt-2 mt-2">
+                      <span className="font-bold text-gray-900">TOTAL</span>
+                      <span className="font-black text-red-700">{fmt(totalCharges)} DHS</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Répartition par camion — enhanced with avg/voyage + top category */}
+              {Object.keys(byCamion).length > 0 && (
+                <div className="card">
+                  <h3 className="font-semibold text-gray-900 text-sm mb-3">🚛 Charges par camion</h3>
+                  <div className="space-y-3">
+                    {Object.entries(byCamion).sort((a,b)=>b[1]-a[1]).map(([plaque, total]) => {
+                      const enh = camionEnhanced[plaque] || {}
+                      return (
+                        <div key={plaque} className="pb-3 border-b border-gray-100 last:border-0 last:pb-0">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="font-medium text-gray-800">{plaque}</span>
+                            <div className="text-right">
+                              <div className="font-bold text-red-700">{fmt(total)} DHS</div>
+                              <div className="text-xs text-gray-400">
+                                {totalCharges > 0 ? ((total/totalCharges)*100).toFixed(1) : 0}%
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
+                            {enh.avg > 0 && (
+                              <span>Moy/voyage : <b className="text-purple-600">{fmt(enh.avg)} DHS</b></span>
+                            )}
+                            {enh.topCat && (
+                              <span>Top : <b className="text-red-600">{enh.topCat.icon} {enh.topCat.label.split('/')[0]}</b></span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>
+
+            {/* ── RIGHT: TABLE ── */}
+            <div className="lg:col-span-2">
+              <div className="card">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                  <h2 className="font-semibold text-gray-900">Historique des charges</h2>
+                  <div className="flex gap-2">
+                    <button onClick={printCharges} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
+                    <button onClick={exportCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 CSV</button>
+                  </div>
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap gap-3 mb-4 items-end">
+                  <div><label className="label">Du</label><input type="date" className="input" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} /></div>
+                  <div><label className="label">Au</label><input type="date" className="input" value={filterTo} onChange={e => setFilterTo(e.target.value)} /></div>
+                  <div><label className="label">Camion</label>
+                    <select className="input" value={filterCamion} onChange={e => setFilterCamion(e.target.value)} style={{minWidth:'130px'}}>
+                      <option value="">Tous</option>
+                      {camions.map(c => <option key={c.id} value={c.plaque}>{c.plaque}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={() => { setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterCamion('') }}
+                    className="btn-secondary text-xs">↺</button>
+                </div>
+
+                {/* Summary */}
+                <div className="flex gap-4 mb-3 text-sm flex-wrap items-center">
+                  <span className="font-bold text-red-600">Total charges : {fmt(totalCharges)} DHS</span>
+                  <span className="text-gray-300">|</span>
+                  <span className="text-gray-500">{filtered.length} fiche(s)</span>
+                </div>
+
+                {/* Table */}
+                {loading ? (
+                  <div className="text-center text-gray-400 py-10">Chargement...</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead><tr>
+                        <th className="th">Date</th>
+                        <th className="th">Camion</th>
+                        <th className="th text-right">Total DHS</th>
+                        <th className="th">Détail charges</th>
+                        <th className="th">Note</th>
+                        <th className="th"></th>
+                      </tr></thead>
+                      <tbody>
+                        {filtered.map(ch => (
+                          <tr key={ch.id} className="hover:bg-gray-50">
+                            <td className="td text-gray-500">{fmtDate(ch.date)}</td>
+                            <td className="td font-semibold">{ch.camion_plaque}</td>
+                            <td className="td text-right font-black text-red-600 text-base">{fmt(ch.total)} DHS</td>
+                            <td className="td">
+                              <div className="flex flex-wrap gap-1">
+                                {CATEGORIES.filter(c => ch[c.key] > 0).map(c => (
+                                  <span key={c.key}
+                                    className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-md whitespace-nowrap"
+                                    title={c.label}>
+                                    {c.icon} {c.label.split('/')[0]} <b>{fmt(ch[c.key])}</b>
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="td text-gray-400 text-xs">{ch.note || '—'}</td>
+                            <td className="td">
+                              <button className="btn-danger" onClick={() => deleteCharge(ch.id)}>✕</button>
+                            </td>
+                          </tr>
+                        ))}
+                        {filtered.length === 0 && (
+                          <tr><td colSpan={6} className="td text-center text-gray-400 py-10">
+                            Aucune charge pour cette sélection
+                          </td></tr>
+                        )}
+                      </tbody>
+                      {filtered.length > 0 && (
+                        <tfoot><tr>
+                          <td className="tfoot-td" colSpan={2}>TOTAL ({filtered.length} fiches)</td>
+                          <td className="tfoot-td text-right text-red-700">{fmt(totalCharges)} DHS</td>
+                          <td className="tfoot-td" colSpan={3}></td>
+                        </tr></tfoot>
+                      )}
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        )
       )}
+
+      {/* ════════════════════════════════════════════
+          TAB: PAR CAMION
+      ════════════════════════════════════════════ */}
+      {activeTab === 'par_camion' && ParCamionContent}
+
     </Layout>
   )
 }

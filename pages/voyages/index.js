@@ -75,8 +75,9 @@ export default function Voyages() {
   const [livraisons, setLivraisons] = useState([])
   const [retours,    setRetours]    = useState([])
   const [gasoilData, setGasoilData] = useState([])
-  const [charges,    setCharges]    = useState([])
-  const [camions,    setCamions]    = useState([])
+  const [charges,          setCharges]          = useState([])
+  const [standaloneCharges, setStandaloneCharges] = useState([])
+  const [camions,          setCamions]          = useState([])
   const [clients,    setClients]    = useState([])
 
   // ── UI ──
@@ -119,6 +120,7 @@ export default function Voyages() {
       { data: ch },
       { data: ca },
       { data: cl },
+      { data: sc },
     ] = await Promise.all([
       supabase.from('voyages').select('*').order('date_depart', { ascending: false }),
       supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
@@ -128,6 +130,8 @@ export default function Voyages() {
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('clients').select('id,nom').order('nom'),
+      // standalone charges from /charges page not yet linked to a voyage (source IS NULL)
+      supabase.from('charges').select('camion_plaque,date,total').is('source', null),
     ])
     setVoyages(v || [])
     setAchats(ac || [])
@@ -137,10 +141,13 @@ export default function Voyages() {
     setCharges(ch || [])
     setCamions(ca || [])
     setClients(cl || [])
+    setStandaloneCharges(sc || [])
     setLoading(false)
   }
 
   // ── PROFIT FORMULA ────────────────────────────────────────────────────────
+  // COÛT TOTAL = achats + gasoil + voyage_charges (non facturés)
+  //            + charges table (standalone, même camion+date, source IS NULL)
   function calc(vIds) {
     const myAcs  = achats.filter(a => vIds.includes(a.voyage_id))
     const myLivs = livraisons.filter(l => vIds.includes(l.voyage_id))
@@ -156,11 +163,21 @@ export default function Voyages() {
     const coutAchat   = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte||0)*(a.prix_achat||0)), 0)
     const coutGasoil  = myGas.reduce((s, g) => s + (g.total || 0), 0)
     const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    const coutTotal   = coutAchat + coutGasoil + coutCharges
-    const profit      = revenuBrut - coutTotal
-    const marge       = revenuBrut > 0 ? Math.round(profit / revenuBrut * 100) : 0
 
-    return { revenuBrut, coutAchat, coutGasoil, coutCharges, coutTotal, profit, marge }
+    // standalone charges from /charges page not already synced to voyage_charges
+    const coutStandalone = vIds.reduce((total, vid) => {
+      const v = voyages.find(x => x.id === vid)
+      if (!v) return total
+      return total + standaloneCharges
+        .filter(c => c.camion_plaque === v.camion_plaque && c.date === v.date_depart)
+        .reduce((s, c) => s + (c.total || 0), 0)
+    }, 0)
+
+    const coutTotal = coutAchat + coutGasoil + coutCharges + coutStandalone
+    const profit    = revenuBrut - coutTotal
+    const marge     = revenuBrut > 0 ? Math.round(profit / revenuBrut * 100) : 0
+
+    return { revenuBrut, coutAchat, coutGasoil, coutCharges, coutStandalone, coutTotal, profit, marge }
   }
 
   // ── UPDATE VOYAGE ─────────────────────────────────────────────────────────
