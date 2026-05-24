@@ -83,8 +83,10 @@ export default function Paiements() {
   const [activeTab, setActiveTab] = useState('all') // 'all' | 'cheques' | 'fournisseurs' | 'grignon'
   const [verifiedPmt, setVerifiedPmt] = useState(new Set())
   const toggleVerifyPmt = id => setVerifiedPmt(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  const [editingPmt, setEditingPmt] = useState(null) // { id, montant }
-  const [editingGrignonPmt, setEditingGrignonPmt] = useState(null)
+  const [editPmtId, setEditPmtId] = useState(null)
+  const [editPmtOriginal, setEditPmtOriginal] = useState(null)
+  const [editGrignonPmtId, setEditGrignonPmtId] = useState(null)
+  const [editGrignonPmtOriginal, setEditGrignonPmtOriginal] = useState(null)
 
   // ── GRIGNON FORM ──
   const emptyGrignonForm = () => ({ date: today(), client_id: '', mode: 'Espèce', montant: '', note: '' })
@@ -129,7 +131,32 @@ export default function Paiements() {
   const isCheque = form.mode === 'Chèque'
   const isFournisseurMode = ['Chèque', 'Virement', 'Paiement fournisseur'].includes(form.mode)
 
-  // ── SAVE ──
+  function startEditPmt(p) {
+    setForm({
+      date: p.date,
+      client_id: String(p.client_id),
+      mode: p.mode,
+      montant: String(p.montant),
+      note: p.note || '',
+      camion_id: p.camion_id ? String(p.camion_id) : '',
+      cheque_number: p.cheque_number || '',
+      cheque_bank: p.cheque_bank || '',
+      cheque_status: p.cheque_status || 'pending',
+      fournisseur_id: p.fournisseur_id ? String(p.fournisseur_id) : '',
+    })
+    setEditPmtId(p.id)
+    setEditPmtOriginal(p)
+    setShowForm(true)
+  }
+
+  function cancelEditPmt() {
+    setEditPmtId(null)
+    setEditPmtOriginal(null)
+    setForm(emptyForm())
+    setShowForm(false)
+  }
+
+  // ── SAVE / UPDATE ──
   async function savePaiement(e) {
     e.preventDefault()
     if (!form.client_id || !montant) return
@@ -139,7 +166,7 @@ export default function Paiements() {
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
     const fournisseur = fournisseurs.find(f => f.id === parseInt(form.fournisseur_id))
 
-    await supabase.from('paiements').insert({
+    const payload = {
       date: form.date,
       client_id: parseInt(form.client_id),
       client_nom: client?.nom || '',
@@ -148,18 +175,33 @@ export default function Paiements() {
       note: form.note,
       camion_id: form.camion_id ? parseInt(form.camion_id) : null,
       camion_plaque: camion?.plaque || null,
-      // cheque fields — only stored when mode = Chèque
       cheque_number: isCheque ? (form.cheque_number || null) : null,
       cheque_bank:   isCheque ? (form.cheque_bank   || null) : null,
       cheque_status: isCheque ? form.cheque_status           : null,
-      // supplier-directed — payment stays in client accounting
       fournisseur_id:  form.fournisseur_id ? parseInt(form.fournisseur_id) : null,
       fournisseur_nom: fournisseur?.nom || null,
-    })
+    }
 
-    // Update client balance — no clamp: negative balance = avance/crédit
-    if (client) {
-      await supabase.from('clients').update({ solde: (client.solde || 0) - montant }).eq('id', client.id)
+    if (editPmtId) {
+      await supabase.from('paiements').update(payload).eq('id', editPmtId)
+      const orig = editPmtOriginal
+      if (orig.client_id === parseInt(form.client_id)) {
+        const diff = montant - (orig.montant || 0)
+        if (diff !== 0 && client) {
+          await supabase.from('clients').update({ solde: (client.solde || 0) - diff }).eq('id', client.id)
+        }
+      } else {
+        const oldClient = clients.find(c => c.id === orig.client_id)
+        if (oldClient) await supabase.from('clients').update({ solde: (oldClient.solde || 0) + (orig.montant || 0) }).eq('id', oldClient.id)
+        if (client) await supabase.from('clients').update({ solde: (client.solde || 0) - montant }).eq('id', client.id)
+      }
+      setEditPmtId(null)
+      setEditPmtOriginal(null)
+    } else {
+      await supabase.from('paiements').insert(payload)
+      if (client) {
+        await supabase.from('clients').update({ solde: (client.solde || 0) - montant }).eq('id', client.id)
+      }
     }
 
     setSaving(false)
@@ -177,22 +219,59 @@ export default function Paiements() {
     loadAll()
   }
 
-  // ── GRIGNON SAVE ──
+  function startEditGrignonPmt(p) {
+    setGrignonForm({ date: p.date, client_id: String(p.client_id), mode: p.mode, montant: String(p.montant), note: p.note || '' })
+    setEditGrignonPmtId(p.id)
+    setEditGrignonPmtOriginal(p)
+    setShowGrignonForm(true)
+  }
+
+  function cancelEditGrignonPmt() {
+    setEditGrignonPmtId(null)
+    setEditGrignonPmtOriginal(null)
+    setGrignonForm(emptyGrignonForm())
+    setShowGrignonForm(false)
+  }
+
+  // ── GRIGNON SAVE / UPDATE ──
   async function saveGrignonPaiement(e) {
     e.preventDefault()
     const montantG = parseFloat(grignonForm.montant) || 0
     if (!grignonForm.client_id || !montantG) return
     setSavingGrignon(true)
     const cl = grignonClients.find(c => c.id === parseInt(grignonForm.client_id))
-    await supabase.from('grignon_paiements').insert({
-      date: grignonForm.date,
-      client_id: parseInt(grignonForm.client_id),
-      client_nom: cl?.nom || '',
-      mode: grignonForm.mode,
-      montant: montantG,
-      note: grignonForm.note || null,
-    })
-    if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - montantG }).eq('id', cl.id)
+
+    if (editGrignonPmtId) {
+      await supabase.from('grignon_paiements').update({
+        date: grignonForm.date,
+        client_id: parseInt(grignonForm.client_id),
+        client_nom: cl?.nom || '',
+        mode: grignonForm.mode,
+        montant: montantG,
+        note: grignonForm.note || null,
+      }).eq('id', editGrignonPmtId)
+      const orig = editGrignonPmtOriginal
+      if (orig.client_id === parseInt(grignonForm.client_id)) {
+        const diff = montantG - (orig.montant || 0)
+        if (diff !== 0 && cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - diff }).eq('id', cl.id)
+      } else {
+        const oldCl = grignonClients.find(c => c.id === orig.client_id)
+        if (oldCl) await supabase.from('grignon_clients').update({ solde: (oldCl.solde || 0) + (orig.montant || 0) }).eq('id', oldCl.id)
+        if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - montantG }).eq('id', cl.id)
+      }
+      setEditGrignonPmtId(null)
+      setEditGrignonPmtOriginal(null)
+    } else {
+      await supabase.from('grignon_paiements').insert({
+        date: grignonForm.date,
+        client_id: parseInt(grignonForm.client_id),
+        client_nom: cl?.nom || '',
+        mode: grignonForm.mode,
+        montant: montantG,
+        note: grignonForm.note || null,
+      })
+      if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - montantG }).eq('id', cl.id)
+    }
     setSavingGrignon(false)
     setGrignonForm(emptyGrignonForm())
     setShowGrignonForm(false)
@@ -204,31 +283,6 @@ export default function Paiements() {
     const cl = grignonClients.find(c => c.id === clientId)
     await supabase.from('grignon_paiements').delete().eq('id', id)
     if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) + m }).eq('id', clientId)
-    loadAll()
-  }
-
-  // ── UPDATE MONTANT ──
-  async function updatePaiementMontant(id, oldMontant, clientId, newMontant) {
-    if (!newMontant || newMontant === oldMontant) { setEditingPmt(null); return }
-    const diff = newMontant - oldMontant
-    await supabase.from('paiements').update({ montant: newMontant }).eq('id', id)
-    const client = clients.find(c => c.id === clientId)
-    if (client && diff !== 0) {
-      await supabase.from('clients').update({ solde: (client.solde || 0) - diff }).eq('id', clientId)
-    }
-    setEditingPmt(null)
-    loadAll()
-  }
-
-  async function updateGrignonPaiementMontant(id, oldMontant, clientId, newMontant) {
-    if (!newMontant || newMontant === oldMontant) { setEditingGrignonPmt(null); return }
-    const diff = newMontant - oldMontant
-    await supabase.from('grignon_paiements').update({ montant: newMontant }).eq('id', id)
-    const cl = grignonClients.find(c => c.id === clientId)
-    if (cl && diff !== 0) {
-      await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - diff }).eq('id', clientId)
-    }
-    setEditingGrignonPmt(null)
     loadAll()
   }
 
@@ -498,8 +552,13 @@ ${filtered.map(p => {
         </div>
       )}
 
+      {editPmtId && (
+        <button type="button" onClick={cancelEditPmt} className="btn-secondary w-full justify-center">
+          Annuler la modification
+        </button>
+      )}
       <button type="submit" disabled={saving} className="btn-success w-full justify-center">
-        {saving ? 'Enregistrement...' : '✓ Enregistrer le paiement'}
+        {saving ? 'Enregistrement...' : editPmtId ? '✓ Modifier le paiement' : '✓ Enregistrer le paiement'}
       </button>
     </form>
   )
@@ -537,11 +596,16 @@ ${filtered.map(p => {
             )}
           </div>
 
-          <button onClick={() => setShowForm(!showForm)}
-            className="w-full mb-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all">
-            {showForm ? '▲ Fermer' : '💰 + Nouveau paiement'}
+          <button onClick={() => { if (showForm && editPmtId) cancelEditPmt(); else setShowForm(!showForm) }}
+            className={`w-full mb-4 py-3 text-white font-bold rounded-xl transition-all ${editPmtId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700'}`}>
+            {showForm ? (editPmtId ? '✕ Annuler modification' : '▲ Fermer') : '💰 + Nouveau paiement'}
           </button>
-          {showForm && <div className="card mb-4">{FormContent}</div>}
+          {showForm && (
+            <div className={`card mb-4 ${editPmtId ? 'ring-2 ring-amber-400' : ''}`}>
+              {editPmtId && <div className="text-xs font-bold text-amber-700 mb-3 bg-amber-50 rounded-lg px-3 py-2">✏️ Modification du paiement</div>}
+              {FormContent}
+            </div>
+          )}
 
           <button className="mobile-collapse-btn mb-2" onClick={() => setShowFilters(!showFilters)}>
             <span>🔍 Filtres</span><span>{showFilters ? '▲' : '▼'}</span>
@@ -642,25 +706,12 @@ ${filtered.map(p => {
                       </div>
                       <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
                     </div>
-                    {editingGrignonPmt?.id === p.id && (
-                      <div className="flex items-center gap-2 mt-2 px-1" onClick={e => e.stopPropagation()}>
-                        <input type="number" autoFocus className="input font-bold flex-1" placeholder="Nouveau montant"
-                          value={editingGrignonPmt.montant}
-                          onChange={e => setEditingGrignonPmt({...editingGrignonPmt, montant: e.target.value})}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') updateGrignonPaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingGrignonPmt.montant)||0)
-                            if (e.key === 'Escape') setEditingGrignonPmt(null)
-                          }} />
-                        <button className="btn-success text-xs px-3" onClick={() => updateGrignonPaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingGrignonPmt.montant)||0)}>✓</button>
-                        <button className="btn-secondary text-xs px-3" onClick={() => setEditingGrignonPmt(null)}>✕</button>
-                      </div>
-                    )}
                     <div className="card-meta">
                       <span>{p.mode}</span>
                       {p.note && <span>{p.note}</span>}
                     </div>
                     <div className="card-actions">
-                      <button className="btn-secondary text-xs" onClick={e => { e.stopPropagation(); setEditingGrignonPmt({id: p.id, montant: p.montant}) }}>✎ Modifier</button>
+                      <button className="btn-secondary text-xs" onClick={e => { e.stopPropagation(); startEditGrignonPmt(p); window.scrollTo({top:0,behavior:'smooth'}) }}>✎ Modifier</button>
                       <button className="btn-danger" onClick={() => deleteGrignonPaiement(p.id, p.client_id, p.montant)}>✕ Supprimer</button>
                     </div>
                   </div>
@@ -683,19 +734,6 @@ ${filtered.map(p => {
                     </div>
                     <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
                   </div>
-                  {editingPmt?.id === p.id && (
-                    <div className="flex items-center gap-2 mt-2 px-1" onClick={e => e.stopPropagation()}>
-                      <input type="number" autoFocus className="input font-bold flex-1" placeholder="Nouveau montant"
-                        value={editingPmt.montant}
-                        onChange={e => setEditingPmt({...editingPmt, montant: e.target.value})}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') updatePaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingPmt.montant)||0)
-                          if (e.key === 'Escape') setEditingPmt(null)
-                        }} />
-                      <button className="btn-success text-xs px-3" onClick={() => updatePaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingPmt.montant)||0)}>✓</button>
-                      <button className="btn-secondary text-xs px-3" onClick={() => setEditingPmt(null)}>✕</button>
-                    </div>
-                  )}
                   <div className="card-meta">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span>
                     {p.cheque_number && <span className="font-mono text-xs">📄 {p.cheque_number}</span>}
@@ -715,7 +753,7 @@ ${filtered.map(p => {
                     </div>
                   )}
                   <div className="card-actions">
-                    <button className="btn-secondary text-xs" onClick={e => { e.stopPropagation(); setEditingPmt({id: p.id, montant: p.montant}) }}>✎ Modifier</button>
+                    <button className="btn-secondary text-xs" onClick={e => { e.stopPropagation(); startEditPmt(p); setShowForm(true); window.scrollTo({top:0,behavior:'smooth'}) }}>✎ Modifier</button>
                     <button className="btn-danger" onClick={() => deletePaiement(p.id, p.client_id, p.montant)}>✕ Supprimer</button>
                   </div>
                 </div>
@@ -732,8 +770,10 @@ ${filtered.map(p => {
 
           {/* LEFT: FORM + SIDEBAR */}
           <div className="lg:col-span-1 space-y-4">
-            <div className="card">
-              <h2 className="font-semibold text-gray-900 mb-4">💰 Nouveau paiement</h2>
+            <div className={`card ${editPmtId ? 'ring-2 ring-amber-400' : ''}`}>
+              <h2 className="font-semibold text-gray-900 mb-4">
+                {editPmtId ? '✏️ Modifier le paiement' : '💰 Nouveau paiement'}
+              </h2>
               {FormContent}
             </div>
 
@@ -899,30 +939,14 @@ ${filtered.map(p => {
                             <td className="td text-gray-500">{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginRight:4}}>✓</span>}{fmtDate(p.date)}</td>
                             <td className="td font-semibold">{p.client_nom}</td>
                             <td className="td"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span></td>
-                            <td className="td text-right">
-                              {editingGrignonPmt?.id === p.id ? (
-                                <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
-                                  <input type="number" autoFocus
-                                    className="input text-right font-bold" style={{width:100}}
-                                    value={editingGrignonPmt.montant}
-                                    onChange={e => setEditingGrignonPmt({...editingGrignonPmt, montant: e.target.value})}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter') updateGrignonPaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingGrignonPmt.montant)||0)
-                                      if (e.key === 'Escape') setEditingGrignonPmt(null)
-                                    }} />
-                                  <button className="text-green-600 font-bold text-xs" onClick={() => updateGrignonPaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingGrignonPmt.montant)||0)}>✓</button>
-                                  <button className="text-gray-400 text-xs" onClick={() => setEditingGrignonPmt(null)}>✕</button>
-                                </div>
-                              ) : (
-                                <span className="font-bold text-green-600 cursor-pointer hover:underline"
-                                  title="Cliquer pour modifier"
-                                  onClick={e => { e.stopPropagation(); setEditingGrignonPmt({id: p.id, montant: p.montant}) }}>
-                                  − {fmt(p.montant)}
-                                </span>
-                              )}
-                            </td>
+                            <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
                             <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
-                            <td className="td"><button className="btn-danger" onClick={() => deleteGrignonPaiement(p.id, p.client_id, p.montant)}>✕</button></td>
+                            <td className="td">
+                              <div className="flex gap-1">
+                                <button className="btn-secondary text-xs px-2 py-1" onClick={e => { e.stopPropagation(); startEditGrignonPmt(p) }}>✎</button>
+                                <button className="btn-danger" onClick={() => deleteGrignonPaiement(p.id, p.client_id, p.montant)}>✕</button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                         {grignonPaiements.length === 0 && (
@@ -983,31 +1007,13 @@ ${filtered.map(p => {
                               ? <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{p.fournisseur_nom}</span>
                               : <span className="text-gray-300">—</span>}
                           </td>
-                          <td className="td text-right">
-                            {editingPmt?.id === p.id ? (
-                              <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
-                                <input type="number" autoFocus
-                                  className="input text-right font-bold" style={{width:100}}
-                                  value={editingPmt.montant}
-                                  onChange={e => setEditingPmt({...editingPmt, montant: e.target.value})}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') updatePaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingPmt.montant)||0)
-                                    if (e.key === 'Escape') setEditingPmt(null)
-                                  }} />
-                                <button className="text-green-600 font-bold text-xs" onClick={() => updatePaiementMontant(p.id, p.montant, p.client_id, parseFloat(editingPmt.montant)||0)}>✓</button>
-                                <button className="text-gray-400 text-xs" onClick={() => setEditingPmt(null)}>✕</button>
-                              </div>
-                            ) : (
-                              <span className="font-bold text-green-600 cursor-pointer hover:underline"
-                                title="Cliquer pour modifier"
-                                onClick={e => { e.stopPropagation(); setEditingPmt({id: p.id, montant: p.montant}) }}>
-                                − {fmt(p.montant)}
-                              </span>
-                            )}
-                          </td>
+                          <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
                           <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
                           <td className="td">
-                            <button className="btn-danger" onClick={() => deletePaiement(p.id, p.client_id, p.montant)}>✕</button>
+                            <div className="flex gap-1">
+                              <button className="btn-secondary text-xs px-2 py-1" onClick={e => { e.stopPropagation(); startEditPmt(p) }}>✎</button>
+                              <button className="btn-danger" onClick={() => deletePaiement(p.id, p.client_id, p.montant)}>✕</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
