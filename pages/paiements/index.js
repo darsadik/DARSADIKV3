@@ -165,10 +165,11 @@ export default function Paiements() {
     const client = selectedClient
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
     const fournisseur = fournisseurs.find(f => f.id === parseInt(form.fournisseur_id))
+    const clientId = parseInt(form.client_id)
 
     const payload = {
       date: form.date,
-      client_id: parseInt(form.client_id),
+      client_id: clientId,
       client_nom: client?.nom || '',
       mode: form.mode,
       montant,
@@ -182,41 +183,58 @@ export default function Paiements() {
       fournisseur_nom: fournisseur?.nom || null,
     }
 
-    if (editPmtId) {
-      await supabase.from('paiements').update(payload).eq('id', editPmtId)
-      const orig = editPmtOriginal
-      if (orig.client_id === parseInt(form.client_id)) {
-        const diff = montant - (orig.montant || 0)
-        if (diff !== 0 && client) {
-          await supabase.from('clients').update({ solde: (client.solde || 0) - diff }).eq('id', client.id)
+    try {
+      if (editPmtId) {
+        const { error } = await supabase.from('paiements').update(payload).eq('id', editPmtId)
+        if (error) throw error
+        const orig = editPmtOriginal
+        if (orig.client_id === clientId) {
+          const diff = montant - (orig.montant || 0)
+          if (diff !== 0) {
+            // Fresh-read before updating solde
+            const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', clientId).single()
+            if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde || 0) - diff }).eq('id', clientId)
+          }
+        } else {
+          // Client changed: restore old client, charge new client
+          const { data: freshOldCl } = await supabase.from('clients').select('solde').eq('id', orig.client_id).single()
+          if (freshOldCl) await supabase.from('clients').update({ solde: (freshOldCl.solde || 0) + (orig.montant || 0) }).eq('id', orig.client_id)
+          const { data: freshNewCl } = await supabase.from('clients').select('solde').eq('id', clientId).single()
+          if (freshNewCl) await supabase.from('clients').update({ solde: (freshNewCl.solde || 0) - montant }).eq('id', clientId)
         }
+        setEditPmtId(null)
+        setEditPmtOriginal(null)
       } else {
-        const oldClient = clients.find(c => c.id === orig.client_id)
-        if (oldClient) await supabase.from('clients').update({ solde: (oldClient.solde || 0) + (orig.montant || 0) }).eq('id', oldClient.id)
-        if (client) await supabase.from('clients').update({ solde: (client.solde || 0) - montant }).eq('id', client.id)
+        const { error } = await supabase.from('paiements').insert(payload)
+        if (error) throw error
+        // Fresh-read before updating solde
+        const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', clientId).single()
+        if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde || 0) - montant }).eq('id', clientId)
       }
-      setEditPmtId(null)
-      setEditPmtOriginal(null)
-    } else {
-      await supabase.from('paiements').insert(payload)
-      if (client) {
-        await supabase.from('clients').update({ solde: (client.solde || 0) - montant }).eq('id', client.id)
-      }
-    }
 
-    setSaving(false)
-    setForm(emptyForm())
-    setShowForm(false)
-    loadAll()
+      setForm(emptyForm())
+      setShowForm(false)
+      loadAll()
+    } catch (err) {
+      alert('Erreur enregistrement paiement: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   // ── DELETE ──
-  async function deletePaiement(id, clientId, m) {
+  async function deletePaiement(pmtId, clientId, m) {
     if (!confirm('Supprimer ce paiement ?')) return
-    const client = clients.find(c => c.id === clientId)
-    await supabase.from('paiements').delete().eq('id', id)
-    if (client) await supabase.from('clients').update({ solde: (client.solde || 0) + m }).eq('id', clientId)
-    loadAll()
+    try {
+      const { error } = await supabase.from('paiements').delete().eq('id', pmtId)
+      if (error) throw error
+      // Fresh-read before updating solde
+      const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', clientId).single()
+      if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde || 0) + m }).eq('id', clientId)
+      loadAll()
+    } catch (err) {
+      alert('Erreur suppression paiement: ' + err.message)
+    }
   }
 
   function startEditGrignonPmt(p) {
@@ -241,49 +259,67 @@ export default function Paiements() {
     setSavingGrignon(true)
     const cl = grignonClients.find(c => c.id === parseInt(grignonForm.client_id))
 
-    if (editGrignonPmtId) {
-      await supabase.from('grignon_paiements').update({
-        date: grignonForm.date,
-        client_id: parseInt(grignonForm.client_id),
-        client_nom: cl?.nom || '',
-        mode: grignonForm.mode,
-        montant: montantG,
-        note: grignonForm.note || null,
-      }).eq('id', editGrignonPmtId)
-      const orig = editGrignonPmtOriginal
-      if (orig.client_id === parseInt(grignonForm.client_id)) {
-        const diff = montantG - (orig.montant || 0)
-        if (diff !== 0 && cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - diff }).eq('id', cl.id)
+    const grignonClientId = parseInt(grignonForm.client_id)
+    try {
+      if (editGrignonPmtId) {
+        const { error } = await supabase.from('grignon_paiements').update({
+          date: grignonForm.date,
+          client_id: grignonClientId,
+          client_nom: cl?.nom || '',
+          mode: grignonForm.mode,
+          montant: montantG,
+          note: grignonForm.note || null,
+        }).eq('id', editGrignonPmtId)
+        if (error) throw error
+        const orig = editGrignonPmtOriginal
+        if (orig.client_id === grignonClientId) {
+          const diff = montantG - (orig.montant || 0)
+          if (diff !== 0) {
+            const { data: freshCl } = await supabase.from('grignon_clients').select('solde').eq('id', grignonClientId).single()
+            if (freshCl) await supabase.from('grignon_clients').update({ solde: (freshCl.solde || 0) - diff }).eq('id', grignonClientId)
+          }
+        } else {
+          const { data: freshOldCl } = await supabase.from('grignon_clients').select('solde').eq('id', orig.client_id).single()
+          if (freshOldCl) await supabase.from('grignon_clients').update({ solde: (freshOldCl.solde || 0) + (orig.montant || 0) }).eq('id', orig.client_id)
+          const { data: freshNewCl } = await supabase.from('grignon_clients').select('solde').eq('id', grignonClientId).single()
+          if (freshNewCl) await supabase.from('grignon_clients').update({ solde: (freshNewCl.solde || 0) - montantG }).eq('id', grignonClientId)
+        }
+        setEditGrignonPmtId(null)
+        setEditGrignonPmtOriginal(null)
       } else {
-        const oldCl = grignonClients.find(c => c.id === orig.client_id)
-        if (oldCl) await supabase.from('grignon_clients').update({ solde: (oldCl.solde || 0) + (orig.montant || 0) }).eq('id', oldCl.id)
-        if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - montantG }).eq('id', cl.id)
+        const { error } = await supabase.from('grignon_paiements').insert({
+          date: grignonForm.date,
+          client_id: grignonClientId,
+          client_nom: cl?.nom || '',
+          mode: grignonForm.mode,
+          montant: montantG,
+          note: grignonForm.note || null,
+        })
+        if (error) throw error
+        const { data: freshCl } = await supabase.from('grignon_clients').select('solde').eq('id', grignonClientId).single()
+        if (freshCl) await supabase.from('grignon_clients').update({ solde: (freshCl.solde || 0) - montantG }).eq('id', grignonClientId)
       }
-      setEditGrignonPmtId(null)
-      setEditGrignonPmtOriginal(null)
-    } else {
-      await supabase.from('grignon_paiements').insert({
-        date: grignonForm.date,
-        client_id: parseInt(grignonForm.client_id),
-        client_nom: cl?.nom || '',
-        mode: grignonForm.mode,
-        montant: montantG,
-        note: grignonForm.note || null,
-      })
-      if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) - montantG }).eq('id', cl.id)
+      setGrignonForm(emptyGrignonForm())
+      setShowGrignonForm(false)
+      loadAll()
+    } catch (err) {
+      alert('Erreur paiement grignon: ' + err.message)
+    } finally {
+      setSavingGrignon(false)
     }
-    setSavingGrignon(false)
-    setGrignonForm(emptyGrignonForm())
-    setShowGrignonForm(false)
-    loadAll()
   }
 
-  async function deleteGrignonPaiement(id, clientId, m) {
+  async function deleteGrignonPaiement(pmtId, clientId, m) {
     if (!confirm('Supprimer ce paiement grignon ?')) return
-    const cl = grignonClients.find(c => c.id === clientId)
-    await supabase.from('grignon_paiements').delete().eq('id', id)
-    if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde || 0) + m }).eq('id', clientId)
-    loadAll()
+    try {
+      const { error } = await supabase.from('grignon_paiements').delete().eq('id', pmtId)
+      if (error) throw error
+      const { data: freshCl } = await supabase.from('grignon_clients').select('solde').eq('id', clientId).single()
+      if (freshCl) await supabase.from('grignon_clients').update({ solde: (freshCl.solde || 0) + m }).eq('id', clientId)
+      loadAll()
+    } catch (err) {
+      alert('Erreur suppression paiement grignon: ' + err.message)
+    }
   }
 
   // ── UPDATE CHEQUE STATUS (inline, no page reload needed) ──

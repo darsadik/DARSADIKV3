@@ -387,6 +387,23 @@ ${carryOverBlock}
   const totalVentesClient = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
   const totalPaiementsClient = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
 
+  // ── RECONCILIATION — computed vs stored solde ───────────────────────────────
+  const computedSolde = selected && !loadingDetail
+    ? (selected.opening_balance || 0)
+      + clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+      - clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+    : null
+  const soldeGap = computedSolde !== null ? Math.abs(computedSolde - (selected?.solde || 0)) : 0
+  const hasDiscrepancy = soldeGap > 1
+
+  async function fixSolde() {
+    if (!selected || computedSolde === null) return
+    if (!confirm(`Corriger le solde de ${selected.nom} ?\n${fmt(selected.solde)} DHS → ${fmt(computedSolde)} DHS`)) return
+    await supabase.from('clients').update({ solde: computedSolde }).eq('id', selected.id)
+    loadClients()
+    setSelected({ ...selected, solde: computedSolde })
+  }
+
   const handleBack = () => { setShowDetail(false) }
 
   function exportClientExcel() {
@@ -673,6 +690,36 @@ ${carryOverBlock}
                       </div>
                     </div>
                   </div>
+                )}
+
+                {/* RECONCILIATION BADGE — shown only when detail is loaded */}
+                {!loadingDetail && computedSolde !== null && (
+                  hasDiscrepancy ? (
+                    <div className="mt-3 p-3 rounded-xl text-xs flex items-center justify-between gap-3 flex-wrap"
+                      style={{background:'#fffbeb', border:'1px solid #fde68a'}}>
+                      <div>
+                        <div className="font-bold text-amber-700 mb-1">⚠️ Solde incohérent détecté</div>
+                        <div className="text-amber-600">
+                          Solde enregistré: <strong>{fmt(selected.solde)} DHS</strong>
+                          {' '}· Solde calculé (base transactionnelle): <strong>{fmt(computedSolde)} DHS</strong>
+                          {' '}· Écart: <strong>{fmt(soldeGap)} DHS</strong>
+                        </div>
+                        <div className="text-amber-500 mt-1">
+                          Calcul: Solde initial ({fmt(selected.opening_balance || 0)}) + Ventes ({fmt(clientVentes.reduce((s,v)=>s+(v.total_vente||0),0))}) − Paiements ({fmt(clientPaiements.reduce((s,p)=>s+(p.montant||0),0))})
+                        </div>
+                      </div>
+                      <button onClick={fixSolde}
+                        className="flex-shrink-0 bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold text-xs hover:bg-amber-600 transition">
+                        Corriger → {fmt(computedSolde)} DHS
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-3 px-3 py-2 rounded-xl text-xs flex items-center gap-2"
+                      style={{background:'#f0fdf4', border:'1px solid #bbf7d0'}}>
+                      <span className="text-green-600 font-bold">✓ Solde vérifié</span>
+                      <span className="text-green-500">Le solde enregistré correspond aux transactions ({fmt(computedSolde)} DHS)</span>
+                    </div>
+                  )
                 )}
               </div>
 

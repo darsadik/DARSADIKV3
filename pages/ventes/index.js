@@ -114,35 +114,44 @@ export default function Ventes() {
     e.preventDefault()
     if (!admin) return
     setSaving(true)
-    const cl = clients.find(c => c.id === parseInt(form.client_id))
-    const ca = camions.find(c => c.id === parseInt(form.camion_id))
-    const fo = fournisseurs.find(f => f.id === parseInt(form.fournisseur_id))
-    const ty = typeBriques.find(t => t.id === parseInt(form.type_brique_id))
-    const retour_montant = parseFloat(form.retour_montant) || 0
-    const retour_paye = parseFloat(form.retour_paye) || 0
-    const retour_restant = retour_montant > 0 ? Math.round((retour_montant - retour_paye) * 100) / 100 : 0
-    await supabase.from('ventes').insert({
-      date: form.date,
-      date_fournisseur: form.date_fournisseur || form.date,
-      client_id: parseInt(form.client_id), client_nom: cl?.nom || '',
-      camion_id: parseInt(form.camion_id), camion_plaque: ca?.plaque || '', chauffeur: ca?.chauffeur || '',
-      fournisseur_id: parseInt(form.fournisseur_id) || null, fournisseur: fo?.nom || '',
-      type_brique_id: parseInt(form.type_brique_id) || null, type_brique: ty?.nom || '',
-      qte: parseFloat(form.qte), prix_vente: parseFloat(form.prix_vente),
-      prix_achat: parseFloat(form.prix_achat) || 0,
-      total_vente: tv, total_achat: ta, marge: mg,
-      bon: form.bon, note: form.note,
-      retour_client: form.retour_client || null,
-      retour_montant: retour_montant || null,
-      retour_paye: retour_paye || null,
-      retour_restant: retour_restant || null,
-      retour_note: form.retour_note || null,
-    })
-    if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) + tv }).eq('id', cl.id)
-    setSaving(false); setShowForm(false)
-    setForm({ date: today(), date_fournisseur: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '', retour_client: '', retour_montant: '', retour_paye: '', retour_note: '' })
-    setShowRetour(false)
-    loadAll()
+    try {
+      const clientId = parseInt(form.client_id)
+      const ca = camions.find(c => c.id === parseInt(form.camion_id))
+      const fo = fournisseurs.find(f => f.id === parseInt(form.fournisseur_id))
+      const ty = typeBriques.find(t => t.id === parseInt(form.type_brique_id))
+      const cl = clients.find(c => c.id === clientId)
+      const retour_montant = parseFloat(form.retour_montant) || 0
+      const retour_paye = parseFloat(form.retour_paye) || 0
+      const retour_restant = retour_montant > 0 ? Math.round((retour_montant - retour_paye) * 100) / 100 : 0
+      const { error } = await supabase.from('ventes').insert({
+        date: form.date,
+        date_fournisseur: form.date_fournisseur || form.date,
+        client_id: clientId, client_nom: cl?.nom || '',
+        camion_id: parseInt(form.camion_id), camion_plaque: ca?.plaque || '', chauffeur: ca?.chauffeur || '',
+        fournisseur_id: parseInt(form.fournisseur_id) || null, fournisseur: fo?.nom || '',
+        type_brique_id: parseInt(form.type_brique_id) || null, type_brique: ty?.nom || '',
+        qte: parseFloat(form.qte), prix_vente: parseFloat(form.prix_vente),
+        prix_achat: parseFloat(form.prix_achat) || 0,
+        total_vente: tv, total_achat: ta, marge: mg,
+        bon: form.bon, note: form.note,
+        retour_client: form.retour_client || null,
+        retour_montant: retour_montant || null,
+        retour_paye: retour_paye || null,
+        retour_restant: retour_restant || null,
+        retour_note: form.retour_note || null,
+        voyage_id: null, // explicitly null — direct entry, not from voyage
+      })
+      if (error) throw error
+      // Fresh-read before solde update
+      const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', clientId).single()
+      if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde || 0) + tv }).eq('id', clientId)
+      setShowForm(false)
+      setForm({ date: today(), date_fournisseur: today(), client_id: '', camion_id: '', fournisseur_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', bon: '', note: '', retour_client: '', retour_montant: '', retour_paye: '', retour_note: '' })
+      setShowRetour(false)
+      loadAll()
+    } catch (err) {
+      alert('Erreur enregistrement vente: ' + err.message)
+    } finally { setSaving(false) }
   }
 
   function openEdit(v) {
@@ -192,14 +201,12 @@ export default function Ventes() {
       retour_note: editForm.retour_note || null,
     }).eq('id', editRow.id)
 
-    // Adjust client solde: remove old total, add new total
-    if (!error) {
-      const cl = clients.find(c => c.id === editRow.client_id)
-      if (cl) {
-        const diff = total_vente - (editRow.total_vente || 0)
-        if (diff !== 0) {
-          await supabase.from('clients').update({ solde: (cl.solde || 0) + diff }).eq('id', cl.id)
-        }
+    // Adjust client solde with fresh-read
+    if (!error && editRow.client_id) {
+      const diff = total_vente - (editRow.total_vente || 0)
+      if (diff !== 0) {
+        const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', editRow.client_id).single()
+        if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde || 0) + diff }).eq('id', editRow.client_id)
       }
     }
 
@@ -215,14 +222,25 @@ export default function Ventes() {
 
   async function deleteVente(v) {
     if (!admin) return
+    if (v.voyage_id) {
+      alert("Cette vente est liée à un voyage. Supprimez-la depuis la page du voyage pour maintenir la cohérence.")
+      return
+    }
     if (!confirm('Supprimer cette vente ?')) return
-    await supabase.from('ventes').delete().eq('id', v.id)
-    const cl = clients.find(c => c.id === v.client_id)
-    const amount = ['mdo','gasoil','autre'].includes(v.type_entree) ? (v.montant_mdo || 0)
-                 : v.type_entree === 'remise' ? -(v.montant_mdo || 0)
-                 : (v.total_vente || 0)
-    if (cl) await supabase.from('clients').update({ solde: (cl.solde || 0) - amount }).eq('id', cl.id)
-    loadAll()
+    try {
+      const { error } = await supabase.from('ventes').delete().eq('id', v.id)
+      if (error) throw error
+      const amount = ['mdo','gasoil','autre'].includes(v.type_entree) ? (v.montant_mdo || 0)
+                   : v.type_entree === 'remise' ? -(v.montant_mdo || 0)
+                   : (v.total_vente || 0)
+      if (v.client_id && amount !== 0) {
+        const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', v.client_id).single()
+        if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde || 0) - amount }).eq('id', v.client_id)
+      }
+      loadAll()
+    } catch (err) {
+      alert('Erreur suppression vente: ' + err.message)
+    }
   }
 
   async function saveRemise(e) {
@@ -241,7 +259,10 @@ export default function Ventes() {
       qte: null, prix_vente: null, prix_achat: null,
       camion_id: null, camion_plaque: '', chauffeur: '',
     })
-    if (!error && cl) await supabase.from('clients').update({ solde: (cl.solde||0) - montant }).eq('id', cl.id)
+    if (!error && cl?.id) {
+      const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', cl.id).single()
+      if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde||0) - montant }).eq('id', cl.id)
+    }
     setRemiseSaving(false)
     if (error) { setRemiseMsg('❌ ' + error.message) }
     else {
@@ -275,8 +296,9 @@ export default function Ventes() {
       qte: null, prix_vente: null, prix_achat: null,
       total_vente: montant, total_achat: 0, marge: montant,
     })
-    if (!error && cl) {
-      await supabase.from('clients').update({ solde: (cl.solde || 0) + montant }).eq('id', cl.id)
+    if (!error && cl?.id) {
+      const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', cl.id).single()
+      if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde || 0) + montant }).eq('id', cl.id)
     }
     setMdoSaving(false)
     if (error) {
@@ -564,7 +586,10 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
                         : <span className="badge-gray">{v.type_brique||'—'}</span>
                       }
                     </td>
-                    <td className="td text-gray-500">{v.camion_plaque || '—'}</td>
+                    <td className="td text-gray-500">
+                      {v.camion_plaque || '—'}
+                      {v.voyage_id && <span className="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 border border-blue-200" title={`Lié au voyage #${v.voyage_id}`}>V#{v.voyage_id}</span>}
+                    </td>
                     <td className="td text-right">{['mdo','gasoil','autre'].includes(v.type_entree) || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmt(v.qte)}</td>
                     <td className="td text-right">{['mdo','gasoil','autre'].includes(v.type_entree) || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmtD(v.prix_vente)}</td>
                     <td className="td text-right font-bold" style={v.type_entree==='remise' ? {color:'#15803d'} : {}}>

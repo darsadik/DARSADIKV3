@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
+import { useToast } from '../../lib/toast'
 import { useAuth } from '../_app'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
@@ -112,6 +113,9 @@ export default function VoyageDetail() {
   const [savingChg,    setSavingChg]    = useState(false)
   const [savingStatut, setSavingStatut] = useState(false)
   const [msg,          setMsg]          = useState('')
+  const [loadError,    setLoadError]    = useState(null)
+
+  const { toast, ToastContainer } = useToast()
 
   // ── edit state ──
   const [editRow,    setEditRow]    = useState(null) // { type, data }
@@ -128,46 +132,54 @@ export default function VoyageDetail() {
   const loadVoyage = useCallback(async () => {
     if (!id) return
     setLoading(true)
-    const [
-      { data: v  },
-      { data: ca },
-      { data: cl },
-      { data: fo },
-      { data: gf },
-      { data: ty },
-      { data: gc },
-      { data: ac },
-      { data: li },
-      { data: re },
-      { data: ga },
-      { data: ch },
-    ] = await Promise.all([
-      supabase.from('voyages').select('*').eq('id', id).single(),
-      supabase.from('camions').select('*').order('plaque'),
-      supabase.from('clients').select('*').order('nom'),
-      supabase.from('fournisseurs').select('*').order('nom'),
-      supabase.from('grignon_fournisseurs').select('*').order('nom'),
-      supabase.from('type_briques').select('*').order('nom'),
-      supabase.from('grignon_clients').select('*').order('nom'),
-      supabase.from('voyage_achats').select('*').eq('voyage_id', id).order('created_at'),
-      supabase.from('voyage_livraisons').select('*').eq('voyage_id', id).order('created_at'),
-      supabase.from('voyage_retours').select('*').eq('voyage_id', id).order('created_at'),
-      supabase.from('voyage_gasoil').select('*').eq('voyage_id', id).order('created_at'),
-      supabase.from('voyage_charges').select('*').eq('voyage_id', id).order('created_at'),
-    ])
-    setVoyage(v)
-    setCamions(ca || [])
-    setClients(cl || [])
-    setFournisseurs(fo || [])
-    setGrignonFournisseurs(gf || [])
-    setGrignonClients(gc || [])
-    setTypeBriques(ty || [])
-    setAchats(ac || [])
-    setLivraisons(li || [])
-    setRetours(re || [])
-    setGasoil(ga || [])
-    setCharges(ch || [])
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const [
+        { data: v,  error: ev  },
+        { data: ca, error: eca },
+        { data: cl },
+        { data: fo },
+        { data: gf },
+        { data: ty },
+        { data: gc },
+        { data: ac },
+        { data: li },
+        { data: re },
+        { data: ga },
+        { data: ch },
+      ] = await Promise.all([
+        supabase.from('voyages').select('*').eq('id', id).single(),
+        supabase.from('camions').select('*').order('plaque'),
+        supabase.from('clients').select('*').order('nom'),
+        supabase.from('fournisseurs').select('*').order('nom'),
+        supabase.from('grignon_fournisseurs').select('*').order('nom'),
+        supabase.from('type_briques').select('*').order('nom'),      // index 5 → ty
+        supabase.from('grignon_clients').select('*').order('nom'),   // index 6 → gc
+        supabase.from('voyage_achats').select('*').eq('voyage_id', id).order('created_at'),
+        supabase.from('voyage_livraisons').select('*').eq('voyage_id', id).order('created_at'),
+        supabase.from('voyage_retours').select('*').eq('voyage_id', id).order('created_at'),
+        supabase.from('voyage_gasoil').select('*').eq('voyage_id', id).order('created_at'),
+        supabase.from('voyage_charges').select('*').eq('voyage_id', id).order('created_at'),
+      ])
+      if (ev) throw new Error('Voyage introuvable')
+      if (eca) throw new Error('Erreur chargement camions')
+      setVoyage(v)
+      setCamions(ca || [])
+      setClients(cl || [])
+      setFournisseurs(fo || [])
+      setGrignonFournisseurs(gf || [])
+      setGrignonClients(gc || [])
+      setTypeBriques(ty || [])
+      setAchats(ac || [])
+      setLivraisons(li || [])
+      setRetours(re || [])
+      setGasoil(ga || [])
+      setCharges(ch || [])
+    } catch (err) {
+      setLoadError(err.message || 'Erreur de chargement')
+    } finally {
+      setLoading(false)
+    }
   }, [id])
 
   useEffect(() => { loadVoyage() }, [loadVoyage])
@@ -288,65 +300,117 @@ export default function VoyageDetail() {
 
   async function updateAchat() {
     setEditSaving(true)
-    const qte = parseFloat(editForm.qte)||0, prix = parseFloat(editForm.prix_achat)||0
-    const total_achat = Math.round(qte*prix*100)/100
-    await supabase.from('voyage_achats').update({ date_achat: editForm.date_achat, qte, prix_achat: prix, total_achat, note: editForm.note||null }).eq('id', editRow.data.id)
-    setEditSaving(false); setEditRow(null); loadVoyage()
+    try {
+      const qte = parseFloat(editForm.qte)||0, prix = parseFloat(editForm.prix_achat)||0
+      const total_achat = Math.round(qte*prix*100)/100
+      const { error } = await supabase.from('voyage_achats').update({
+        date_achat: editForm.date_achat, qte, prix_achat: prix, total_achat, note: editForm.note||null
+      }).eq('id', editRow.data.id)
+      if (error) throw error
+      setEditRow(null); loadVoyage()
+    } catch (err) {
+      toast('Erreur modification achat: ' + err.message)
+    } finally { setEditSaving(false) }
   }
 
   async function updateLiv() {
     setEditSaving(true)
-    const old = editRow.data
-    const qte = parseFloat(editForm.qte)||0, pv = parseFloat(editForm.prix_vente)||0
-    const pa  = parseFloat(editForm.prix_achat)||0, rem = parseFloat(editForm.remise)||0
-    const total_vente = Math.round((qte*pv-rem)*100)/100
-    const total_achat = Math.round(qte*pa*100)/100
-    const marge = Math.round((total_vente-total_achat)*100)/100
-    await supabase.from('voyage_livraisons').update({ date_livraison: editForm.date_livraison, qte, prix_vente: pv, prix_achat: pa, remise: rem, total_vente, total_achat, marge, note: editForm.note||null }).eq('id', old.id)
-    if (old.vente_id) await supabase.from('ventes').update({ qte, prix_vente: pv, prix_achat: pa, total_vente, total_achat, marge }).eq('id', old.vente_id)
-    const diff = total_vente - (old.total_vente||0)
-    if (diff !== 0) {
-      if (old.type_produit === 'grignon') {
-        const cl = grignonClients.find(c=>c.id===old.client_id)
-        if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde||0)+diff }).eq('id', cl.id)
-      } else {
-        const cl = clients.find(c=>c.id===old.client_id)
-        if (cl) await supabase.from('clients').update({ solde: (cl.solde||0)+diff }).eq('id', cl.id)
+    try {
+      const old = editRow.data
+      const qte = parseFloat(editForm.qte)||0, pv = parseFloat(editForm.prix_vente)||0
+      const pa  = parseFloat(editForm.prix_achat)||0, rem = parseFloat(editForm.remise)||0
+      const total_vente = Math.round((qte*pv-rem)*100)/100
+      const total_achat = Math.round(qte*pa*100)/100
+      const marge = Math.round((total_vente-total_achat)*100)/100
+
+      // Try atomic RPC first, fallback to manual
+      const { error: rpcErr } = await supabase.rpc('update_voyage_livraison', {
+        p_id: old.id, p_date: editForm.date_livraison, p_qte: qte,
+        p_prix_vente: pv, p_prix_achat: pa, p_remise: rem,
+        p_total_vente: total_vente, p_total_achat: total_achat, p_marge: marge,
+        p_note: editForm.note||null,
+      })
+
+      if (rpcErr) {
+        // Fallback: manual multi-step
+        await supabase.from('voyage_livraisons').update({
+          date_livraison: editForm.date_livraison, qte, prix_vente: pv, prix_achat: pa,
+          remise: rem, total_vente, total_achat, marge, note: editForm.note||null
+        }).eq('id', old.id)
+        if (old.vente_id) await supabase.from('ventes').update({
+          qte, prix_vente: pv, prix_achat: pa, total_vente, total_achat, marge
+        }).eq('id', old.vente_id)
+        // Fetch fresh client before updating solde
+        const diff = total_vente - (old.total_vente||0)
+        if (diff !== 0 && old.client_id) {
+          const tbl = old.type_produit === 'grignon' ? 'grignon_clients' : 'clients'
+          const { data: freshCl } = await supabase.from(tbl).select('solde').eq('id', old.client_id).single()
+          if (freshCl) await supabase.from(tbl).update({ solde: (freshCl.solde||0)+diff }).eq('id', old.client_id)
+        }
       }
-    }
-    setEditSaving(false); setEditRow(null); loadVoyage()
+      setEditRow(null); loadVoyage()
+    } catch (err) {
+      toast('Erreur modification livraison: ' + err.message)
+    } finally { setEditSaving(false) }
   }
 
   async function updateRetour() {
     setEditSaving(true)
-    const old = editRow.data
-    const montant = parseFloat(editForm.montant)||0, montant_paye = parseFloat(editForm.montant_paye)||0
-    const restant = Math.max(0, montant-montant_paye)
-    await supabase.from('voyage_retours').update({ date_retour: editForm.date_retour, client_nom: editForm.client_nom, destination: editForm.destination||null, montant, montant_paye, note: editForm.note||null }).eq('id', old.id)
-    if (old.retour_id) try { await supabase.from('retours_transport').update({ montant, montant_paye, restant }).eq('id', old.retour_id) } catch(e) {}
-    setEditSaving(false); setEditRow(null); loadVoyage()
+    try {
+      const old = editRow.data
+      const montant = parseFloat(editForm.montant)||0, montant_paye = parseFloat(editForm.montant_paye)||0
+      const restant = Math.max(0, montant-montant_paye)
+      const { error } = await supabase.from('voyage_retours').update({
+        date_retour: editForm.date_retour, client_nom: editForm.client_nom,
+        destination: editForm.destination||null, montant, montant_paye, note: editForm.note||null
+      }).eq('id', old.id)
+      if (error) throw error
+      if (old.retour_id) {
+        await supabase.from('retours_transport').update({ montant, montant_paye, restant }).eq('id', old.retour_id)
+      }
+      setEditRow(null); loadVoyage()
+    } catch (err) {
+      toast('Erreur modification retour: ' + err.message)
+    } finally { setEditSaving(false) }
   }
 
   async function updateGasoil() {
     setEditSaving(true)
-    const old = editRow.data
-    const qte = parseFloat(editForm.qte_litres)||0, pu = parseFloat(editForm.prix_unitaire)||0
-    const total = Math.round(qte*pu*100)/100
-    await supabase.from('voyage_gasoil').update({ date_gasoil: editForm.date_gasoil, station: editForm.station, qte_litres: qte, prix_unitaire: pu, total }).eq('id', old.id)
-    if (old.gasoil_id) try { await supabase.from('gasoil').update({ qte, prix_unitaire: pu, total }).eq('id', old.gasoil_id) } catch(e) {}
-    const camion = camions.find(c=>c.id===voyage?.camion_id)
-    if (camion) await supabase.from('camions').update({
-      gasoil_dhs: Math.max(0,(camion.gasoil_dhs||0)-(old.total||0)+total),
-      litres:     Math.max(0,(camion.litres||0)-(old.qte_litres||0)+qte),
-    }).eq('id', camion.id)
-    setEditSaving(false); setEditRow(null); loadVoyage()
+    try {
+      const old = editRow.data
+      const qte = parseFloat(editForm.qte_litres)||0, pu = parseFloat(editForm.prix_unitaire)||0
+      const total = Math.round(qte*pu*100)/100
+      const { error } = await supabase.from('voyage_gasoil').update({
+        date_gasoil: editForm.date_gasoil, station: editForm.station, qte_litres: qte, prix_unitaire: pu, total
+      }).eq('id', old.id)
+      if (error) throw error
+      if (old.gasoil_id) await supabase.from('gasoil').update({ qte, prix_unitaire: pu, total }).eq('id', old.gasoil_id)
+      // Fetch fresh camion to avoid stale state
+      if (voyage?.camion_id) {
+        const { data: freshCam } = await supabase.from('camions').select('gasoil_dhs,litres').eq('id', voyage.camion_id).single()
+        if (freshCam) await supabase.from('camions').update({
+          gasoil_dhs: Math.max(0,(freshCam.gasoil_dhs||0)-(old.total||0)+total),
+          litres:     Math.max(0,(freshCam.litres||0)-(old.qte_litres||0)+qte),
+        }).eq('id', voyage.camion_id)
+      }
+      setEditRow(null); loadVoyage()
+    } catch (err) {
+      toast('Erreur modification gasoil: ' + err.message)
+    } finally { setEditSaving(false) }
   }
 
   async function updateCharge() {
     setEditSaving(true)
-    const montant = parseFloat(editForm.montant)||0
-    await supabase.from('voyage_charges').update({ date_charge: editForm.date_charge, montant }).eq('id', editRow.data.id)
-    setEditSaving(false); setEditRow(null); loadVoyage()
+    try {
+      const montant = parseFloat(editForm.montant)||0
+      const { error } = await supabase.from('voyage_charges').update({
+        date_charge: editForm.date_charge, montant
+      }).eq('id', editRow.data.id)
+      if (error) throw error
+      setEditRow(null); loadVoyage()
+    } catch (err) {
+      toast('Erreur modification charge: ' + err.message)
+    } finally { setEditSaving(false) }
   }
 
   // ── SAVE ACHAT ───────────────────────────────────────────────────────────────
@@ -354,22 +418,27 @@ export default function VoyageDetail() {
     e.preventDefault()
     if (!achatForm.qte || !achatForm.prix_achat) { showMsg('❌ Quantité et prix requis'); return }
     setSavingAchat(true)
-    const qte = parseFloat(achatForm.qte)||0, prix = parseFloat(achatForm.prix_achat)||0
-    const total_achat = Math.round(qte*prix*100)/100
-    const fourn = achatForm.type_produit==='brique'
-      ? fournisseurs.find(f=>f.id===parseInt(achatForm.fournisseur_id))
-      : grignonFournisseurs.find(f=>f.id===parseInt(achatForm.fournisseur_id))
-    const ty = typeBriques.find(t=>t.id===parseInt(achatForm.type_brique_id))
-    await supabase.from('voyage_achats').insert({
-      voyage_id: parseInt(id), date_achat: achatForm.date_achat, type_produit: achatForm.type_produit,
-      fournisseur_id: achatForm.fournisseur_id ? parseInt(achatForm.fournisseur_id) : null,
-      fournisseur_nom: fourn?.nom || '',
-      type_brique: achatForm.type_produit==='grignon' ? 'Grignon' : (ty?.nom||''),
-      qte, prix_achat: prix, total_achat, note: achatForm.note||null,
-    })
-    setSavingAchat(false); setShowAchat(false)
-    setAchatForm({ date_achat: today(), type_produit: 'brique', fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' })
-    loadVoyage()
+    try {
+      const qte = parseFloat(achatForm.qte)||0, prix = parseFloat(achatForm.prix_achat)||0
+      const total_achat = Math.round(qte*prix*100)/100
+      const fourn = achatForm.type_produit==='brique'
+        ? fournisseurs.find(f=>f.id===parseInt(achatForm.fournisseur_id))
+        : grignonFournisseurs.find(f=>f.id===parseInt(achatForm.fournisseur_id))
+      const ty = typeBriques.find(t=>t.id===parseInt(achatForm.type_brique_id))
+      const { error } = await supabase.from('voyage_achats').insert({
+        voyage_id: parseInt(id), date_achat: achatForm.date_achat, type_produit: achatForm.type_produit,
+        fournisseur_id: achatForm.fournisseur_id ? parseInt(achatForm.fournisseur_id) : null,
+        fournisseur_nom: fourn?.nom || '',
+        type_brique: achatForm.type_produit==='grignon' ? 'Grignon' : (ty?.nom||''),
+        qte, prix_achat: prix, total_achat, note: achatForm.note||null,
+      })
+      if (error) throw error
+      setShowAchat(false)
+      setAchatForm({ date_achat: today(), type_produit: 'brique', fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' })
+      loadVoyage()
+    } catch (err) {
+      toast('Erreur enregistrement achat: ' + err.message)
+    } finally { setSavingAchat(false) }
   }
 
   // ── SAVE LIVRAISON ───────────────────────────────────────────────────────────
@@ -377,44 +446,57 @@ export default function VoyageDetail() {
     e.preventDefault()
     if (!livForm.client_id || !livForm.qte || !livForm.prix_vente) { showMsg('❌ Client, quantité et prix requis'); return }
     setSavingLiv(true)
-    const qte = parseFloat(livForm.qte)||0, pv = parseFloat(livForm.prix_vente)||0
-    const pa  = parseFloat(livForm.prix_achat)||0, rem = parseFloat(livForm.remise)||0
-    const total_vente = Math.round((qte*pv-rem)*100)/100
-    const total_achat = Math.round(qte*pa*100)/100
-    const marge = Math.round((total_vente-total_achat)*100)/100
-    const cl = livForm.type_produit==='grignon'
-      ? grignonClients.find(c=>c.id===parseInt(livForm.client_id))
-      : clients.find(c=>c.id===parseInt(livForm.client_id))
-    const ty = typeBriques.find(t=>t.id===parseInt(livForm.type_brique_id))
-    const { data: livData } = await supabase.from('voyage_livraisons').insert({
-      voyage_id: parseInt(id), date_livraison: livForm.date_livraison, type_produit: livForm.type_produit,
-      client_id: parseInt(livForm.client_id), client_nom: cl?.nom||'',
-      type_brique: livForm.type_produit==='grignon' ? 'Grignon' : (ty?.nom||''),
-      qte, prix_vente: pv, prix_achat: pa, remise: rem, total_vente, total_achat, marge,
-      note: livForm.note||null,
-    }).select().single()
-    if (livForm.type_produit==='brique' && livData) {
-      const { data: venteData } = await supabase.from('ventes').insert({
-        date: livForm.date_livraison, date_fournisseur: livForm.date_livraison,
-        client_id: parseInt(livForm.client_id), client_nom: cl?.nom||'',
-        camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'', chauffeur: voyage?.chauffeur||'',
-        type_brique_id: livForm.type_brique_id ? parseInt(livForm.type_brique_id) : null,
-        type_brique: ty?.nom||'', qte, prix_vente: pv, prix_achat: pa, total_vente, total_achat, marge, voyage_id: parseInt(id),
+    try {
+      const qte = parseFloat(livForm.qte)||0, pv = parseFloat(livForm.prix_vente)||0
+      const pa  = parseFloat(livForm.prix_achat)||0, rem = parseFloat(livForm.remise)||0
+      const total_vente = Math.round((qte*pv-rem)*100)/100
+      const total_achat = Math.round(qte*pa*100)/100
+      const marge = Math.round((total_vente-total_achat)*100)/100
+      const clientId = parseInt(livForm.client_id)
+      const cl = livForm.type_produit==='grignon'
+        ? grignonClients.find(c=>c.id===clientId)
+        : clients.find(c=>c.id===clientId)
+      const ty = typeBriques.find(t=>t.id===parseInt(livForm.type_brique_id))
+
+      const { data: livData, error: livErr } = await supabase.from('voyage_livraisons').insert({
+        voyage_id: parseInt(id), date_livraison: livForm.date_livraison, type_produit: livForm.type_produit,
+        client_id: clientId, client_nom: cl?.nom||'',
+        type_brique: livForm.type_produit==='grignon' ? 'Grignon' : (ty?.nom||''),
+        qte, prix_vente: pv, prix_achat: pa, remise: rem, total_vente, total_achat, marge,
+        note: livForm.note||null,
       }).select().single()
-      if (venteData) await supabase.from('voyage_livraisons').update({ vente_id: venteData.id }).eq('id', livData.id)
-      if (cl) await supabase.from('clients').update({ solde: (cl.solde||0)+total_vente }).eq('id', cl.id)
-    }
-    if (livForm.type_produit==='grignon') {
-      await supabase.from('grignon_operations').insert({
-        date: livForm.date_livraison, client_id: parseInt(livForm.client_id), client_nom: cl?.nom||'',
-        camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'', chauffeur: voyage?.chauffeur||'',
-        fournisseur_id: null, fournisseur_nom: '', qte, prix_vente: pv, prix_achat: pa, total_vente, total_achat, marge, voyage_id: parseInt(id),
-      })
-      if (cl) await supabase.from('grignon_clients').update({ solde: (cl.solde||0)+total_vente }).eq('id', cl.id)
-    }
-    setSavingLiv(false); setShowLiv(false)
-    setLivForm({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
-    loadVoyage()
+      if (livErr) throw livErr
+
+      if (livForm.type_produit==='brique') {
+        const { data: venteData } = await supabase.from('ventes').insert({
+          date: livForm.date_livraison, date_fournisseur: livForm.date_livraison,
+          client_id: clientId, client_nom: cl?.nom||'',
+          camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'', chauffeur: voyage?.chauffeur||'',
+          type_brique_id: livForm.type_brique_id ? parseInt(livForm.type_brique_id) : null,
+          type_brique: ty?.nom||'', qte, prix_vente: pv, prix_achat: pa, total_vente, total_achat, marge, voyage_id: parseInt(id),
+        }).select().single()
+        if (venteData) await supabase.from('voyage_livraisons').update({ vente_id: venteData.id }).eq('id', livData.id)
+        // Fresh-read client before updating solde
+        const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', clientId).single()
+        if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde||0)+total_vente }).eq('id', clientId)
+      }
+
+      if (livForm.type_produit==='grignon') {
+        await supabase.from('grignon_operations').insert({
+          date: livForm.date_livraison, client_id: clientId, client_nom: cl?.nom||'',
+          camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'', chauffeur: voyage?.chauffeur||'',
+          fournisseur_id: null, fournisseur_nom: '', qte, prix_vente: pv, prix_achat: pa, total_vente, total_achat, marge, voyage_id: parseInt(id),
+        })
+        const { data: freshGcl } = await supabase.from('grignon_clients').select('solde').eq('id', clientId).single()
+        if (freshGcl) await supabase.from('grignon_clients').update({ solde: (freshGcl.solde||0)+total_vente }).eq('id', clientId)
+      }
+
+      setShowLiv(false)
+      setLivForm({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
+      loadVoyage()
+    } catch (err) {
+      toast('Erreur enregistrement livraison: ' + err.message)
+    } finally { setSavingLiv(false) }
   }
 
   // ── SAVE RETOUR ──────────────────────────────────────────────────────────────
@@ -422,24 +504,28 @@ export default function VoyageDetail() {
     e.preventDefault()
     if (!retForm.client_nom || !retForm.montant) { showMsg('❌ Client et montant requis'); return }
     setSavingRetour(true)
-    const montant = parseFloat(retForm.montant)||0, montant_paye = parseFloat(retForm.montant_paye)||0
-    const restant = Math.max(0, montant-montant_paye)
-    let rtId = null
     try {
+      const montant = parseFloat(retForm.montant)||0, montant_paye = parseFloat(retForm.montant_paye)||0
+      const restant = Math.max(0, montant-montant_paye)
+      let rtId = null
       const { data: rtData } = await supabase.from('retours_transport').insert({
         date: retForm.date_retour, client_nom: retForm.client_nom.trim(), destination: retForm.destination||null,
         camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||null, chauffeur: voyage?.chauffeur||null,
         montant, montant_paye, restant, voyage_id: parseInt(id),
       }).select().single()
       rtId = rtData?.id || null
-    } catch(e) {}
-    await supabase.from('voyage_retours').insert({
-      voyage_id: parseInt(id), date_retour: retForm.date_retour, client_nom: retForm.client_nom.trim(),
-      destination: retForm.destination||null, montant, montant_paye, retour_id: rtId, note: retForm.note||null,
-    })
-    setSavingRetour(false); setShowRetour(false)
-    setRetForm({ date_retour: today(), client_nom: '', destination: '', montant: '', montant_paye: '', note: '' })
-    loadVoyage()
+
+      const { error } = await supabase.from('voyage_retours').insert({
+        voyage_id: parseInt(id), date_retour: retForm.date_retour, client_nom: retForm.client_nom.trim(),
+        destination: retForm.destination||null, montant, montant_paye, retour_id: rtId, note: retForm.note||null,
+      })
+      if (error) throw error
+      setShowRetour(false)
+      setRetForm({ date_retour: today(), client_nom: '', destination: '', montant: '', montant_paye: '', note: '' })
+      loadVoyage()
+    } catch (err) {
+      toast('Erreur enregistrement retour: ' + err.message)
+    } finally { setSavingRetour(false) }
   }
 
   // ── SAVE GASOIL ──────────────────────────────────────────────────────────────
@@ -447,27 +533,37 @@ export default function VoyageDetail() {
     e.preventDefault()
     if (!gasForm.qte_litres || !gasForm.prix_unitaire) { showMsg('❌ Quantité et prix requis'); return }
     setSavingGas(true)
-    const qte = parseFloat(gasForm.qte_litres)||0, pu = parseFloat(gasForm.prix_unitaire)||0
-    const total = Math.round(qte*pu*100)/100
-    const camion = camions.find(c=>c.id===voyage?.camion_id)
-    let gasId = null
     try {
+      const qte = parseFloat(gasForm.qte_litres)||0, pu = parseFloat(gasForm.prix_unitaire)||0
+      const total = Math.round(qte*pu*100)/100
+      let gasId = null
       const { data: gasData } = await supabase.from('gasoil').insert({
         date: gasForm.date_gasoil, camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'',
         chauffeur: voyage?.chauffeur||'', station: gasForm.station, qte, prix_unitaire: pu, total, voyage_id: parseInt(id),
       }).select().single()
       gasId = gasData?.id || null
-    } catch(e) {}
-    await supabase.from('voyage_gasoil').insert({
-      voyage_id: parseInt(id), date_gasoil: gasForm.date_gasoil, station: gasForm.station,
-      qte_litres: qte, prix_unitaire: pu, total, gasoil_id: gasId, note: gasForm.note||null,
-    })
-    if (camion) await supabase.from('camions').update({
-      gasoil_dhs: (camion.gasoil_dhs||0)+total, pleins: (camion.pleins||0)+1, litres: (camion.litres||0)+qte,
-    }).eq('id', camion.id)
-    setSavingGas(false); setShowGasoil(false)
-    setGasForm({ date_gasoil: today(), station: 'HMIDA ZAIO — Station Petrom', qte_litres: '', prix_unitaire: '12.40', note: '' })
-    loadVoyage()
+
+      const { error } = await supabase.from('voyage_gasoil').insert({
+        voyage_id: parseInt(id), date_gasoil: gasForm.date_gasoil, station: gasForm.station,
+        qte_litres: qte, prix_unitaire: pu, total, gasoil_id: gasId, note: gasForm.note||null,
+      })
+      if (error) throw error
+
+      // Fresh-read camion before updating stats
+      if (voyage?.camion_id) {
+        const { data: freshCam } = await supabase.from('camions').select('gasoil_dhs,pleins,litres').eq('id', voyage.camion_id).single()
+        if (freshCam) await supabase.from('camions').update({
+          gasoil_dhs: (freshCam.gasoil_dhs||0)+total,
+          pleins:     (freshCam.pleins||0)+1,
+          litres:     (freshCam.litres||0)+qte,
+        }).eq('id', voyage.camion_id)
+      }
+      setShowGasoil(false)
+      setGasForm({ date_gasoil: today(), station: 'HMIDA ZAIO — Station Petrom', qte_litres: '', prix_unitaire: '12.40', note: '' })
+      loadVoyage()
+    } catch (err) {
+      toast('Erreur enregistrement gasoil: ' + err.message)
+    } finally { setSavingGas(false) }
   }
 
   // ── SAVE CHARGES GRID ────────────────────────────────────────────────────────
@@ -476,62 +572,105 @@ export default function VoyageDetail() {
     const rows = CHARGE_CATS.filter(cat => parseFloat(chgGrid[cat.key]) > 0)
     if (rows.length === 0) { showMsg('❌ Entrez au moins un montant'); return }
     setSavingChg(true)
-    for (const cat of rows) {
-      const montant = parseFloat(chgGrid[cat.key])||0
-      const clientId = chgFactureMap[cat.key]||null
-      const cl = clientId ? clients.find(c=>c.id===parseInt(clientId)) : null
-      await supabase.from('voyage_charges').insert({
-        voyage_id: parseInt(id), date_charge: chgDate, categorie: cat.key, description: cat.label,
-        montant, facture_client: !!cl, client_id: cl ? parseInt(clientId) : null, client_nom: cl?.nom||null,
-      })
-      if (cl) {
-        await supabase.from('ventes').insert({
-          date: chgDate, client_id: parseInt(clientId), client_nom: cl.nom,
-          camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'',
-          type_entree: 'mdo', montant_mdo: montant, description_mdo: cat.label, voyage_id: parseInt(id),
+    try {
+      for (const cat of rows) {
+        const montant = parseFloat(chgGrid[cat.key])||0
+        const clientId = chgFactureMap[cat.key] ? parseInt(chgFactureMap[cat.key]) : null
+        const cl = clientId ? clients.find(c=>c.id===clientId) : null
+        const { error } = await supabase.from('voyage_charges').insert({
+          voyage_id: parseInt(id), date_charge: chgDate, categorie: cat.key, description: cat.label,
+          montant, facture_client: !!cl, client_id: cl ? clientId : null, client_nom: cl?.nom||null,
         })
-        await supabase.from('clients').update({ solde: (cl.solde||0)+montant }).eq('id', cl.id)
+        if (error) throw error
+        if (cl) {
+          await supabase.from('ventes').insert({
+            date: chgDate, client_id: clientId, client_nom: cl.nom,
+            camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'',
+            type_entree: 'mdo', montant_mdo: montant, description_mdo: cat.label, voyage_id: parseInt(id),
+          })
+          // Fresh-read client before updating solde
+          const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', clientId).single()
+          if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde||0)+montant }).eq('id', clientId)
+        }
       }
-    }
-    setSavingChg(false); setShowCharge(false)
-    setChgGrid(emptyChgGrid()); setChgFactureMap({}); setChgDate(today())
-    loadVoyage()
+      setShowCharge(false)
+      setChgGrid(emptyChgGrid()); setChgFactureMap({}); setChgDate(today())
+      loadVoyage()
+    } catch (err) {
+      toast('Erreur enregistrement charges: ' + err.message)
+    } finally { setSavingChg(false) }
   }
 
   // ── DELETE HANDLERS ──────────────────────────────────────────────────────────
   async function delAchat(row) {
-    await supabase.from('voyage_achats').delete().eq('id', row.id)
-    loadVoyage()
+    if (!confirm('Supprimer cet achat ?')) return
+    try {
+      const { error } = await supabase.from('voyage_achats').delete().eq('id', row.id)
+      if (error) throw error
+      loadVoyage()
+    } catch (err) { toast('Erreur suppression achat: ' + err.message) }
   }
+
   async function delLiv(row) {
-    await supabase.from('voyage_livraisons').delete().eq('id', row.id)
-    if (row.vente_id) {
-      const cl = row.type_produit==='grignon' ? grignonClients.find(c=>c.id===row.client_id) : clients.find(c=>c.id===row.client_id)
-      await supabase.from('ventes').delete().eq('id', row.vente_id)
-      const tbl = row.type_produit==='grignon' ? 'grignon_clients' : 'clients'
-      if (cl) await supabase.from(tbl).update({ solde: (cl.solde||0)-(row.total_vente||0) }).eq('id', cl.id)
-    }
-    loadVoyage()
+    if (!confirm(`Supprimer la livraison ${row.client_nom} — ${fmt(row.total_vente)} DHS ?`)) return
+    try {
+      // Try atomic RPC first
+      const { error: rpcErr } = await supabase.rpc('delete_voyage_livraison', { p_id: row.id })
+      if (rpcErr) {
+        // Fallback: manual multi-step with fresh-read
+        await supabase.from('voyage_livraisons').delete().eq('id', row.id)
+        if (row.vente_id) await supabase.from('ventes').delete().eq('id', row.vente_id)
+        if (row.client_id) {
+          const tbl = row.type_produit==='grignon' ? 'grignon_clients' : 'clients'
+          const { data: freshCl } = await supabase.from(tbl).select('solde').eq('id', row.client_id).single()
+          if (freshCl) await supabase.from(tbl).update({ solde: (freshCl.solde||0)-(row.total_vente||0) }).eq('id', row.client_id)
+        }
+      }
+      loadVoyage()
+    } catch (err) { toast('Erreur suppression livraison: ' + err.message) }
   }
+
   async function delRetour(row) {
-    await supabase.from('voyage_retours').delete().eq('id', row.id)
-    if (row.retour_id) try { await supabase.from('retours_transport').delete().eq('id', row.retour_id) } catch(e) {}
-    loadVoyage()
+    if (!confirm('Supprimer ce retour transport ?')) return
+    try {
+      const { error: rpcErr } = await supabase.rpc('delete_voyage_retour', { p_id: row.id })
+      if (rpcErr) {
+        // Fallback
+        await supabase.from('voyage_retours').delete().eq('id', row.id)
+        if (row.retour_id) await supabase.from('retours_transport').delete().eq('id', row.retour_id)
+      }
+      loadVoyage()
+    } catch (err) { toast('Erreur suppression retour: ' + err.message) }
   }
+
   async function delGasoil(row) {
-    const camion = camions.find(c=>c.id===voyage?.camion_id)
-    await supabase.from('voyage_gasoil').delete().eq('id', row.id)
-    if (row.gasoil_id) try { await supabase.from('gasoil').delete().eq('id', row.gasoil_id) } catch(e) {}
-    if (camion && row.total) await supabase.from('camions').update({
-      gasoil_dhs: Math.max(0,(camion.gasoil_dhs||0)-row.total),
-      pleins:     Math.max(0,(camion.pleins||0)-1),
-      litres:     Math.max(0,(camion.litres||0)-(row.qte_litres||0)),
-    }).eq('id', camion.id)
-    loadVoyage()
+    if (!confirm('Supprimer cette entrée gasoil ?')) return
+    try {
+      const { error: rpcErr } = await supabase.rpc('delete_voyage_gasoil', { p_id: row.id })
+      if (rpcErr) {
+        // Fallback: manual with fresh-read camion
+        await supabase.from('voyage_gasoil').delete().eq('id', row.id)
+        if (row.gasoil_id) await supabase.from('gasoil').delete().eq('id', row.gasoil_id)
+        if (voyage?.camion_id && row.total) {
+          const { data: freshCam } = await supabase.from('camions').select('gasoil_dhs,pleins,litres').eq('id', voyage.camion_id).single()
+          if (freshCam) await supabase.from('camions').update({
+            gasoil_dhs: Math.max(0,(freshCam.gasoil_dhs||0)-row.total),
+            pleins:     Math.max(0,(freshCam.pleins||0)-1),
+            litres:     Math.max(0,(freshCam.litres||0)-(row.qte_litres||0)),
+          }).eq('id', voyage.camion_id)
+        }
+      }
+      loadVoyage()
+    } catch (err) { toast('Erreur suppression gasoil: ' + err.message) }
   }
+
   async function delCharge(row) {
-    await supabase.from('voyage_charges').delete().eq('id', row.id)
-    loadVoyage()
+    if (!confirm('Supprimer cette charge ?')) return
+    try {
+      const { error } = await supabase.from('voyage_charges').delete().eq('id', row.id)
+      if (error) throw error
+      loadVoyage()
+    } catch (err) { toast('Erreur suppression charge: ' + err.message) }
   }
   async function updateStatut(s) {
     setSavingStatut(true)
@@ -553,6 +692,16 @@ export default function VoyageDetail() {
   function showMsg(m) { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
   if (loading) return <Layout title="Voyage"><div className="text-center py-20 text-slate-400">Chargement...</div></Layout>
+  if (loadError) return (
+    <Layout title="Voyage">
+      <div className="text-center py-20">
+        <div className="text-red-500 font-bold text-lg mb-2">❌ {loadError}</div>
+        <button onClick={loadVoyage} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl font-semibold text-sm hover:bg-blue-700 transition">
+          Réessayer
+        </button>
+      </div>
+    </Layout>
+  )
   if (!voyage) return <Layout title="Voyage"><div className="text-center py-20 text-slate-400">Voyage introuvable</div></Layout>
 
   const isTermine = voyage.statut === 'termine'
@@ -566,6 +715,7 @@ export default function VoyageDetail() {
       title={voyage.reference || `Voyage #${voyage.id}`}
       subtitle={`${voyage.camion_plaque}${voyage.chauffeur?' • '+voyage.chauffeur:''}${voyage.destination?' → '+voyage.destination:''}`}
     >
+      <ToastContainer />
       {/* ── EDIT MODAL OVERLAY ── */}
       {editRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
