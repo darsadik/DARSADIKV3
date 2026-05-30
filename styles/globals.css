@@ -1,0 +1,229 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─────────────────────────────────────────────
+   Scrollbar
+───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+/* ─────────────────────────────────────────────
+   Component classes
+───────────────────────────────────────────── */
+@layer components {
+
+  /* Buttons */
+  .btn-primary {
+    @apply bg-brand-600 hover:bg-brand-700 active:bg-brand-800
+           text-white font-semibold px-4 py-2 rounded-lg text-sm
+           transition-all duration-150 flex items-center gap-2
+           shadow-sm hover:shadow-blue
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none;
+  }
+  .btn-secondary {
+    @apply bg-white hover:bg-slate-50 active:bg-slate-100
+           text-slate-700 font-medium px-4 py-2 rounded-lg text-sm
+           border border-slate-200 hover:border-slate-300
+           transition-all duration-150 flex items-center gap-2 shadow-sm;
+  }
+  .btn-danger {
+    @apply bg-white hover:bg-red-50 active:bg-red-100
+           text-red-600 font-medium px-3 py-1.5 rounded-lg text-xs
+           border border-red-200 hover:border-red-300
+           transition-all duration-150 shadow-sm;
+  }
+  .btn-success {
+    @apply bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
+           text-white font-semibold px-4 py-2 rounded-lg text-sm
+           transition-all duration-150 flex items-center gap-2 shadow-sm;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-xl border border-slate-100 shadow-card p-5;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full text-sm px-3 py-2.5 border border-slate-200 rounded-lg
+           focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20
+           bg-white transition-all duration-150 placeholder:text-slate-400;
+  }
+  .label {
+    @apply block text-[11px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wider;
+  }
+
+  /* Badges */
+  .badge-red   { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50   text-red-600   ring-1 ring-inset ring-red-100; }
+  .badge-amber { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50  text-amber-600  ring-1 ring-inset ring-amber-100; }
+  .badge-green { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 ring-1 ring-inset ring-emerald-100; }
+  .badge-blue  { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50  text-brand-600  ring-1 ring-inset ring-brand-100; }
+  .badge-gray  { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600  ring-1 ring-inset ring-slate-200; }
+
+  /* Tables */
+  .th { @apply text-left py-3 px-4 text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/80 border-b border-slate-100; }
+  .td { @apply py-3 px-4 text-sm text-slate-700 border-b border-slate-50 transition-colors duration-100; }
+  .tfoot-td { @apply py-3 px-4 text-sm font-bold text-brand-700 bg-brand-50 border-t-2 border-brand-200; }
+
+  /* Typography */
+  .page-title    { @apply text-[18px] font-bold text-slate-900 tracking-tight leading-tight; }
+  .page-subtitle { @apply text-[12px] text-slate-400 mt-0.5 leading-tight; }
+
+  /* Stat cards */
+  .stat-card  { @apply bg-white rounded-xl border border-slate-100 shadow-card p-4 transition-all duration-200 hover:shadow-card-hover hover:-translate-y-px; }
+  .stat-label { @apply text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1; }
+  .stat-value { @apply text-2xl font-bold tracking-tight; }
+  .stat-sub   { @apply text-xs text-slate-400 mt-0.5; }
+}
+
+/* Table row hover (can't use @apply inside media queries, so plain CSS) */
+tbody tr:hover td { background-color: rgba(248, 250, 252, 0.9); }
+
+/* ─────────────────────────────────────────────
+   📱 MOBILE STYLES
+───────────────────────────────────────────── */
+@media (max-width: 767px) {
+
+  .mobile-hide-table table,
+  .mobile-hide-table .overflow-x-auto {
+    display: none !important;
+  }
+
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-row-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  .mobile-row-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .mobile-row-card .card-title {
+    font-weight: 700;
+    font-size: 15px;
+    color: #0f172a;
+  }
+
+  .mobile-row-card .card-amount {
+    font-weight: 700;
+    font-size: 15px;
+    color: #2563eb;
+  }
+
+  .mobile-row-card .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  .mobile-row-card .card-meta span {
+    background: #f1f5f9;
+    border-radius: 6px;
+    padding: 2px 8px;
+  }
+
+  .mobile-row-card .card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .mobile-collapse-btn {
+    width: 100%;
+    text-align: left;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #334155;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    margin-bottom: 4px;
+  }
+
+  .mobile-filters {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .mobile-filters .input { font-size: 14px; }
+
+  .mobile-tabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .mobile-tabs::-webkit-scrollbar { display: none; }
+
+  .mobile-tabs button {
+    flex-shrink: 0;
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    white-space: nowrap;
+    background: white;
+    color: #64748b;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+
+  .mobile-tabs button.active {
+    background: #2563eb;
+    color: white;
+    border-color: #2563eb;
+  }
+
+  .mobile-stats-grid  { grid-template-columns: 1fr 1fr !important; }
+  .mobile-form-grid   { grid-template-columns: 1fr !important; }
+  .mobile-btn-full    { width: 100% !important; justify-content: center !important; }
+  .page-subtitle      { display: none; }
+  .stat-value         { font-size: 20px !important; }
+
+  .card { padding: 12px !important; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .card { padding: 14px !important; }
+}
