@@ -387,7 +387,7 @@ export default function VoyageDetail() {
       const qte = parseFloat(editForm.qte)||0, prix = parseFloat(editForm.prix_achat)||0
       const total_achat = Math.round(qte*prix*100)/100
       const { error } = await supabase.from('voyage_achats').update({
-        date_achat: editForm.date_achat, qte, prix_achat: prix, total_achat, note: editForm.note||null
+        date_achat: editForm.date_achat, qte, prix_achat: prix, note: editForm.note||null
       }).eq('id', old.id)
       if (error) throw error
 
@@ -549,7 +549,7 @@ export default function VoyageDetail() {
         fournisseur_id: achatForm.fournisseur_id ? parseInt(achatForm.fournisseur_id) : null,
         fournisseur_nom: fourn?.nom || '',
         type_brique: achatForm.type_produit==='grignon' ? 'Grignon' : (ty?.nom||''),
-        qte, prix_achat: prix, total_achat, note: achatForm.note||null,
+        qte, prix_achat: prix, note: achatForm.note||null,
       }).select().single()
       if (error) throw error
 
