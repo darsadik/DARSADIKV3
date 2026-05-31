@@ -125,7 +125,7 @@ export default function Achats() {
   }
 
   // ── Filter voyage_achats ──
-  const legacyBrique = tab === 'brique' ? (ventesLegacy||[]).map(v => ({
+  const legacyBrique = tab === 'brique' ? (ventesLegacy||[]).filter(v => !v.voyage_id).map(v => ({
     id: `leg_${v.id}`, date_achat: v.date_fournisseur || v.date,
     type_produit: 'brique', fournisseur_nom: v.fournisseur || '',
     type_brique: v.type_brique, qte: v.qte, prix_achat: v.prix_achat,
@@ -219,7 +219,7 @@ export default function Achats() {
       {/* TABS */}
       <div className="flex gap-2 mb-4">
         {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
+          <button key={t.key} onClick={() => { setTab(t.key); setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterFourn(''); setFilterCamion('') }}
             className={`text-sm font-semibold px-5 py-2.5 rounded-xl border transition-all ${
               tab===t.key ? 'text-white border-transparent' : 'bg-white text-gray-600 border-gray-200'
             }`}
