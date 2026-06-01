@@ -79,23 +79,12 @@ const PRINT_CSS = `
 `
 
 const CO_HEADER = (title, sub) => `
-<div class="hdr">
-  <div>
-    <div class="co-n">DAR SADIK</div>
-    <div class="co-ar">دار صديق</div>
-    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
-  </div>
-  <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
-    <div>Dar.sadik@hotmail.com</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-  </div>
-</div>
 <div class="bdy">
+<div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:12px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
 <div class="ttl">${title}</div>
 <div class="sub">${sub}</div>`
 
-const CO_FOOTER = dt => `<div class="footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${dt}</span></div></div>`
+const CO_FOOTER = dt => `<div class="footer"><span>Généré le ${dt}</span></div></div>`
 
 function useIsMobile() {
   const [m, setM] = useState(false)
@@ -177,8 +166,9 @@ export default function Grignon() {
       supabase.from('grignon_fournisseurs').select('*').order('nom'),
       supabase.from('grignon_fournisseur_paiements').select('*').order('date', { ascending: true }),
     ])
-    setOperations(ops || [])
-    setClients(cl || [])
+    const gMap = n => n?.toUpperCase() === 'NOVA BRIQUE' ? 'NOVA ET DURA' : n
+    setOperations((ops || []).map(op => ({...op, client_nom: gMap(op.client_nom)})))
+    setClients((cl || []).map(c => ({...c, nom: gMap(c.nom)})))
     setCamions(ca || [])
     setFournisseurs(fo || [])
     setFournPaiements(fp || [])
