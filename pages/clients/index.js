@@ -408,11 +408,11 @@ ${carryOverBlock}
 
   function exportClientExcel() {
     if (!selected) return
-    const header = ['Date','Type','Camion','Fournisseur','Produit','Qte','Prix','Total DHS','BON','Note']
+    const header = ['Date','Type','Camion','Produit','Qte','Prix','Total DHS','BON','Note']
     const venteRows = filteredVentes.map(v => [
       fmtDate(v.date),
       v.type_entree === 'remise' ? 'Remise' : v.type_entree === 'mdo' ? 'Charge' : 'Vente',
-      v.camion_plaque || '', v.fournisseur || '', v.type_brique || '',
+      v.camion_plaque || '', v.type_brique || '',
       v.type_entree === 'brique' ? (v.qte || 0) : '',
       v.type_entree === 'brique' ? (v.prix_vente || 0) : '',
       v.type_entree === 'remise' ? -(v.montant_mdo || 0) : (v.total_vente || 0),
@@ -736,7 +736,6 @@ ${carryOverBlock}
                           <tr>
                             <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Date</th>
                             <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Camion</th>
-                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Fournisseur</th>
                             <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Type</th>
                             <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Qté</th>
                             <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Prix/u</th>
@@ -750,7 +749,6 @@ ${carryOverBlock}
                               style={v.type_entree==='remise' ? {background:'#f0fdf4'} : v.type_entree==='mdo' ? {background:'#fefce8'} : {}}>
                               <td className="td" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(v.date)}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{v.camion_plaque || '—'}</td>
-                              <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{v.fournisseur || '—'}</td>
                               <td className="td" style={{border:'1px solid #e2e8f0'}}>
                                 {v.type_entree === 'remise'
                                   ? <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🎁 Remise</span>
@@ -778,13 +776,13 @@ ${carryOverBlock}
                             </tr>
                           ))}
                           {filteredVentes.length === 0 && (
-                            <tr><td colSpan={8} className="td text-center text-gray-400 py-6" style={{border:'1px solid #e2e8f0'}}>Aucune vente pour cette période</td></tr>
+                            <tr><td colSpan={7} className="td text-center text-gray-400 py-6" style={{border:'1px solid #e2e8f0'}}>Aucune vente pour cette période</td></tr>
                           )}
                         </tbody>
                         {filteredVentes.length > 0 && (
                           <tfoot>
                             <tr>
-                              <td className="tfoot-td" colSpan={4} style={{border:'1px solid #cbd5e1'}}>TOTAL</td>
+                              <td className="tfoot-td" colSpan={3} style={{border:'1px solid #cbd5e1'}}>TOTAL</td>
                               <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px'}}>{fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
                               <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
                               <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px'}}>{fmt(totalVentesClient)} DHS</td>
