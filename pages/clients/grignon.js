@@ -27,10 +27,12 @@ export default function ClientsGrignon() {
 
   useEffect(() => { loadClients() }, [])
 
+  const gMap = n => n?.toUpperCase() === 'NOVA BRIQUE' ? 'NOVA ET DURA' : n
+
   async function loadClients() {
     setLoading(true)
     const { data } = await supabase.from('grignon_clients').select('*').order('solde', { ascending: false })
-    setClients(data || [])
+    setClients((data || []).map(c => ({...c, nom: gMap(c.nom)})))
     setLoading(false)
   }
 
@@ -41,7 +43,7 @@ export default function ClientsGrignon() {
       supabase.from('grignon_operations').select('*').eq('client_id', cl.id).order('date', { ascending: true }),
       supabase.from('grignon_paiements').select('*').eq('client_id', cl.id).order('date', { ascending: true }),
     ])
-    setOperations(ops || [])
+    setOperations((ops || []).map(op => ({...op, client_nom: gMap(op.client_nom)})))
     setPaiements(pa || [])
     setLoadingDetail(false)
   }
@@ -121,7 +123,7 @@ export default function ClientsGrignon() {
     .kv{font-size:16px;font-weight:900}
     @media print{button{display:none !important}}</style></head><body>
     <div class="hdr">
-      <div><div style="font-size:20px;font-weight:900">🫒 ${selected.nom}</div><div style="opacity:0.8;font-size:11px">Client Grignon — DAR SADIK</div></div>
+      <div><div style="font-size:20px;font-weight:900">🫒 ${selected.nom}</div><div style="opacity:0.8;font-size:11px">Client Grignon</div></div>
       <div style="text-align:right;font-size:11px;opacity:0.9">Solde actuel: <b style="font-size:16px">${fmt(selected.solde||0)} DHS</b></div>
     </div>
     <div class="kpi">
@@ -140,7 +142,7 @@ export default function ClientsGrignon() {
     ${filteredPai.length>0?`<tfoot><tr><td colspan="2">TOTAL reçu</td><td style="text-align:right">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>`:''}
     </table>
     <div style="margin-top:20px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;display:flex;justify-content:space-between">
-      <span>DAR SADIK — Selouane, Nador | Dar.sadik@hotmail.com</span>
+      <span></span>
       <span>Généré le ${new Date().toLocaleDateString('fr-MA')}</span>
     </div>
     </body></html>`)
