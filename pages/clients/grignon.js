@@ -93,9 +93,7 @@ export default function ClientsGrignon() {
   function printClient() {
     if (!selected) return
     const rows = filteredOps.map(op => `<tr>
-      <td>${fmtDate(op.date)}</td>
       <td>${op.camion_plaque||'—'}</td>
-      <td>${op.fournisseur_nom||'—'}</td>
       <td style="text-align:right">${fmt(op.qte)} kg</td>
       <td style="text-align:right">${fmtD(op.prix_vente)}</td>
       <td style="text-align:right"><b>${fmt(op.total_vente)} DHS</b></td>
@@ -123,7 +121,7 @@ export default function ClientsGrignon() {
     .kv{font-size:16px;font-weight:900}
     @media print{button{display:none !important}}</style></head><body>
     <div class="hdr">
-      <div><div style="font-size:20px;font-weight:900">🫒 ${selected.nom}</div><div style="opacity:0.8;font-size:11px">Client Grignon</div></div>
+      <div><div style="font-size:20px;font-weight:900">🫒 ${selected.nom}</div><div style="opacity:0.8;font-size:11px">${from && to ? fmtDate(from)+' → '+fmtDate(to) : 'Toutes les périodes'}</div></div>
       <div style="text-align:right;font-size:11px;opacity:0.9">Solde actuel: <b style="font-size:16px">${fmt(selected.solde||0)} DHS</b></div>
     </div>
     <div class="kpi">
@@ -132,9 +130,9 @@ export default function ClientsGrignon() {
       <div class="k"><div class="kl">Solde</div><div class="kv" style="color:#7c3aed">${fmt(selected.solde||0)} DHS</div></div>
     </div>
     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#92400e;border-bottom:2px solid #92400e;padding-bottom:4px;margin-bottom:8px">Opérations Grignon</h3>
-    <table><thead><tr><th>Date</th><th>Camion</th><th>Fournisseur</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
-    ${filteredOps.length>0?`<tfoot><tr><td colspan="3">TOTAL</td><td style="text-align:right">${fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td></td></tr></tfoot>`:''}
+    <table><thead><tr><th>Camion</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+    ${filteredOps.length>0?`<tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td></td></tr></tfoot>`:''}
     </table>
     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#16a34a;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:8px">Paiements reçus</h3>
     <table><thead><tr><th>Date</th><th>Mode</th><th style="text-align:right">Montant</th><th>Note</th></tr></thead>
@@ -211,7 +209,6 @@ export default function ClientsGrignon() {
                     </div>
                     <div>
                       <div className="font-bold text-xl text-gray-900">{selected.nom}</div>
-                      <div className="text-xs text-amber-700 font-semibold mt-0.5">Client Grignon</div>
                     </div>
                   </div>
                   <div className="flex gap-2">
