@@ -51,6 +51,7 @@ function useIsMobile() {
 const emptyForm = () => ({
   date: today(),
   client_id: '',
+  societe: '',
   mode: 'Espèce',
   montant: '',
   note: '',
@@ -100,6 +101,7 @@ export default function Paiements() {
   const [filterChequeStatus, setFilterChequeStatus] = useState('')
   const [filterFournisseur, setFilterFournisseur] = useState('')
   const [searchCheque, setSearchCheque] = useState('')
+  const [filterSociete, setFilterSociete] = useState('')
 
   // ── FORM ──
   const [form, setForm] = useState(emptyForm())
@@ -151,6 +153,7 @@ export default function Paiements() {
     setForm({
       date: p.date,
       client_id: String(p.client_id),
+      societe: p.societe || '',
       mode: p.mode,
       montant: String(p.montant),
       note: p.note || '',
@@ -187,6 +190,7 @@ export default function Paiements() {
       date: form.date,
       client_id: clientId,
       client_nom: client?.nom || '',
+      societe: form.societe || null,
       mode: form.mode,
       montant,
       note: form.note,
@@ -483,6 +487,7 @@ export default function Paiements() {
       if (filterChequeStatus && p.cheque_status !== filterChequeStatus) return false
       if (filterFournisseur && p.fournisseur_id !== parseInt(filterFournisseur)) return false
       if (searchCheque && !(p.cheque_number || '').toLowerCase().includes(searchCheque.toLowerCase())) return false
+      if (filterSociete && !(p.societe || '').toLowerCase().includes(filterSociete.toLowerCase())) return false
       if (activeTab === 'cheques' && p.mode !== 'Chèque') return false
       if (activeTab === 'fournisseurs' && !p.fournisseur_id) return false
       if (activeTab === 'grignon') return false // grignon has its own section
@@ -588,7 +593,7 @@ export default function Paiements() {
 </div>
 <div class="sec">Détail des paiements (${filtered.length})</div>
 <table><thead><tr>
-  <th>Date</th><th>Client</th><th>Mode</th><th>N° Chèque</th><th>Banque</th><th>Statut</th><th>Fournisseur</th><th class="r">Montant DHS</th><th>Note</th>
+  <th>Date</th><th>Client</th><th>Société</th><th>Mode</th><th>N° Chèque</th><th>Banque</th><th>Statut</th><th>Fournisseur</th><th class="r">Montant DHS</th><th>Note</th>
 </tr></thead><tbody>
 ${filtered.map(p => {
   const bc = p.mode==='Espèce'?'b-esp':p.mode==='Chèque'?'b-chq':p.mode==='Virement'?'b-vir':'b-fou'
@@ -596,6 +601,7 @@ ${filtered.map(p => {
   const sc = p.cheque_status ? `s-${p.cheque_status}` : ''
   return `<tr class="${p.cheque_status==='rejected'?'rej':''}">
     <td>${fmtDate(p.date)}</td><td><b>${p.client_nom}</b></td>
+    <td>${p.societe||'—'}</td>
     <td><span class="badge ${bc}">${p.mode}</span></td>
     <td style="font-family:monospace">${p.cheque_number||'—'}</td>
     <td>${p.cheque_bank||'—'}</td>
@@ -606,7 +612,7 @@ ${filtered.map(p => {
   </tr>`
 }).join('')}
 </tbody><tfoot><tr>
-  <td colspan="7">TOTAL (${filtered.length})</td>
+  <td colspan="8">TOTAL (${filtered.length})</td>
   <td class="r">− ${fmt(total)} DHS</td><td></td>
 </tr></tfoot></table>
 <div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
@@ -615,9 +621,9 @@ ${filtered.map(p => {
 
   // ── CSV ──
   function exportCSV() {
-    let csv = `Date,Client,Mode,N° Chèque,Banque,Statut Chèque,Fournisseur,Montant DHS,Note\n`
+    let csv = `Date,Client,Société,Mode,N° Chèque,Banque,Statut Chèque,Fournisseur,Montant DHS,Note\n`
     filtered.forEach(p => {
-      csv += `${fmtDate(p.date)},${p.client_nom},${p.mode},${p.cheque_number||''},${p.cheque_bank||''},${p.cheque_status||''},${p.fournisseur_nom||''},${p.montant||0},"${p.note||''}"\n`
+      csv += `${fmtDate(p.date)},${p.client_nom},"${p.societe||''}",${p.mode},${p.cheque_number||''},${p.cheque_bank||''},${p.cheque_status||''},${p.fournisseur_nom||''},${p.montant||0},"${p.note||''}"\n`
     })
     const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
@@ -641,6 +647,11 @@ ${filtered.map(p => {
           <option value="">Sélectionner...</option>
           {clients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmt(c.solde||0)} DHS</option>)}
         </select>
+      </div>
+
+      <div><label className="label">Société (optionnel)</label>
+        <input className="input" placeholder="Nom de la société si le paiement est fait par une entreprise"
+          value={form.societe} onChange={e => setForm({...form, societe: e.target.value})} />
       </div>
 
       <div><label className="label">Mode de paiement</label>
@@ -979,8 +990,11 @@ ${filtered.map(p => {
                   <option value="">Tous</option>{fournisseurs.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
                 </select>
               </div>
+              <div><label className="label">Société</label>
+                <input className="input" placeholder="Rechercher par société..." value={filterSociete} onChange={e => setFilterSociete(e.target.value)} />
+              </div>
               <div className="flex gap-2">
-                <button onClick={() => { setFilterClient(''); setFilterMode(''); setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterChequeStatus(''); setFilterFournisseur(''); setSearchCheque('') }}
+                <button onClick={() => { setFilterClient(''); setFilterMode(''); setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterChequeStatus(''); setFilterFournisseur(''); setSearchCheque(''); setFilterSociete('') }}
                   className="btn-secondary text-xs flex-1 justify-center">↺ Reset</button>
                 <button onClick={printPaiements} className="btn-primary text-xs flex-1 justify-center" style={{background:'#4f46e5'}}>🖨️ PDF</button>
                 <button onClick={exportCSV} className="btn-primary text-xs flex-1 justify-center" style={{background:'#16a34a'}}>📥 CSV</button>
@@ -1076,6 +1090,7 @@ ${filtered.map(p => {
                   </div>
                   <div className="card-meta">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span>
+                    {p.societe && <span className="text-gray-700 text-xs font-semibold">🏢 {p.societe}</span>}
                     {p.cheque_number && <span className="font-mono text-xs">📄 {p.cheque_number}</span>}
                     {p.fournisseur_nom && <span className="text-purple-700 text-xs">🏭 {p.fournisseur_nom}</span>}
                     {p.camion_plaque && <span>🚛 {p.camion_plaque}</span>}
@@ -1189,7 +1204,10 @@ ${filtered.map(p => {
                     <option value="">Tous</option>{fournisseurs.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
                   </select>
                 </div>
-                <button onClick={() => { setFilterClient(''); setFilterMode(''); setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterChequeStatus(''); setFilterFournisseur(''); setSearchCheque('') }}
+                <div><label className="label">Société</label>
+                  <input className="input" placeholder="Rechercher..." style={{width:'140px'}} value={filterSociete} onChange={e => setFilterSociete(e.target.value)} />
+                </div>
+                <button onClick={() => { setFilterClient(''); setFilterMode(''); setFilterFrom(startOfMonth()); setFilterTo(today()); setFilterChequeStatus(''); setFilterFournisseur(''); setSearchCheque(''); setFilterSociete('') }}
                   className="btn-secondary text-xs">↺</button>
               </div>
 
@@ -1302,6 +1320,7 @@ ${filtered.map(p => {
                     <thead><tr>
                       <th className="th">Date</th>
                       <th className="th">Client</th>
+                      <th className="th">Société</th>
                       <th className="th">Mode</th>
                       <th className="th">N° Chèque</th>
                       <th className="th">Statut chèque</th>
@@ -1318,6 +1337,7 @@ ${filtered.map(p => {
                           style={{cursor:'pointer', ...(verifiedPmt.has(p.id) ? {background:'#dcfce7', boxShadow:'inset 3px 0 0 #16a34a'} : {})}}>
                           <td className="td text-gray-500">{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginRight:4}}>✓</span>}{fmtDate(p.date)}</td>
                           <td className="td font-semibold">{p.client_nom}</td>
+                          <td className="td text-xs text-gray-600">{p.societe || <span className="text-gray-300">—</span>}</td>
                           <td className="td">
                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span>
                           </td>
@@ -1358,12 +1378,12 @@ ${filtered.map(p => {
                         </tr>
                       ))}
                       {filtered.length === 0 && (
-                        <tr><td colSpan={9} className="td text-center text-gray-400 py-10">Aucun paiement pour cette sélection</td></tr>
+                        <tr><td colSpan={10} className="td text-center text-gray-400 py-10">Aucun paiement pour cette sélection</td></tr>
                       )}
                     </tbody>
                     {filtered.length > 0 && (
                       <tfoot><tr>
-                        <td className="tfoot-td" colSpan={6}>TOTAL REÇU ({filtered.length})</td>
+                        <td className="tfoot-td" colSpan={7}>TOTAL REÇU ({filtered.length})</td>
                         <td className="tfoot-td text-right text-green-700">− {fmt(total)} DHS</td>
                         <td className="tfoot-td" colSpan={2}></td>
                       </tr></tfoot>
