@@ -358,39 +358,53 @@ export default function Clients() {
 ${carryOverBlock}
 <div class="sec">Mouvements du compte (${pLedger.entries.length} opérations)</div>
 <table>
-  <thead><tr><th>Date</th><th>Type</th><th>Détails / Motif</th><th class="r">Mouvement</th><th class="r">Solde DHS</th></tr></thead>
+  <thead><tr><th>Date</th><th>Camion</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Bon</th><th>Note</th></tr></thead>
   <tbody>
     <tr style="background:#fffbeb !important">
       <td style="color:#92400e;font-size:11px">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
-      <td><span class="tag" style="background:#fef3c7;color:#92400e;border-color:#fde68a">📂 ${carryOver !== null ? 'Report' : 'Solde initial'}</span></td>
-      <td class="m">${carryOver !== null ? `Report au début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
-      <td class="r" style="color:#cbd5e1">—</td>
+      <td class="m">—</td>
+      <td><span class="tag" style="background:#fef3c7;color:#92400e;border-color:#fde68a">${carryOver !== null ? 'Report' : 'Solde initial'}</span></td>
+      <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
       <td class="r num" style="color:#b45309;font-weight:800">${fmt(pLedger.startBalance)}</td>
+      <td class="m">—</td>
+      <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
     ${pLedger.entries.length === 0
-      ? '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
+      ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
       : pLedger.entries.map(e => {
-          const rowBg = e.type === 'remise' ? '#faf5ff'
-            : e.type === 'paiement' ? '#f0fdf4'
-            : e.type === 'remise-voyage' ? '#f0fdf4'
-            : e.type === 'mdo' ? '#fffbeb'
-            : ''
+          const isVente = e.src === 'vente'
+          const v = e.raw
+          const rowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
+            : e.type === 'mdo' ? '#fffbeb' : ''
           const soldeColor = e.solde > 0 ? '#7c3aed' : '#16a34a'
+          const typeBadge = e.type === 'vente'
+            ? `<span class="tag">${e.label}</span>`
+            : e.type === 'mdo'
+            ? `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">M.O.</span>`
+            : `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">${e.type === 'paiement' ? e.label : 'Remise'}</span>`
           return `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
             <td>${fmtDate(e.date)}</td>
-            <td>${pBadge(e)}</td>
-            <td class="m">${e.detail ? `<strong>${e.detail}</strong> ` : ''}${e.note || '—'}</td>
+            <td class="m">${isVente ? (v.camion_plaque||'—') : '—'}</td>
+            <td>${typeBadge}</td>
+            <td class="r num">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '—'}</td>
+            <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '—'}</td>
             <td class="r">${pMv(e)}</td>
             <td class="r num" style="font-weight:800;color:${soldeColor}">${fmt(e.solde)}</td>
+            <td class="m">${isVente ? (v.bon||'—') : '—'}</td>
+            <td class="m">${e.note || '—'}</td>
           </tr>`
         }).join('')}
   </tbody>
   ${pLedger.entries.length > 0 ? `<tfoot>
     <tr>
-      <td colspan="2">Solde fin de période</td>
-      <td style="font-size:10px;color:#94a3b8">Ventes ${fmt(totalVentes)} · Paiements ${fmt(totalPaiements)}${totalRemises > 0 ? ` · Remises ${fmt(totalRemises)}` : ''}</td>
+      <td colspan="2">Total — ${pLedger.entries.length} opérations</td>
       <td></td>
+      <td class="r">${fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
+      <td></td>
+      <td class="r">${fmt(totalVentes)} DHS</td>
       <td class="r">${fmt(pLedger.finalBalance)} DHS</td>
+      <td></td>
+      <td style="font-size:10px;color:#94a3b8">Pmt ${fmt(totalPaiements)}${totalRemises > 0 ? ` · Rem. ${fmt(totalRemises)}` : ''}</td>
     </tr>
   </tfoot>` : ''}
 </table>
@@ -906,12 +920,12 @@ ${carryOverBlock}
                       <table className="w-full border-collapse">
                         <thead>
                           <tr>
-                            <th className="th" style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',whiteSpace:'nowrap'}}>Date</th>
-                            <th className="th" style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f'}}>Type</th>
-                            <th className="th" style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f'}}>Détails / Motif</th>
-                            <th className="th text-right" style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',whiteSpace:'nowrap'}}>Mouvement</th>
-                            <th className="th text-right" style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',minWidth:'110px',whiteSpace:'nowrap'}}>Solde DHS</th>
-                            <th className="th" style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',width:'60px'}}></th>
+                            {['Date','Camion','Type','Qté','Prix/u','Total DHS','Solde','Bon','Note',''].map((h,i) => (
+                              <th key={i} className={`th${[3,4,5,6].includes(i)?' text-right':''}`}
+                                style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',whiteSpace:'nowrap'}}>
+                                {h}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
@@ -920,70 +934,82 @@ ${carryOverBlock}
                             <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#92400e',whiteSpace:'nowrap'}}>
                               {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                             </td>
+                            <td className="td text-gray-300 text-center" style={{border:'1px solid #e2e8f0'}}>—</td>
                             <td className="td" style={{border:'1px solid #e2e8f0'}}>
-                              <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>
-                                📂 {carryOver !== null ? 'Report' : 'Solde initial'}
+                              <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:4}}>
+                                {carryOver !== null ? 'Report' : 'Solde initial'}
                               </span>
                             </td>
-                            <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0'}}>
-                              {carryOver !== null ? `Report au début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
-                            </td>
-                            <td className="td text-right text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
-                            <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',color:'#b45309',fontSize:'15px',whiteSpace:'nowrap'}}>
+                            {[0,1,2].map(k => <td key={k} className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>)}
+                            <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',color:'#b45309',fontSize:'14px',whiteSpace:'nowrap'}}>
                               {fmt(ledger.startBalance)}
+                            </td>
+                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
+                            <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0'}}>
+                              {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
                             </td>
                             <td className="td" style={{border:'1px solid #e2e8f0'}}></td>
                           </tr>
 
                           {ledger.entries.length === 0 && (
                             <tr>
-                              <td colSpan={6} className="td text-center text-gray-400 py-8" style={{border:'1px solid #e2e8f0'}}>
+                              <td colSpan={10} className="td text-center text-gray-400 py-8" style={{border:'1px solid #e2e8f0'}}>
                                 Aucune opération pour cette période
                               </td>
                             </tr>
                           )}
 
                           {ledger.entries.map((e, i) => {
+                            const isVente = e.src === 'vente'
                             const isPos = e.delta >= 0
                             const absAmt = Math.abs(e.delta)
-                            const bgRow = e.type === 'remise' ? '#faf5ff'
+                            const bgRow = (e.type === 'remise' || e.type === 'remise-voyage') ? '#f0fdf4'
                               : e.type === 'paiement' ? '#f0fdf4'
-                              : e.type === 'remise-voyage' ? '#f0fdf4'
                               : e.type === 'mdo' ? '#fefce8'
                               : undefined
-                            const mvColor = isPos ? '#1d4ed8' : '#16a34a'
+                            const amtColor = isPos ? '#1d4ed8' : '#16a34a'
+                            const v = e.raw
                             return (
-                              <tr key={`${e.src}-${e.raw?.id}-${i}`} style={bgRow ? {background: bgRow} : {}}>
+                              <tr key={`${e.src}-${v?.id}-${i}`} style={bgRow ? {background:bgRow} : {}}>
                                 <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(e.date)}</td>
+                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                  {isVente ? (v.camion_plaque || '—') : <span className="text-gray-300">—</span>}
+                                </td>
                                 <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
                                   {e.type === 'vente'
-                                    ? <span style={{background:'#dbeafe',color:'#1d4ed8',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>📦 {e.label}</span>
+                                    ? <span className="badge-gray">{e.label}</span>
                                     : e.type === 'mdo'
-                                    ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🔧 M.O.</span>
-                                    : e.type === 'remise-voyage'
-                                    ? <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🎁 Remise</span>
-                                    : e.type === 'paiement'
-                                    ? <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>💰 {e.label}</span>
-                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🎁 Remise</span>}
+                                    ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:4}}>M.O.</span>
+                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:4}}>
+                                        {e.type === 'paiement' ? e.label : 'Remise'}
+                                      </span>}
                                 </td>
-                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#64748b',maxWidth:'180px',wordBreak:'break-word'}}>
-                                  {e.detail ? <span className="font-semibold text-gray-700 mr-1">{e.detail}</span> : null}
-                                  <span>{e.note || '—'}</span>
+                                <td className="td text-right font-semibold text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-300">—</span>}
                                 </td>
-                                <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',color:mvColor}}>
+                                <td className="td text-right text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',color:amtColor}}>
                                   {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
                                 </td>
-                                <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'14px',whiteSpace:'nowrap',
+                                <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',
                                   color: e.solde > 0 ? '#7c3aed' : '#16a34a'}}>
                                   {fmt(e.solde)}
                                 </td>
-                                <td className="td" style={{border:'1px solid #e2e8f0'}}>
+                                <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                  {isVente ? (v.bon || '—') : <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'150px',wordBreak:'break-word'}}>
+                                  {e.note || '—'}
+                                </td>
+                                <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
                                   {e.src === 'remise' && (
                                     <div className="flex gap-1 justify-center">
-                                      <button onClick={() => { setRemiseForm({ date: e.raw.date, montant: String(e.raw.montant), type_remise: e.raw.type_remise || 'Commerciale', motif: e.raw.motif || '' }); setRemiseModal(e.raw) }}
-                                        className="btn-secondary" style={{fontSize:10,padding:'2px 7px',lineHeight:'1.4'}}>✎</button>
-                                      <button onClick={() => deleteRemise(e.raw)}
-                                        className="btn-danger" style={{fontSize:10,padding:'2px 7px',lineHeight:'1.4'}}>✕</button>
+                                      <button onClick={() => { setRemiseForm({ date: v.date, montant: String(v.montant), type_remise: v.type_remise||'Commerciale', motif: v.motif||'' }); setRemiseError(''); setRemiseModal(v) }}
+                                        className="btn-secondary" style={{fontSize:10,padding:'2px 6px'}}>✎</button>
+                                      <button onClick={() => deleteRemise(v)}
+                                        className="btn-danger" style={{fontSize:10,padding:'2px 6px'}}>✕</button>
                                     </div>
                                   )}
                                 </td>
@@ -993,16 +1019,23 @@ ${carryOverBlock}
                         </tbody>
                         {ledger.entries.length > 0 && (() => {
                           const last = ledger.entries[ledger.entries.length - 1]
+                          const totalQte = filteredVentes.reduce((s,v) => s + (v.qte||0), 0)
                           return (
                             <tfoot>
                               <tr>
-                                <td className="tfoot-td" colSpan={2} style={{border:'1px solid #cbd5e1'}}>SOLDE FIN DE PÉRIODE</td>
-                                <td className="tfoot-td text-xs" style={{border:'1px solid #cbd5e1',color:'#94a3b8'}}>
-                                  Ventes {fmt(totalVentesClient)} · Paiements {fmt(totalPaiementsClient)}{totalRemisesClient > 0 ? ` · Remises ${fmt(totalRemisesClient)}` : ''}
+                                <td className="tfoot-td" colSpan={2} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opérations</td>
+                                <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
+                                <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1'}}>{fmt(totalQte)}</td>
+                                <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
+                                <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1'}}>
+                                  {fmt(totalVentesClient)} DHS
+                                </td>
+                                <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px',color:'#c4b5fd'}}>
+                                  {fmt(last.solde)} DHS
                                 </td>
                                 <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
-                                <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'15px',color:'#c4b5fd'}}>
-                                  {fmt(last.solde)} DHS
+                                <td className="tfoot-td text-xs" style={{border:'1px solid #cbd5e1',color:'#94a3b8'}}>
+                                  Pmt {fmt(totalPaiementsClient)}{totalRemisesClient > 0 ? ` · Rem. ${fmt(totalRemisesClient)}` : ''}
                                 </td>
                                 <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
                               </tr>
