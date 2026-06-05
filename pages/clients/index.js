@@ -245,12 +245,12 @@ export default function Clients() {
       if (e.type === 'mdo')           return `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">🔧 M.O.</span>`
       if (e.type === 'remise-voyage') return `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">🎁 Remise</span>`
       if (e.type === 'paiement')      return `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">💰 ${e.label}</span>`
-      return                                  `<span class="tag" style="background:#ede9fe;color:#6d28d9;border-color:#d8b4fe">🎁 ${e.label}</span>`
+      return                                  `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">🎁 Remise</span>`
     }
     function pMv(e) {
       const abs = Math.abs(e.delta)
       const isPos = e.delta >= 0
-      const color = isPos ? '#1d4ed8' : e.type === 'remise' ? '#7c3aed' : '#16a34a'
+      const color = isPos ? '#1d4ed8' : '#16a34a'
       return `<span style="font-weight:800;color:${color}">${isPos ? '+ ' : '− '}${fmt(abs)}</span>`
     }
 
@@ -951,7 +951,7 @@ ${carryOverBlock}
                               : e.type === 'remise-voyage' ? '#f0fdf4'
                               : e.type === 'mdo' ? '#fefce8'
                               : undefined
-                            const mvColor = isPos ? '#1d4ed8' : e.type === 'remise' ? '#7c3aed' : '#16a34a'
+                            const mvColor = isPos ? '#1d4ed8' : '#16a34a'
                             return (
                               <tr key={`${e.src}-${e.raw?.id}-${i}`} style={bgRow ? {background: bgRow} : {}}>
                                 <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(e.date)}</td>
@@ -964,7 +964,7 @@ ${carryOverBlock}
                                     ? <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🎁 Remise</span>
                                     : e.type === 'paiement'
                                     ? <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>💰 {e.label}</span>
-                                    : <span style={{background:'#ede9fe',color:'#6d28d9',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🎁 {e.label}</span>}
+                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>🎁 Remise</span>}
                                 </td>
                                 <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#64748b',maxWidth:'180px',wordBreak:'break-word'}}>
                                   {e.detail ? <span className="font-semibold text-gray-700 mr-1">{e.detail}</span> : null}
