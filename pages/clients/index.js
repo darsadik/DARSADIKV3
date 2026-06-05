@@ -57,6 +57,11 @@ export default function Clients() {
   }
   const [saving, setSaving] = useState(false)
 
+  const [clientRemises, setClientRemises] = useState([])
+  const [remiseModal, setRemiseModal] = useState(null) // null | 'new' | remise object
+  const [remiseForm, setRemiseForm] = useState({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' })
+  const [remiseSaving, setRemiseSaving] = useState(false)
+
   // MOBILE — controls whether detail panel is shown on small screens
   const [showDetail, setShowDetail] = useState(false)
 
@@ -79,12 +84,14 @@ export default function Clients() {
     setSelected(client)
     setShowDetail(true)
     setLoadingDetail(true)
-    const [{ data: ventes }, { data: paiements }] = await Promise.all([
+    const [{ data: ventes }, { data: paiements }, { data: remises }] = await Promise.all([
       supabase.from('ventes').select('*').eq('client_id', client.id).order('date', { ascending: true }),
       supabase.from('paiements').select('*').eq('client_id', client.id).order('date', { ascending: true }),
+      supabase.from('remises').select('*').eq('client_id', client.id).order('date', { ascending: true }),
     ])
     setClientVentes(ventes || [])
     setClientPaiements(paiements || [])
+    setClientRemises(remises || [])
     setLoadingDetail(false)
   }
 
@@ -131,7 +138,8 @@ export default function Clients() {
     const n = parseFloat(openingForm.montant) || 0
     const totalV = clientVentes.reduce((s, v2) => s + (v2.total_vente || 0), 0)
     const totalP = clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
-    const newSolde = n + totalV - totalP
+    const totalR = clientRemises.reduce((s, r) => s + (r.montant || 0), 0)
+    const newSolde = n + totalV - totalP - totalR
     await supabase.from('clients').update({
       opening_balance: n,
       opening_date:    openingForm.date || null,
@@ -176,6 +184,8 @@ export default function Clients() {
 
   const filteredVentes = filterByDate(clientVentes)
   const filteredPaiements = filterByDate(clientPaiements)
+  const filteredRemises = filterByDate(clientRemises)
+  const totalRemisesClient = filteredRemises.reduce((s, r) => s + (r.montant || 0), 0)
 
   // ── MONTHLY CARRY-OVER LOGIC ──
   // Computes: what did this client owe at the START of the filtered period?
@@ -184,9 +194,10 @@ export default function Clients() {
     const { from } = getDateRange()
     if (!from || filterType === 'all') return null  // no carry-over for "all time"
     const openingBal = selected?.opening_balance || 0
-    const ventesBefore   = clientVentes.filter(v => v.date < from).reduce((s, v) => s + (v.total_vente || 0), 0)
+    const ventesBefore    = clientVentes.filter(v => v.date < from).reduce((s, v) => s + (v.total_vente || 0), 0)
     const paiementsBefore = clientPaiements.filter(p => p.date < from).reduce((s, p) => s + (p.montant || 0), 0)
-    return openingBal + ventesBefore - paiementsBefore
+    const remisesBefore   = clientRemises.filter(r => r.date < from).reduce((s, r) => s + (r.montant || 0), 0)
+    return openingBal + ventesBefore - paiementsBefore - remisesBefore
   }
 
   function getPeriodLabel() {
@@ -204,20 +215,23 @@ export default function Clients() {
   function printClient() {
     const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
     const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+    const totalRemises = filteredRemises.reduce((s, r) => s + (r.montant || 0), 0)
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     const periode = getFilterLabel()
     const soldeFinPeriode = carryOver !== null
-      ? carryOver + totalVentes - totalPaiements
+      ? carryOver + totalVentes - totalPaiements - totalRemises
       : (selected.solde || 0)
 
+    const remisesColCount = totalRemises > 0 ? 5 : 4
     const carryOverBlock = carryOver !== null ? `
       <div class="calc-block">
         <div class="calc-ttl">Calcul du solde — ${periodLabel}</div>
-        <div class="calc-g">
+        <div class="calc-g" style="grid-template-columns:repeat(${remisesColCount},1fr)">
           <div class="calc-c"><div class="clbl">Solde mois précédent</div><div class="cval c-am">${fmt(carryOver)} DHS</div></div>
           <div class="calc-c"><div class="clbl">+ Ventes période</div><div class="cval c-bl">+ ${fmt(totalVentes)} DHS</div></div>
           <div class="calc-c"><div class="clbl">− Paiements période</div><div class="cval c-gn">− ${fmt(totalPaiements)} DHS</div></div>
+          ${totalRemises > 0 ? `<div class="calc-c"><div class="clbl">− Remises période</div><div class="cval" style="color:#7c3aed">− ${fmt(totalRemises)} DHS</div></div>` : ''}
           <div class="calc-c res"><div class="clbl">= Solde fin période</div><div class="cval c-pr">${fmt(soldeFinPeriode)} DHS</div></div>
         </div>
       </div>` : ''
@@ -352,6 +366,15 @@ ${carryOverBlock}
   </tbody>
   ${filteredPaiements.length > 0 ? `<tfoot><tr><td colspan="2">Total reçu</td><td class="r">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>` : ''}
 </table>
+${filteredRemises.length > 0 ? `
+<div class="sec" style="margin-top:16px">Remises (${filteredRemises.length})</div>
+<table>
+  <thead><tr><th>Date</th><th>Type</th><th class="r">Montant DHS</th><th>Motif</th></tr></thead>
+  <tbody>
+    ${filteredRemises.map(r => `<tr style="background:#faf5ff"><td>${fmtDate(r.date)}</td><td><span class="tag" style="background:#ede9fe;color:#6d28d9">${r.type_remise||'—'}</span></td><td class="r num" style="color:#7c3aed;font-weight:700">− ${fmt(r.montant)}</td><td class="m">${r.motif||'—'}</td></tr>`).join('')}
+  </tbody>
+  <tfoot><tr><td colspan="2">Total remises</td><td class="r" style="color:#c4b5fd">− ${fmt(totalRemises)} DHS</td><td></td></tr></tfoot>
+</table>` : ''}
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
@@ -392,6 +415,7 @@ ${carryOverBlock}
     ? (selected.opening_balance || 0)
       + clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
       - clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
+      - clientRemises.reduce((s, r) => s + (r.montant || 0), 0)
     : null
   const soldeGap = computedSolde !== null ? Math.abs(computedSolde - (selected?.solde || 0)) : 0
   const hasDiscrepancy = soldeGap > 1
@@ -402,6 +426,56 @@ ${carryOverBlock}
     await supabase.from('clients').update({ solde: computedSolde }).eq('id', selected.id)
     loadClients()
     setSelected({ ...selected, solde: computedSolde })
+  }
+
+  async function reloadRemises() {
+    const { data } = await supabase.from('remises').select('*').eq('client_id', selected.id).order('date', { ascending: true })
+    setClientRemises(data || [])
+  }
+
+  async function saveRemise(e) {
+    e.preventDefault()
+    setRemiseSaving(true)
+    const montant = parseFloat(remiseForm.montant) || 0
+    if (remiseModal === 'new') {
+      await supabase.from('remises').insert({
+        date: remiseForm.date,
+        client_id: selected.id,
+        client_nom: selected.nom,
+        montant,
+        type_remise: remiseForm.type_remise,
+        motif: remiseForm.motif || null,
+        created_by: user?.email || null,
+      })
+      const newSolde = (selected.solde || 0) - montant
+      await supabase.from('clients').update({ solde: newSolde }).eq('id', selected.id)
+      setSelected({ ...selected, solde: newSolde })
+    } else {
+      const delta = montant - (remiseModal.montant || 0)
+      await supabase.from('remises').update({
+        date: remiseForm.date,
+        montant,
+        type_remise: remiseForm.type_remise,
+        motif: remiseForm.motif || null,
+      }).eq('id', remiseModal.id)
+      const newSolde = (selected.solde || 0) - delta
+      await supabase.from('clients').update({ solde: newSolde }).eq('id', selected.id)
+      setSelected({ ...selected, solde: newSolde })
+    }
+    setRemiseSaving(false)
+    setRemiseModal(null)
+    loadClients()
+    await reloadRemises()
+  }
+
+  async function deleteRemise(r) {
+    if (!confirm(`Supprimer la remise de ${fmt(r.montant)} DHS ?`)) return
+    await supabase.from('remises').delete().eq('id', r.id)
+    const newSolde = (selected.solde || 0) + (r.montant || 0)
+    await supabase.from('clients').update({ solde: newSolde }).eq('id', selected.id)
+    setSelected({ ...selected, solde: newSolde })
+    loadClients()
+    setClientRemises(clientRemises.filter(x => x.id !== r.id))
   }
 
   const handleBack = () => { setShowDetail(false) }
@@ -655,14 +729,14 @@ ${carryOverBlock}
                   {/* SOLDE DÛ — with carry-over if period active */}
                   <div className="text-center p-3 rounded-xl border-2" style={{background:'#faf5ff', borderColor:'#e9d5ff'}}>
                     <div className="text-xs font-semibold mb-1" style={{color:'#7c3aed'}}>⚠️ Solde dû {carryOver !== null ? '(période)' : 'final'}</div>
-                    <div className="text-xl font-bold" style={{color: (carryOver !== null ? (carryOver + totalVentesClient - totalPaiementsClient) : (selected.solde || 0)) > 0 ? '#7c3aed' : '#16a34a'}}>
+                    <div className="text-xl font-bold" style={{color: (carryOver !== null ? (carryOver + totalVentesClient - totalPaiementsClient - totalRemisesClient) : (selected.solde || 0)) > 0 ? '#7c3aed' : '#16a34a'}}>
                       {fmt(carryOver !== null
-                        ? carryOver + totalVentesClient - totalPaiementsClient
+                        ? carryOver + totalVentesClient - totalPaiementsClient - totalRemisesClient
                         : (selected.solde || 0)
                       )} DHS
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
-                      {carryOver !== null ? 'Report + Ventes − Paiements' : 'Initial + Ventes − Paiements'}
+                      {carryOver !== null ? 'Report + Ventes − Paiements − Remises' : 'Initial + Ventes − Paiements'}
                     </div>
                   </div>
                 </div>
@@ -671,7 +745,7 @@ ${carryOverBlock}
                 {carryOver !== null && (
                   <div className="mt-3 p-3 rounded-xl text-xs" style={{background:'#f0fdf4', border:'1px solid #bbf7d0'}}>
                     <div className="font-bold text-green-800 mb-2">📊 Calcul du solde — {periodLabel}</div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div className={`grid grid-cols-2 gap-2 ${totalRemisesClient > 0 ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
                       <div className="text-center p-2 bg-white rounded-lg border border-green-100">
                         <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>Report mois préc.</div>
                         <div className="font-bold text-amber-700 mt-1">{fmt(carryOver)} DHS</div>
@@ -684,9 +758,15 @@ ${carryOverBlock}
                         <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>− Paiements période</div>
                         <div className="font-bold text-green-700 mt-1">− {fmt(totalPaiementsClient)} DHS</div>
                       </div>
+                      {totalRemisesClient > 0 && (
+                        <div className="text-center p-2 bg-white rounded-lg border border-green-100">
+                          <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>− Remises période</div>
+                          <div className="font-bold mt-1" style={{color:'#7c3aed'}}>− {fmt(totalRemisesClient)} DHS</div>
+                        </div>
+                      )}
                       <div className="text-center p-2 rounded-lg border-2 border-purple-200" style={{background:'#faf5ff'}}>
                         <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>= Solde fin période</div>
-                        <div className="font-bold mt-1" style={{color:'#7c3aed'}}>{fmt(carryOver + totalVentesClient - totalPaiementsClient)} DHS</div>
+                        <div className="font-bold mt-1" style={{color:'#7c3aed'}}>{fmt(carryOver + totalVentesClient - totalPaiementsClient - totalRemisesClient)} DHS</div>
                       </div>
                     </div>
                   </div>
@@ -705,7 +785,7 @@ ${carryOverBlock}
                           {' '}· Écart: <strong>{fmt(soldeGap)} DHS</strong>
                         </div>
                         <div className="text-amber-500 mt-1">
-                          Calcul: Solde initial ({fmt(selected.opening_balance || 0)}) + Ventes ({fmt(clientVentes.reduce((s,v)=>s+(v.total_vente||0),0))}) − Paiements ({fmt(clientPaiements.reduce((s,p)=>s+(p.montant||0),0))})
+                          Calcul: Solde initial ({fmt(selected.opening_balance || 0)}) + Ventes ({fmt(clientVentes.reduce((s,v)=>s+(v.total_vente||0),0))}) − Paiements ({fmt(clientPaiements.reduce((s,p)=>s+(p.montant||0),0))}) − Remises ({fmt(clientRemises.reduce((s,r)=>s+(r.montant||0),0))})
                         </div>
                       </div>
                       <button onClick={fixSolde}
@@ -832,12 +912,133 @@ ${carryOverBlock}
                       </table>
                     </div>
                   </div>
+
+                  {/* REMISES TABLE */}
+                  <div className="card">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-gray-900">🎁 Remises ({filteredRemises.length})</h3>
+                      <button
+                        onClick={() => { setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseModal('new') }}
+                        className="btn-primary text-xs px-3 py-1.5" style={{background:'#7c3aed'}}>
+                        + Nouvelle Remise
+                      </button>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Date</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Type</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Motif</th>
+                            <th className="th text-right" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}>Montant DHS</th>
+                            <th className="th" style={{background:'#475569',color:'#fff',border:'1px solid #334155'}}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRemises.map(r => (
+                            <tr key={r.id} style={{background:'#faf5ff'}}>
+                              <td className="td" style={{border:'1px solid #e2e8f0', color:'#64748b', whiteSpace:'nowrap'}}>{fmtDate(r.date)}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0'}}>
+                                <span style={{background:'#ede9fe',color:'#6d28d9',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:999}}>{r.type_remise || '—'}</span>
+                              </td>
+                              <td className="td text-xs text-gray-500" style={{border:'1px solid #e2e8f0'}}>{r.motif || '—'}</td>
+                              <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0', fontSize:'14px', color:'#7c3aed', whiteSpace:'nowrap'}}>− {fmt(r.montant)}</td>
+                              <td className="td" style={{border:'1px solid #e2e8f0'}}>
+                                <div className="flex gap-1 justify-end">
+                                  <button onClick={() => { setRemiseForm({ date: r.date, montant: String(r.montant), type_remise: r.type_remise || 'Commerciale', motif: r.motif || '' }); setRemiseModal(r) }}
+                                    className="btn-secondary text-xs px-2 py-1">✎</button>
+                                  <button onClick={() => deleteRemise(r)} className="btn-danger text-xs px-2 py-1">✕</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {filteredRemises.length === 0 && (
+                            <tr><td colSpan={5} className="td text-center text-gray-400 py-6" style={{border:'1px solid #e2e8f0'}}>Aucune remise pour cette période</td></tr>
+                          )}
+                        </tbody>
+                        {filteredRemises.length > 0 && (
+                          <tfoot>
+                            <tr>
+                              <td className="tfoot-td" colSpan={3} style={{border:'1px solid #cbd5e1'}}>TOTAL REMISES</td>
+                              <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1', fontSize:'14px', color:'#c4b5fd'}}>− {fmt(totalRemisesClient)} DHS</td>
+                              <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
           )}
         </div>
       </div>
+
+      {/* ── REMISE MODAL ── */}
+      {remiseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">🎁 {remiseModal === 'new' ? 'Nouvelle Remise' : 'Modifier Remise'}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{selected?.nom}</p>
+              </div>
+              <button onClick={() => setRemiseModal(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={saveRemise} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Date</label>
+                  <input type="date" className="input" value={remiseForm.date}
+                    onChange={e => setRemiseForm({...remiseForm, date: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="label">Montant (DHS)</label>
+                  <input type="number" inputMode="decimal" className="input" placeholder="ex: 2500" step="0.01" min="0"
+                    value={remiseForm.montant}
+                    onChange={e => setRemiseForm({...remiseForm, montant: e.target.value})}
+                    required autoFocus />
+                </div>
+              </div>
+              <div>
+                <label className="label">Type de remise</label>
+                <select className="input" value={remiseForm.type_remise}
+                  onChange={e => setRemiseForm({...remiseForm, type_remise: e.target.value})}>
+                  <option>Commerciale</option>
+                  <option>Fidélité</option>
+                  <option>Correction</option>
+                  <option>Autre</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Motif</label>
+                <input type="text" className="input" placeholder="ex: Remise fin de mois mai 2026"
+                  value={remiseForm.motif}
+                  onChange={e => setRemiseForm({...remiseForm, motif: e.target.value})} />
+              </div>
+              {remiseForm.montant && (
+                <div className="p-3 rounded-xl text-sm" style={{background:'#faf5ff', border:'1px solid #e9d5ff'}}>
+                  <div className="font-bold text-purple-700 mb-1">🎁 Aperçu</div>
+                  <div className="text-gray-700">{selected?.nom}</div>
+                  <div className="text-xl font-bold text-purple-700">− {fmt(parseFloat(remiseForm.montant)||0)} DHS</div>
+                  {remiseForm.motif && <div className="text-xs text-gray-500 italic mt-1">{remiseForm.motif}</div>}
+                  <div className="text-xs text-gray-400 mt-1">
+                    Nouveau solde: {fmt((selected?.solde || 0) - (parseFloat(remiseForm.montant)||0) + (remiseModal !== 'new' ? (remiseModal.montant || 0) : 0))} DHS
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={remiseSaving}
+                  className="btn-primary flex-1 justify-center" style={{background:'#7c3aed'}}>
+                  {remiseSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+                <button type="button" onClick={() => setRemiseModal(null)} className="btn-secondary">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── SOLDE REPORTÉ MODAL ── */}
       {openingModal && (
