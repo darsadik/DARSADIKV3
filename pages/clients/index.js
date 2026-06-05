@@ -61,6 +61,7 @@ export default function Clients() {
   const [remiseModal, setRemiseModal] = useState(null) // null | 'new' | remise object
   const [remiseForm, setRemiseForm] = useState({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' })
   const [remiseSaving, setRemiseSaving] = useState(false)
+  const [remiseError, setRemiseError] = useState('')
 
   // MOBILE — controls whether detail panel is shown on small screens
   const [showDetail, setShowDetail] = useState(false)
@@ -510,6 +511,7 @@ ${carryOverBlock}
   async function saveRemise(e) {
     e.preventDefault()
     setRemiseSaving(true)
+    setRemiseError('')
     const montant = parseFloat(remiseForm.montant) || 0
     if (remiseModal === 'new') {
       const { error } = await supabase.from('remises').insert({
@@ -521,7 +523,7 @@ ${carryOverBlock}
         motif: remiseForm.motif || null,
         created_by: user?.email || null,
       })
-      if (error) { alert('Erreur lors de l\'enregistrement : ' + error.message); setRemiseSaving(false); return }
+      if (error) { setRemiseError(error.message); setRemiseSaving(false); return }
       const newSolde = (selected.solde || 0) - montant
       await supabase.from('clients').update({ solde: newSolde }).eq('id', selected.id)
       setSelected({ ...selected, solde: newSolde })
@@ -533,13 +535,14 @@ ${carryOverBlock}
         type_remise: remiseForm.type_remise,
         motif: remiseForm.motif || null,
       }).eq('id', remiseModal.id)
-      if (error) { alert('Erreur lors de la modification : ' + error.message); setRemiseSaving(false); return }
+      if (error) { setRemiseError(error.message); setRemiseSaving(false); return }
       const newSolde = (selected.solde || 0) - delta
       await supabase.from('clients').update({ solde: newSolde }).eq('id', selected.id)
       setSelected({ ...selected, solde: newSolde })
     }
     setRemiseSaving(false)
     setRemiseModal(null)
+    setRemiseError('')
     loadClients()
     await reloadRemises()
   }
@@ -894,7 +897,7 @@ ${carryOverBlock}
                         📋 Historique du compte <span className="text-gray-400 font-normal text-sm">({ledger.entries.length} opération{ledger.entries.length !== 1 ? 's' : ''})</span>
                       </h3>
                       <button
-                        onClick={() => { setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseModal('new') }}
+                        onClick={() => { setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseError(''); setRemiseModal('new') }}
                         className="btn-primary text-xs px-3 py-1.5" style={{background:'#7c3aed'}}>
                         + Remise
                       </button>
@@ -1025,7 +1028,7 @@ ${carryOverBlock}
                 <h2 className="font-bold text-gray-900">🎁 {remiseModal === 'new' ? 'Nouvelle Remise' : 'Modifier Remise'}</h2>
                 <p className="text-xs text-gray-400 mt-0.5">{selected?.nom}</p>
               </div>
-              <button onClick={() => setRemiseModal(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+              <button onClick={() => { setRemiseModal(null); setRemiseError('') }} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
             </div>
             <form onSubmit={saveRemise} className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -1069,12 +1072,27 @@ ${carryOverBlock}
                   </div>
                 </div>
               )}
+              {remiseError && (
+                <div className="p-3 rounded-xl text-sm flex items-start gap-2" style={{background:'#fef2f2', border:'1px solid #fecaca'}}>
+                  <span className="text-red-500 flex-shrink-0 mt-0.5">⚠️</span>
+                  <div>
+                    <div className="font-semibold text-red-700 mb-0.5">Impossible d'enregistrer</div>
+                    <div className="text-red-600 text-xs">{remiseError}</div>
+                    {remiseError.includes('security') && (
+                      <div className="text-red-500 text-xs mt-1">
+                        Exécutez dans Supabase SQL Editor :<br/>
+                        <code className="bg-red-50 px-1 rounded font-mono">ALTER TABLE remises DISABLE ROW LEVEL SECURITY;</code>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2 pt-1">
                 <button type="submit" disabled={remiseSaving}
                   className="btn-primary flex-1 justify-center" style={{background:'#7c3aed'}}>
                   {remiseSaving ? 'Enregistrement...' : '✓ Enregistrer'}
                 </button>
-                <button type="button" onClick={() => setRemiseModal(null)} className="btn-secondary">Annuler</button>
+                <button type="button" onClick={() => { setRemiseModal(null); setRemiseError('') }} className="btn-secondary">Annuler</button>
               </div>
             </form>
           </div>
