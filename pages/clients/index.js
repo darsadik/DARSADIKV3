@@ -512,7 +512,7 @@ ${carryOverBlock}
     setRemiseSaving(true)
     const montant = parseFloat(remiseForm.montant) || 0
     if (remiseModal === 'new') {
-      await supabase.from('remises').insert({
+      const { error } = await supabase.from('remises').insert({
         date: remiseForm.date,
         client_id: selected.id,
         client_nom: selected.nom,
@@ -521,17 +521,19 @@ ${carryOverBlock}
         motif: remiseForm.motif || null,
         created_by: user?.email || null,
       })
+      if (error) { alert('Erreur lors de l\'enregistrement : ' + error.message); setRemiseSaving(false); return }
       const newSolde = (selected.solde || 0) - montant
       await supabase.from('clients').update({ solde: newSolde }).eq('id', selected.id)
       setSelected({ ...selected, solde: newSolde })
     } else {
       const delta = montant - (remiseModal.montant || 0)
-      await supabase.from('remises').update({
+      const { error } = await supabase.from('remises').update({
         date: remiseForm.date,
         montant,
         type_remise: remiseForm.type_remise,
         motif: remiseForm.motif || null,
       }).eq('id', remiseModal.id)
+      if (error) { alert('Erreur lors de la modification : ' + error.message); setRemiseSaving(false); return }
       const newSolde = (selected.solde || 0) - delta
       await supabase.from('clients').update({ solde: newSolde }).eq('id', selected.id)
       setSelected({ ...selected, solde: newSolde })
