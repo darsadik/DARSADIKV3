@@ -397,14 +397,9 @@ ${carryOverBlock}
   </tbody>
   ${pLedger.entries.length > 0 ? `<tfoot>
     <tr>
-      <td colspan="2">Total — ${pLedger.entries.length} opérations</td>
-      <td></td>
-      <td class="r">${fmt(filteredVentes.reduce((s,v)=>s+(v.qte||0),0))}</td>
-      <td></td>
-      <td class="r">${fmt(totalVentes)} DHS</td>
+      <td colspan="6">Total — ${pLedger.entries.length} opérations</td>
       <td class="r">${fmt(pLedger.finalBalance)} DHS</td>
-      <td></td>
-      <td style="font-size:10px;color:#94a3b8">Pmt ${fmt(totalPaiements)}${totalRemises > 0 ? ` · Rem. ${fmt(totalRemises)}` : ''}</td>
+      <td colspan="2"></td>
     </tr>
   </tfoot>` : ''}
 </table>
@@ -1019,25 +1014,14 @@ ${carryOverBlock}
                         </tbody>
                         {ledger.entries.length > 0 && (() => {
                           const last = ledger.entries[ledger.entries.length - 1]
-                          const totalQte = filteredVentes.reduce((s,v) => s + (v.qte||0), 0)
                           return (
                             <tfoot>
                               <tr>
-                                <td className="tfoot-td" colSpan={2} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opérations</td>
-                                <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
-                                <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1'}}>{fmt(totalQte)}</td>
-                                <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
-                                <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1'}}>
-                                  {fmt(totalVentesClient)} DHS
-                                </td>
+                                <td className="tfoot-td" colSpan={6} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opérations</td>
                                 <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px',color:'#c4b5fd'}}>
                                   {fmt(last.solde)} DHS
                                 </td>
-                                <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
-                                <td className="tfoot-td text-xs" style={{border:'1px solid #cbd5e1',color:'#94a3b8'}}>
-                                  Pmt {fmt(totalPaiementsClient)}{totalRemisesClient > 0 ? ` · Rem. ${fmt(totalRemisesClient)}` : ''}
-                                </td>
-                                <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
+                                <td className="tfoot-td" colSpan={3} style={{border:'1px solid #cbd5e1'}}></td>
                               </tr>
                             </tfoot>
                           )
