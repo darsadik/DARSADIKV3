@@ -364,7 +364,7 @@ export default function Clients() {
   <div class="bkdn-row amber"><span class="bkdn-lbl">${carryOver !== null ? 'Solde mois précédent' : 'Ancien solde'}</span><span class="bkdn-val" style="color:#b45309">${fmt(carryOver !== null ? carryOver : (selected.opening_balance||0))} DHS</span></div>
   <div class="bkdn-row blue"><span class="bkdn-lbl">+ Achats ${filterType!=='all'?'de la période':''}</span><span class="bkdn-val" style="color:#1d4ed8">+ ${fmt(totalVentes)} DHS</span></div>
   <div class="bkdn-row green"><span class="bkdn-lbl">− Paiements reçus</span><span class="bkdn-val" style="color:#16a34a">− ${fmt(totalPaiements)} DHS</span></div>
-  ${totalRemises > 0 ? `<div class="bkdn-row purple"><span class="bkdn-lbl">− Remises accordées</span><span class="bkdn-val" style="color:#7c3aed">− ${fmt(totalRemises)} DHS</span></div>` : ''}
+  ${clientRemises.length > 0 ? `<div class="bkdn-row purple"><span class="bkdn-lbl">− Remises accordées</span><span class="bkdn-val" style="color:#7c3aed">− ${fmt(totalRemises)} DHS</span></div>` : ''}
   <div class="bkdn-row"><span class="bkdn-lbl" style="color:#7c3aed">= Solde ${carryOver!==null?'fin de période':'final'}</span><span class="bkdn-val" style="color:#7c3aed;font-size:15px">${fmt(soldeFinPeriode)} DHS</span></div>
 </div>
 <div class="sec">Mouvements du compte (${pLedger.entries.length} opérations)</div>
@@ -851,7 +851,7 @@ export default function Clients() {
                       { label: carryOver !== null ? 'Solde mois précédent' : 'Ancien solde', value: carryOver !== null ? carryOver : (selected.opening_balance||0), prefix:'', color:'#b45309', bg:'#fffbeb' },
                       { label: `Achats ${filterType!=='all'?'de la période':''}`, value: totalVentesClient, prefix:'+', color:'#1d4ed8', bg:'#eff6ff' },
                       { label: `Paiements ${filterType!=='all'?'reçus':'reçus'}`, value: totalPaiementsClient, prefix:'−', color:'#16a34a', bg:'#f0fdf4' },
-                      ...(totalRemisesClient > 0 ? [{ label:'Remises accordées', value:totalRemisesClient, prefix:'−', color:'#7c3aed', bg:'#faf5ff' }] : []),
+                      ...(clientRemises.length > 0 ? [{ label:'Remises accordées', value:totalRemisesClient, prefix:'−', color:'#7c3aed', bg:'#faf5ff' }] : []),
                     ].map((row, i) => (
                       <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100" style={{background:row.bg}}>
                         <span className="text-gray-600">{row.label}</span>
