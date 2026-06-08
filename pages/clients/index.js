@@ -275,6 +275,15 @@ export default function Clients() {
   .cli-ini{width:42px;height:42px;background:#1a3a6b;color:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;flex-shrink:0}
   .cli-n{font-size:16px;font-weight:800}.cli-m{font-size:12px;color:#64748b;margin-top:2px}
   .pbadge{display:inline-flex;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:4px 12px;font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:14px}
+  .solde-card{background:linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%);border:2px solid #e8b84b;border-radius:10px;padding:16px 20px;text-align:center;margin-bottom:14px}
+  .sc-lbl{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.18em;color:#e8b84b;margin-bottom:6px}
+  .sc-amt{font-size:36px;font-weight:900;color:#fff;line-height:1}
+  .sc-sub{font-size:11px;color:#93c5fd;margin-top:5px}
+  .bkdn{border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:14px}
+  .bkdn-row{display:flex;justify-content:space-between;align-items:center;padding:7px 14px;border-bottom:1px solid #f1f5f9;font-size:12px}
+  .bkdn-row:last-child{border-bottom:none;border-top:2px solid #e9d5ff;background:#faf5ff;font-weight:700}
+  .bkdn-row.amber{background:#fffbeb}.bkdn-row.blue{background:#eff6ff}.bkdn-row.green{background:#f0fdf4}.bkdn-row.purple{background:#faf5ff}
+  .bkdn-lbl{color:#374151}.bkdn-val{font-weight:700}
   .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
   .kpi{padding:12px 14px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
   .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:4px}
@@ -283,6 +292,7 @@ export default function Clients() {
   .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
   .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
   .kpi-sub{font-size:10px;color:#b45309;margin-top:3px}
+  .ref{font-family:monospace;font-size:10px;color:#6b7280}
   .calc-block{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px 16px;margin-bottom:16px}
   .calc-ttl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#166534;margin-bottom:9px}
   .calc-g{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
@@ -345,32 +355,34 @@ export default function Clients() {
   <div><div class="cli-n">${selected.nom}</div><div class="cli-m">Dépôt : ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; '+selected.tel:''}</div></div>
 </div>
 <div class="pbadge">Période : ${periode}</div>
-<div class="kpi-g" style="grid-template-columns:repeat(${kpiCols},1fr)">
-  <div class="kpi pr">
-    <div class="lbl">${carryOver !== null ? 'Solde mois précédent' : 'Solde reporté'}</div>
-    <div class="val">${fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</div>
-    ${!carryOver && selected.opening_date ? `<div class="kpi-sub">Solde au ${fmtMois(selected.opening_date)}</div>` : ''}
-  </div>
-  <div class="kpi bl"><div class="lbl">+ Ventes ${filterType !== 'all' ? '(période)' : ''}</div><div class="val">${fmt(totalVentes)} DHS</div></div>
-  <div class="kpi gn"><div class="lbl">− Paiements ${filterType !== 'all' ? '(période)' : ''}</div><div class="val">${fmt(totalPaiements)} DHS</div></div>
-  ${totalRemises > 0 ? `<div class="kpi" style="border-left-color:#7c3aed"><div class="lbl">− Remises ${filterType !== 'all' ? '(période)' : ''}</div><div class="val" style="color:#7c3aed">${fmt(totalRemises)} DHS</div></div>` : ''}
+<div class="solde-card">
+  <div class="sc-lbl">SOLDE ACTUEL À PAYER</div>
+  <div class="sc-amt">${fmt(selected.solde || 0)} DHS</div>
+  <div class="sc-sub">${selected.nom} · ${selected.depot||''}${filterType !== 'all' ? ' · ' + periode : ''}</div>
 </div>
-${carryOverBlock}
+<div class="bkdn">
+  <div class="bkdn-row amber"><span class="bkdn-lbl">${carryOver !== null ? 'Solde mois précédent' : 'Ancien solde'}</span><span class="bkdn-val" style="color:#b45309">${fmt(carryOver !== null ? carryOver : (selected.opening_balance||0))} DHS</span></div>
+  <div class="bkdn-row blue"><span class="bkdn-lbl">+ Achats ${filterType!=='all'?'de la période':''}</span><span class="bkdn-val" style="color:#1d4ed8">+ ${fmt(totalVentes)} DHS</span></div>
+  <div class="bkdn-row green"><span class="bkdn-lbl">− Paiements reçus</span><span class="bkdn-val" style="color:#16a34a">− ${fmt(totalPaiements)} DHS</span></div>
+  ${totalRemises > 0 ? `<div class="bkdn-row purple"><span class="bkdn-lbl">− Remises accordées</span><span class="bkdn-val" style="color:#7c3aed">− ${fmt(totalRemises)} DHS</span></div>` : ''}
+  <div class="bkdn-row"><span class="bkdn-lbl" style="color:#7c3aed">= Solde ${carryOver!==null?'fin de période':'final'}</span><span class="bkdn-val" style="color:#7c3aed;font-size:15px">${fmt(soldeFinPeriode)} DHS</span></div>
+</div>
 <div class="sec">Mouvements du compte (${pLedger.entries.length} opérations)</div>
 <table>
-  <thead><tr><th>Date</th><th>Camion</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Bon</th><th>Note</th></tr></thead>
+  <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Référence</th><th>Note</th></tr></thead>
   <tbody>
     <tr style="background:#fffbeb !important">
       <td style="color:#92400e;font-size:11px">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
       <td class="m">—</td>
-      <td><span class="tag" style="background:#fef3c7;color:#92400e;border-color:#fde68a">${carryOver !== null ? 'Report' : 'Solde initial'}</span></td>
+      <td style="font-weight:700;color:#92400e;font-size:11px">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
+      <td class="m">—</td>
       <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
       <td class="r num" style="color:#b45309;font-weight:800">${fmt(pLedger.startBalance)}</td>
       <td class="m">—</td>
       <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
     ${pLedger.entries.length === 0
-      ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
+      ? '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
       : pLedger.entries.map(e => {
           const isVente = e.src === 'vente'
           const v = e.raw
@@ -382,22 +394,25 @@ ${carryOverBlock}
             : e.type === 'mdo'
             ? `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">M.O.</span>`
             : `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">${e.type === 'paiement' ? e.label : 'Remise'}</span>`
+          const camion = e.detail || '—'
+          const noteText = e.note || '—'
           return `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
             <td>${fmtDate(e.date)}</td>
-            <td class="m">${isVente ? (v.camion_plaque||'—') : '—'}</td>
+            <td class="m">${camion}</td>
+            <td style="font-size:11px;font-weight:600">${e.operation}</td>
             <td>${typeBadge}</td>
             <td class="r num">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '—'}</td>
             <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '—'}</td>
             <td class="r">${pMv(e)}</td>
             <td class="r num" style="font-weight:800;color:${soldeColor}">${fmt(e.solde)}</td>
-            <td class="m">${isVente ? (v.bon||'—') : '—'}</td>
-            <td class="m">${e.note || '—'}</td>
+            <td class="ref">${e.reference || '—'}</td>
+            <td class="m">${noteText}</td>
           </tr>`
         }).join('')}
   </tbody>
   ${pLedger.entries.length > 0 ? `<tfoot>
     <tr>
-      <td colspan="6">Total — ${pLedger.entries.length} opérations</td>
+      <td colspan="7">Total — ${pLedger.entries.length} opérations</td>
       <td class="r">${fmt(pLedger.finalBalance)} DHS</td>
       <td colspan="2"></td>
     </tr>
@@ -461,16 +476,46 @@ ${carryOverBlock}
     const startBalance = carryOver !== null ? carryOver : (selected?.opening_balance || 0)
     const entries = []
 
+    function opLabel(type, typeRemise) {
+      if (type === 'vente')         return 'Livraison'
+      if (type === 'mdo')           return "Main d'œuvre"
+      if (type === 'remise-voyage') return 'Remise'
+      if (type === 'paiement')      return 'Paiement'
+      if (type === 'remise') {
+        if (typeRemise === 'Fidélité')    return 'Remise fidélité'
+        if (typeRemise === 'Commerciale') return 'Remise commerciale'
+        if (typeRemise === 'Correction')  return 'Correction'
+        return 'Remise'
+      }
+      return 'Autre'
+    }
+
+    function makeRef(type, raw) {
+      if (type === 'paiement') {
+        const mode = (raw.mode || '').trim()
+        const pre = mode.startsWith('Chèque') ? 'CHQ'
+          : mode.startsWith('Virement') ? 'VIR'
+          : mode.startsWith('Espèce')   ? 'ESP'
+          : mode.startsWith('Traite')   ? 'TRT'
+          : mode.substring(0,3).toUpperCase() || 'PMT'
+        return `${pre}-${(raw.date||'').replace(/-/g,'')}`
+      }
+      return raw.bon || ''
+    }
+
     filteredVentes.forEach(v => {
       const isRemiseVoyage = v.type_entree === 'remise'
       const isMdo = v.type_entree === 'mdo'
+      const type = isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente'
       entries.push({
         date: v.date,
         created_at: v.created_at || '',
-        type: isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente',
+        type,
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
         detail: v.camion_plaque || '',
         note: isRemiseVoyage ? (v.description_mdo || v.note || '') : isMdo ? (v.description_mdo || '') : (v.note || ''),
+        operation: opLabel(type, null),
+        reference: makeRef(type, v),
         delta: v.total_vente || 0,
         src: 'vente',
         raw: v,
@@ -482,8 +527,10 @@ ${carryOverBlock}
       created_at: p.created_at || '',
       type: 'paiement',
       label: p.mode || 'Paiement',
-      detail: '',
+      detail: p.camion_plaque || '',
       note: p.note || '',
+      operation: 'Paiement',
+      reference: makeRef('paiement', p),
       delta: -(p.montant || 0),
       src: 'paiement',
       raw: p,
@@ -496,6 +543,8 @@ ${carryOverBlock}
       label: r.type_remise || 'Remise',
       detail: '',
       note: r.motif || '',
+      operation: opLabel('remise', r.type_remise),
+      reference: '',
       delta: -(r.montant || 0),
       src: 'remise',
       raw: r,
@@ -782,87 +831,47 @@ ${carryOverBlock}
                   )}
                 </div>
 
-                {/* TOTALS */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 pt-4 border-t border-gray-100">
-                  {/* If period is active: show carry-over, else show opening balance */}
-                  {carryOver !== null ? (
-                    <div className="text-center p-3 rounded-xl border-2" style={{background:'#fffbeb', borderColor:'#fde68a'}}>
-                      <div className="text-xs font-semibold mb-1 text-amber-700">📅 Solde mois précédent</div>
-                      <div className="text-xl font-bold text-amber-700">{fmt(carryOver)} DHS</div>
-                      <div className="text-xs text-gray-400 mt-1">Avant {periodLabel}</div>
+                {/* SOLDE ACTUEL À PAYER */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="rounded-2xl p-5 text-center mb-3" style={{background:'linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%)',border:'2px solid #e8b84b'}}>
+                    <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{color:'#e8b84b',letterSpacing:'0.15em'}}>
+                      SOLDE ACTUEL À PAYER
                     </div>
-                  ) : (
-                    <div className="text-center p-3 bg-amber-50 rounded-xl" style={{cursor:'pointer'}} onClick={() => editOpeningBalance(selected)}>
-                      <div className="text-xs text-amber-600 font-semibold mb-1">📂 Solde Reporté</div>
-                      <div className="text-xl font-bold text-amber-700">{fmt(selected.opening_balance || 0)} DHS</div>
-                      {selected.opening_date && (
-                        <div className="text-xs text-amber-600 mt-1 font-semibold">{`Solde au ${fmtMois(selected.opening_date)}`}</div>
-                      )}
-                      {selected.opening_note && (
-                        <div className="text-xs text-gray-500 mt-0.5 italic">{selected.opening_note}</div>
-                      )}
-                      {!selected.opening_date && !selected.opening_note && (
-                        <div className="text-xs text-gray-400 mt-1">Cliquer pour ajouter détails</div>
-                      )}
+                    <div className="font-black" style={{fontSize:42,color:(selected.solde||0)>0?'#fff':'#4ade80',lineHeight:1.1}}>
+                      {fmt(selected.solde || 0)} DHS
                     </div>
-                  )}
-                  <div className="text-center p-3 bg-blue-50 rounded-xl">
-                    <div className="text-xs text-blue-600 font-semibold mb-1">📦 Ventes {filterType !== 'all' ? '(période)' : ''}</div>
-                    <div className="text-xl font-bold text-blue-700">{fmt(totalVentesClient)} DHS</div>
-                  </div>
-                  <div className="text-center p-3 bg-green-50 rounded-xl">
-                    <div className="text-xs text-green-600 font-semibold mb-1">💰 Paiements {filterType !== 'all' ? '(période)' : ''}</div>
-                    <div className="text-xl font-bold text-green-600">{fmt(totalPaiementsClient)} DHS</div>
-                  </div>
-                  <div className="text-center p-3 rounded-xl" style={{background:'#faf5ff',border:'1px solid #e9d5ff'}}>
-                    <div className="text-xs font-semibold mb-1" style={{color:'#7c3aed'}}>🎁 Remises {filterType !== 'all' ? '(période)' : ''}</div>
-                    <div className="text-xl font-bold" style={{color:'#7c3aed'}}>{fmt(totalRemisesClient)} DHS</div>
-                  </div>
-                  {/* SOLDE DÛ — with carry-over if period active */}
-                  <div className="text-center p-3 rounded-xl border-2" style={{background:'#faf5ff', borderColor:'#e9d5ff'}}>
-                    <div className="text-xs font-semibold mb-1" style={{color:'#7c3aed'}}>⚠️ Solde dû {carryOver !== null ? '(période)' : 'final'}</div>
-                    <div className="text-xl font-bold" style={{color: (carryOver !== null ? (carryOver + totalVentesClient - totalPaiementsClient - totalRemisesClient) : (selected.solde || 0)) > 0 ? '#7c3aed' : '#16a34a'}}>
-                      {fmt(carryOver !== null
-                        ? carryOver + totalVentesClient - totalPaiementsClient - totalRemisesClient
-                        : (selected.solde || 0)
-                      )} DHS
+                    <div className="mt-2 text-xs" style={{color:'#93c5fd'}}>
+                      {selected.nom} · {selected.depot}
+                      {filterType !== 'all' && <span> · {getFilterLabel()}</span>}
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {carryOver !== null ? 'Report + Ventes − Paiements − Remises' : 'Initial + Ventes − Paiements − Remises'}
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 overflow-hidden text-sm">
+                    {[
+                      { label: carryOver !== null ? 'Solde mois précédent' : 'Ancien solde', value: carryOver !== null ? carryOver : (selected.opening_balance||0), prefix:'', color:'#b45309', bg:'#fffbeb' },
+                      { label: `Achats ${filterType!=='all'?'de la période':''}`, value: totalVentesClient, prefix:'+', color:'#1d4ed8', bg:'#eff6ff' },
+                      { label: `Paiements ${filterType!=='all'?'reçus':'reçus'}`, value: totalPaiementsClient, prefix:'−', color:'#16a34a', bg:'#f0fdf4' },
+                      ...(totalRemisesClient > 0 ? [{ label:'Remises accordées', value:totalRemisesClient, prefix:'−', color:'#7c3aed', bg:'#faf5ff' }] : []),
+                    ].map((row, i) => (
+                      <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100" style={{background:row.bg}}>
+                        <span className="text-gray-600">{row.label}</span>
+                        <span className="font-bold" style={{color:row.color}}>
+                          {row.prefix && <span className="mr-1 opacity-70">{row.prefix}</span>}
+                          {fmt(row.value)} DHS
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between px-4 py-3 border-t-2 border-purple-200" style={{background:'#faf5ff'}}>
+                      <span className="font-bold" style={{color:'#7c3aed'}}>= Solde {carryOver !== null ? 'fin de période' : 'final'}</span>
+                      <span className="font-black text-lg" style={{color:'#7c3aed'}}>
+                        {fmt(carryOver !== null
+                          ? carryOver + totalVentesClient - totalPaiementsClient - totalRemisesClient
+                          : (selected.solde || 0)
+                        )} DHS
+                      </span>
                     </div>
                   </div>
                 </div>
-
-                {/* CARRY-OVER BREAKDOWN — shown when period is active */}
-                {carryOver !== null && (
-                  <div className="mt-3 p-3 rounded-xl text-xs" style={{background:'#f0fdf4', border:'1px solid #bbf7d0'}}>
-                    <div className="font-bold text-green-800 mb-2">📊 Calcul du solde — {periodLabel}</div>
-                    <div className={`grid grid-cols-2 gap-2 ${totalRemisesClient > 0 ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
-                      <div className="text-center p-2 bg-white rounded-lg border border-green-100">
-                        <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>Report mois préc.</div>
-                        <div className="font-bold text-amber-700 mt-1">{fmt(carryOver)} DHS</div>
-                      </div>
-                      <div className="text-center p-2 bg-white rounded-lg border border-green-100">
-                        <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>+ Ventes période</div>
-                        <div className="font-bold text-blue-700 mt-1">+ {fmt(totalVentesClient)} DHS</div>
-                      </div>
-                      <div className="text-center p-2 bg-white rounded-lg border border-green-100">
-                        <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>− Paiements période</div>
-                        <div className="font-bold text-green-700 mt-1">− {fmt(totalPaiementsClient)} DHS</div>
-                      </div>
-                      {totalRemisesClient > 0 && (
-                        <div className="text-center p-2 bg-white rounded-lg border border-green-100">
-                          <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>− Remises période</div>
-                          <div className="font-bold mt-1" style={{color:'#7c3aed'}}>− {fmt(totalRemisesClient)} DHS</div>
-                        </div>
-                      )}
-                      <div className="text-center p-2 rounded-lg border-2 border-purple-200" style={{background:'#faf5ff'}}>
-                        <div className="text-gray-400 uppercase font-semibold" style={{fontSize:9,letterSpacing:'0.05em'}}>= Solde fin période</div>
-                        <div className="font-bold mt-1" style={{color:'#7c3aed'}}>{fmt(carryOver + totalVentesClient - totalPaiementsClient - totalRemisesClient)} DHS</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* RECONCILIATION BADGE — shown only when detail is loaded */}
                 {!loadingDetail && computedSolde !== null && (
@@ -915,8 +924,8 @@ ${carryOverBlock}
                       <table className="w-full border-collapse">
                         <thead>
                           <tr>
-                            {['Date','Camion','Type','Qté','Prix/u','Total DHS','Solde','Bon','Note',''].map((h,i) => (
-                              <th key={i} className={`th${[3,4,5,6].includes(i)?' text-right':''}`}
+                            {['Date','Camion','Opération','Type','Qté','Prix/u','Total DHS','Solde','Référence','Note',''].map((h,i) => (
+                              <th key={i} className={`th${[4,5,6,7].includes(i)?' text-right':''}`}
                                 style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',whiteSpace:'nowrap'}}>
                                 {h}
                               </th>
@@ -929,12 +938,11 @@ ${carryOverBlock}
                             <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#92400e',whiteSpace:'nowrap'}}>
                               {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                             </td>
-                            <td className="td text-gray-300 text-center" style={{border:'1px solid #e2e8f0'}}>—</td>
-                            <td className="td" style={{border:'1px solid #e2e8f0'}}>
-                              <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 8px',borderRadius:4}}>
-                                {carryOver !== null ? 'Report' : 'Solde initial'}
-                              </span>
+                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
+                            <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #e2e8f0'}}>
+                              {carryOver !== null ? 'Report' : 'Solde initial'}
                             </td>
+                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
                             {[0,1,2].map(k => <td key={k} className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>)}
                             <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',color:'#b45309',fontSize:'14px',whiteSpace:'nowrap'}}>
                               {fmt(ledger.startBalance)}
@@ -948,7 +956,7 @@ ${carryOverBlock}
 
                           {ledger.entries.length === 0 && (
                             <tr>
-                              <td colSpan={10} className="td text-center text-gray-400 py-8" style={{border:'1px solid #e2e8f0'}}>
+                              <td colSpan={11} className="td text-center text-gray-400 py-8" style={{border:'1px solid #e2e8f0'}}>
                                 Aucune opération pour cette période
                               </td>
                             </tr>
@@ -958,17 +966,20 @@ ${carryOverBlock}
                             const isVente = e.src === 'vente'
                             const isPos = e.delta >= 0
                             const absAmt = Math.abs(e.delta)
-                            const bgRow = (e.type === 'remise' || e.type === 'remise-voyage') ? '#f0fdf4'
-                              : e.type === 'paiement' ? '#f0fdf4'
+                            const bgRow = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
                               : e.type === 'mdo' ? '#fefce8'
                               : undefined
                             const amtColor = isPos ? '#1d4ed8' : '#16a34a'
                             const v = e.raw
+                            const detailText = [e.detail, e.note].filter(Boolean).join(' · ') || '—'
                             return (
                               <tr key={`${e.src}-${v?.id}-${i}`} style={bgRow ? {background:bgRow} : {}}>
                                 <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(e.date)}</td>
-                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
-                                  {isVente ? (v.camion_plaque || '—') : <span className="text-gray-300">—</span>}
+                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#374151'}}>
+                                  {e.detail || <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="td text-xs font-semibold" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#374151'}}>
+                                  {e.operation}
                                 </td>
                                 <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
                                   {e.type === 'vente'
@@ -992,8 +1003,8 @@ ${carryOverBlock}
                                   color: e.solde > 0 ? '#7c3aed' : '#16a34a'}}>
                                   {fmt(e.solde)}
                                 </td>
-                                <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
-                                  {isVente ? (v.bon || '—') : <span className="text-gray-300">—</span>}
+                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#6b7280',fontFamily:'monospace'}}>
+                                  {e.reference || <span className="text-gray-300">—</span>}
                                 </td>
                                 <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'150px',wordBreak:'break-word'}}>
                                   {e.note || '—'}
@@ -1017,7 +1028,7 @@ ${carryOverBlock}
                           return (
                             <tfoot>
                               <tr>
-                                <td className="tfoot-td" colSpan={6} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opérations</td>
+                                <td className="tfoot-td" colSpan={7} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opérations</td>
                                 <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px',color:'#c4b5fd'}}>
                                   {fmt(last.solde)} DHS
                                 </td>
