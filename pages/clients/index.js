@@ -226,33 +226,22 @@ export default function Clients() {
 
     const pLedger = buildLedger()
 
-    const kpiCols = totalRemises > 0 ? 4 : 3
-    const remisesColCount = totalRemises > 0 ? 5 : 4
-    const carryOverBlock = carryOver !== null ? `
-      <div class="calc-block">
-        <div class="calc-ttl">Calcul du solde — ${periodLabel}</div>
-        <div class="calc-g" style="grid-template-columns:repeat(${remisesColCount},1fr)">
-          <div class="calc-c"><div class="clbl">Solde mois précédent</div><div class="cval c-am">${fmt(carryOver)} DHS</div></div>
-          <div class="calc-c"><div class="clbl">+ Ventes période</div><div class="cval c-bl">+ ${fmt(totalVentes)} DHS</div></div>
-          <div class="calc-c"><div class="clbl">− Paiements période</div><div class="cval c-gn">− ${fmt(totalPaiements)} DHS</div></div>
-          ${totalRemises > 0 ? `<div class="calc-c"><div class="clbl">− Remises période</div><div class="cval" style="color:#7c3aed">− ${fmt(totalRemises)} DHS</div></div>` : ''}
-          <div class="calc-c res"><div class="clbl">= Solde fin période</div><div class="cval c-pr">${fmt(soldeFinPeriode)} DHS</div></div>
-        </div>
-      </div>` : ''
-
-    function pBadge(e) {
-      if (e.type === 'vente')         return `<span class="tag" style="background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe">📦 ${e.label}</span>`
-      if (e.type === 'mdo')           return `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">🔧 M.O.</span>`
-      if (e.type === 'remise-voyage') return `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">🎁 Remise</span>`
-      if (e.type === 'paiement')      return `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">💰 ${e.label}</span>`
-      return                                  `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">🎁 Remise</span>`
-    }
     function pMv(e) {
       const abs = Math.abs(e.delta)
       const isPos = e.delta >= 0
       const color = isPos ? '#1d4ed8' : '#16a34a'
       return `<span style="font-weight:800;color:${color}">${isPos ? '+ ' : '− '}${fmt(abs)}</span>`
     }
+    function pDetail(e) {
+      if (e.type === 'vente')         return [e.label !== '—' ? e.label : null, e.detail].filter(Boolean).join(' · ') || '—'
+      if (e.type === 'mdo')           return e.note || "Main d'œuvre"
+      if (e.type === 'remise-voyage') return e.note || 'Remise voyage'
+      if (e.type === 'paiement')      return [e.label, e.note].filter(Boolean).join(' · ') || '—'
+      if (e.type === 'remise')        return e.note || e.raw?.type_remise || 'Remise'
+      return '—'
+    }
+    const ancienSoldeVal = carryOver !== null ? carryOver : (selected.opening_balance || 0)
+    const showAncienSolde = ancienSoldeVal > 0
 
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Fiche Client — ${selected.nom}</title>
@@ -274,34 +263,8 @@ export default function Clients() {
   .client-card{display:flex;align-items:center;gap:14px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;border-left:4px solid #1a3a6b;margin-bottom:12px}
   .cli-ini{width:42px;height:42px;background:#1a3a6b;color:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;flex-shrink:0}
   .cli-n{font-size:16px;font-weight:800}.cli-m{font-size:12px;color:#64748b;margin-top:2px}
-  .pbadge{display:inline-flex;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:4px 12px;font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:14px}
-  .solde-card{background:linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%);border:2px solid #e8b84b;border-radius:10px;padding:16px 20px;text-align:center;margin-bottom:14px}
-  .sc-lbl{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.18em;color:#e8b84b;margin-bottom:6px}
-  .sc-amt{font-size:36px;font-weight:900;color:#fff;line-height:1}
-  .sc-sub{font-size:11px;color:#93c5fd;margin-top:5px}
-  .bkdn{border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:14px}
-  .bkdn-row{display:flex;justify-content:space-between;align-items:center;padding:7px 14px;border-bottom:1px solid #f1f5f9;font-size:12px}
-  .bkdn-row:last-child{border-bottom:none;border-top:2px solid #e9d5ff;background:#faf5ff;font-weight:700}
-  .bkdn-row.amber{background:#fffbeb}.bkdn-row.blue{background:#eff6ff}.bkdn-row.green{background:#f0fdf4}.bkdn-row.purple{background:#faf5ff}
-  .bkdn-lbl{color:#374151}.bkdn-val{font-weight:700}
-  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
-  .kpi{padding:12px 14px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
-  .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:4px}
-  .val{font-size:20px;font-weight:900;line-height:1}
-  .kpi.pr{border-left-color:#7c3aed}.kpi.pr .val{color:#7c3aed}
-  .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
-  .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
-  .kpi-sub{font-size:10px;color:#b45309;margin-top:3px}
-  .ref{font-family:monospace;font-size:10px;color:#6b7280}
-  .calc-block{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px 16px;margin-bottom:16px}
-  .calc-ttl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#166534;margin-bottom:9px}
-  .calc-g{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
-  .calc-c{padding:7px 9px;background:#fff;border:1px solid #bbf7d0;border-radius:4px}
-  .calc-c.res{border:2px solid #c4b5fd;background:#faf5ff}
-  .clbl{font-size:10px;text-transform:uppercase;font-weight:700;color:#6b7280;margin-bottom:3px}
-  .cval{font-weight:800;font-size:13px}
-  .c-am{color:#b45309}.c-bl{color:#1d4ed8}.c-gn{color:#16a34a}.c-pr{color:#7c3aed}
-  .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#0f2444;border-bottom:2px solid #e8b84b;padding-bottom:5px;margin:18px 0 0}
+  .pbadge{display:inline-flex;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:4px 12px;font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:16px}
+  .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#0f2444;border-bottom:2px solid #e8b84b;padding-bottom:5px;margin-bottom:0}
   table{width:100%;border-collapse:collapse}
   thead th{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
   thead th.r{text-align:right}
@@ -309,12 +272,13 @@ export default function Clients() {
   tbody td.r{text-align:right;font-family:monospace}
   tbody td.m{color:#94a3b8;font-size:11px}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .num{font-weight:700;font-size:12px}.gv{color:#16a34a;font-weight:700}
-  .tag{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:3px;padding:2px 7px;font-size:10px;font-weight:700}
-  .remise-row td{background:#f0fdf4 !important}.mdo-row td{background:#fffbeb !important}
   tfoot td{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-weight:700;font-size:12px;border:none !important}
-  tfoot td.r{font-size:13px}
-  .foot{margin-top:20px;padding-top:9px;border-top:2px solid #e8b84b;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}
+  tfoot td.r{font-size:13px;text-align:right}
+  .solde-final{background:linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%);border:2px solid #e8b84b;border-radius:10px;padding:22px 28px;text-align:center;margin-top:24px}
+  .sf-lbl{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.2em;color:#e8b84b;margin-bottom:8px}
+  .sf-amt{font-size:44px;font-weight:900;color:#fff;line-height:1}
+  .sf-sub{font-size:11px;color:#93c5fd;margin-top:6px}
+  .foot{margin-top:16px;padding-top:9px;border-top:2px solid #e8b84b;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}
   @media print{.btn-p,.btn-d{display:none !important}}
   @page{size:A4;margin:8mm 10mm}
 </style>
@@ -355,69 +319,45 @@ export default function Clients() {
   <div><div class="cli-n">${selected.nom}</div><div class="cli-m">Dépôt : ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; '+selected.tel:''}</div></div>
 </div>
 <div class="pbadge">Période : ${periode}</div>
-<div class="solde-card">
-  <div class="sc-lbl">SOLDE ACTUEL À PAYER</div>
-  <div class="sc-amt">${fmt(selected.solde || 0)} DHS</div>
-  <div class="sc-sub">${selected.nom} · ${selected.depot||''}${filterType !== 'all' ? ' · ' + periode : ''}</div>
-</div>
-<div class="bkdn">
-  <div class="bkdn-row amber"><span class="bkdn-lbl">${carryOver !== null ? 'Solde mois précédent' : 'Ancien solde'}</span><span class="bkdn-val" style="color:#b45309">${fmt(carryOver !== null ? carryOver : (selected.opening_balance||0))} DHS</span></div>
-  <div class="bkdn-row blue"><span class="bkdn-lbl">+ Achats ${filterType!=='all'?'de la période':''}</span><span class="bkdn-val" style="color:#1d4ed8">+ ${fmt(totalVentes)} DHS</span></div>
-  <div class="bkdn-row green"><span class="bkdn-lbl">− Paiements reçus</span><span class="bkdn-val" style="color:#16a34a">− ${fmt(totalPaiements)} DHS</span></div>
-  ${clientRemises.length > 0 ? `<div class="bkdn-row purple"><span class="bkdn-lbl">− Remises accordées</span><span class="bkdn-val" style="color:#7c3aed">− ${fmt(totalRemises)} DHS</span></div>` : ''}
-  <div class="bkdn-row"><span class="bkdn-lbl" style="color:#7c3aed">= Solde ${carryOver!==null?'fin de période':'final'}</span><span class="bkdn-val" style="color:#7c3aed;font-size:15px">${fmt(soldeFinPeriode)} DHS</span></div>
-</div>
-<div class="sec">Mouvements du compte (${pLedger.entries.length} opérations)</div>
+<div class="sec">Mouvements du compte (${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''})</div>
 <table>
-  <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Référence</th><th>Note</th></tr></thead>
+  <thead><tr><th>Date</th><th>Opération</th><th>Détail</th><th class="r">Montant DHS</th><th class="r">Solde DHS</th></tr></thead>
   <tbody>
     <tr style="background:#fffbeb !important">
       <td style="color:#92400e;font-size:11px">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
-      <td class="m">—</td>
       <td style="font-weight:700;color:#92400e;font-size:11px">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
-      <td class="m">—</td>
-      <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
-      <td class="r num" style="color:#b45309;font-weight:800">${fmt(pLedger.startBalance)}</td>
-      <td class="m">—</td>
       <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
+      <td class="r m">—</td>
+      <td class="r" style="color:#b45309;font-weight:800">${fmt(pLedger.startBalance)}</td>
     </tr>
     ${pLedger.entries.length === 0
-      ? '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
+      ? '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
       : pLedger.entries.map(e => {
-          const isVente = e.src === 'vente'
           const v = e.raw
           const rowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
             : e.type === 'mdo' ? '#fffbeb' : ''
           const soldeColor = e.solde > 0 ? '#7c3aed' : '#16a34a'
-          const typeBadge = e.type === 'vente'
-            ? `<span class="tag">${e.label}</span>`
-            : e.type === 'mdo'
-            ? `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">M.O.</span>`
-            : `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">${e.type === 'paiement' ? e.label : 'Remise'}</span>`
-          const camion = e.detail || '—'
-          const noteText = e.note || '—'
           return `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
-            <td>${fmtDate(e.date)}</td>
-            <td class="m">${camion}</td>
+            <td style="font-size:11px;color:#64748b;white-space:nowrap">${fmtDate(e.date)}</td>
             <td style="font-size:11px;font-weight:600">${e.operation}</td>
-            <td>${typeBadge}</td>
-            <td class="r num">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '—'}</td>
-            <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '—'}</td>
+            <td style="font-size:11px;color:#475569">${pDetail(e)}</td>
             <td class="r">${pMv(e)}</td>
-            <td class="r num" style="font-weight:800;color:${soldeColor}">${fmt(e.solde)}</td>
-            <td class="ref">${e.reference || '—'}</td>
-            <td class="m">${noteText}</td>
+            <td class="r" style="font-weight:800;color:${soldeColor}">${fmt(e.solde)}</td>
           </tr>`
         }).join('')}
   </tbody>
   ${pLedger.entries.length > 0 ? `<tfoot>
     <tr>
-      <td colspan="7">Total — ${pLedger.entries.length} opérations</td>
+      <td colspan="4">Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</td>
       <td class="r">${fmt(pLedger.finalBalance)} DHS</td>
-      <td colspan="2"></td>
     </tr>
   </tfoot>` : ''}
 </table>
+<div class="solde-final">
+  <div class="sf-lbl">SOLDE ACTUEL À PAYER</div>
+  <div class="sf-amt">${fmt(selected.solde || 0)} DHS</div>
+  <div class="sf-sub">${selected.nom} · ${selected.depot||''}${filterType !== 'all' ? ' · ' + periode : ''}${showAncienSolde ? ' &nbsp;·&nbsp; Ancien solde : ' + fmt(ancienSoldeVal) + ' DHS' : ''}</div>
+</div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
@@ -846,31 +786,11 @@ export default function Clients() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-gray-200 overflow-hidden text-sm">
-                    {[
-                      { label: carryOver !== null ? 'Solde mois précédent' : 'Ancien solde', value: carryOver !== null ? carryOver : (selected.opening_balance||0), prefix:'', color:'#b45309', bg:'#fffbeb' },
-                      { label: `Achats ${filterType!=='all'?'de la période':''}`, value: totalVentesClient, prefix:'+', color:'#1d4ed8', bg:'#eff6ff' },
-                      { label: `Paiements ${filterType!=='all'?'reçus':'reçus'}`, value: totalPaiementsClient, prefix:'−', color:'#16a34a', bg:'#f0fdf4' },
-                      ...(clientRemises.length > 0 ? [{ label:'Remises accordées', value:totalRemisesClient, prefix:'−', color:'#7c3aed', bg:'#faf5ff' }] : []),
-                    ].map((row, i) => (
-                      <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100" style={{background:row.bg}}>
-                        <span className="text-gray-600">{row.label}</span>
-                        <span className="font-bold" style={{color:row.color}}>
-                          {row.prefix && <span className="mr-1 opacity-70">{row.prefix}</span>}
-                          {fmt(row.value)} DHS
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between px-4 py-3 border-t-2 border-purple-200" style={{background:'#faf5ff'}}>
-                      <span className="font-bold" style={{color:'#7c3aed'}}>= Solde {carryOver !== null ? 'fin de période' : 'final'}</span>
-                      <span className="font-black text-lg" style={{color:'#7c3aed'}}>
-                        {fmt(carryOver !== null
-                          ? carryOver + totalVentesClient - totalPaiementsClient - totalRemisesClient
-                          : (selected.solde || 0)
-                        )} DHS
-                      </span>
+                  {((selected.opening_balance || 0) > 0 || carryOver !== null) && (
+                    <div className="text-xs text-center mt-1" style={{color:'#93c5fd'}}>
+                      Ancien solde : <span className="font-semibold">{fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</span>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* RECONCILIATION BADGE — shown only when detail is loaded */}
@@ -908,7 +828,7 @@ export default function Clients() {
                 <div className="card text-center py-10 text-gray-400">Chargement...</div>
               ) : (
                 <>
-                  {/* UNIFIED ACCOUNT LEDGER */}
+                  {/* ── UNIFIED ACCOUNT LEDGER ── */}
                   <div className="card">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <h3 className="font-semibold text-gray-900">
@@ -924,8 +844,8 @@ export default function Clients() {
                       <table className="w-full border-collapse">
                         <thead>
                           <tr>
-                            {['Date','Camion','Opération','Type','Qté','Prix/u','Total DHS','Solde','Référence','Note',''].map((h,i) => (
-                              <th key={i} className={`th${[4,5,6,7].includes(i)?' text-right':''}`}
+                            {['Date','Opération','Détail','Montant','Solde',''].map((h,i) => (
+                              <th key={i} className={`th${[3,4].includes(i)?' text-right':''}`}
                                 style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',whiteSpace:'nowrap'}}>
                                 {h}
                               </th>
@@ -938,18 +858,15 @@ export default function Clients() {
                             <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#92400e',whiteSpace:'nowrap'}}>
                               {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                             </td>
-                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
                             <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #e2e8f0'}}>
                               {carryOver !== null ? 'Report' : 'Solde initial'}
                             </td>
-                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
-                            {[0,1,2].map(k => <td key={k} className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>)}
-                            <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',color:'#b45309',fontSize:'14px',whiteSpace:'nowrap'}}>
-                              {fmt(ledger.startBalance)}
-                            </td>
-                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
                             <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0'}}>
                               {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
+                            </td>
+                            <td className="td text-right text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
+                            <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',color:'#b45309',fontSize:'14px',whiteSpace:'nowrap'}}>
+                              {fmt(ledger.startBalance)}
                             </td>
                             <td className="td" style={{border:'1px solid #e2e8f0'}}></td>
                           </tr>
@@ -963,7 +880,6 @@ export default function Clients() {
                           )}
 
                           {ledger.entries.map((e, i) => {
-                            const isVente = e.src === 'vente'
                             const isPos = e.delta >= 0
                             const absAmt = Math.abs(e.delta)
                             const bgRow = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
@@ -971,30 +887,22 @@ export default function Clients() {
                               : undefined
                             const amtColor = isPos ? '#1d4ed8' : '#16a34a'
                             const v = e.raw
-                            const detailText = [e.detail, e.note].filter(Boolean).join(' · ') || '—'
+                            const detail = (() => {
+                              if (e.type === 'vente')         return [e.label !== '—' ? e.label : null, e.detail].filter(Boolean).join(' · ') || '—'
+                              if (e.type === 'mdo')           return e.note || "Main d'œuvre"
+                              if (e.type === 'remise-voyage') return e.note || 'Remise voyage'
+                              if (e.type === 'paiement')      return [e.label, e.note].filter(Boolean).join(' · ') || '—'
+                              if (e.type === 'remise')        return e.note || v?.type_remise || 'Remise'
+                              return '—'
+                            })()
                             return (
                               <tr key={`${e.src}-${v?.id}-${i}`} style={bgRow ? {background:bgRow} : {}}>
                                 <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(e.date)}</td>
-                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#374151'}}>
-                                  {e.detail || <span className="text-gray-300">—</span>}
-                                </td>
                                 <td className="td text-xs font-semibold" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#374151'}}>
                                   {e.operation}
                                 </td>
-                                <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
-                                  {e.type === 'vente'
-                                    ? <span className="badge-gray">{e.label}</span>
-                                    : e.type === 'mdo'
-                                    ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:4}}>M.O.</span>
-                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:4}}>
-                                        {e.type === 'paiement' ? e.label : 'Remise'}
-                                      </span>}
-                                </td>
-                                <td className="td text-right font-semibold text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
-                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-300">—</span>}
-                                </td>
-                                <td className="td text-right text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
-                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-300">—</span>}
+                                <td className="td text-xs text-gray-500" style={{border:'1px solid #e2e8f0'}}>
+                                  {detail}
                                 </td>
                                 <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',color:amtColor}}>
                                   {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
@@ -1002,12 +910,6 @@ export default function Clients() {
                                 <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',
                                   color: e.solde > 0 ? '#7c3aed' : '#16a34a'}}>
                                   {fmt(e.solde)}
-                                </td>
-                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#6b7280',fontFamily:'monospace'}}>
-                                  {e.reference || <span className="text-gray-300">—</span>}
-                                </td>
-                                <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'150px',wordBreak:'break-word'}}>
-                                  {e.note || '—'}
                                 </td>
                                 <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
                                   {e.src === 'remise' && (
@@ -1028,17 +930,31 @@ export default function Clients() {
                           return (
                             <tfoot>
                               <tr>
-                                <td className="tfoot-td" colSpan={7} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opérations</td>
+                                <td className="tfoot-td" colSpan={4} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opération{ledger.entries.length !== 1 ? 's' : ''}</td>
                                 <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px',color:'#c4b5fd'}}>
                                   {fmt(last.solde)} DHS
                                 </td>
-                                <td className="tfoot-td" colSpan={3} style={{border:'1px solid #cbd5e1'}}></td>
+                                <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
                               </tr>
                             </tfoot>
                           )
                         })()}
                       </table>
                     </div>
+                  </div>
+                  {/* ── SOLDE FINAL ── */}
+                  <div className="rounded-2xl p-6 text-center" style={{background:'linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%)',border:'2px solid #e8b84b'}}>
+                    <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'#e8b84b',letterSpacing:'0.18em'}}>
+                      SOLDE ACTUEL À PAYER
+                    </div>
+                    <div className="font-black" style={{fontSize:48,lineHeight:1.1,color:(selected.solde||0)>0?'#fff':'#4ade80'}}>
+                      {fmt(selected.solde || 0)} DHS
+                    </div>
+                    {((selected.opening_balance || 0) > 0 || carryOver !== null) && (
+                      <div className="mt-3 text-xs" style={{color:'#93c5fd'}}>
+                        Ancien solde : {fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS
+                      </div>
+                    )}
                   </div>
                 </>
               )}
