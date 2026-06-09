@@ -274,10 +274,10 @@ export default function Clients() {
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   tfoot td{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-weight:700;font-size:12px;border:none !important}
   tfoot td.r{font-size:13px;text-align:right}
-  .solde-final{background:linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%);border:2px solid #e8b84b;border-radius:10px;padding:22px 28px;text-align:center;margin-top:24px}
-  .sf-lbl{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.2em;color:#e8b84b;margin-bottom:8px}
-  .sf-amt{font-size:44px;font-weight:900;color:#fff;line-height:1}
-  .sf-sub{font-size:11px;color:#93c5fd;margin-top:6px}
+  .solde-final{background:linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%);border:2px solid #e8b84b;border-radius:10px;padding:14px 20px;text-align:center;margin-top:18px}
+  .sf-lbl{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.2em;color:#e8b84b;margin-bottom:5px}
+  .sf-amt{font-size:28px;font-weight:900;color:#fff;line-height:1}
+  .sf-sub{font-size:10px;color:#93c5fd;margin-top:5px}
   .foot{margin-top:16px;padding-top:9px;border-top:2px solid #e8b84b;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}
   @media print{.btn-p,.btn-d{display:none !important}}
   @page{size:A4;margin:8mm 10mm}
@@ -943,11 +943,11 @@ export default function Clients() {
                     </div>
                   </div>
                   {/* ── SOLDE FINAL ── */}
-                  <div className="rounded-2xl p-6 text-center" style={{background:'linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%)',border:'2px solid #e8b84b'}}>
+                  <div className="rounded-2xl p-4 text-center" style={{background:'linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%)',border:'2px solid #e8b84b'}}>
                     <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'#e8b84b',letterSpacing:'0.18em'}}>
                       SOLDE ACTUEL À PAYER
                     </div>
-                    <div className="font-black" style={{fontSize:48,lineHeight:1.1,color:ledger.finalBalance>0?'#fff':'#4ade80'}}>
+                    <div className="font-black" style={{fontSize:32,lineHeight:1.1,color:ledger.finalBalance>0?'#fff':'#4ade80'}}>
                       {fmt(ledger.finalBalance)} DHS
                     </div>
                     {((selected.opening_balance || 0) > 0 || carryOver !== null) && (
