@@ -371,7 +371,7 @@ export default function Clients() {
 <div class="solde-final">
   <div class="sf-lbl">SOLDE ACTUEL À PAYER</div>
   <div class="sf-amt">${fmt(pLedger.finalBalance)} DHS</div>
-  <div class="sf-sub">${selected.nom} · ${selected.depot||''}${filterType !== 'all' ? ' · ' + periode : ''}${showAncienSolde ? ' &nbsp;·&nbsp; Ancien solde : ' + fmt(ancienSoldeVal) + ' DHS' : ''}</div>
+  <div class="sf-sub">${selected.nom} · ${selected.depot||''}${filterType !== 'all' ? ' · ' + periode : ''}</div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
@@ -982,11 +982,6 @@ export default function Clients() {
                     <div className="font-black" style={{fontSize:32,lineHeight:1.1,color:ledger.finalBalance>0?'#fff':'#4ade80'}}>
                       {fmt(ledger.finalBalance)} DHS
                     </div>
-                    {((selected.opening_balance || 0) > 0 || carryOver !== null) && (
-                      <div className="mt-3 text-xs" style={{color:'#93c5fd'}}>
-                        Ancien solde : {fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS
-                      </div>
-                    )}
                   </div>
                 </>
               )}
