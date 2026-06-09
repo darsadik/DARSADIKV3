@@ -321,35 +321,50 @@ export default function Clients() {
 <div class="pbadge">Période : ${periode}</div>
 <div class="sec">Mouvements du compte (${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''})</div>
 <table>
-  <thead><tr><th>Date</th><th>Opération</th><th>Détail</th><th class="r">Montant DHS</th><th class="r">Solde DHS</th></tr></thead>
+  <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Référence</th><th>Note</th></tr></thead>
   <tbody>
     <tr style="background:#fffbeb !important">
       <td style="color:#92400e;font-size:11px">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
+      <td class="m">—</td>
       <td style="font-weight:700;color:#92400e;font-size:11px">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
-      <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
-      <td class="r m">—</td>
+      <td class="m">—</td>
+      <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
       <td class="r" style="color:#b45309;font-weight:800">${fmt(pLedger.startBalance)}</td>
+      <td class="m">—</td>
+      <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
     ${pLedger.entries.length === 0
-      ? '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
+      ? '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
       : pLedger.entries.map(e => {
+          const isVente = e.src === 'vente'
           const v = e.raw
           const rowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
             : e.type === 'mdo' ? '#fffbeb' : ''
           const soldeColor = e.solde > 0 ? '#7c3aed' : '#16a34a'
+          const typeBadge = e.type === 'vente'
+            ? `<span class="tag">${e.label}</span>`
+            : e.type === 'mdo'
+            ? `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">M.O.</span>`
+            : `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">${e.type === 'paiement' ? e.label : 'Remise'}</span>`
           return `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
-            <td style="font-size:11px;color:#64748b;white-space:nowrap">${fmtDate(e.date)}</td>
+            <td>${fmtDate(e.date)}</td>
+            <td class="m">${e.detail || '—'}</td>
             <td style="font-size:11px;font-weight:600">${e.operation}</td>
-            <td style="font-size:11px;color:#475569">${pDetail(e)}</td>
+            <td>${typeBadge}</td>
+            <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '—'}</td>
+            <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '—'}</td>
             <td class="r">${pMv(e)}</td>
             <td class="r" style="font-weight:800;color:${soldeColor}">${fmt(e.solde)}</td>
+            <td style="font-family:monospace;font-size:10px;color:#6b7280">${e.reference || '—'}</td>
+            <td class="m">${e.note || '—'}</td>
           </tr>`
         }).join('')}
   </tbody>
   ${pLedger.entries.length > 0 ? `<tfoot>
     <tr>
-      <td colspan="4">Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</td>
+      <td colspan="7">Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</td>
       <td class="r">${fmt(pLedger.finalBalance)} DHS</td>
+      <td colspan="2"></td>
     </tr>
   </tfoot>` : ''}
 </table>
@@ -844,8 +859,8 @@ export default function Clients() {
                       <table className="w-full border-collapse">
                         <thead>
                           <tr>
-                            {['Date','Opération','Détail','Montant','Solde',''].map((h,i) => (
-                              <th key={i} className={`th${[3,4].includes(i)?' text-right':''}`}
+                            {['Date','Camion','Opération','Type','Qté','Prix/u','Total DHS','Solde','Référence','Note',''].map((h,i) => (
+                              <th key={i} className={`th${[4,5,6,7].includes(i)?' text-right':''}`}
                                 style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',whiteSpace:'nowrap'}}>
                                 {h}
                               </th>
@@ -858,15 +873,18 @@ export default function Clients() {
                             <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#92400e',whiteSpace:'nowrap'}}>
                               {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                             </td>
+                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
                             <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #e2e8f0'}}>
                               {carryOver !== null ? 'Report' : 'Solde initial'}
                             </td>
-                            <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0'}}>
-                              {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
-                            </td>
-                            <td className="td text-right text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
+                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
+                            {[0,1,2].map(k => <td key={k} className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>)}
                             <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',color:'#b45309',fontSize:'14px',whiteSpace:'nowrap'}}>
                               {fmt(ledger.startBalance)}
+                            </td>
+                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
+                            <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0'}}>
+                              {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
                             </td>
                             <td className="td" style={{border:'1px solid #e2e8f0'}}></td>
                           </tr>
@@ -880,6 +898,7 @@ export default function Clients() {
                           )}
 
                           {ledger.entries.map((e, i) => {
+                            const isVente = e.src === 'vente'
                             const isPos = e.delta >= 0
                             const absAmt = Math.abs(e.delta)
                             const bgRow = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
@@ -887,22 +906,29 @@ export default function Clients() {
                               : undefined
                             const amtColor = isPos ? '#1d4ed8' : '#16a34a'
                             const v = e.raw
-                            const detail = (() => {
-                              if (e.type === 'vente')         return [e.label !== '—' ? e.label : null, e.detail].filter(Boolean).join(' · ') || '—'
-                              if (e.type === 'mdo')           return e.note || "Main d'œuvre"
-                              if (e.type === 'remise-voyage') return e.note || 'Remise voyage'
-                              if (e.type === 'paiement')      return [e.label, e.note].filter(Boolean).join(' · ') || '—'
-                              if (e.type === 'remise')        return e.note || v?.type_remise || 'Remise'
-                              return '—'
-                            })()
                             return (
                               <tr key={`${e.src}-${v?.id}-${i}`} style={bgRow ? {background:bgRow} : {}}>
                                 <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(e.date)}</td>
+                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#374151'}}>
+                                  {e.detail || <span className="text-gray-300">—</span>}
+                                </td>
                                 <td className="td text-xs font-semibold" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#374151'}}>
                                   {e.operation}
                                 </td>
-                                <td className="td text-xs text-gray-500" style={{border:'1px solid #e2e8f0'}}>
-                                  {detail}
+                                <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                  {e.type === 'vente'
+                                    ? <span className="badge-gray">{e.label}</span>
+                                    : e.type === 'mdo'
+                                    ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:4}}>M.O.</span>
+                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:4}}>
+                                        {e.type === 'paiement' ? e.label : 'Remise'}
+                                      </span>}
+                                </td>
+                                <td className="td text-right font-semibold text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="td text-right text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-300">—</span>}
                                 </td>
                                 <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',color:amtColor}}>
                                   {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
@@ -910,6 +936,12 @@ export default function Clients() {
                                 <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',
                                   color: e.solde > 0 ? '#7c3aed' : '#16a34a'}}>
                                   {fmt(e.solde)}
+                                </td>
+                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#6b7280',fontFamily:'monospace'}}>
+                                  {e.reference || <span className="text-gray-300">—</span>}
+                                </td>
+                                <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'150px',wordBreak:'break-word'}}>
+                                  {e.note || '—'}
                                 </td>
                                 <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
                                   {e.src === 'remise' && (
@@ -930,11 +962,11 @@ export default function Clients() {
                           return (
                             <tfoot>
                               <tr>
-                                <td className="tfoot-td" colSpan={4} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opération{ledger.entries.length !== 1 ? 's' : ''}</td>
+                                <td className="tfoot-td" colSpan={7} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opération{ledger.entries.length !== 1 ? 's' : ''}</td>
                                 <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px',color:'#c4b5fd'}}>
                                   {fmt(last.solde)} DHS
                                 </td>
-                                <td className="tfoot-td" style={{border:'1px solid #cbd5e1'}}></td>
+                                <td className="tfoot-td" colSpan={3} style={{border:'1px solid #cbd5e1'}}></td>
                               </tr>
                             </tfoot>
                           )
