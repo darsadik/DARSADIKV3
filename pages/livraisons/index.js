@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
+import * as XLSX from 'xlsx'
 
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtD    = n => parseFloat(n || 0).toFixed(2)
@@ -317,6 +318,60 @@ export default function Livraisons() {
       + '</body></html>')
   }
 
+  function exportSaisieXLSX() {
+    const detailRows = filteredSaisie.map(v => {
+      const isMdo    = ['mdo','gasoil','autre'].includes(v.type_entree)
+      const isRemise = v.type_entree === 'remise'
+      return {
+        'Date':        fmtDate(v.date),
+        'Client':      v.client_nom || '',
+        'Type':        isMdo    ? (v.type_entree === 'mdo' ? "Main d'oeuvre" : v.type_entree === 'gasoil' ? 'Frais Gasoil' : 'Autre charge')
+                     : isRemise ? 'Remise'
+                     : 'Vente brique',
+        'Produit':     v.type_brique || '',
+        'Camion':      v.camion_plaque || '',
+        'Fournisseur': v.fournisseur || '',
+        'Quantite':    isMdo || isRemise ? '' : (v.qte || 0),
+        'Prix/u DHS':  isMdo || isRemise ? '' : (v.prix_vente || 0),
+        'Total DHS':   isRemise ? -(v.montant_mdo || 0) : (v.total_vente || 0),
+        'BON':         v.bon || '',
+        'Description': v.description_mdo || '',
+        'Note':        v.note || '',
+      }
+    })
+
+    const tV  = filteredSaisie.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const tQ  = filteredSaisie.reduce((s, v) => s + (v.qte || 0), 0)
+    detailRows.push({
+      'Date': 'TOTAL', 'Client': `${filteredSaisie.length} entrée(s)`,
+      'Type': '', 'Produit': '', 'Camion': '', 'Fournisseur': '',
+      'Quantite': tQ, 'Prix/u DHS': '', 'Total DHS': tV,
+      'BON': '', 'Description': '', 'Note': '',
+    })
+
+    // Recap par client
+    const byClient = {}
+    filteredSaisie.forEach(v => {
+      const nom = v.client_nom || 'Inconnu'
+      if (!byClient[nom]) byClient[nom] = { nb: 0, qte: 0, total: 0 }
+      byClient[nom].nb    += 1
+      byClient[nom].qte   += v.qte || 0
+      byClient[nom].total += v.total_vente || 0
+    })
+    const clientRows = Object.entries(byClient)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([nom, d]) => ({ 'Client': nom, 'Nb entrées': d.nb, 'Total briques': d.qte, 'Total DHS': d.total }))
+
+    const wb  = XLSX.utils.book_new()
+    const ws1 = XLSX.utils.json_to_sheet(detailRows)
+    const ws2 = XLSX.utils.json_to_sheet(clientRows)
+    ws1['!cols'] = [{wch:12},{wch:22},{wch:16},{wch:14},{wch:12},{wch:16},{wch:10},{wch:10},{wch:12},{wch:10},{wch:20},{wch:20}]
+    ws2['!cols'] = [{wch:22},{wch:12},{wch:16},{wch:12}]
+    XLSX.utils.book_append_sheet(wb, ws1, 'Ventes directes')
+    XLSX.utils.book_append_sheet(wb, ws2, 'Recap clients')
+    XLSX.writeFile(wb, `Ventes-directes-${filterSaisieFrom}-${filterSaisieTo}.xlsx`)
+  }
+
   const TABS = [
     { key: 'brique',  label: '🧱 Livraisons Briques', color: '#1e3a5f' },
     { key: 'grignon', label: '🫒 Livraisons Grignon',  color: '#92400e' },
@@ -526,8 +581,14 @@ export default function Livraisons() {
                       {saisieUniqueClients.map(c=><option key={c.id} value={c.id}>{c.nom}</option>)}
                     </select>
                   </div>
-                  <button onClick={()=>{setFilterSaisieFrom(startOfMonth());setFilterSaisieTo(today());setFilterSaisieClient('')}}
-                    className="btn-secondary text-xs justify-center">↺ Réinitialiser</button>
+                  <div className="flex gap-2 items-end">
+                    <button onClick={()=>{setFilterSaisieFrom(startOfMonth());setFilterSaisieTo(today());setFilterSaisieClient('')}}
+                      className="btn-secondary text-xs flex-1 justify-center">↺ Réinitialiser</button>
+                    <button onClick={exportSaisieXLSX}
+                      className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>
+                      📥 Excel
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-2 text-xs text-gray-400">
                   {filteredSaisie.length} entrée(s) — {fmt(saisieTotal)} DHS
