@@ -64,6 +64,144 @@ function TotalRow({ cols }) {
   )
 }
 
+// ── DELETE PREVIEW MODAL ─────────────────────────────────────────────────────
+
+function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, retours, onConfirm, onCancel, archiving }) {
+  const ids = voyages.map(v => v.id)
+
+  const myLivs = livraisons.filter(l => ids.includes(l.voyage_id))
+  const myAcs  = achats.filter(a => ids.includes(a.voyage_id))
+  const myChgs = charges.filter(c => ids.includes(c.voyage_id))
+  const myGas  = gasoilData.filter(g => ids.includes(g.voyage_id))
+  const myRets = retours.filter(r => ids.includes(r.voyage_id))
+
+  const revenuLivs = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0)
+  const revenuRets = myRets.reduce((s, r) => s + (r.montant || 0), 0)
+  const chgCli     = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
+  const revenuBrut = revenuLivs + revenuRets + chgCli
+  const coutAchat  = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte || 0) * (a.prix_achat || 0)), 0)
+  const coutGasoil = myGas.reduce((s, g) => s + (g.total || 0), 0)
+  const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
+  const profit     = revenuBrut - coutAchat - coutGasoil - coutCharges
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget && !archiving) onCancel() }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-slate-100">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xl">🗄️</span>
+                <h3 className="font-black text-slate-800 text-base">
+                  Archiver {voyages.length > 1 ? `${voyages.length} voyages` : 'le voyage'}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Le voyage sera masqué de la liste normale et accessible depuis la vue Archives pour une éventuelle restauration.
+              </p>
+            </div>
+            {!archiving && (
+              <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 text-2xl leading-none flex-shrink-0 mt-0.5">×</button>
+            )}
+          </div>
+        </div>
+
+        {/* Voyage list (max 5) */}
+        {voyages.length <= 5 && (
+          <div className="px-6 pt-4 space-y-1">
+            {voyages.map(v => (
+              <div key={v.id} className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-lg">
+                <span className="text-slate-400">🚛</span>
+                <span className="font-bold text-slate-800">{v.camion_plaque || `#${v.id}`}</span>
+                <span className="text-slate-400">{fmtDate(v.date_depart)}</span>
+                {v.destination && <span className="text-slate-400">→ {v.destination}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        {voyages.length > 5 && (
+          <div className="px-6 pt-4">
+            <div className="bg-slate-50 px-3 py-2 rounded-lg text-xs text-slate-500">
+              {voyages.length} voyages sélectionnés — du {fmtDate(voyages[voyages.length-1]?.date_depart)} au {fmtDate(voyages[0]?.date_depart)}
+            </div>
+          </div>
+        )}
+
+        {/* Records count */}
+        <div className="px-6 pt-4">
+          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Enregistrements concernés</div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {[
+              { label: 'Livraisons', count: myLivs.length, cls: 'bg-blue-50 text-blue-700' },
+              { label: 'Achats',     count: myAcs.length,  cls: 'bg-purple-50 text-purple-700' },
+              { label: 'Charges',    count: myChgs.length, cls: 'bg-orange-50 text-orange-700' },
+              { label: 'Gasoil',     count: myGas.length,  cls: 'bg-amber-50 text-amber-700' },
+              { label: 'Retours',    count: myRets.length, cls: 'bg-teal-50 text-teal-700' },
+            ].map(item => (
+              <div key={item.label} className={`${item.cls} rounded-xl p-2.5 text-center`}>
+                <div className="text-xl font-black">{item.count}</div>
+                <div className="text-[9px] font-semibold mt-0.5 uppercase tracking-wide leading-tight">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Financial impact */}
+        <div className="px-6 pt-3">
+          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Impact financier</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-emerald-50 rounded-xl p-3">
+              <div className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide">Revenu total</div>
+              <div className="font-black text-emerald-700 text-sm mt-0.5">{fmt(revenuBrut)} DHS</div>
+            </div>
+            <div className="bg-red-50 rounded-xl p-3">
+              <div className="text-[10px] text-red-500 font-semibold uppercase tracking-wide">Achats</div>
+              <div className="font-black text-red-600 text-sm mt-0.5">{fmt(coutAchat)} DHS</div>
+            </div>
+            <div className="bg-orange-50 rounded-xl p-3">
+              <div className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Charges + Gasoil</div>
+              <div className="font-black text-orange-600 text-sm mt-0.5">{fmt(coutCharges + coutGasoil)} DHS</div>
+            </div>
+            <div className={`rounded-xl p-3 ${profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+              <div className={`text-[10px] font-semibold uppercase tracking-wide ${profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                Profit archivé
+              </div>
+              <div className={`font-black text-sm mt-0.5 ${profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                {profit >= 0 ? '+' : ''}{fmt(profit)} DHS
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Info note */}
+        <div className="px-6 pt-3">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs text-blue-700 leading-relaxed">
+            <span className="font-bold">Info :</span> Les soldes clients restent inchangés lors de l'archivage. Pour supprimer définitivement et corriger les soldes, utilisez la suppression permanente depuis la vue Archives (admin).
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="px-6 py-5 flex justify-end gap-3">
+          <button onClick={onCancel} disabled={archiving}
+            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition disabled:opacity-40">
+            Annuler
+          </button>
+          <button onClick={onConfirm} disabled={archiving}
+            className="bg-amber-500 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-amber-600 transition disabled:opacity-60 flex items-center gap-2">
+            {archiving
+              ? <><span className="inline-block animate-spin">⌛</span> Archivage...</>
+              : <>🗄️ {voyages.length > 1 ? `Archiver ${voyages.length} voyages` : 'Archiver le voyage'}</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export default function Voyages() {
@@ -91,10 +229,14 @@ export default function Voyages() {
   const [sortAsc,   setSortAsc]   = useState(false)
 
   // ── EDIT/DELETE VOYAGE ──
-  const [editingVoyage, setEditingVoyage] = useState(null)
-  const [editVoyageForm, setEditVoyageForm] = useState({})
+  const [editingVoyage,    setEditingVoyage]    = useState(null)
+  const [editVoyageForm,   setEditVoyageForm]   = useState({})
   const [savingEditVoyage, setSavingEditVoyage] = useState(false)
-  const [deletingId, setDeletingId] = useState(null)
+
+  // ── MULTI-SELECT & DELETE PREVIEW ──
+  const [selectedIds,      setSelectedIds]      = useState([])
+  const [deletePreviewFor, setDeletePreviewFor] = useState(null) // array of voyage objects | null
+  const [archiving,        setArchiving]        = useState(false)
 
   // ── FILTERS ──
   const [filterFrom,   setFilterFrom]   = useState(startOfMonth())
@@ -124,7 +266,7 @@ export default function Voyages() {
       { data: sc },
       { data: ag },
     ] = await Promise.all([
-      supabase.from('voyages').select('*').order('date_depart', { ascending: false }),
+      supabase.from('voyages').select('*').is('deleted_at', null).order('date_depart', { ascending: false }),
       supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
       supabase.from('voyage_livraisons').select('voyage_id,type_produit,client_id,client_nom,qte,total_vente,total_achat,prix_achat'),
       supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
@@ -150,7 +292,6 @@ export default function Voyages() {
 
   // ── PROFIT FORMULA ────────────────────────────────────────────────────────
 
-  // Build map: camion_id → sorted gasoil refills with km
   const gasoilByCamion = allGasoil.reduce((acc, g) => {
     if (!acc[g.camion_id]) acc[g.camion_id] = []
     acc[g.camion_id].push(g)
@@ -190,7 +331,6 @@ export default function Voyages() {
 
     const coutAchat   = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte||0)*(a.prix_achat||0)), 0)
     const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    // Fuel: km-based per voyage, fallback to historical voyage_gasoil entry
     const coutGasoil  = myVoyages.reduce((s, v) => {
       const km = kmFuelCost(v)
       if (km !== null) return s + km
@@ -232,15 +372,39 @@ export default function Voyages() {
     loadAll()
   }
 
-  // ── DELETE VOYAGE (CASCADE) ────────────────────────────────────────────────
-  async function deleteVoyage(v) {
-    if (!confirm(`Supprimer le voyage ${v.reference || '#'+v.id} et toutes ses données ?`)) return
-    setDeletingId(v.id)
-    const { error } = await supabase.rpc('delete_voyage', { p_voyage_id: v.id })
+  // ── MULTI-SELECT ──────────────────────────────────────────────────────────
+  function toggleSelect(id) {
+    setSelectedIds(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+  }
+
+  function toggleSelectAll(visibleVoyages) {
+    const allSelected = visibleVoyages.every(v => selectedIds.includes(v.id))
+    setSelectedIds(allSelected ? [] : visibleVoyages.map(v => v.id))
+  }
+
+  // ── DELETE / ARCHIVE ──────────────────────────────────────────────────────
+  function openDeletePreview(voyageObjs) {
+    setDeletePreviewFor(voyageObjs)
+  }
+
+  async function confirmSoftDelete() {
+    if (!deletePreviewFor?.length) return
+    setArchiving(true)
+    const ids = deletePreviewFor.map(v => v.id)
+    const { error } = await supabase
+      .from('voyages')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user?.email || 'unknown',
+      })
+      .in('id', ids)
+    setArchiving(false)
     if (error) {
-      alert('Erreur suppression voyage: ' + error.message)
+      alert('Erreur archivage: ' + error.message)
+      return
     }
-    setDeletingId(null)
+    setDeletePreviewFor(null)
+    setSelectedIds([])
     loadAll()
   }
 
@@ -387,9 +551,29 @@ export default function Voyages() {
     { key: 'clients', label: '👤 Par Client' },
   ]
 
+  // selected voyage objects (from sortedVoyages)
+  const selectedVoyageObjs = sortedVoyages.filter(v => selectedIds.includes(v.id))
+  const allVisibleSelected  = sortedVoyages.length > 0 && sortedVoyages.every(v => selectedIds.includes(v.id))
+
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <Layout title="Voyages" subtitle="Gestion & Analytiques des trajets">
+
+      {/* ── DELETE PREVIEW MODAL ── */}
+      {deletePreviewFor && (
+        <DeletePreviewModal
+          voyages={deletePreviewFor}
+          livraisons={livraisons}
+          achats={achats}
+          charges={charges}
+          gasoilData={gasoilData}
+          retours={retours}
+          onConfirm={confirmSoftDelete}
+          onCancel={() => setDeletePreviewFor(null)}
+          archiving={archiving}
+        />
+      )}
+
       {/* ── EDIT VOYAGE MODAL ── */}
       {editingVoyage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
@@ -427,18 +611,45 @@ export default function Voyages() {
           </div>
         </div>
       )}
+
       <div className="max-w-7xl mx-auto space-y-4">
 
         {/* ── TOP BAR ── */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="text-sm text-slate-500 font-medium">
             {loading ? 'Chargement...' : `${filteredVoyages.length} voyage${filteredVoyages.length !== 1 ? 's' : ''} sur la période`}
           </div>
-          <button onClick={() => setShowForm(v => !v)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 transition flex items-center gap-2 shadow-sm">
-            <span className="text-base">🚛</span> Nouveau voyage
-          </button>
+          <div className="flex items-center gap-2">
+            <Link href="/voyages/archives"
+              className="text-xs px-3 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-semibold transition flex items-center gap-1.5">
+              🗄️ Archives
+            </Link>
+            <button onClick={() => setShowForm(v => !v)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 transition flex items-center gap-2 shadow-sm">
+              <span className="text-base">🚛</span> Nouveau voyage
+            </button>
+          </div>
         </div>
+
+        {/* ── SELECTION ACTION BAR ── */}
+        {selectedIds.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <span className="text-amber-600 font-black text-sm">
+                {selectedIds.length} voyage{selectedIds.length > 1 ? 's' : ''} sélectionné{selectedIds.length > 1 ? 's' : ''}
+              </span>
+              <button onClick={() => setSelectedIds([])}
+                className="text-xs text-amber-500 hover:text-amber-700 underline">
+                Tout désélectionner
+              </button>
+            </div>
+            <button
+              onClick={() => openDeletePreview(selectedVoyageObjs)}
+              className="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-amber-600 transition flex items-center gap-2">
+              🗄️ Archiver la sélection
+            </button>
+          </div>
+        )}
 
         {/* ── NEW VOYAGE FORM ── */}
         {showForm && (
@@ -498,7 +709,6 @@ export default function Voyages() {
 
         {/* ── FILTERS ── */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
-          {/* Date range + dropdowns */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5">
               <label className="text-xs font-semibold text-slate-500 whitespace-nowrap">Du</label>
@@ -532,7 +742,6 @@ export default function Voyages() {
               ✕ Réinitialiser
             </button>
           </div>
-          {/* Quick date buttons */}
           <div className="flex flex-wrap gap-2">
             {quickDates.map(q => (
               <button key={q.label} onClick={q.fn}
@@ -597,7 +806,7 @@ export default function Voyages() {
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
               <h3 className="font-bold text-slate-700 text-sm">Résultat par voyage — {sortedVoyages.length} voyage{sortedVoyages.length !== 1 ? 's' : ''}</h3>
-              <span className="text-[10px] text-slate-400">Cliquez sur un en-tête pour trier</span>
+              <span className="text-[10px] text-slate-400">Cliquez sur un en-tête pour trier · cochez pour sélectionner</span>
             </div>
             {sortedVoyages.length === 0 ? (
               <div className="text-center py-16 text-slate-400">
@@ -610,6 +819,16 @@ export default function Voyages() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
+                      {/* Select-all checkbox */}
+                      <th className="py-2.5 px-3 w-8">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={() => toggleSelectAll(sortedVoyages)}
+                          className="rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                          title={allVisibleSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+                        />
+                      </th>
                       <SortTh k="date_depart"   label="Date" />
                       <SortTh k="camion_plaque" label="Camion" />
                       <ColH label="Statut" center />
@@ -622,39 +841,56 @@ export default function Voyages() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedVoyages.map(v => (
-                      <tr key={v.id} className="border-b border-slate-50 hover:bg-blue-50/20 transition">
-                        <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{fmtDate(v.date_depart)}</td>
-                        <td className="py-2.5 px-3">
-                          <div className="font-bold text-slate-800">{v.camion_plaque}</div>
-                          {v.chauffeur   && <div className="text-[10px] text-slate-400">{v.chauffeur}</div>}
-                          {v.destination && <div className="text-[10px] text-slate-400">→ {v.destination}</div>}
-                        </td>
-                        <td className="py-2.5 px-3 text-center"><StatusBadge statut={v.statut} /></td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{v.nbLivs}</span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(v.revenuBrut)}</td>
-                        <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.coutTotal)}</td>
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap"><ProfitCell v={v.profit} /></td>
-                        <td className="py-2.5 px-3 text-right"><MargeBadge m={v.marge} /></td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-1 whitespace-nowrap">
-                            <Link href={`/voyages/${v.id}`}
-                              className="text-blue-500 hover:text-blue-700 font-semibold text-[10px]">
-                              Voir →
-                            </Link>
-                            <button onClick={() => { setEditingVoyage(v); setEditVoyageForm({ date_depart: v.date_depart, camion_id: v.camion_id, camion_plaque: v.camion_plaque, chauffeur: v.chauffeur, destination: v.destination, note: v.note, statut: v.statut }) }}
-                              className="text-slate-300 hover:text-blue-500 transition text-xs px-0.5" title="Modifier">✏️</button>
-                            <button onClick={() => deleteVoyage(v)} disabled={deletingId===v.id}
-                              className="text-slate-300 hover:text-red-500 transition text-xs px-0.5 disabled:opacity-40" title="Supprimer">🗑️</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {sortedVoyages.map(v => {
+                      const isSelected = selectedIds.includes(v.id)
+                      return (
+                        <tr key={v.id}
+                          className={`border-b border-slate-50 transition ${isSelected ? 'bg-amber-50' : 'hover:bg-blue-50/20'}`}>
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelect(v.id)}
+                              className="rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                            />
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{fmtDate(v.date_depart)}</td>
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-slate-800">{v.camion_plaque}</div>
+                            {v.chauffeur   && <div className="text-[10px] text-slate-400">{v.chauffeur}</div>}
+                            {v.destination && <div className="text-[10px] text-slate-400">→ {v.destination}</div>}
+                          </td>
+                          <td className="py-2.5 px-3 text-center"><StatusBadge statut={v.statut} /></td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{v.nbLivs}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(v.revenuBrut)}</td>
+                          <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.coutTotal)}</td>
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap"><ProfitCell v={v.profit} /></td>
+                          <td className="py-2.5 px-3 text-right"><MargeBadge m={v.marge} /></td>
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-1 whitespace-nowrap">
+                              <Link href={`/voyages/${v.id}`}
+                                className="text-blue-500 hover:text-blue-700 font-semibold text-[10px]">
+                                Voir →
+                              </Link>
+                              <button onClick={() => { setEditingVoyage(v); setEditVoyageForm({ date_depart: v.date_depart, camion_id: v.camion_id, camion_plaque: v.camion_plaque, chauffeur: v.chauffeur, destination: v.destination, note: v.note, statut: v.statut }) }}
+                                className="text-slate-300 hover:text-blue-500 transition text-xs px-0.5" title="Modifier">✏️</button>
+                              <button
+                                onClick={() => openDeletePreview([v])}
+                                className="text-slate-300 hover:text-amber-500 transition text-xs px-0.5"
+                                title="Archiver">
+                                🗄️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
                     <TotalRow cols={[
+                      { value: '' },
                       { value: `Total (${sortedVoyages.length})`, cls: 'text-sm' },
                       { value: '' }, { value: '' },
                       { value: sortedVoyages.reduce((s,v)=>s+v.nbLivs,0), center: true, cls: 'text-blue-300' },
@@ -736,7 +972,6 @@ export default function Voyages() {
               </div>
             ) : camionStats.map(ca => (
               <div key={ca.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                {/* Header */}
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
                   <div>
                     <div className="flex items-center gap-2">
@@ -755,7 +990,6 @@ export default function Voyages() {
                     <div className="mt-0.5"><MargeBadge m={ca.marge} /></div>
                   </div>
                 </div>
-                {/* Stats grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="bg-emerald-50 rounded-xl p-3">
                     <div className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide">Revenu brut</div>
@@ -774,7 +1008,6 @@ export default function Voyages() {
                     <div className="font-black text-blue-700 mt-0.5 text-sm">{fmt(ca.totalBriques)} u.</div>
                   </div>
                 </div>
-                {/* Best voyage */}
                 {ca.bestVoyage && (
                   <div className="mt-3 border-t border-slate-100 pt-3 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
                     <span className="text-amber-500 text-sm">🏆</span>
