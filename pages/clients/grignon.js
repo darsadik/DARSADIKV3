@@ -108,36 +108,22 @@ export default function ClientsGrignon() {
 
     openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Client Grignon — ${selected.nom}</title>
     <style>*{-webkit-print-color-adjust:exact !important}
+    @page{margin:0}
     body{font-family:Arial;padding:28px;font-size:12px;color:#1e293b}
-    .hdr{background:#92400e;color:#fff;padding:16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between}
+    .hdr{background:#92400e;color:#fff;padding:16px;border-radius:8px;margin-bottom:16px}
     table{width:100%;border-collapse:collapse;margin-bottom:16px}
     th{background:#92400e !important;color:#fff !important;padding:7px 10px;text-align:left;font-size:10px;font-weight:700}
     td{padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:11px}
     tr:nth-child(even) td{background:#fffbeb !important}
     tfoot td{background:#f1f5f9 !important;font-weight:800 !important}
-    .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
-    .k{border:1px solid #e2e8f0;border-radius:6px;padding:10px;text-align:center}
-    .kl{font-size:9px;text-transform:uppercase;color:#6b7280;margin-bottom:3px}
-    .kv{font-size:16px;font-weight:900}
     @media print{button{display:none !important}}</style></head><body>
     <div class="hdr">
       <div><div style="font-size:20px;font-weight:900">🫒 ${selected.nom}</div><div style="opacity:0.8;font-size:11px">${from && to ? fmtDate(from)+' → '+fmtDate(to) : 'Toutes les périodes'}</div></div>
-      <div style="text-align:right;font-size:11px;opacity:0.9">Solde actuel: <b style="font-size:16px">${fmt(selected.solde||0)} DHS</b></div>
-    </div>
-    <div class="kpi">
-      <div class="k"><div class="kl">Ventes période</div><div class="kv" style="color:#92400e">${fmt(totalVentes)} DHS</div></div>
-      <div class="k"><div class="kl">Paiements reçus</div><div class="kv" style="color:#16a34a">${fmt(totalPaiements)} DHS</div></div>
-      <div class="k"><div class="kl">Solde</div><div class="kv" style="color:#7c3aed">${fmt(selected.solde||0)} DHS</div></div>
     </div>
     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#92400e;border-bottom:2px solid #92400e;padding-bottom:4px;margin-bottom:8px">Opérations Grignon</h3>
     <table><thead><tr><th>Camion</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
     ${filteredOps.length>0?`<tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td></td></tr></tfoot>`:''}
-    </table>
-    <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#16a34a;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:8px">Paiements reçus</h3>
-    <table><thead><tr><th>Date</th><th>Mode</th><th style="text-align:right">Montant</th><th>Note</th></tr></thead>
-    <tbody>${paiRows||'<tr><td colspan="4" style="text-align:center;color:#aaa">Aucun paiement</td></tr>'}</tbody>
-    ${filteredPai.length>0?`<tfoot><tr><td colspan="2">TOTAL reçu</td><td style="text-align:right">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>`:''}
     </table>
     <div style="margin-top:20px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;display:flex;justify-content:space-between">
       <span></span>

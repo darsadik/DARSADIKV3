@@ -57,6 +57,10 @@ export default function Clients() {
   }
   const [saving, setSaving] = useState(false)
 
+  const [editClientModal, setEditClientModal] = useState(null) // null | client
+  const [editClientForm, setEditClientForm] = useState({ nom: '', depot: '', tel: '' })
+  const [editClientSaving, setEditClientSaving] = useState(false)
+
   const [clientRemises, setClientRemises] = useState([])
   const [remiseModal, setRemiseModal] = useState(null) // null | 'new' | remise object
   const [remiseForm, setRemiseForm] = useState({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' })
@@ -111,6 +115,25 @@ export default function Clients() {
     await supabase.from('clients').delete().eq('id', id)
     if (selected?.id === id) { setSelected(null); setShowDetail(false) }
     loadClients()
+  }
+
+  function openEditClient(client) {
+    setEditClientForm({ nom: client.nom || '', depot: client.depot || '', tel: client.tel || '' })
+    setEditClientModal(client)
+  }
+
+  async function saveEditClient(e) {
+    e.preventDefault()
+    if (!editClientModal) return
+    setEditClientSaving(true)
+    const { nom, depot, tel } = editClientForm
+    await supabase.from('clients').update({ nom: nom.trim(), depot: depot.trim(), tel: tel.trim() }).eq('id', editClientModal.id)
+    setEditClientSaving(false)
+    setEditClientModal(null)
+    loadClients()
+    if (selected?.id === editClientModal.id) {
+      setSelected({ ...selected, nom: nom.trim(), depot: depot.trim(), tel: tel.trim() })
+    }
   }
 
   async function editSolde(client) {
@@ -740,6 +763,7 @@ export default function Clients() {
                     <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
                   </div>
                     <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
+                    <button onClick={() => openEditClient(selected)} className="btn-secondary text-xs">✎ Client</button>
                     <button onClick={() => editSolde(selected)} className="btn-secondary text-xs">✎ Solde</button>
                     <button onClick={() => editOpeningBalance(selected)} className="btn-secondary text-xs" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
                     <button onClick={() => deleteClient(selected.id)} className="btn-danger">✕</button>
@@ -1064,6 +1088,49 @@ export default function Clients() {
                   {remiseSaving ? 'Enregistrement...' : '✓ Enregistrer'}
                 </button>
                 <button type="button" onClick={() => { setRemiseModal(null); setRemiseError('') }} className="btn-secondary">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT CLIENT MODAL ── */}
+      {editClientModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">✎ Modifier le client</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{editClientModal.nom}</p>
+              </div>
+              <button onClick={() => setEditClientModal(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={saveEditClient} className="p-5 space-y-4">
+              <div>
+                <label className="label">Nom complet</label>
+                <input type="text" className="input" placeholder="Nom du client" required autoFocus
+                  value={editClientForm.nom}
+                  onChange={e => setEditClientForm({...editClientForm, nom: e.target.value})} />
+              </div>
+              <div>
+                <label className="label">Dépôt</label>
+                <select className="input" value={editClientForm.depot}
+                  onChange={e => setEditClientForm({...editClientForm, depot: e.target.value})}>
+                  {getAllDepots().map(d => <option key={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Téléphone</label>
+                <input type="text" className="input" placeholder="06 ..."
+                  value={editClientForm.tel}
+                  onChange={e => setEditClientForm({...editClientForm, tel: e.target.value})} />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={editClientSaving}
+                  className="btn-primary flex-1 justify-center">
+                  {editClientSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+                <button type="button" onClick={() => setEditClientModal(null)} className="btn-secondary">Annuler</button>
               </div>
             </form>
           </div>
