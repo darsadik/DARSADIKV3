@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
+import * as XLSX from 'xlsx'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
@@ -442,6 +443,63 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
     a.download = `Ventes-${filterFrom}-${filterTo}.csv`; a.click()
   }
 
+  function exportXLSX() {
+    const detailRows = filtered.map(v => ({
+      'Date':           fmtDate(v.date),
+      'Client':         v.client_nom || '',
+      'Type':           v.type_entree === 'mdo' ? "Main d'oeuvre"
+                      : v.type_entree === 'gasoil' ? 'Frais Gasoil'
+                      : v.type_entree === 'autre' ? 'Autre'
+                      : v.type_entree === 'remise' ? 'Remise'
+                      : 'Vente brique',
+      'Produit':        v.type_brique || '',
+      'Camion':         v.camion_plaque || '',
+      'Fournisseur':    v.fournisseur || '',
+      'Quantite':       v.qte || 0,
+      'Prix/u DHS':     v.prix_vente || 0,
+      'Total DHS':      v.total_vente || 0,
+      'BON':            v.bon || '',
+      'Note':           v.note || '',
+      'Retour client':  v.retour_client || '',
+      'Montant retour': v.retour_montant || 0,
+      'Retour paye':    v.retour_paye || 0,
+      'Retour restant': v.retour_restant || 0,
+    }))
+
+    const tQ  = filtered.reduce((s, v) => s + (v.qte || 0), 0)
+    const tV  = filtered.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const tR  = filtered.reduce((s, v) => s + (v.retour_montant || 0), 0)
+    const tRR = filtered.reduce((s, v) => s + (v.retour_restant || 0), 0)
+    detailRows.push({
+      'Date': 'TOTAL', 'Client': `${filtered.length} ligne(s)`,
+      'Type': '', 'Produit': '', 'Camion': '', 'Fournisseur': '',
+      'Quantite': tQ, 'Prix/u DHS': '', 'Total DHS': tV,
+      'BON': '', 'Note': '', 'Retour client': '',
+      'Montant retour': tR, 'Retour paye': '', 'Retour restant': tRR,
+    })
+
+    const byClient = {}
+    filtered.forEach(v => {
+      const nom = v.client_nom || 'Inconnu'
+      if (!byClient[nom]) byClient[nom] = { qte: 0, total: 0, nb: 0 }
+      byClient[nom].qte   += v.qte || 0
+      byClient[nom].total += v.total_vente || 0
+      byClient[nom].nb    += 1
+    })
+    const clientRows = Object.entries(byClient)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([nom, d]) => ({ 'Client': nom, 'Nb ventes': d.nb, 'Total briques': d.qte, 'Total DHS': d.total }))
+
+    const wb  = XLSX.utils.book_new()
+    const ws1 = XLSX.utils.json_to_sheet(detailRows)
+    const ws2 = XLSX.utils.json_to_sheet(clientRows)
+    ws1['!cols'] = [{wch:12},{wch:20},{wch:14},{wch:14},{wch:12},{wch:16},{wch:10},{wch:10},{wch:12},{wch:10},{wch:20},{wch:18},{wch:14},{wch:12},{wch:14}]
+    ws2['!cols'] = [{wch:22},{wch:10},{wch:16},{wch:12}]
+    XLSX.utils.book_append_sheet(wb, ws1, 'Ventes')
+    XLSX.utils.book_append_sheet(wb, ws2, 'Recap clients')
+    XLSX.writeFile(wb, `Ventes-${filterFrom}-${filterTo}.xlsx`)
+  }
+
   const uniqueCamions = [...new Set(ventes.map(v=>v.camion_plaque).filter(Boolean))]
   const uniqueFourns = [...new Set(allAchats.map(v=>v.fournisseur).filter(Boolean))].sort()
 
@@ -518,8 +576,7 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
           <h3 className="font-bold text-gray-900">{filtered.length} ventes</h3>
           <div className="flex gap-2">
             <button onClick={printClientView} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
-            <button onClick={exportCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
-            <button onClick={exportClientCSV} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
+            <button onClick={exportXLSX} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
           </div>
         </div>
 
