@@ -297,10 +297,10 @@ export default function Clients() {
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   tfoot td{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-weight:700;font-size:12px;border:none !important}
   tfoot td.r{font-size:13px;text-align:right}
-  .solde-final{background:linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%);border:2px solid #e8b84b;border-radius:10px;padding:14px 20px;text-align:center;margin-top:18px}
-  .sf-lbl{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.2em;color:#e8b84b;margin-bottom:5px}
-  .sf-amt{font-size:28px;font-weight:900;color:#fff;line-height:1}
-  .sf-sub{font-size:10px;color:#93c5fd;margin-top:5px}
+  .solde-final{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:18px}
+  .sf-lbl{font-size:11px;font-weight:600;color:#64748b}
+  .sf-amt{font-size:18px;font-weight:900;color:#7c3aed;line-height:1}
+  .sf-sub{font-size:10px;color:#94a3b8;margin-top:2px}
   .foot{margin-top:16px;padding-top:9px;border-top:2px solid #e8b84b;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}
   @media print{.btn-p,.btn-d{display:none !important}}
   @page{size:A4;margin:8mm 10mm}
@@ -392,9 +392,8 @@ export default function Clients() {
   </tfoot>` : ''}
 </table>
 <div class="solde-final">
-  <div class="sf-lbl">SOLDE ACTUEL À PAYER</div>
+  <div><div class="sf-lbl">Solde actuel à payer</div><div class="sf-sub">${selected.nom} · ${selected.depot||''}${filterType !== 'all' ? ' · ' + periode : ''}</div></div>
   <div class="sf-amt">${fmt(pLedger.finalBalance)} DHS</div>
-  <div class="sf-sub">${selected.nom} · ${selected.depot||''}${filterType !== 'all' ? ' · ' + periode : ''}</div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
