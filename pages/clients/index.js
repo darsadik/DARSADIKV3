@@ -344,7 +344,7 @@ export default function Clients() {
 <div class="pbadge">Période : ${periode}</div>
 <div class="sec">Mouvements du compte (${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''})</div>
 <table>
-  <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Référence</th><th>Note</th></tr></thead>
+  <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th></tr></thead>
   <tbody>
     <tr style="background:#fffbeb !important">
       <td style="color:#92400e;font-size:11px">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
@@ -352,12 +352,11 @@ export default function Clients() {
       <td style="font-weight:700;color:#92400e;font-size:11px">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
       <td class="m">—</td>
       <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
-      <td class="r" style="color:#b45309;font-weight:800">${fmt(pLedger.startBalance)}</td>
-      <td class="m">—</td>
+      <td class="r" style="color:#b45309;font-weight:800">+ ${fmt(pLedger.startBalance)}</td>
       <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
     ${pLedger.entries.length === 0
-      ? '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
+      ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
       : pLedger.entries.map(e => {
           const isVente = e.src === 'vente'
           const v = e.raw
@@ -377,8 +376,7 @@ export default function Clients() {
             <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '—'}</td>
             <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '—'}</td>
             <td class="r">${pMv(e)}</td>
-            <td class="r" style="font-weight:800;color:${soldeColor}">${fmt(e.solde)}</td>
-            <td style="font-family:monospace;font-size:10px;color:#6b7280">${e.reference || '—'}</td>
+            <td class="r" style="font-weight:800;color:${soldeColor}">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
             <td class="m">${e.note || '—'}</td>
           </tr>`
         }).join('')}
@@ -387,7 +385,7 @@ export default function Clients() {
     <tr>
       <td colspan="7">Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</td>
       <td class="r">${fmt(pLedger.finalBalance)} DHS</td>
-      <td colspan="2"></td>
+      <td colspan="1"></td>
     </tr>
   </tfoot>` : ''}
 </table>
