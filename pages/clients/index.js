@@ -387,12 +387,13 @@ export default function Clients() {
       <td class="r">${fmt(pLedger.finalBalance)} DHS</td>
       <td colspan="1"></td>
     </tr>
+    <tr>
+      <td colspan="7" style="background:#f8fafc !important;color:#64748b !important;font-size:11px;font-weight:600;border-top:1px solid #e2e8f0">Solde actuel à payer</td>
+      <td class="r" style="background:#f8fafc !important;font-size:15px;font-weight:900;color:${pLedger.finalBalance>0?'#7c3aed':'#16a34a'} !important;border-top:1px solid #e2e8f0">${fmt(pLedger.finalBalance)} DHS</td>
+      <td style="background:#f8fafc !important;border-top:1px solid #e2e8f0"></td>
+    </tr>
   </tfoot>` : ''}
 </table>
-<div class="solde-final">
-  <div><div class="sf-lbl">Solde actuel à payer</div><div class="sf-sub">${selected.nom} · ${selected.depot||''}${filterType !== 'all' ? ' · ' + periode : ''}</div></div>
-  <div class="sf-amt">${fmt(pLedger.finalBalance)} DHS</div>
-</div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
