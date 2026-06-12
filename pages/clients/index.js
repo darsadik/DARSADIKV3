@@ -295,8 +295,9 @@ export default function Clients() {
   tbody td.r{text-align:right;font-family:monospace}
   tbody td.m{color:#94a3b8;font-size:11px}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
-  tfoot td{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-weight:700;font-size:12px;border:none !important}
-  tfoot td.r{font-size:13px;text-align:right}
+  tfoot td{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-weight:700;font-size:12px;border:none !important;white-space:nowrap}
+  tfoot td.r{font-size:13px;text-align:right;white-space:nowrap}
+  .tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1}
   .solde-final{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:18px}
   .sf-lbl{font-size:11px;font-weight:600;color:#64748b}
   .sf-amt{font-size:18px;font-weight:900;color:#7c3aed;line-height:1}
@@ -389,7 +390,7 @@ export default function Clients() {
     </tr>
     <tr>
       <td colspan="7" style="background:#f8fafc !important;color:#64748b !important;font-size:11px;font-weight:600;border-top:1px solid #e2e8f0">Solde actuel à payer</td>
-      <td class="r" style="background:#f8fafc !important;font-size:15px;font-weight:900;color:${pLedger.finalBalance>0?'#7c3aed':'#16a34a'} !important;border-top:1px solid #e2e8f0">${fmt(pLedger.finalBalance)} DHS</td>
+      <td class="r" style="background:#f8fafc !important;font-size:15px;font-weight:900;color:${pLedger.finalBalance>0?'#7c3aed':'#16a34a'} !important;border-top:1px solid #e2e8f0;white-space:nowrap">${fmt(pLedger.finalBalance)} DHS</td>
       <td style="background:#f8fafc !important;border-top:1px solid #e2e8f0"></td>
     </tr>
   </tfoot>` : ''}
