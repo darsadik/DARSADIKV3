@@ -811,25 +811,16 @@ export default function Clients() {
                 </div>
 
                 {/* SOLDE ACTUEL À PAYER */}
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <div className="rounded-2xl p-5 text-center mb-3" style={{background:'linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%)',border:'2px solid #e8b84b'}}>
-                    <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{color:'#e8b84b',letterSpacing:'0.15em'}}>
-                      SOLDE ACTUEL À PAYER
-                    </div>
-                    <div className="font-black" style={{fontSize:42,color:(selected.solde||0)>0?'#fff':'#4ade80',lineHeight:1.1}}>
-                      {fmt(selected.solde || 0)} DHS
-                    </div>
-                    <div className="mt-2 text-xs" style={{color:'#93c5fd'}}>
-                      {selected.nom} · {selected.depot}
-                      {filterType !== 'all' && <span> · {getFilterLabel()}</span>}
-                    </div>
+                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Solde actuel</span>
+                    {((selected.opening_balance || 0) > 0 || carryOver !== null) && (
+                      <span className="text-xs text-gray-400">· Report: {fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</span>
+                    )}
                   </div>
-
-                  {((selected.opening_balance || 0) > 0 || carryOver !== null) && (
-                    <div className="text-xs text-center mt-1" style={{color:'#93c5fd'}}>
-                      Ancien solde : <span className="font-semibold">{fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</span>
-                    </div>
-                  )}
+                  <span className="text-xl font-black" style={{color:(selected.solde||0)>0?'#7c3aed':'#16a34a'}}>
+                    {fmt(selected.solde || 0)} <span className="text-sm font-semibold text-gray-400">DHS</span>
+                  </span>
                 </div>
 
                 {/* RECONCILIATION BADGE — shown only when detail is loaded */}
@@ -883,7 +874,7 @@ export default function Clients() {
                       <table className="w-full border-collapse">
                         <thead>
                           <tr>
-                            {['Date','Camion','Opération','Type','Qté','Prix/u','Total DHS','Solde','Référence','Note',''].map((h,i) => (
+                            {['Date','Camion','Opération','Type','Qté','Prix/u','Total DHS','Solde','Note',''].map((h,i) => (
                               <th key={i} className={`th${[4,5,6,7].includes(i)?' text-right':''}`}
                                 style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',whiteSpace:'nowrap'}}>
                                 {h}
@@ -906,7 +897,6 @@ export default function Clients() {
                             <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',color:'#b45309',fontSize:'14px',whiteSpace:'nowrap'}}>
                               {fmt(ledger.startBalance)}
                             </td>
-                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
                             <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0'}}>
                               {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
                             </td>
@@ -959,10 +949,7 @@ export default function Clients() {
                                 </td>
                                 <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',
                                   color: e.solde > 0 ? '#7c3aed' : '#16a34a'}}>
-                                  {fmt(e.solde)}
-                                </td>
-                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#6b7280',fontFamily:'monospace'}}>
-                                  {e.reference || <span className="text-gray-300">—</span>}
+                                  {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
                                 </td>
                                 <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'150px',wordBreak:'break-word'}}>
                                   {e.note || '—'}
@@ -990,7 +977,7 @@ export default function Clients() {
                                 <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px',color:'#c4b5fd'}}>
                                   {fmt(last.solde)} DHS
                                 </td>
-                                <td className="tfoot-td" colSpan={3} style={{border:'1px solid #cbd5e1'}}></td>
+                                <td className="tfoot-td" colSpan={2} style={{border:'1px solid #cbd5e1'}}></td>
                               </tr>
                             </tfoot>
                           )
@@ -999,13 +986,11 @@ export default function Clients() {
                     </div>
                   </div>
                   {/* ── SOLDE FINAL ── */}
-                  <div className="rounded-2xl p-4 text-center" style={{background:'linear-gradient(135deg,#0f2444 0%,#1a3a6b 100%)',border:'2px solid #e8b84b'}}>
-                    <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'#e8b84b',letterSpacing:'0.18em'}}>
-                      SOLDE ACTUEL À PAYER
-                    </div>
-                    <div className="font-black" style={{fontSize:32,lineHeight:1.1,color:ledger.finalBalance>0?'#fff':'#4ade80'}}>
-                      {fmt(ledger.finalBalance)} DHS
-                    </div>
+                  <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{background:'#f8fafc',border:'1px solid #e2e8f0'}}>
+                    <span className="text-sm font-semibold text-gray-500">Solde final période</span>
+                    <span className="text-xl font-black" style={{color:ledger.finalBalance>0?'#7c3aed':'#16a34a'}}>
+                      {fmt(ledger.finalBalance)} <span className="text-sm font-semibold text-gray-400">DHS</span>
+                    </span>
                   </div>
                 </>
               )}
