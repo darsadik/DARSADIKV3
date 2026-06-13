@@ -58,15 +58,13 @@ export default function FournisseursGrignon() {
     setSelected(f)
     setLoadingDetail(true)
     const [{ data: ac }, { data: pa }] = await Promise.all([
-      supabase.from('voyage_achats')
-        .select('*, voyages(reference, camion_plaque)')
-        .eq('fournisseur_id', f.id)
-        .eq('type_produit', 'grignon')
-        .order('date_achat', { ascending: true }),
-      supabase.from('paiements')
+      supabase.from('grignon_operations')
         .select('*')
-        .eq('grignon_fourn_id', f.id)
-        .eq('type_compte', 'fourn_grignon')
+        .eq('fournisseur_id', f.id)
+        .order('date', { ascending: true }),
+      supabase.from('grignon_fournisseur_paiements')
+        .select('*')
+        .eq('fournisseur_id', f.id)
         .order('date', { ascending: true }),
     ])
     setAchats(ac || [])
@@ -100,7 +98,7 @@ export default function FournisseursGrignon() {
   const { from, to } = getDateRange()
 
   const filteredAchats = achats.filter(a => {
-    const d = a.date_achat
+    const d = a.date
     if (from && d < from) return false
     if (to   && d > to)   return false
     return true
@@ -117,9 +115,8 @@ export default function FournisseursGrignon() {
   function printFournisseur() {
     if (!selected) return
     const rows = filteredAchats.map(a => `<tr>
-      <td>${fmtDate(a.date_achat)}</td>
-      <td>${a.voyages?.reference||a.voyage_id||'—'}</td>
-      <td>${a.voyages?.camion_plaque||'—'}</td>
+      <td>${fmtDate(a.date)}</td>
+      <td>${a.camion_plaque||'—'}</td>
       <td style="text-align:right">${fmt(a.qte)} kg</td>
       <td style="text-align:right">${fmtD(a.prix_achat)}</td>
       <td style="text-align:right"><b>${fmt(a.total_achat)} DHS</b></td>
@@ -157,9 +154,9 @@ export default function FournisseursGrignon() {
       <div class="k"><div class="kl">Solde total dû</div><div class="kv" style="color:#dc2626">${fmt(selected.solde||0)} DHS</div></div>
     </div>
     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#15803d;border-bottom:2px solid #15803d;padding-bottom:4px;margin-bottom:8px">Achats Grignon</h3>
-    <table><thead><tr><th>Date</th><th>Voyage</th><th>Camion</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucun achat</td></tr>'}</tbody>
-    ${filteredAchats.length>0?`<tfoot><tr><td colspan="3">TOTAL</td><td style="text-align:right">${fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmt(totalAchats)} DHS</td><td></td></tr></tfoot>`:''}
+    <table><thead><tr><th>Date</th><th>Camion</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="6" style="text-align:center;color:#aaa">Aucun achat</td></tr>'}</tbody>
+    ${filteredAchats.length>0?`<tfoot><tr><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmt(totalAchats)} DHS</td><td></td></tr></tfoot>`:''}
     </table>
     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#16a34a;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:8px">Paiements effectués</h3>
     <table><thead><tr><th>Date</th><th>Mode</th><th>Chèque</th><th style="text-align:right">Montant</th><th>Note</th></tr></thead>
@@ -277,33 +274,32 @@ export default function FournisseursGrignon() {
                       <table className="w-full">
                         <thead><tr>
                           <th className="th">Date</th>
-                          <th className="th">Voyage</th>
                           <th className="th">Camion</th>
                           <th className="th text-right">Qté kg</th>
                           <th className="th text-right">Prix/kg</th>
                           <th className="th text-right">Total DHS</th>
+                          <th className="th">Note</th>
                         </tr></thead>
                         <tbody>
                           {filteredAchats.map(a => (
                             <tr key={a.id} className="hover:bg-green-50">
-                              <td className="td text-gray-500">{fmtDate(a.date_achat)}</td>
-                              <td className="td text-xs text-green-700 font-semibold">
-                                {a.voyages?.reference || (a.voyage_id ? `#${a.voyage_id}` : '—')}
-                              </td>
-                              <td className="td text-xs text-gray-500">{a.voyages?.camion_plaque||'—'}</td>
+                              <td className="td text-gray-500">{fmtDate(a.date)}</td>
+                              <td className="td text-xs text-gray-500">{a.camion_plaque||'—'}</td>
                               <td className="td text-right font-semibold">{fmt(a.qte)} kg</td>
                               <td className="td text-right text-gray-500">{fmtD(a.prix_achat)}</td>
                               <td className="td text-right font-bold text-green-700">{fmt(a.total_achat)} DHS</td>
+                              <td className="td text-gray-400 text-xs">{a.note||'—'}</td>
                             </tr>
                           ))}
                           {filteredAchats.length === 0 && <tr><td colSpan={6} className="td text-center text-gray-400 py-6">Aucun achat</td></tr>}
                         </tbody>
                         {filteredAchats.length > 0 && (
                           <tfoot><tr>
-                            <td className="tfoot-td" colSpan={3}>TOTAL ({filteredAchats.length})</td>
+                            <td className="tfoot-td" colSpan={2}>TOTAL ({filteredAchats.length})</td>
                             <td className="tfoot-td text-right">{fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td>
                             <td className="tfoot-td"></td>
                             <td className="tfoot-td text-right text-green-700">{fmt(totalAchats)} DHS</td>
+                            <td className="tfoot-td"></td>
                           </tr></tfoot>
                         )}
                       </table>
