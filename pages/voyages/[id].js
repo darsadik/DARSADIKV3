@@ -11,6 +11,8 @@ const fmtD    = n => parseFloat(n || 0).toFixed(2)
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const today   = () => new Date().toISOString().split('T')[0]
 
+const COMMON_CHARGE_KEYS = new Set(['ouvriers','chauffeur','nourriture','autoroute','chargement','gendarmerie','reparation_camion','autres'])
+
 const CHARGE_CATS = [
   { key: 'ouvriers',          label: 'Ouvriers / Main d\'œuvre', icon: '👷'  },
   { key: 'chauffeur',         label: 'Chauffeur',                icon: '🧑‍✈️' },
@@ -59,7 +61,25 @@ function Empty({ text }) {
 }
 
 function DelBtn({ onDel }) {
-  return <button onClick={onDel} className="text-red-300 hover:text-red-500 transition text-xs px-1">✕</button>
+  const [confirming, setConfirming] = useState(false)
+  const timerRef = useRef(null)
+  function handleClick() {
+    if (confirming) {
+      clearTimeout(timerRef.current)
+      setConfirming(false)
+      onDel()
+    } else {
+      setConfirming(true)
+      timerRef.current = setTimeout(() => setConfirming(false), 3000)
+    }
+  }
+  return (
+    <button onClick={handleClick}
+      title={confirming ? 'Cliquer pour confirmer la suppression' : 'Supprimer'}
+      className={`transition text-xs px-1 rounded ${confirming ? 'text-red-600 font-bold bg-red-50' : 'text-red-300 hover:text-red-500'}`}>
+      {confirming ? 'Ok?' : '✕'}
+    </button>
+  )
 }
 
 function EditBtn({ onEdit }) {
@@ -164,6 +184,12 @@ export default function VoyageDetail() {
   const [kmForm,        setKmForm]        = useState({ km_depart: '', km_arrivee: '' })
   const [editingKm,     setEditingKm]     = useState(false)
   const [savingKm,      setSavingKm]      = useState(false)
+
+  // ── UX additions ──
+  const addAnotherLivRef               = useRef(false)
+  const [showAchatNote,  setShowAchatNote]  = useState(false)
+  const [showLivNote,    setShowLivNote]    = useState(false)
+  const [showAllCharges, setShowAllCharges] = useState(false)
 
   // ── LOAD VOYAGE ──────────────────────────────────────────────────────────────
   const loadVoyage = useCallback(async () => {
@@ -612,6 +638,7 @@ export default function VoyageDetail() {
       }
 
       setShowAchat(false)
+      setShowAchatNote(false)
       setAchatForm({ date_achat: today(), type_produit: 'brique', fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' })
       loadVoyage()
     } catch (err) {
@@ -702,8 +729,15 @@ export default function VoyageDetail() {
         if (freshGcl) await supabase.from('grignon_clients').update({ solde: (freshGcl.solde||0)+total_vente }).eq('id', clientId)
       }
 
-      setShowLiv(false)
-      setLivForm({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
+      if (addAnotherLivRef.current) {
+        setLivForm(f => ({ ...f, client_id: '', qte: '', remise: '', note: '' }))
+        setShowLivNote(false)
+      } else {
+        setShowLiv(false)
+        setLivForm({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
+        setShowLivNote(false)
+      }
+      addAnotherLivRef.current = false
       loadVoyage()
     } catch (err) {
       toast('Erreur enregistrement livraison: ' + err.message)
@@ -800,7 +834,6 @@ export default function VoyageDetail() {
 
   // ── DELETE HANDLERS ──────────────────────────────────────────────────────────
   async function delAchat(row) {
-    if (!confirm('Supprimer cet achat ?')) return
     try {
       const { error } = await supabase.from('voyage_achats').delete().eq('id', row.id)
       if (error) throw error
@@ -818,7 +851,6 @@ export default function VoyageDetail() {
   }
 
   async function delLiv(row) {
-    if (!confirm(`Supprimer la livraison ${row.client_nom} — ${fmt(row.total_vente)} DHS ?`)) return
     try {
       const { error: rpcErr } = await supabase.rpc('delete_voyage_livraison', { p_id: row.id })
       if (rpcErr) {
@@ -863,7 +895,6 @@ export default function VoyageDetail() {
   }
 
   async function delRetour(row) {
-    if (!confirm('Supprimer ce retour transport ?')) return
     try {
       const { error: rpcErr } = await supabase.rpc('delete_voyage_retour', { p_id: row.id })
       if (rpcErr) {
@@ -876,7 +907,6 @@ export default function VoyageDetail() {
   }
 
   async function delGasoil(row) {
-    if (!confirm('Supprimer cette entrée gasoil ?')) return
     try {
       const { error: rpcErr } = await supabase.rpc('delete_voyage_gasoil', { p_id: row.id })
       if (rpcErr) {
@@ -897,7 +927,6 @@ export default function VoyageDetail() {
   }
 
   async function delCharge(row) {
-    if (!confirm('Supprimer cette charge ?')) return
     try {
       const { error } = await supabase.from('voyage_charges').delete().eq('id', row.id)
       if (error) throw error
@@ -1236,6 +1265,40 @@ export default function VoyageDetail() {
 
           </div>
           <div ref={sectionRefs.profit}>
+          {/* ── STEP NAVIGATOR ── */}
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border border-slate-100 rounded-2xl shadow-sm mb-4 p-2">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar">
+              {[
+                { key: 'achat',     icon: '📦', label: 'Achats',     count: achats.length,     color: '#3b82f6' },
+                { key: 'livraison', icon: '🚚', label: 'Livraisons', count: livraisons.length, color: '#10b981' },
+                { key: 'retour',    icon: '↩️',  label: 'Retours',   count: retours.length,    color: '#8b5cf6' },
+                { key: 'charge',    icon: '💸', label: 'Charges',    count: charges.length,    color: '#ef4444' },
+                { key: 'gasoil',    icon: '⛽', label: 'Gasoil',     count: gasoil.length,     color: '#f97316' },
+                { key: 'profit',    icon: '📊', label: 'Résultat',   count: null,              color: '#1e3a5f' },
+              ].map(step => (
+                <button key={step.key} onClick={() => scrollTo(step.key)}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={activeStep === step.key
+                    ? { background: step.color, color: '#fff' }
+                    : { background: '#f8fafc', color: '#64748b' }
+                  }>
+                  <span>{step.icon}</span>
+                  <span className="hidden sm:inline">{step.label}</span>
+                  {step.count !== null && step.count > 0 && (
+                    <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                      style={activeStep === step.key
+                        ? { background: 'rgba(255,255,255,0.3)', color: '#fff' }
+                        : { background: step.color + '22', color: step.color }
+                      }>{step.count}</span>
+                  )}
+                  {step.count === 0 && (
+                    <span className="ml-0.5 text-[10px] opacity-40">○</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* ── PROFIT SUMMARY ── */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-lg">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Résultat du voyage</div>
@@ -1295,40 +1358,6 @@ export default function VoyageDetail() {
             )}
           </div>
 
-          {/* ── STEP NAVIGATOR ── */}
-          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border border-slate-100 rounded-2xl shadow-sm mb-4 p-2">
-            <div className="flex gap-1 overflow-x-auto no-scrollbar">
-              {[
-                { key: 'achat',     icon: '📦', label: 'Achats',     count: achats.length,     color: '#3b82f6' },
-                { key: 'livraison', icon: '🚚', label: 'Livraisons', count: livraisons.length, color: '#10b981' },
-                { key: 'retour',    icon: '↩️',  label: 'Retours',   count: retours.length,    color: '#8b5cf6' },
-                { key: 'charge',    icon: '💸', label: 'Charges',    count: charges.length,    color: '#ef4444' },
-                { key: 'gasoil',    icon: '⛽', label: 'Gasoil',     count: gasoil.length,     color: '#f97316' },
-                { key: 'profit',    icon: '📊', label: 'Résultat',   count: null,              color: '#1e3a5f' },
-              ].map(step => (
-                <button key={step.key} onClick={() => scrollTo(step.key)}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-                  style={activeStep === step.key
-                    ? { background: step.color, color: '#fff' }
-                    : { background: '#f8fafc', color: '#64748b' }
-                  }>
-                  <span>{step.icon}</span>
-                  <span className="hidden sm:inline">{step.label}</span>
-                  {step.count !== null && step.count > 0 && (
-                    <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold"
-                      style={activeStep === step.key
-                        ? { background: 'rgba(255,255,255,0.3)', color: '#fff' }
-                        : { background: step.color + '22', color: step.color }
-                      }>{step.count}</span>
-                  )}
-                  {step.count === 0 && (
-                    <span className="ml-0.5 text-[10px] opacity-40">○</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* ── SECTION: ACHATS ── */}
           <div ref={sectionRefs.achat}>
           <Section icon="📦" title="Achats (Briques & Grignon)" color="blue"
@@ -1365,8 +1394,13 @@ export default function VoyageDetail() {
                   <input type="number" step="0.01" value={achatForm.prix_achat} onChange={e=>setAchatForm({...achatForm,prix_achat:e.target.value})} className="input w-full text-sm" placeholder="1.20" required/></div>
                 <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total achat</label>
                   <div className="input w-full text-sm bg-slate-50 font-bold text-slate-700 flex items-center">{fmt((parseFloat(achatForm.qte)||0)*(parseFloat(achatForm.prix_achat)||0))} DHS</div></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note</label>
-                  <input type="text" value={achatForm.note} onChange={e=>setAchatForm({...achatForm,note:e.target.value})} className="input w-full text-sm" placeholder="Optionnel..."/></div>
+                <div>
+                  {showAchatNote
+                    ? <><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note</label>
+                        <input type="text" value={achatForm.note} onChange={e=>setAchatForm({...achatForm,note:e.target.value})} className="input w-full text-sm" placeholder="Optionnel..."/></>
+                    : <button type="button" onClick={()=>setShowAchatNote(true)} className="text-[10px] text-slate-400 hover:text-slate-600">＋ Ajouter une note</button>
+                  }
+                </div>
                 {/* Live preview */}
                 {achatForm.qte && achatForm.prix_achat && (
                   <div className="col-span-2 md:col-span-3 grid grid-cols-3 gap-2 p-3 rounded-xl bg-blue-50 border border-blue-100">
@@ -1387,7 +1421,7 @@ export default function VoyageDetail() {
                   </div>
                 )}
                 <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={()=>setShowAchat(false)} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
+                  <button type="button" onClick={()=>{setShowAchat(false);setShowAchatNote(false)}} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
                   <button type="submit" disabled={savingAchat} className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded-lg font-semibold">{savingAchat?'...':'✅ Enregistrer'}</button>
                 </div>
               </form>
@@ -1479,8 +1513,13 @@ export default function VoyageDetail() {
                   <div className="input w-full text-sm bg-slate-50 font-bold text-blue-600 flex items-center">
                     {fmt(Math.max(0,(parseFloat(livForm.qte)||0)*(parseFloat(livForm.prix_vente)||0)-(parseFloat(livForm.remise)||0))-(parseFloat(livForm.qte)||0)*(parseFloat(livForm.prix_achat)||0))} DHS
                   </div></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note</label>
-                  <input type="text" value={livForm.note} onChange={e=>setLivForm({...livForm,note:e.target.value})} className="input w-full text-sm" placeholder="Optionnel..."/></div>
+                <div>
+                  {showLivNote
+                    ? <><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note</label>
+                        <input type="text" value={livForm.note} onChange={e=>setLivForm({...livForm,note:e.target.value})} className="input w-full text-sm" placeholder="Optionnel..."/></>
+                    : <button type="button" onClick={()=>setShowLivNote(true)} className="text-[10px] text-slate-400 hover:text-slate-600">＋ Ajouter une note</button>
+                  }
+                </div>
                 {/* Live preview */}
                 {livForm.qte && livForm.prix_vente && (
                   <div className="col-span-2 md:col-span-3 grid grid-cols-4 gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
@@ -1512,9 +1551,16 @@ export default function VoyageDetail() {
                     </div>
                   </div>
                 )}
-                <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={()=>setShowLiv(false)} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
-                  <button type="submit" disabled={savingLiv} className="text-xs bg-emerald-600 text-white px-4 py-1.5 rounded-lg font-semibold">{savingLiv?'...':'✅ Enregistrer'}</button>
+                <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1 flex-wrap">
+                  <button type="button" onClick={()=>{setShowLiv(false);setShowLivNote(false)}} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
+                  <button type="submit" onMouseDown={()=>{ addAnotherLivRef.current = true }} disabled={savingLiv}
+                    className="text-xs bg-emerald-500 text-white px-4 py-1.5 rounded-lg font-semibold">
+                    {savingLiv ? '...' : '＋ Ajouter une autre'}
+                  </button>
+                  <button type="submit" onMouseDown={()=>{ addAnotherLivRef.current = false }} disabled={savingLiv}
+                    className="text-xs bg-emerald-600 text-white px-4 py-1.5 rounded-lg font-semibold">
+                    {savingLiv ? '...' : '✅ Enregistrer'}
+                  </button>
                 </div>
               </form>
             )}
@@ -1580,7 +1626,9 @@ export default function VoyageDetail() {
                 <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>
                   <input type="date" value={retForm.date_retour} onChange={e=>setRetForm({...retForm,date_retour:e.target.value})} className="input w-full text-sm"/></div>
                 <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Client retour *</label>
-                  <input type="text" value={retForm.client_nom} onChange={e=>setRetForm({...retForm,client_nom:e.target.value})} className="input w-full text-sm" placeholder="Nom du client" required/></div>
+                  <input list="ret-clients" type="text" value={retForm.client_nom} onChange={e=>setRetForm({...retForm,client_nom:e.target.value})} className="input w-full text-sm" placeholder="Nom du client" required/>
+                  <datalist id="ret-clients">{clients.map(c=><option key={c.id} value={c.nom}/>)}</datalist>
+                </div>
                 <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Destination</label>
                   <input type="text" value={retForm.destination} onChange={e=>setRetForm({...retForm,destination:e.target.value})} className="input w-full text-sm" placeholder="Ex: Berkane..."/></div>
                 <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant total *</label>
@@ -1754,7 +1802,7 @@ export default function VoyageDetail() {
                   <span className="text-[10px] text-slate-400 ml-2">Saisissez les montants présents. Laissez vide si absent.</span>
                 </div>
                 <div className="space-y-2">
-                  {CHARGE_CATS.map(cat => (
+                  {CHARGE_CATS.filter(cat => showAllCharges || COMMON_CHARGE_KEYS.has(cat.key) || parseFloat(chgGrid[cat.key]) > 0).map(cat => (
                     <div key={cat.key} className="grid grid-cols-12 gap-2 items-center py-2 border-b border-slate-50">
                       <div className="col-span-3 flex items-center gap-2">
                         <span className="text-base">{cat.icon}</span>
@@ -1784,13 +1832,19 @@ export default function VoyageDetail() {
                     </div>
                   ))}
                 </div>
+                {!showAllCharges && (
+                  <button type="button" onClick={() => setShowAllCharges(true)}
+                    className="text-xs text-slate-400 hover:text-slate-600 mt-3 font-semibold">
+                    ＋ Voir toutes les charges ({CHARGE_CATS.filter(c => !COMMON_CHARGE_KEYS.has(c.key)).length} autres catégories)
+                  </button>
+                )}
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
                   <div className="text-sm font-bold text-slate-700">
                     Total: <span className="text-red-600">{fmt(CHARGE_CATS.reduce((s,c)=>s+(parseFloat(chgGrid[c.key])||0),0))} DHS</span>
                     <span className="text-[10px] text-slate-400 ml-2">({CHARGE_CATS.filter(c=>parseFloat(chgGrid[c.key])>0).length} catégorie(s))</span>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={()=>{setShowCharge(false);setChgGrid(emptyChgGrid());setChgFactureMap({})}}
+                    <button type="button" onClick={()=>{setShowCharge(false);setChgGrid(emptyChgGrid());setChgFactureMap({});setShowAllCharges(false)}}
                       className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
                     <button type="submit" disabled={savingChg}
                       className="text-xs bg-red-500 text-white px-5 py-1.5 rounded-lg font-bold hover:bg-red-600 transition">

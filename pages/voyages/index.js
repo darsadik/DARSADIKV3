@@ -3,6 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 
 // ── FORMATTERS ───────────────────────────────────────────────────────────────
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
@@ -206,6 +207,7 @@ function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, 
 
 export default function Voyages() {
   const { user } = useAuth()
+  const router = useRouter()
 
   // ── DATA ──
   const [voyages,    setVoyages]    = useState([])
@@ -429,7 +431,7 @@ export default function Voyages() {
     if (error) { setMsg('❌ ' + error.message); return }
     setShowForm(false)
     setForm({ date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '', km_arrivee: '' })
-    window.location.href = `/voyages/${data.id}`
+    router.push(`/voyages/${data.id}`)
   }
 
   // ── FILTERED VOYAGES ─────────────────────────────────────────────────────
