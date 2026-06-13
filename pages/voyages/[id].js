@@ -187,6 +187,7 @@ export default function VoyageDetail() {
 
   // ── UX additions ──
   const addAnotherLivRef               = useRef(false)
+  const addAnotherAchatRef             = useRef(false)
   const [showAchatNote,  setShowAchatNote]  = useState(false)
   const [showLivNote,    setShowLivNote]    = useState(false)
   const [showAllCharges, setShowAllCharges] = useState(false)
@@ -637,9 +638,16 @@ export default function VoyageDetail() {
         if (freshF) await supabase.from(fTbl).update({ solde: (freshF.solde||0) + total_achat }).eq('id', fId)
       }
 
-      setShowAchat(false)
-      setShowAchatNote(false)
-      setAchatForm({ date_achat: today(), type_produit: 'brique', fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' })
+      if (addAnotherAchatRef.current) {
+        const nextType = achatForm.type_produit === 'brique' ? 'grignon' : 'brique'
+        setAchatForm(f => ({ ...f, type_produit: nextType, fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' }))
+        setShowAchatNote(false)
+      } else {
+        setShowAchat(false)
+        setShowAchatNote(false)
+        setAchatForm({ date_achat: today(), type_produit: 'brique', fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' })
+      }
+      addAnotherAchatRef.current = false
       loadVoyage()
     } catch (err) {
       toast('Erreur enregistrement achat: ' + err.message)
@@ -1420,9 +1428,16 @@ export default function VoyageDetail() {
                     </div>
                   </div>
                 )}
-                <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1">
+                <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1 flex-wrap">
                   <button type="button" onClick={()=>{setShowAchat(false);setShowAchatNote(false)}} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
-                  <button type="submit" disabled={savingAchat} className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded-lg font-semibold">{savingAchat?'...':'✅ Enregistrer'}</button>
+                  <button type="submit" onMouseDown={()=>{ addAnotherAchatRef.current = true }} disabled={savingAchat}
+                    className="text-xs bg-blue-500 text-white px-4 py-1.5 rounded-lg font-semibold">
+                    {savingAchat ? '...' : achatForm.type_produit === 'brique' ? '＋ Ajouter Grignon' : '＋ Ajouter Briques'}
+                  </button>
+                  <button type="submit" onMouseDown={()=>{ addAnotherAchatRef.current = false }} disabled={savingAchat}
+                    className="text-xs bg-blue-600 text-white px-4 py-1.5 rounded-lg font-semibold">
+                    {savingAchat ? '...' : '✅ Enregistrer'}
+                  </button>
                 </div>
               </form>
             )}
