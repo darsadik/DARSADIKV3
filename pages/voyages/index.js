@@ -220,6 +220,7 @@ export default function Voyages() {
   const [standaloneCharges, setStandaloneCharges] = useState([])
   const [camions,          setCamions]          = useState([])
   const [clients,    setClients]    = useState([])
+  const [locationsData, setLocationsData] = useState([])
 
   // ── UI ──
   const [loading,   setLoading]   = useState(true)
@@ -267,6 +268,7 @@ export default function Voyages() {
       { data: cl },
       { data: sc },
       { data: ag },
+      { data: loc },
     ] = await Promise.all([
       supabase.from('voyages').select('*').is('deleted_at', null).order('date_depart', { ascending: false }),
       supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
@@ -278,6 +280,7 @@ export default function Voyages() {
       supabase.from('clients').select('id,nom').order('nom'),
       supabase.from('charges').select('camion_plaque,date,total').is('source', null),
       supabase.from('gasoil').select('camion_id,km,total,date').not('km', 'is', null).order('km', { ascending: true }),
+      supabase.from('voyage_locations').select('voyage_id,montant_location'),
     ])
     setVoyages(v || [])
     setAchats(ac || [])
@@ -289,6 +292,7 @@ export default function Voyages() {
     setCamions(ca || [])
     setClients(cl || [])
     setStandaloneCharges(sc || [])
+    setLocationsData(loc || [])
     setLoading(false)
   }
 
@@ -325,6 +329,7 @@ export default function Voyages() {
     const myGas      = gasoilData.filter(g => vIds.includes(g.voyage_id))
     const myChgs     = charges.filter(c => vIds.includes(c.voyage_id))
     const myRets     = retours.filter(r => vIds.includes(r.voyage_id))
+    const myLocs     = locationsData.filter(l => vIds.includes(l.voyage_id))
 
     const revenuLivs  = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0)
     const revenuRets  = myRets.reduce((s, r) => s + (r.montant || 0), 0)
@@ -333,6 +338,7 @@ export default function Voyages() {
 
     const coutAchat   = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte||0)*(a.prix_achat||0)), 0)
     const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
+    const coutLocation = myLocs.reduce((s, l) => s + (l.montant_location || 0), 0)
     const coutGasoil  = myVoyages.reduce((s, v) => {
       const km = kmFuelCost(v)
       if (km !== null) return s + km
@@ -347,11 +353,11 @@ export default function Voyages() {
         .reduce((s, c) => s + (c.total || 0), 0)
     }, 0)
 
-    const coutTotal = coutAchat + coutGasoil + coutCharges + coutStandalone
+    const coutTotal = coutAchat + coutGasoil + coutLocation + coutCharges + coutStandalone
     const profit    = revenuBrut - coutTotal
     const marge     = revenuBrut > 0 ? Math.round(profit / revenuBrut * 100) : 0
 
-    return { revenuBrut, coutAchat, coutGasoil, coutCharges, coutStandalone, coutTotal, profit, marge }
+    return { revenuBrut, coutAchat, coutGasoil, coutLocation, coutCharges, coutStandalone, coutTotal, profit, marge }
   }
 
   // ── UPDATE VOYAGE ─────────────────────────────────────────────────────────
@@ -976,10 +982,14 @@ export default function Voyages() {
               <div key={ca.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xl">🚛</span>
                       <span className="font-black text-slate-800 text-lg">{ca.plaque}</span>
                       {ca.chauffeur && <span className="text-sm text-slate-500">· {ca.chauffeur}</span>}
+                      {ca.type_camion === 'loue'
+                        ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">🔑 Loué</span>
+                        : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">🏢 Propre</span>
+                      }
                     </div>
                     <div className="text-[10px] text-slate-400 mt-0.5 ml-8">
                       {ca.nbV} voyage{ca.nbV !== 1 ? 's' : ''} · {fmt(ca.totalBriques)} briques
@@ -1001,10 +1011,17 @@ export default function Voyages() {
                     <div className="text-[10px] text-red-500 font-semibold uppercase tracking-wide">Coût total</div>
                     <div className="font-black text-red-600 mt-0.5 text-sm">{fmt(ca.coutTotal)} DHS</div>
                   </div>
-                  <div className="bg-orange-50 rounded-xl p-3">
-                    <div className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Gasoil</div>
-                    <div className="font-black text-orange-600 mt-0.5 text-sm">{fmt(ca.coutGasoil)} DHS</div>
-                  </div>
+                  {ca.type_camion === 'loue' ? (
+                    <div className="bg-amber-50 rounded-xl p-3">
+                      <div className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide">Location</div>
+                      <div className="font-black text-amber-700 mt-0.5 text-sm">{fmt(ca.coutLocation || 0)} DHS</div>
+                    </div>
+                  ) : (
+                    <div className="bg-orange-50 rounded-xl p-3">
+                      <div className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Gasoil</div>
+                      <div className="font-black text-orange-600 mt-0.5 text-sm">{fmt(ca.coutGasoil)} DHS</div>
+                    </div>
+                  )}
                   <div className="bg-blue-50 rounded-xl p-3">
                     <div className="text-[10px] text-blue-500 font-semibold uppercase tracking-wide">Briques transp.</div>
                     <div className="font-black text-blue-700 mt-0.5 text-sm">{fmt(ca.totalBriques)} u.</div>

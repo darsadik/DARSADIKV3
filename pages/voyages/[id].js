@@ -108,6 +108,8 @@ export default function VoyageDetail() {
   const [retours,    setRetours]    = useState([])
   const [gasoil,     setGasoil]     = useState([])
   const [charges,    setCharges]    = useState([])
+  const [locations,  setLocations]  = useState([])
+  const [loueurs,    setLoueurs]    = useState([])
 
   // ── sidebar ──
   const [sidebarVoyages, setSidebarVoyages] = useState([])
@@ -122,6 +124,9 @@ export default function VoyageDetail() {
   const [showGasoilPicker, setShowGasoilPicker] = useState(false)
   const [camionPleins,     setCamionPleins]     = useState([])
   const [linkingGasoil,    setLinkingGasoil]    = useState(false)
+  const [showLocation, setShowLocation] = useState(false)
+  const [locForm,      setLocForm]      = useState({ loueur_id: '', montant_location: '', montant_paye: '', note: '' })
+  const [savingLoc,    setSavingLoc]    = useState(false)
 
   const [achatForm, setAchatForm] = useState({ date_achat: today(), type_produit: 'brique', fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' })
   const [livForm,   setLivForm]   = useState({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
@@ -140,6 +145,7 @@ export default function VoyageDetail() {
     retour:    useRef(null),
     charge:    useRef(null),
     gasoil:    useRef(null),
+    location:  useRef(null),
     profit:    useRef(null),
   }
   function scrollTo(key) {
@@ -151,6 +157,7 @@ export default function VoyageDetail() {
     if (key === 'retour')    setShowRetour(true)
     if (key === 'charge')    setShowCharge(true)
     if (key === 'gasoil')    loadCamionPleins()
+    if (key === 'location')  setShowLocation(true)
   }
 
   // Smart defaults: auto-fill prix_achat in livForm from last achat in this voyage
@@ -211,6 +218,8 @@ export default function VoyageDetail() {
         { data: re },
         { data: ga },
         { data: ch },
+        { data: loc },
+        { data: lo },
       ] = await Promise.all([
         supabase.from('voyages').select('*').eq('id', id).single(),
         supabase.from('camions').select('*').order('plaque'),
@@ -224,6 +233,8 @@ export default function VoyageDetail() {
         supabase.from('voyage_retours').select('*').eq('voyage_id', id).order('created_at'),
         supabase.from('voyage_gasoil').select('*').eq('voyage_id', id).order('created_at'),
         supabase.from('voyage_charges').select('*').eq('voyage_id', id).order('created_at'),
+        supabase.from('voyage_locations').select('*').eq('voyage_id', id).order('created_at'),
+        supabase.from('loueurs').select('*').order('nom'),
       ])
       if (ev) throw new Error('Voyage introuvable')
       if (eca) throw new Error('Erreur chargement camions')
@@ -239,6 +250,8 @@ export default function VoyageDetail() {
       setRetours(re || [])
       setGasoil(ga || [])
       setCharges(ch || [])
+      setLocations(loc || [])
+      setLoueurs(lo || [])
     } catch (err) {
       setLoadError(err.message || 'Erreur de chargement')
     } finally {
@@ -262,13 +275,14 @@ export default function VoyageDetail() {
   // ── LOAD SIDEBAR ─────────────────────────────────────────────────────────────
   useEffect(() => {
     async function loadSidebar() {
-      const [{ data: vs }, { data: ac }, { data: li }, { data: ga }, { data: ch }, { data: re }] = await Promise.all([
+      const [{ data: vs }, { data: ac }, { data: li }, { data: ga }, { data: ch }, { data: re }, { data: sl }] = await Promise.all([
         supabase.from('voyages').select('id,date_depart,camion_plaque,destination,statut,reference').order('date_depart', { ascending: false }),
         supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
         supabase.from('voyage_livraisons').select('voyage_id,total_vente'),
         supabase.from('voyage_gasoil').select('voyage_id,total'),
         supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
         supabase.from('voyage_retours').select('voyage_id,montant_paye'),
+        supabase.from('voyage_locations').select('voyage_id,montant_location'),
       ])
       setSidebarVoyages(vs || [])
       const profits = {}
@@ -279,7 +293,8 @@ export default function VoyageDetail() {
         const coutAc  = (ac||[]).filter(a=>a.voyage_id===v.id).reduce((s,a)=>s+(a.total_achat||(a.qte||0)*(a.prix_achat||0)),0)
         const coutGas = (ga||[]).filter(g=>g.voyage_id===v.id).reduce((s,g)=>s+(g.total||0),0)
         const coutChg = (ch||[]).filter(c=>c.voyage_id===v.id&&!c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
-        profits[v.id] = (revLivs+revRets+revChg)-(coutAc+coutGas+coutChg)
+        const coutLoc = (sl||[]).filter(l=>l.voyage_id===v.id).reduce((s,l)=>s+(l.montant_location||0),0)
+        profits[v.id] = (revLivs+revRets+revChg)-(coutAc+coutGas+coutChg+coutLoc)
       })
       setSidebarProfits(profits)
     }
@@ -348,13 +363,16 @@ export default function VoyageDetail() {
   const totalRevenuLivs    = livraisons.reduce((s,l) => s+(l.total_vente||0), 0)
   const totalAchats        = achats.reduce((s,a) => s+(a.total_achat||(a.qte||0)*(a.prix_achat||0)), 0)
   const totalRetours       = retours.reduce((s,r) => s+(r.montant_paye||0), 0)
+  const totalLocation      = locations.reduce((s,l) => s+(l.montant_location||0), 0)
   const revenuBrut         = totalRevenuLivs + totalRetours + totalChargesClient
 
   // Fuel: prefer km-based auto-allocation, fallback to historical manual voyage_gasoil entries
   const fuelCost   = kmBasedFuelCost !== null ? kmBasedFuelCost : totalGasoilManuel
   const fuelSource = kmBasedFuelCost !== null ? 'km' : (totalGasoilManuel > 0 ? 'manuel' : 'none')
 
-  const coutTotal   = totalAchats + fuelCost + totalChargesFixed
+  // Truck type: loué trucks add location cost to total
+  const isLoue      = camions.find(c => c.id === voyage?.camion_id)?.type_camion === 'loue'
+  const coutTotal   = totalAchats + fuelCost + totalLocation + totalChargesFixed
   const profitNet   = revenuBrut - coutTotal
   const margePercent = revenuBrut > 0 ? Math.round(profitNet/revenuBrut*100) : 0
 
@@ -374,7 +392,7 @@ export default function VoyageDetail() {
     const qteShare  = totalQteVoyage > 0 ? myQte / totalQteVoyage : 1 / nbClients
     const rev       = myLivs.reduce((s,l)=>s+(l.total_vente||0),0) + myCharges.reduce((s,c)=>s+(c.montant||0),0)
     const cout      = myLivs.reduce((s,l)=>s+(l.total_achat||(l.qte||0)*(l.prix_achat||0)),0)
-                    + fuelCost * qteShare
+                    + (fuelCost + totalLocation) * qteShare
                     + totalChargesFixed * qteShare
     return { id: cid, nom: cl?.nom || myLivs[0]?.client_nom || '—', isGrignon, rev, cout, profit: rev-cout, qte: myQte, qteShare }
   })
@@ -988,6 +1006,38 @@ export default function VoyageDetail() {
     loadVoyage()
   }
 
+  async function saveLocation(e) {
+    e.preventDefault()
+    setSavingLoc(true)
+    try {
+      const montant_location = parseFloat(locForm.montant_location) || 0
+      const montant_paye     = parseFloat(locForm.montant_paye) || 0
+      const reste            = Math.max(0, montant_location - montant_paye)
+      const loueur           = loueurs.find(l => l.id === parseInt(locForm.loueur_id))
+      const payload = {
+        loueur_id:        loueur ? parseInt(locForm.loueur_id) : null,
+        loueur_nom:       loueur?.nom || '',
+        montant_location,
+        montant_paye,
+        reste,
+        note: locForm.note || null,
+      }
+      if (locations.length > 0) {
+        await supabase.from('voyage_locations').update(payload).eq('id', locations[0].id)
+      } else {
+        await supabase.from('voyage_locations').insert({ ...payload, voyage_id: parseInt(id) })
+      }
+      setShowLocation(false)
+      loadVoyage()
+    } catch (err) { toast('Erreur location: ' + err.message) }
+    finally { setSavingLoc(false) }
+  }
+
+  async function delLocation(loc) {
+    await supabase.from('voyage_locations').delete().eq('id', loc.id)
+    loadVoyage()
+  }
+
   function showMsg(m) { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
   if (loading) return <Layout title="Voyage"><div className="text-center py-20 text-slate-400">Chargement...</div></Layout>
@@ -1282,6 +1332,7 @@ export default function VoyageDetail() {
                 { key: 'retour',    icon: '↩️',  label: 'Retours',   count: retours.length,    color: '#8b5cf6' },
                 { key: 'charge',    icon: '💸', label: 'Charges',    count: charges.length,    color: '#ef4444' },
                 { key: 'gasoil',    icon: '⛽', label: 'Gasoil',     count: gasoil.length,     color: '#f97316' },
+                ...(isLoue ? [{ key: 'location', icon: '🔑', label: 'Location', count: locations.length, color: '#d97706' }] : []),
                 { key: 'profit',    icon: '📊', label: 'Résultat',   count: null,              color: '#1e3a5f' },
               ].map(step => (
                 <button key={step.key} onClick={() => scrollTo(step.key)}
@@ -1310,7 +1361,14 @@ export default function VoyageDetail() {
           {/* ── PROFIT SUMMARY ── */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-lg">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Résultat du voyage</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            {/* Truck type badge */}
+            {isLoue && (
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-xs font-bold bg-amber-800/60 text-amber-300 px-2.5 py-1 rounded-lg">🔑 Camion loué</span>
+                {locations.length > 0 && <span className="text-xs text-amber-300">{locations[0].loueur_nom || '—'}</span>}
+              </div>
+            )}
+            <div className={`grid gap-4 mb-4 ${isLoue ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
               <div>
                 <div className="text-[10px] text-slate-400 mb-1">Revenu brut</div>
                 <div className="text-lg font-black text-emerald-400">{fmt(revenuBrut)} DHS</div>
@@ -1324,13 +1382,25 @@ export default function VoyageDetail() {
                   Carburant + Charges
                   {fuelSource === 'km'     && <span className="text-[9px] bg-emerald-900/60 text-emerald-300 px-1.5 py-0.5 rounded font-bold">⚡ km</span>}
                   {fuelSource === 'manuel' && <span className="text-[9px] bg-amber-900/60 text-amber-300 px-1.5 py-0.5 rounded font-bold">📝 manuel</span>}
-                  {fuelSource === 'none'   && <span className="text-[9px] bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded font-bold">⚠ manquant</span>}
+                  {fuelSource === 'none' && !isLoue && <span className="text-[9px] bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded font-bold">⚠ manquant</span>}
                 </div>
                 <div className="text-lg font-black text-orange-400">{fmt(fuelCost + totalChargesFixed)} DHS</div>
                 {fuelSource === 'km' && voyageKm > 0 && (
                   <div className="text-[10px] text-emerald-300 mt-0.5">{fmt(voyageKm)} km · {fmtD(fuelCost / voyageKm)} DHS/km</div>
                 )}
               </div>
+              {isLoue && (
+                <div>
+                  <div className="text-[10px] text-slate-400 mb-1 flex items-center gap-1">
+                    Location camion
+                    {totalLocation === 0 && <span className="text-[9px] bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded font-bold">⚠ non saisi</span>}
+                  </div>
+                  <div className="text-lg font-black text-amber-400">{fmt(totalLocation)} DHS</div>
+                  {locations.length > 0 && locations[0].reste > 0 && (
+                    <div className="text-[10px] text-red-300 mt-0.5">Reste: {fmt(locations[0].reste)} DHS</div>
+                  )}
+                </div>
+              )}
               <div>
                 <div className="text-[10px] text-slate-400 mb-1">Profit net</div>
                 <div className={`text-2xl font-black ${profitNet>=0?'text-emerald-400':'text-red-400'}`}>
@@ -1918,6 +1988,109 @@ export default function VoyageDetail() {
               </div>
             )}
           </Section>
+
+          {/* ── SECTION: LOCATION CAMION (camions loués only) ── */}
+          {isLoue && (
+            <div ref={sectionRefs.location}>
+            <Section icon="🔑" title="Location camion" color="purple"
+              action={
+                <button onClick={() => {
+                  if (!showLocation && locations.length > 0) {
+                    const l = locations[0]
+                    setLocForm({ loueur_id: l.loueur_id ? String(l.loueur_id) : '', montant_location: String(l.montant_location || ''), montant_paye: String(l.montant_paye || ''), note: l.note || '' })
+                  }
+                  setShowLocation(v => !v)
+                }}
+                  className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-purple-700 transition">
+                  {showLocation ? 'Fermer' : locations.length === 0 ? '+ Saisir location' : '✏️ Modifier'}
+                </button>
+              }>
+
+              {showLocation && (
+                <form onSubmit={saveLocation} className="bg-white border border-purple-100 rounded-xl p-4 mb-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="col-span-2 md:col-span-3">
+                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Loueur</label>
+                    <select value={locForm.loueur_id} onChange={e => setLocForm({...locForm, loueur_id: e.target.value})} className="input w-full text-sm">
+                      <option value="">— Sélectionner un loueur —</option>
+                      {loueurs.map(l => <option key={l.id} value={l.id}>{l.nom}{l.telephone ? ` · ${l.telephone}` : ''}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant location (DHS)</label>
+                    <input type="number" step="0.01" min="0" value={locForm.montant_location}
+                      onChange={e => setLocForm({...locForm, montant_location: e.target.value})}
+                      className="input w-full text-sm font-bold" placeholder="0" required />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant payé (DHS)</label>
+                    <input type="number" step="0.01" min="0" value={locForm.montant_paye}
+                      onChange={e => setLocForm({...locForm, montant_paye: e.target.value})}
+                      className="input w-full text-sm" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Reste à payer</label>
+                    <div className="input w-full text-sm bg-slate-50 font-bold text-red-600 flex items-center">
+                      {fmt(Math.max(0, (parseFloat(locForm.montant_location)||0) - (parseFloat(locForm.montant_paye)||0)))} DHS
+                    </div>
+                  </div>
+                  <div className="col-span-2 md:col-span-3">
+                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Note (optionnel)</label>
+                    <input type="text" value={locForm.note} onChange={e => setLocForm({...locForm, note: e.target.value})}
+                      className="input w-full text-sm" placeholder="ex: chèque #123, mode de paiement..." />
+                  </div>
+                  <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1">
+                    <button type="button" onClick={() => setShowLocation(false)}
+                      className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
+                    <button type="submit" disabled={savingLoc}
+                      className="text-xs bg-purple-600 text-white px-5 py-1.5 rounded-lg font-bold hover:bg-purple-700 transition">
+                      {savingLoc ? '...' : '✅ Enregistrer'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {locations.length === 0 ? (
+                <div className="text-center py-4 space-y-1">
+                  <div className="text-sm text-slate-400">Location non saisie</div>
+                  <div className="text-xs text-slate-300">Cliquez sur "+ Saisir location" pour enregistrer le coût de location</div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-slate-400 text-[10px] uppercase border-b border-slate-100">
+                        <th className="text-left pb-2 pr-3">Loueur</th>
+                        <th className="text-right pb-2 pr-3">Montant location</th>
+                        <th className="text-right pb-2 pr-3">Payé</th>
+                        <th className="text-right pb-2 pr-3">Reste</th>
+                        <th className="pb-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {locations.map(loc => (
+                        <tr key={loc.id} className="border-b border-slate-50 hover:bg-slate-50">
+                          <td className="py-2 pr-3 font-semibold text-slate-700">{loc.loueur_nom || '—'}</td>
+                          <td className="py-2 pr-3 text-right font-bold text-purple-600">{fmt(loc.montant_location)} DHS</td>
+                          <td className="py-2 pr-3 text-right font-semibold text-emerald-600">{fmt(loc.montant_paye)} DHS</td>
+                          <td className="py-2 pr-3 text-right font-bold text-red-600">
+                            {Math.max(0, (loc.montant_location||0) - (loc.montant_paye||0)) > 0
+                              ? `${fmt(Math.max(0, (loc.montant_location||0)-(loc.montant_paye||0)))} DHS`
+                              : <span className="text-emerald-600">✓ Soldé</span>
+                            }
+                          </td>
+                          <td className="py-2 pl-1"><DelBtn onDel={() => delLocation(loc)}/></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {locations[0]?.note && (
+                    <div className="mt-2 text-xs text-slate-400 px-1">📝 {locations[0].note}</div>
+                  )}
+                </div>
+              )}
+            </Section>
+            </div>
+          )}
 
         </div>
         </div>{/* last section ref div */}

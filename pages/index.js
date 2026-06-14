@@ -14,13 +14,15 @@ export default function Dashboard() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
 
-  const [voyages,    setVoyages]    = useState([])
-  const [livraisons, setLivraisons] = useState([])
-  const [achatsVoy,  setAchatsVoy]  = useState([])
-  const [gasoilVoy,  setGasoilVoy]  = useState([])
-  const [chargesVoy, setChargesVoy] = useState([])
-  const [retoursVoy, setRetoursVoy] = useState([])
-  const [clients,    setClients]    = useState([])
+  const [voyages,      setVoyages]      = useState([])
+  const [livraisons,   setLivraisons]   = useState([])
+  const [achatsVoy,    setAchatsVoy]    = useState([])
+  const [gasoilVoy,    setGasoilVoy]    = useState([])
+  const [chargesVoy,   setChargesVoy]   = useState([])
+  const [retoursVoy,   setRetoursVoy]   = useState([])
+  const [clients,      setClients]      = useState([])
+  const [camionsData,  setCamionsData]  = useState([])
+  const [locationsVoy, setLocationsVoy] = useState([])
 
   useEffect(() => { loadAll() }, [])
 
@@ -34,6 +36,8 @@ export default function Dashboard() {
       { data: cv },
       { data: rv },
       { data: cl },
+      { data: ca },
+      { data: lv },
     ] = await Promise.all([
       supabase.from('voyages').select('*').order('date_depart', { ascending: false }).limit(100),
       supabase.from('voyage_livraisons').select('voyage_id,total_vente,client_id,client_nom,type_produit'),
@@ -42,6 +46,8 @@ export default function Dashboard() {
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
       supabase.from('voyage_retours').select('voyage_id,montant'),
       supabase.from('clients').select('id,nom,solde').order('solde', { ascending: false }),
+      supabase.from('camions').select('id,plaque,type_camion').order('plaque'),
+      supabase.from('voyage_locations').select('voyage_id,montant_location'),
     ])
     setVoyages(v || [])
     setLivraisons(li || [])
@@ -50,6 +56,8 @@ export default function Dashboard() {
     setChargesVoy(cv || [])
     setRetoursVoy(rv || [])
     setClients(cl || [])
+    setCamionsData(ca || [])
+    setLocationsVoy(lv || [])
     setLoading(false)
   }
 
@@ -59,12 +67,14 @@ export default function Dashboard() {
     const ga = gasoilVoy.filter(g => g.voyage_id === vid)
     const ch = chargesVoy.filter(c => c.voyage_id === vid)
     const re = retoursVoy.filter(r => r.voyage_id === vid)
+    const lo = locationsVoy.filter(l => l.voyage_id === vid)
     const revenu = li.reduce((s, l) => s + (l.total_vente || 0), 0)
       + re.reduce((s, r) => s + (r.montant || 0), 0)
       + ch.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
     const cout = ac.reduce((s, a) => s + (a.total_achat || (a.qte || 0) * (a.prix_achat || 0)), 0)
       + ga.reduce((s, g) => s + (g.total || 0), 0)
       + ch.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
+      + lo.reduce((s, l) => s + (l.montant_location || 0), 0)
     return { revenu, cout, profit: revenu - cout }
   }
 
@@ -90,6 +100,12 @@ export default function Dashboard() {
   const totalCreances = clients.reduce((s, c) => s + (c.solde || 0), 0)
   const profitMoyen   = monthVoyages.length > 0 ? profitMois / monthVoyages.length : 0
 
+  // Propres vs Loués split
+  const propresVoyages = monthVoyages.filter(v => camionsData.find(c => c.id === v.camion_id)?.type_camion !== 'loue')
+  const louesVoyages   = monthVoyages.filter(v => camionsData.find(c => c.id === v.camion_id)?.type_camion === 'loue')
+  const profitPropres  = propresVoyages.reduce((s, v) => s + voyageProfit(v.id).profit, 0)
+  const profitLoues    = louesVoyages.reduce((s, v) => s + voyageProfit(v.id).profit, 0)
+
   // Derniers voyages (last 8 overall)
   const recentVoyages = voyages.slice(0, 8)
 
@@ -114,7 +130,8 @@ export default function Dashboard() {
   const camionMap = {}
   monthVoyages.forEach(v => {
     const plaque = v.camion_plaque || 'Inconnu'
-    if (!camionMap[plaque]) camionMap[plaque] = { voyages: 0, revenu: 0, profit: 0 }
+    const camRec = camionsData.find(c => c.id === v.camion_id)
+    if (!camionMap[plaque]) camionMap[plaque] = { voyages: 0, revenu: 0, profit: 0, type_camion: camRec?.type_camion || 'propre' }
     const { revenu, profit } = voyageProfit(v.id)
     camionMap[plaque].voyages++
     camionMap[plaque].revenu  += revenu
@@ -200,6 +217,26 @@ export default function Dashboard() {
                 <div className="text-xs text-slate-400 mt-1.5">DHS · {monthVoyages.length} voyage{monthVoyages.length !== 1 ? 's' : ''}</div>
               </div>
             </div>
+
+            {/* ── PROPRES VS LOUÉS ── */}
+            {louesVoyages.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className={`rounded-2xl border shadow-sm p-4 ${profitPropres >= 0 ? 'bg-slate-50 border-slate-200' : 'bg-red-50 border-red-200'}`}>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Camions propres</div>
+                  <div className={`text-2xl font-black leading-none ${profitPropres >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
+                    {profitPropres >= 0 ? '+' : ''}{fmt(profitPropres)}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1.5">DHS · {propresVoyages.length} voyage{propresVoyages.length !== 1 ? 's' : ''}</div>
+                </div>
+                <div className={`rounded-2xl border shadow-sm p-4 ${profitLoues >= 0 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
+                  <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2">🔑 Camions loués</div>
+                  <div className={`text-2xl font-black leading-none ${profitLoues >= 0 ? 'text-amber-700' : 'text-red-600'}`}>
+                    {profitLoues >= 0 ? '+' : ''}{fmt(profitLoues)}
+                  </div>
+                  <div className="text-xs text-amber-500 mt-1.5">DHS · {louesVoyages.length} voyage{louesVoyages.length !== 1 ? 's' : ''}</div>
+                </div>
+              </div>
+            )}
 
             {/* ── DERNIERS VOYAGES ── */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -430,7 +467,10 @@ export default function Dashboard() {
                     <tbody className="divide-y divide-slate-50">
                       {camions.map(c => (
                         <tr key={c.plaque} className="hover:bg-slate-50 transition">
-                          <td className="px-5 py-3 font-bold text-slate-800">{c.plaque}</td>
+                          <td className="px-5 py-3">
+                            <span className="font-bold text-slate-800">{c.plaque}</span>
+                            {c.type_camion === 'loue' && <span className="ml-1.5 text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">LOUÉ</span>}
+                          </td>
                           <td className="px-4 py-3 text-right text-slate-600 font-semibold">{c.voyages}</td>
                           <td className="px-4 py-3 text-right font-semibold text-slate-600 hidden md:table-cell">{fmt(c.revenu)}</td>
                           <td className={`px-4 py-3 text-right font-bold ${c.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>

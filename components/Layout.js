@@ -20,6 +20,7 @@ const nav = [
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },
   { href: '/charges',     icon: 'dollar',     label: 'Charges' },
   { href: '/grignon',     icon: 'leaf',       label: 'Grignon' },
+  { href: '/loueurs',     icon: 'key',        label: 'Loueurs' },
   { href: '/parametres',  icon: 'settings',   label: 'Paramètres' },
 ]
 
@@ -105,6 +106,13 @@ function Icon({ name, size = 18 }) {
         <path d="M20.24 12.24a6 6 0 00-8.49-8.49L5 10.5V19h8.5z"/>
         <line x1="16" y1="6" x2="2" y2="22"/>
         <line x1="17.5" y1="15" x2="9" y2="15"/>
+      </>
+    ),
+    key: (
+      <>
+        <circle cx="7.5" cy="15.5" r="5.5"/>
+        <path d="M21 2l-9.6 9.6"/>
+        <path d="M15.5 7.5l3 3L22 7l-3-3"/>
       </>
     ),
     settings: (
