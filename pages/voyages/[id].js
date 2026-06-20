@@ -11,6 +11,7 @@ import { loadVoyageData } from '../../lib/services/voyage/loaders'
 import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm } from '../../lib/services/voyage/updates'
 import { saveAchat as dbSaveAchat, updateAchat as dbUpdateAchat, delAchat as dbDelAchat } from '../../lib/services/voyage/achats'
 import { saveLiv as dbSaveLiv, updateLiv as dbUpdateLiv, delLiv as dbDelLiv } from '../../lib/services/voyage/livraisons'
+import { saveChargeGrid as dbSaveChargeGrid, updateCharge as dbUpdateCharge, delCharge as dbDelCharge } from '../../lib/services/voyage/charges'
 import Section from '../../components/ui/Section'
 import Empty from '../../components/ui/Empty'
 import DelBtn from '../../components/ui/DelBtn'
@@ -366,45 +367,7 @@ export default function VoyageDetail() {
   async function updateCharge() {
     setEditSaving(true)
     try {
-      const old = editRow.data
-      const montant = parseFloat(editForm.montant)||0
-      const { error } = await supabase.from('voyage_charges').update({
-        date_charge: editForm.date_charge, montant
-      }).eq('id', old.id)
-      if (error) throw error
-
-      const diff = montant - (old.montant||0)
-      if (diff !== 0) {
-        // Sync client solde + linked vente if billed to client
-        if (old.facture_client && old.client_id) {
-          const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', old.client_id).single()
-          if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde||0)+diff }).eq('id', old.client_id)
-          await supabase.from('ventes')
-            .update({ montant_mdo: montant })
-            .eq('voyage_id', old.voyage_id)
-            .eq('client_id', old.client_id)
-            .eq('type_entree', 'mdo')
-            .eq('montant_mdo', old.montant)
-            .eq('description_mdo', old.description)
-        }
-        // Sync global charges table
-        if (old.categorie && voyage?.camion_id) {
-          const { data: chRow } = await supabase.from('charges')
-            .select('*')
-            .eq('date', old.date_charge)
-            .eq('camion_id', voyage.camion_id)
-            .limit(1)
-            .maybeSingle()
-          if (chRow) {
-            const newCatVal = Math.max(0, (chRow[old.categorie] || 0) + diff)
-            const newTotal  = Math.max(0, (chRow.total || 0) + diff)
-            await supabase.from('charges')
-              .update({ [old.categorie]: newCatVal, total: newTotal })
-              .eq('id', chRow.id)
-          }
-        }
-      }
-
+      await dbUpdateCharge(editRow.data, editForm, voyage?.camion_id)
       setEditRow(null); loadVoyage()
     } catch (err) {
       toast('Erreur modification charge: ' + err.message)
@@ -501,41 +464,10 @@ export default function VoyageDetail() {
   // ── SAVE CHARGES GRID ────────────────────────────────────────────────────────
   async function saveChargeGrid(e) {
     e.preventDefault()
-    const rows = CHARGE_CATS.filter(cat => parseFloat(chgGrid[cat.key]) > 0)
-    if (rows.length === 0) { showMsg('❌ Entrez au moins un montant'); return }
+    if (CHARGE_CATS.filter(cat => parseFloat(chgGrid[cat.key]) > 0).length === 0) { showMsg('❌ Entrez au moins un montant'); return }
     setSavingChg(true)
     try {
-      for (const cat of rows) {
-        const montant = parseFloat(chgGrid[cat.key])||0
-        const clientId = chgFactureMap[cat.key] ? parseInt(chgFactureMap[cat.key]) : null
-        const cl = clientId ? clients.find(c=>c.id===clientId) : null
-        const { error } = await supabase.from('voyage_charges').insert({
-          voyage_id: parseInt(id), date_charge: chgDate, categorie: cat.key, description: cat.label,
-          montant, facture_client: !!cl, client_id: cl ? clientId : null, client_nom: cl?.nom||null,
-        })
-        if (error) throw error
-        if (cl) {
-          await supabase.from('ventes').insert({
-            date: chgDate, client_id: clientId, client_nom: cl.nom,
-            camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||'',
-            type_entree: 'mdo', montant_mdo: montant, description_mdo: cat.label, voyage_id: parseInt(id),
-          })
-          // Fresh-read client before updating solde
-          const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', clientId).single()
-          if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde||0)+montant }).eq('id', clientId)
-        }
-      }
-      // Mirror to global charges table so /charges page shows voyage charges
-      const globalPayload = {
-        date:          chgDate,
-        camion_id:     voyage?.camion_id     || null,
-        camion_plaque: voyage?.camion_plaque || '',
-        note:          voyage?.reference     || `Voyage #${id}`,
-        total:         rows.reduce((s, cat) => s + (parseFloat(chgGrid[cat.key]) || 0), 0),
-      }
-      CHARGE_CATS.forEach(cat => { globalPayload[cat.key] = parseFloat(chgGrid[cat.key]) || 0 })
-      await supabase.from('charges').insert(globalPayload)
-
+      await dbSaveChargeGrid(id, chgDate, chgGrid, chgFactureMap, { clients, voyage })
       setShowCharge(false)
       setChgGrid(emptyChgGrid()); setChgFactureMap({}); setChgDate(today())
       loadVoyage()
@@ -593,38 +525,7 @@ export default function VoyageDetail() {
 
   async function delCharge(row) {
     try {
-      const { error } = await supabase.from('voyage_charges').delete().eq('id', row.id)
-      if (error) throw error
-
-      // Reverse client solde + linked vente if billed to client
-      if (row.facture_client && row.client_id) {
-        const { data: freshCl } = await supabase.from('clients').select('solde').eq('id', row.client_id).single()
-        if (freshCl) await supabase.from('clients').update({ solde: (freshCl.solde||0) - (row.montant||0) }).eq('id', row.client_id)
-        await supabase.from('ventes')
-          .delete()
-          .eq('voyage_id', row.voyage_id)
-          .eq('client_id', row.client_id)
-          .eq('type_entree', 'mdo')
-          .eq('montant_mdo', row.montant)
-          .eq('description_mdo', row.description)
-      }
-
-      // Update the mirrored charges row: zero out this category and reduce total
-      if (row.categorie && voyage?.camion_id) {
-        const { data: chRow } = await supabase.from('charges')
-          .select('*')
-          .eq('date', row.date_charge)
-          .eq('camion_id', voyage.camion_id)
-          .limit(1)
-          .maybeSingle()
-        if (chRow) {
-          const newTotal = Math.max(0, (chRow.total || 0) - (row.montant || 0))
-          await supabase.from('charges')
-            .update({ [row.categorie]: 0, total: newTotal })
-            .eq('id', chRow.id)
-        }
-      }
-
+      await dbDelCharge(row, voyage?.camion_id)
       loadVoyage()
     } catch (err) { toast('Erreur suppression charge: ' + err.message) }
   }
