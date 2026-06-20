@@ -9,6 +9,7 @@ import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
 import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
 import { loadVoyageData } from '../../lib/services/voyage/loaders'
 import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm } from '../../lib/services/voyage/updates'
+import { saveAchat as dbSaveAchat, updateAchat as dbUpdateAchat, delAchat as dbDelAchat } from '../../lib/services/voyage/achats'
 import Section from '../../components/ui/Section'
 import Empty from '../../components/ui/Empty'
 import DelBtn from '../../components/ui/DelBtn'
@@ -324,23 +325,7 @@ export default function VoyageDetail() {
   async function updateAchat() {
     setEditSaving(true)
     try {
-      const old = editRow.data
-      const qte = parseFloat(editForm.qte)||0, prix = parseFloat(editForm.prix_achat)||0
-      const total_achat = Math.round(qte*prix*100)/100
-      const { error } = await supabase.from('voyage_achats').update({
-        date_achat: editForm.date_achat, qte, prix_achat: prix, note: editForm.note||null
-      }).eq('id', old.id)
-      if (error) throw error
-
-      // Adjust fournisseur solde by the difference
-      const oldTotal = Math.round((old.qte||0)*(old.prix_achat||0)*100)/100
-      const diff = total_achat - oldTotal
-      if (diff !== 0 && old.fournisseur_id) {
-        const fTbl = old.type_produit === 'grignon' ? 'grignon_fournisseurs' : 'fournisseurs'
-        const { data: freshF } = await supabase.from(fTbl).select('solde').eq('id', old.fournisseur_id).single()
-        if (freshF) await supabase.from(fTbl).update({ solde: (freshF.solde||0) + diff }).eq('id', old.fournisseur_id)
-      }
-
+      await dbUpdateAchat(editRow.data, editForm)
       setEditRow(null); loadVoyage()
     } catch (err) {
       toast('Erreur modification achat: ' + err.message)
@@ -479,79 +464,7 @@ export default function VoyageDetail() {
     if (!achatForm.qte || !achatForm.prix_achat) { showMsg('❌ Quantité et prix requis'); return }
     setSavingAchat(true)
     try {
-      const qte = parseFloat(achatForm.qte)||0, prix = parseFloat(achatForm.prix_achat)||0
-      const total_achat = Math.round(qte*prix*100)/100
-      const fourn = achatForm.type_produit==='brique'
-        ? fournisseurs.find(f=>f.id===parseInt(achatForm.fournisseur_id))
-        : grignonFournisseurs.find(f=>f.id===parseInt(achatForm.fournisseur_id))
-      const ty = typeBriques.find(t=>t.id===parseInt(achatForm.type_brique_id))
-      const { data: achatData, error } = await supabase.from('voyage_achats').insert({
-        voyage_id: parseInt(id), date_achat: achatForm.date_achat, type_produit: achatForm.type_produit,
-        fournisseur_id: achatForm.fournisseur_id ? parseInt(achatForm.fournisseur_id) : null,
-        fournisseur_nom: fourn?.nom || '',
-        type_brique: achatForm.type_produit==='grignon' ? 'Grignon' : (ty?.nom||''),
-        qte, prix_achat: prix, note: achatForm.note||null,
-      }).select().single()
-      if (error) throw error
-
-      // ── Mirror to existing tables ──
-      if (achatForm.type_produit === 'brique') {
-        // Save to ventes table as purchase (for fournisseur accounting)
-        await supabase.from('ventes').insert({
-          date:             achatForm.date_achat,
-          date_fournisseur: achatForm.date_achat,
-          fournisseur_id:   achatForm.fournisseur_id ? parseInt(achatForm.fournisseur_id) : null,
-          fournisseur:      fourn?.nom || '',
-          type_brique_id:   achatForm.type_brique_id ? parseInt(achatForm.type_brique_id) : null,
-          type_brique:      ty?.nom || '',
-          qte,
-          prix_achat:       prix,
-          prix_vente:       0,
-          total_achat,
-          total_vente:      0,
-          marge:            0,
-          camion_id:        voyage?.camion_id || null,
-          camion_plaque:    voyage?.camion_plaque || '',
-          chauffeur:        voyage?.chauffeur || '',
-          voyage_id:        parseInt(id),
-          type_entree:      'achat',
-        })
-      } else {
-        // Grignon achat → grignon_operations (achat side only — no client yet)
-        // Try with voyage_id first, fallback without if column missing
-        const grignonPayload = {
-          date:            achatForm.date_achat,
-          fournisseur_id:  achatForm.fournisseur_id ? parseInt(achatForm.fournisseur_id) : null,
-          fournisseur_nom: fourn?.nom || '',
-          qte,
-          prix_achat:      prix,
-          prix_vente:      0,
-          total_achat,
-          total_vente:     0,
-          marge:           -total_achat,
-          camion_id:       voyage?.camion_id || null,
-          camion_plaque:   voyage?.camion_plaque || '',
-          chauffeur:       voyage?.chauffeur || '',
-          voyage_id:       parseInt(id),
-          note:            achatForm.note || null,
-        }
-        const { error: grigErr } = await supabase.from('grignon_operations').insert(grignonPayload)
-        if (grigErr) {
-          // Retry without voyage_id if that column doesn't exist
-          const { voyage_id: _v, ...payloadWithoutVid } = grignonPayload
-          const { error: grigErr2 } = await supabase.from('grignon_operations').insert(payloadWithoutVid)
-          if (grigErr2) throw new Error('grignon_operations: ' + grigErr2.message)
-        }
-      }
-
-      // Update fournisseur solde (our debt to supplier increases)
-      if (achatForm.fournisseur_id) {
-        const fTbl = achatForm.type_produit === 'grignon' ? 'grignon_fournisseurs' : 'fournisseurs'
-        const fId  = parseInt(achatForm.fournisseur_id)
-        const { data: freshF } = await supabase.from(fTbl).select('solde').eq('id', fId).single()
-        if (freshF) await supabase.from(fTbl).update({ solde: (freshF.solde||0) + total_achat }).eq('id', fId)
-      }
-
+      await dbSaveAchat(id, achatForm, { fournisseurs, grignonFournisseurs, typeBriques, voyage })
       if (addAnotherAchatRef.current) {
         const nextType = achatForm.type_produit === 'brique' ? 'grignon' : 'brique'
         setAchatForm(f => ({ ...f, type_produit: nextType, fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' }))
@@ -757,17 +670,7 @@ export default function VoyageDetail() {
   // ── DELETE HANDLERS ──────────────────────────────────────────────────────────
   async function delAchat(row) {
     try {
-      const { error } = await supabase.from('voyage_achats').delete().eq('id', row.id)
-      if (error) throw error
-
-      // Reverse fournisseur solde
-      if (row.fournisseur_id) {
-        const fTbl  = row.type_produit === 'grignon' ? 'grignon_fournisseurs' : 'fournisseurs'
-        const total = Math.round((row.qte||0)*(row.prix_achat||0)*100)/100
-        const { data: freshF } = await supabase.from(fTbl).select('solde').eq('id', row.fournisseur_id).single()
-        if (freshF) await supabase.from(fTbl).update({ solde: Math.max(0,(freshF.solde||0) - total) }).eq('id', row.fournisseur_id)
-      }
-
+      await dbDelAchat(row)
       loadVoyage()
     } catch (err) { toast('Erreur suppression achat: ' + err.message) }
   }
