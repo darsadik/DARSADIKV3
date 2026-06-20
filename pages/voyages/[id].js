@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
 import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
 import { loadVoyageData } from '../../lib/services/voyage/loaders'
+import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm } from '../../lib/services/voyage/updates'
 import Section from '../../components/ui/Section'
 import Empty from '../../components/ui/Empty'
 import DelBtn from '../../components/ui/DelBtn'
@@ -886,16 +887,13 @@ export default function VoyageDetail() {
   }
   async function updateStatut(s) {
     setSavingStatut(true)
-    await supabase.from('voyages').update({ statut: s }).eq('id', id)
+    await dbUpdateStatut(id, s)
     setSavingStatut(false); loadVoyage()
   }
 
   async function updateKm() {
     setSavingKm(true)
-    await supabase.from('voyages').update({
-      km_depart:  kmForm.km_depart  ? parseFloat(kmForm.km_depart)  : null,
-      km_arrivee: kmForm.km_arrivee ? parseFloat(kmForm.km_arrivee) : null,
-    }).eq('id', id)
+    await dbUpdateKm(id, kmForm.km_depart, kmForm.km_arrivee)
     setSavingKm(false)
     setEditingKm(false)
     loadVoyage()
