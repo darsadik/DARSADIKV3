@@ -2,38 +2,9 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
+import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
-const fmt  = n => Math.round(n || 0).toLocaleString('fr-MA')
-
-// ── Print via hidden iframe — stays on same page (PWA safe) ──
-function openPrintWindow(html) {
-  const old = document.getElementById('__print_overlay')
-  if (old) old.remove()
-  const isMobile = window.innerWidth < 768
-  const overlay = document.createElement('div')
-  overlay.id = '__print_overlay'
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#1e293b;display:flex;flex-direction:column'
-  const bar = document.createElement('div')
-  bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 16px;background:#0f172a;flex-shrink:0'
-  const actionBtn = isMobile
-    ? '<button onclick="document.getElementById(\'__pframe\').contentWindow.print()" style="padding:7px 18px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 Télécharger PDF</button>'
-    : '<button onclick="document.getElementById(\'__pframe\').contentWindow.print()" style="padding:7px 18px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>'
-  bar.innerHTML = actionBtn + '<button onclick="document.getElementById(\'__print_overlay\').remove()" style="padding:7px 18px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✕ Fermer</button>'
-  const iframe = document.createElement('iframe')
-  iframe.id = '__pframe'
-  iframe.style.cssText = 'flex:1;border:none;width:100%;background:#fff'
-  overlay.appendChild(bar)
-  overlay.appendChild(iframe)
-  document.body.appendChild(overlay)
-  iframe.contentWindow.document.write(html)
-  iframe.contentWindow.document.close()
-}
-
-const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
-const fmtD = n => parseFloat(n || 0).toFixed(2)
-const today = () => new Date().toISOString().split('T')[0]
-const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 
 const PRINT_CSS = `
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
@@ -85,16 +56,6 @@ const CO_HEADER = (title, sub) => `
 <div class="sub">${sub}</div>`
 
 const CO_FOOTER = dt => `<div class="footer"><span>Généré le ${dt}</span></div></div>`
-
-function useIsMobile() {
-  const [m, setM] = useState(false)
-  useEffect(() => {
-    const check = () => setM(window.innerWidth < 768)
-    check(); window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-  return m
-}
 
 function exportGrignonCSV(rows, filename) {
   const bom = '\uFEFF'

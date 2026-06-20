@@ -4,12 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
+import { fmt, fmtDate, today, startOfMonth } from '../../lib/utils'
 
-// ── FORMATTERS ───────────────────────────────────────────────────────────────
-const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
-const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
-const today        = () => new Date().toISOString().split('T')[0]
-const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 const startOfWeek  = () => {
   const d = new Date()
   const dow = d.getDay()

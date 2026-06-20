@@ -5,86 +5,12 @@ import { useToast } from '../../lib/toast'
 import { useAuth } from '../_app'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-
-const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
-const fmtD    = n => parseFloat(n || 0).toFixed(2)
-const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
-const today   = () => new Date().toISOString().split('T')[0]
-
-const COMMON_CHARGE_KEYS = new Set(['ouvriers','chauffeur','nourriture','autoroute','chargement','gendarmerie','reparation_camion','autres'])
-
-const CHARGE_CATS = [
-  { key: 'ouvriers',          label: 'Ouvriers / Main d\'œuvre', icon: '👷'  },
-  { key: 'chauffeur',         label: 'Chauffeur',                icon: '🧑‍✈️' },
-  { key: 'nourriture',        label: 'Nourriture',               icon: '🍽️' },
-  { key: 'autoroute',         label: 'Autoroute / Péage',        icon: '🛣️'  },
-  { key: 'gendarmerie',       label: 'Gendarmerie',              icon: '🚔' },
-  { key: 'controle',          label: 'Contrôle / Police',        icon: '🛂' },
-  { key: 'reparation_camion', label: 'Réparation camion',        icon: '🔧' },
-  { key: 'pneus',             label: 'Pneus / Réparation',       icon: '🔩' },
-  { key: 'chargement',        label: 'Chargement / Teb\'ia',     icon: '📦' },
-  { key: 'lavage_vidange',    label: 'Lavage / Vidange',         icon: '🚿' },
-  { key: 'transport',         label: 'Transport / Mrkob',        icon: '🚌' },
-  { key: 'gardien',           label: 'Gardien / Sécurité',       icon: '💂' },
-  { key: 'tractopelle',       label: 'Tractopelle / Trax',       icon: '🚜' },
-  { key: 'balance',           label: 'Balance / Poids',          icon: '⚖️'  },
-  { key: 'samsar',            label: 'Samsar / Courtage',        icon: '🤝' },
-  { key: 'adblue',            label: 'AdBlue',                   icon: '🧴' },
-  { key: 'autres',            label: 'Autres charges',           icon: '➕' },
-]
-
-function Section({ icon, title, children, action, color = 'blue' }) {
-  const colors = {
-    blue:   'border-blue-100 bg-blue-50/30',
-    green:  'border-emerald-100 bg-emerald-50/30',
-    orange: 'border-orange-100 bg-orange-50/30',
-    purple: 'border-purple-100 bg-purple-50/30',
-    red:    'border-red-100 bg-red-50/30',
-    slate:  'border-slate-100 bg-slate-50/30',
-  }
-  return (
-    <div className={`rounded-2xl border ${colors[color]} overflow-hidden`}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white">
-        <div className="flex items-center gap-2">
-          <span className="text-base">{icon}</span>
-          <span className="font-bold text-slate-700 text-sm">{title}</span>
-        </div>
-        {action}
-      </div>
-      <div className="p-4">{children}</div>
-    </div>
-  )
-}
-
-function Empty({ text }) {
-  return <div className="text-center py-3 text-slate-400 text-xs italic">{text}</div>
-}
-
-function DelBtn({ onDel }) {
-  const [confirming, setConfirming] = useState(false)
-  const timerRef = useRef(null)
-  function handleClick() {
-    if (confirming) {
-      clearTimeout(timerRef.current)
-      setConfirming(false)
-      onDel()
-    } else {
-      setConfirming(true)
-      timerRef.current = setTimeout(() => setConfirming(false), 3000)
-    }
-  }
-  return (
-    <button onClick={handleClick}
-      title={confirming ? 'Cliquer pour confirmer la suppression' : 'Supprimer'}
-      className={`transition text-xs px-1 rounded ${confirming ? 'text-red-600 font-bold bg-red-50' : 'text-red-300 hover:text-red-500'}`}>
-      {confirming ? 'Ok?' : '✕'}
-    </button>
-  )
-}
-
-function EditBtn({ onEdit }) {
-  return <button onClick={onEdit} className="text-blue-300 hover:text-blue-500 transition text-xs px-1">✏️</button>
-}
+import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
+import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
+import Section from '../../components/ui/Section'
+import Empty from '../../components/ui/Empty'
+import DelBtn from '../../components/ui/DelBtn'
+import EditBtn from '../../components/ui/EditBtn'
 
 export default function VoyageDetail() {
   const router   = useRouter()

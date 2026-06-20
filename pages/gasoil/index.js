@@ -2,13 +2,9 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
+import { fmt, fmtD, fmtDate, today, startOfMonth } from '../../lib/utils'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
-const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
-const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
-const fmtD = n => parseFloat(n || 0).toFixed(2)
-const today = () => new Date().toISOString().split('T')[0]
-const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 
 const PRINT_CSS = `
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }

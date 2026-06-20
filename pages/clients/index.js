@@ -2,36 +2,10 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
+import { fmt, fmtDate, today, startOfMonth, openPrintWindow } from '../../lib/utils'
 
-const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
-const fmtDate   = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
 const fmtMois   = d => { if (!d) return ''; const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const [y,m] = d.split('-'); return `${months[parseInt(m)-1]} ${y}` }
-const today = () => new Date().toISOString().split('T')[0]
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
-const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
-
-function openPrintWindow(html) {
-  const old = document.getElementById('__print_overlay')
-  if (old) old.remove()
-  const isMobile = window.innerWidth < 768
-  const overlay = document.createElement('div')
-  overlay.id = '__print_overlay'
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#1e293b;display:flex;flex-direction:column'
-  const bar = document.createElement('div')
-  bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 16px;background:#0f172a;flex-shrink:0'
-  const actionBtn = isMobile
-    ? '<button onclick="document.getElementById(\'__pframe\').contentWindow.print()" style="padding:7px 18px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">📥 Télécharger PDF</button>'
-    : '<button onclick="document.getElementById(\'__pframe\').contentWindow.print()" style="padding:7px 18px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>'
-  bar.innerHTML = actionBtn + '<button onclick="document.getElementById(\'__print_overlay\').remove()" style="padding:7px 18px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✕ Fermer</button>'
-  const iframe = document.createElement('iframe')
-  iframe.id = '__pframe'
-  iframe.style.cssText = 'flex:1;border:none;width:100%;background:#fff'
-  overlay.appendChild(bar)
-  overlay.appendChild(iframe)
-  document.body.appendChild(overlay)
-  iframe.contentWindow.document.write(html)
-  iframe.contentWindow.document.close()
-}
 
 
 export default function Clients() {

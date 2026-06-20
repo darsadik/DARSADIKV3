@@ -3,10 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
-
-const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
-const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
-const today   = () => new Date().toISOString().split('T')[0]
+import { fmt, fmtDate, today } from '../../lib/utils'
 
 export default function Loueurs() {
   useAuth()
