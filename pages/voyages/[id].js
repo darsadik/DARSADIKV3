@@ -7,6 +7,7 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
 import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
+import { loadVoyageData } from '../../lib/services/voyage/loaders'
 import Section from '../../components/ui/Section'
 import Empty from '../../components/ui/Empty'
 import DelBtn from '../../components/ui/DelBtn'
@@ -131,53 +132,21 @@ export default function VoyageDetail() {
     setLoading(true)
     setLoadError(null)
     try {
-      const [
-        { data: v,  error: ev  },
-        { data: ca, error: eca },
-        { data: cl },
-        { data: fo },
-        { data: gf },
-        { data: ty },
-        { data: gc },
-        { data: ac },
-        { data: li },
-        { data: re },
-        { data: ga },
-        { data: ch },
-        { data: loc },
-        { data: lo },
-      ] = await Promise.all([
-        supabase.from('voyages').select('*').eq('id', id).single(),
-        supabase.from('camions').select('*').order('plaque'),
-        supabase.from('clients').select('*').order('nom'),
-        supabase.from('fournisseurs').select('*').order('nom'),
-        supabase.from('grignon_fournisseurs').select('*').order('nom'),
-        supabase.from('type_briques').select('*').order('nom'),      // index 5 → ty
-        supabase.from('grignon_clients').select('*').order('nom'),   // index 6 → gc
-        supabase.from('voyage_achats').select('*').eq('voyage_id', id).order('created_at'),
-        supabase.from('voyage_livraisons').select('*').eq('voyage_id', id).order('created_at'),
-        supabase.from('voyage_retours').select('*').eq('voyage_id', id).order('created_at'),
-        supabase.from('voyage_gasoil').select('*').eq('voyage_id', id).order('created_at'),
-        supabase.from('voyage_charges').select('*').eq('voyage_id', id).order('created_at'),
-        supabase.from('voyage_locations').select('*').eq('voyage_id', id).order('created_at'),
-        supabase.from('loueurs').select('*').order('nom'),
-      ])
-      if (ev) throw new Error('Voyage introuvable')
-      if (eca) throw new Error('Erreur chargement camions')
-      setVoyage(v)
-      setCamions(ca || [])
-      setClients(cl || [])
-      setFournisseurs(fo || [])
-      setGrignonFournisseurs(gf || [])
-      setGrignonClients(gc || [])
-      setTypeBriques(ty || [])
-      setAchats(ac || [])
-      setLivraisons(li || [])
-      setRetours(re || [])
-      setGasoil(ga || [])
-      setCharges(ch || [])
-      setLocations(loc || [])
-      setLoueurs(lo || [])
+      const d = await loadVoyageData(id)
+      setVoyage(d.voyage)
+      setCamions(d.camions)
+      setClients(d.clients)
+      setFournisseurs(d.fournisseurs)
+      setGrignonFournisseurs(d.grignonFournisseurs)
+      setGrignonClients(d.grignonClients)
+      setTypeBriques(d.typeBriques)
+      setAchats(d.achats)
+      setLivraisons(d.livraisons)
+      setRetours(d.retours)
+      setGasoil(d.gasoil)
+      setCharges(d.charges)
+      setLocations(d.locations)
+      setLoueurs(d.loueurs)
     } catch (err) {
       setLoadError(err.message || 'Erreur de chargement')
     } finally {
