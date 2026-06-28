@@ -44,6 +44,15 @@ export default function Clients() {
   // MOBILE — controls whether detail panel is shown on small screens
   const [showDetail, setShowDetail] = useState(false)
 
+  // ── INTERACTIVE STATEMENT (screen-only, no PDF effect) ──
+  const HL_COLORS = { yellow:'#fef9c3', green:'#dcfce7', blue:'#dbeafe', red:'#fee2e2' }
+  const [stmtOrder, setStmtOrder] = useState(null)       // null = chronological
+  const [stmtHighlights, setStmtHighlights] = useState({})
+  const [stmtPinned, setStmtPinned] = useState(new Set())
+  const [dragFrom, setDragFrom] = useState(null)
+  const [dragOver, setDragOver] = useState(null)
+  const [hlPicker, setHlPicker] = useState(null)
+
   // DATE FILTER STATE
   const [filterType, setFilterType] = useState('all')
   const [filterDate, setFilterDate] = useState(today())
@@ -51,6 +60,22 @@ export default function Clients() {
   const [filterTo, setFilterTo] = useState(today())
 
   useEffect(() => { loadClients() }, [])
+
+  // Load/save per-client statement preferences from localStorage
+  useEffect(() => {
+    if (!selected?.id) return
+    try {
+      const s = JSON.parse(localStorage.getItem(`stmt-${selected.id}`) || '{}')
+      setStmtHighlights(s.h || {})
+      setStmtPinned(new Set(s.p || []))
+      setStmtOrder(s.o || null)
+    } catch {}
+  }, [selected?.id])
+
+  function saveStmt(o, h, p) {
+    if (!selected?.id) return
+    localStorage.setItem(`stmt-${selected.id}`, JSON.stringify({ o, h, p: Array.from(p) }))
+  }
 
   async function loadClients() {
     setLoading(true)
@@ -209,6 +234,56 @@ export default function Clients() {
   const carryOver    = selected ? getCarryOver() : null
   const periodLabel  = selected ? getPeriodLabel() : null
 
+  // ── INTERACTIVE STATEMENT HELPERS ──
+  function eKey(e) { return `${e.src}:${e.raw?.id ?? e.date}` }
+
+  function getDisplayEntries() {
+    if (!selected || !ledger.entries.length) return []
+    const km = {}
+    ledger.entries.forEach(e => { km[eKey(e)] = e })
+    let ordered = stmtOrder
+      ? [...stmtOrder.filter(k => km[k]).map(k => km[k]), ...ledger.entries.filter(e => !stmtOrder.includes(eKey(e)))]
+      : [...ledger.entries]
+    const pinned = ordered.filter(e => stmtPinned.has(eKey(e)))
+    const unpinned = ordered.filter(e => !stmtPinned.has(eKey(e)))
+    let bal = ledger.startBalance
+    return [...pinned, ...unpinned].map(e => { bal += e.delta; return { ...e, solde: bal } })
+  }
+
+  function handleReorder(fromI, toI) {
+    if (fromI == null || fromI === toI) return
+    const disp = getDisplayEntries()
+    const pinN = disp.filter(e => stmtPinned.has(eKey(e))).length
+    if ((fromI < pinN) !== (toI < pinN)) { setDragFrom(null); setDragOver(null); return }
+    const arr = [...disp]
+    const [mv] = arr.splice(fromI, 1)
+    arr.splice(toI, 0, mv)
+    const newOrder = arr.map(eKey)
+    setStmtOrder(newOrder)
+    saveStmt(newOrder, stmtHighlights, stmtPinned)
+    setDragFrom(null); setDragOver(null)
+  }
+
+  function togglePin(e) {
+    const p = new Set(stmtPinned)
+    p.has(eKey(e)) ? p.delete(eKey(e)) : p.add(eKey(e))
+    setStmtPinned(p)
+    saveStmt(stmtOrder, stmtHighlights, p)
+  }
+
+  function applyHL(e, color) {
+    const h = { ...stmtHighlights }
+    if (color) h[eKey(e)] = color; else delete h[eKey(e)]
+    setStmtHighlights(h)
+    saveStmt(stmtOrder, h, stmtPinned)
+    setHlPicker(null)
+  }
+
+  function resetStmt() {
+    setStmtOrder(null); setStmtHighlights({}); setStmtPinned(new Set())
+    saveStmt(null, {}, new Set())
+  }
+
   // ---- PRINT ----
   function printClient() {
     const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
@@ -241,31 +316,25 @@ export default function Clients() {
     const showAncienSolde = ancienSoldeVal > 0
 
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
-<meta charset="UTF-8"><title>Fiche Client — ${selected.nom}</title>
+<meta charset="UTF-8"><title>Relevé — ${selected.nom}</title>
 <style>
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
-  /* ── HEADER ── */
-  .hdr{padding:14px 24px 10px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0}
-  .co-left{display:flex;align-items:center;gap:11px}
-  .co-logo{width:42px;height:42px;flex-shrink:0}
-  .co-n{font-size:17px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}
-  .co-tag{font-size:10px;color:#64748b;margin-top:2px;font-weight:600}
-  .co-addr{font-size:9.5px;color:#94a3b8;margin-top:1px}
-  .co-r{text-align:right}
-  .doc-title{font-size:10.5px;font-weight:800;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.14em;padding-bottom:4px;border-bottom:2px solid #e8b84b;display:inline-block;margin-bottom:6px}
-  .co-contact{font-size:10px;color:#64748b;line-height:1.75}
-  .co-contact strong{color:#374151}
-  .co-email{font-size:9.5px;color:#94a3b8}
-  .btn-p,.btn-d{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;margin-left:4px}
+  /* ── COMPACT HEADER ── */
+  .hdr{display:flex;align-items:flex-start;gap:16px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  .co-block{flex:1;min-width:0}
+  .co-brand{display:flex;align-items:center;gap:10px}
+  .co-logo{width:38px;height:38px;flex-shrink:0}
+  .co-n{font-size:18px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1.05}
+  .co-tag{font-size:10px;color:#2563eb;font-weight:700;margin-top:2px;letter-spacing:0.02em}
+  .co-contact{font-size:9.5px;color:#64748b;margin-top:6px;line-height:1.7}
+  .cli-block{background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #2563eb;border-radius:7px;padding:10px 16px;min-width:195px;flex-shrink:0}
+  .cli-lbl{font-size:8.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px}
+  .cli-name{font-size:16px;font-weight:900;color:#0f172a;line-height:1.05}
+  .cli-meta{font-size:10px;color:#64748b;margin-top:4px;line-height:1.7}
+  .hdr-btns{display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:flex-end}
+  .btn-p,.btn-d{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer}
   .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  /* ── INFO BAR ── */
-  .info-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 24px;background:#f8fafc;border-bottom:2px solid #e2e8f0}
-  .icard{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:8px 12px;border-left:3px solid #2563eb}
-  .icard.period{border-left-color:#d97706}
-  .icard-lbl{font-size:8.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px}
-  .icard-main{font-size:14px;font-weight:800;color:#0f172a}
-  .icard-sub{font-size:10px;color:#64748b;margin-top:2px}
   /* ── TABLE ── */
   .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
@@ -277,9 +346,7 @@ export default function Clients() {
   tbody td.m{color:#94a3b8;font-size:11px}
   tbody tr:nth-child(even) td{background:#f9fafb !important}
   .tag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
-  /* ── TOTALS ── */
   .totals-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#eff6ff;border-top:2px solid #bfdbfe;border-bottom:1px solid #bfdbfe;font-weight:700;font-size:12px;color:#1d4ed8}
-  /* ── FINAL BALANCE ── */
   .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
   .sf-lbl{font-size:14px;font-weight:700;color:#166534;letter-spacing:0.01em}
   .sf-amt{font-size:32px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
@@ -291,48 +358,43 @@ export default function Clients() {
 </style>
 </head><body>
 <div class="hdr">
-  <div class="co-left">
-    <svg class="co-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-      <rect width="512" height="512" rx="90" fill="#1e3a5f"/>
-      <polygon points="40,170 256,50 472,170" fill="#e8b84b"/>
-      <rect x="60" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
-      <rect x="195" y="175" width="122" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
-      <rect x="337" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
-      <rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
-      <rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
-      <rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
-      <rect x="60" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
-      <rect x="195" y="345" width="122" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
-      <rect x="337" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
-      <rect x="40" y="425" width="432" height="14" rx="7" fill="#e8b84b" opacity="0.5"/>
-    </svg>
-    <div>
-      <div class="co-n">DAR SADIK</div>
-      <div class="co-tag">Matériaux de Construction</div>
-      <div class="co-addr">Selouane, Nador</div>
+  <div class="co-block">
+    <div class="co-brand">
+      <svg class="co-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="90" fill="#1e3a5f"/>
+        <polygon points="40,170 256,50 472,170" fill="#e8b84b"/>
+        <rect x="60" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+        <rect x="195" y="175" width="122" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+        <rect x="337" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
+        <rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+        <rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+        <rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
+        <rect x="60" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+        <rect x="195" y="345" width="122" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+        <rect x="337" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
+        <rect x="40" y="425" width="432" height="14" rx="7" fill="#e8b84b" opacity="0.5"/>
+      </svg>
+      <div>
+        <div class="co-n">DAR SADIK</div>
+        <div class="co-tag">Matériaux de Construction</div>
+      </div>
     </div>
-  </div>
-  <div class="co-r">
-    <div class="doc-title">Relevé de Compte Client</div>
     <div class="co-contact">
-      <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47</div>
-      <div><strong>Bureau</strong> 06 62 82 88 20</div>
-      <div class="co-email">Dar.sadik@hotmail.com</div>
+      Selouane, Nador &nbsp;·&nbsp; 06 61 32 56 65 &nbsp;·&nbsp; 06 61 97 87 47 &nbsp;·&nbsp; Bureau 06 62 82 88 20 &nbsp;·&nbsp; Dar.sadik@hotmail.com
     </div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${date}</div>
   </div>
-</div>
-<div class="info-bar">
-  <div class="icard">
-    <div class="icard-lbl">Client</div>
-    <div class="icard-main">${selected.nom}</div>
-    <div class="icard-sub">Dépôt : ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; '+selected.tel:''}</div>
+  <div class="cli-block">
+    <div class="cli-lbl">Client</div>
+    <div class="cli-name">${selected.nom}</div>
+    <div class="cli-meta">
+      Dépôt : ${selected.depot||'—'}${selected.tel ? ' &nbsp;·&nbsp; ' + selected.tel : ''}<br>
+      Période : ${periode}<br>
+      Généré le ${date}
+    </div>
   </div>
-  <div class="icard period">
-    <div class="icard-lbl">Période</div>
-    <div class="icard-main" style="font-size:12px">${periode}</div>
-    <div class="icard-sub">Généré le ${date}</div>
+  <div class="hdr-btns">
+    <button class="btn-p" onclick="window.print()">Imprimer</button>
+    <button class="btn-d" onclick="window.print()">Télécharger PDF</button>
   </div>
 </div>
 <div class="bdy">
@@ -345,7 +407,7 @@ export default function Clients() {
       <td style="font-weight:700;color:#92400e;font-size:11.5px;white-space:nowrap">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
       <td class="m">—</td>
       <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
-      <td class="r" style="color:#d97706;font-weight:800;font-size:13.5px;white-space:nowrap">+ ${fmt(pLedger.startBalance)}</td>
+      <td class="r" style="color:#1e3a5f;font-weight:800;font-size:13.5px;white-space:nowrap">+ ${fmt(pLedger.startBalance)}</td>
       <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
     ${pLedger.entries.length === 0
@@ -358,7 +420,7 @@ export default function Clients() {
           const v = e.raw
           const rowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
             : e.type === 'mdo' ? '#fffbeb' : ''
-          const soldeColor = e.solde > 0 ? '#d97706' : '#16a34a'
+          const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
           const typeBadge = e.type === 'vente'
             ? `<span class="tag">${e.label}</span>`
             : e.type === 'mdo'
@@ -854,134 +916,252 @@ ${pLedger.entries.length > 0 ? `<div class="totals-row">
               ) : (
                 <>
                   {/* ── UNIFIED ACCOUNT LEDGER ── */}
-                  <div className="card">
-                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <h3 className="font-semibold text-gray-900">
-                        📋 Historique du compte <span className="text-gray-400 font-normal text-sm">({ledger.entries.length} opération{ledger.entries.length !== 1 ? 's' : ''})</span>
-                      </h3>
-                      <button
-                        onClick={() => { setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseError(''); setRemiseModal('new') }}
-                        className="btn-primary text-xs px-3 py-1.5" style={{background:'#7c3aed'}}>
-                        + Remise
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr>
-                            {['Date','Camion','Opération','Type','Qté','Prix/u','Total DHS','Solde','Note',''].map((h,i) => (
-                              <th key={i} className={`th${[4,5,6,7].includes(i)?' text-right':''}`}
-                                style={{background:'#eff6ff',color:'#1d4ed8',borderBottom:'2px solid #bfdbfe',whiteSpace:'nowrap'}}>
-                                {h}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {/* Opening balance / carry-over row */}
-                          <tr style={{background:'#fffbeb'}}>
-                            <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 14px'}}>
-                              {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
-                            </td>
-                            <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>—</td>
-                            <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>
-                              {carryOver !== null ? 'Report' : 'Solde initial'}
-                            </td>
-                            <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>—</td>
-                            {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>—</td>)}
-                            <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 16px',letterSpacing:'-0.2px'}}>
-                              {fmt(ledger.startBalance)}
-                            </td>
-                            <td className="td text-xs text-gray-400" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>
-                              {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
-                            </td>
-                            <td className="td" style={{border:'1px solid #fde68a',padding:'10px 14px'}}></td>
-                          </tr>
+                  {(() => {
+                    const displayEntries = getDisplayEntries()
+                    const pinnedCount = displayEntries.filter(e => stmtPinned.has(eKey(e))).length
+                    const finalEntry = displayEntries.length ? displayEntries[displayEntries.length - 1] : null
+                    const thS = {background:'#eff6ff',color:'#1d4ed8',borderBottom:'2px solid #bfdbfe',whiteSpace:'nowrap',padding:'9px 12px',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',userSelect:'none'}
+                    const bdr = {border:'1px solid #f1f5f9'}
+                    return (
+                      <div className="card" style={{padding:0,overflow:'hidden'}} onClick={() => setHlPicker(null)}>
+                        {/* TOOLBAR */}
+                        <div className="flex items-center justify-between flex-wrap gap-2" style={{padding:'10px 16px',borderBottom:'1px solid #f1f5f9'}}>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <h3 className="font-semibold text-gray-900" style={{fontSize:14}}>
+                              Historique du compte
+                              <span className="text-gray-400 font-normal text-sm ml-2">({displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''})</span>
+                            </h3>
+                            {(stmtOrder || stmtPinned.size > 0 || Object.keys(stmtHighlights).length > 0) && (
+                              <button onClick={(ev) => { ev.stopPropagation(); resetStmt() }}
+                                className="text-xs font-semibold border rounded transition-colors"
+                                style={{color:'#92400e',borderColor:'#fde68a',background:'#fffbeb',padding:'2px 8px'}}>
+                                ↺ Réinitialiser
+                              </button>
+                            )}
+                            <div className="flex items-center gap-3 text-xs" style={{color:'#94a3b8'}}>
+                              <span className="flex items-center gap-1">
+                                <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{background:'#dbeafe',border:'1px solid #bfdbfe'}}></span>
+                                Livraison
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{background:'#dcfce7',border:'1px solid #bbf7d0'}}></span>
+                                Paiement
+                              </span>
+                              {stmtPinned.size > 0 && (
+                                <span className="font-semibold" style={{color:'#0369a1'}}>
+                                  📌 {stmtPinned.size} épinglé{stmtPinned.size > 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseError(''); setRemiseModal('new') }}
+                            className="btn-primary text-xs px-3 py-1.5 flex-shrink-0" style={{background:'#7c3aed'}}>
+                            + Remise
+                          </button>
+                        </div>
 
-                          {ledger.entries.length === 0 && (
-                            <tr>
-                              <td colSpan={11} className="td text-center text-gray-400 py-8" style={{border:'1px solid #e2e8f0'}}>
-                                Aucune opération pour cette période
-                              </td>
-                            </tr>
-                          )}
-
-                          {ledger.entries.map((e, i) => {
-                            const isVente = e.src === 'vente'
-                            const isPos = e.delta >= 0
-                            const absAmt = Math.abs(e.delta)
-                            const bgRow = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
-                              : e.type === 'mdo' ? '#fefce8'
-                              : undefined
-                            const amtColor = isPos ? '#1d4ed8' : '#16a34a'
-                            const v = e.raw
-                            return (
-                              <tr key={`${e.src}-${v?.id}-${i}`}
-                                className="transition-all duration-100 hover:brightness-95"
-                                style={bgRow ? {background:bgRow} : (i % 2 === 1 ? {background:'#f9fafb'} : {})}>
-                                <td className="td text-xs" style={{border:'1px solid #f1f5f9',color:'#64748b',whiteSpace:'nowrap',padding:'10px 14px'}}>{fmtDate(e.date)}</td>
-                                <td className="td text-xs" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',color:'#374151',padding:'10px 14px'}}>
-                                  {e.detail || <span className="text-gray-200">—</span>}
-                                </td>
-                                <td className="td text-xs font-semibold" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',color:'#374151',padding:'10px 14px'}}>
-                                  {e.operation}
-                                </td>
-                                <td className="td" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',padding:'10px 14px'}}>
-                                  {e.type === 'vente'
-                                    ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
-                                    : e.type === 'mdo'
-                                    ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
-                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
-                                        {e.type === 'paiement' ? e.label : 'Remise'}
-                                      </span>}
-                                </td>
-                                <td className="td text-right" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',padding:'10px 14px',fontWeight:400,color:'#374151',fontSize:13}}>
-                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-200">—</span>}
-                                </td>
-                                <td className="td text-right" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',padding:'10px 14px',fontWeight:500,color:'#64748b',fontSize:12}}>
-                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-200">—</span>}
-                                </td>
-                                <td className="td text-right" style={{border:'1px solid #f1f5f9',fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 14px',color:amtColor}}>
-                                  {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
-                                </td>
-                                <td className="td text-right" style={{border:'1px solid #f1f5f9',fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 16px',
-                                  color: e.solde > 0 ? '#d97706' : '#16a34a',letterSpacing:'-0.2px'}}>
-                                  {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
-                                </td>
-                                <td className="td text-xs text-gray-400" style={{border:'1px solid #f1f5f9',maxWidth:'150px',wordBreak:'break-word',padding:'10px 14px'}}>
-                                  {e.note || '—'}
-                                </td>
-                                <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
-                                  {e.src === 'remise' && (
-                                    <div className="flex gap-1 justify-center">
-                                      <button onClick={() => { setRemiseForm({ date: v.date, montant: String(v.montant), type_remise: v.type_remise||'Commerciale', motif: v.motif||'' }); setRemiseError(''); setRemiseModal(v) }}
-                                        className="btn-secondary" style={{fontSize:10,padding:'2px 6px'}}>✎</button>
-                                      <button onClick={() => deleteRemise(v)}
-                                        className="btn-danger" style={{fontSize:10,padding:'2px 6px'}}>✕</button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                        {ledger.entries.length > 0 && (() => {
-                          const last = ledger.entries[ledger.entries.length - 1]
-                          return (
-                            <tfoot>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse">
+                            <thead>
                               <tr>
-                                <td colSpan={7} style={{padding:'11px 14px',background:'#f8fafc',color:'#374151',fontWeight:700,fontSize:13,borderTop:'2px solid #cbd5e1',borderBottom:'1px solid #e2e8f0'}}>Total — {ledger.entries.length} opération{ledger.entries.length !== 1 ? 's' : ''}</td>
-                                <td style={{padding:'11px 16px',background:'#f8fafc',fontSize:15,fontWeight:900,color:'#d97706',textAlign:'right',borderTop:'2px solid #cbd5e1',borderBottom:'1px solid #e2e8f0',letterSpacing:'-0.2px'}}>
-                                  {fmt(last.solde)} <span style={{fontSize:12,fontWeight:600,color:'#94a3b8'}}>DHS</span>
-                                </td>
-                                <td colSpan={2} style={{background:'#f8fafc',borderTop:'2px solid #cbd5e1',borderBottom:'1px solid #e2e8f0'}}></td>
+                                <th style={{...thS,width:28,padding:'9px 6px',background:'#eff6ff',borderBottom:'2px solid #bfdbfe'}}></th>
+                                {[
+                                  {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
+                                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Solde',r:true},
+                                  {l:'Note',r:false},{l:'',r:false}
+                                ].map((col,i) => (
+                                  <th key={i} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
+                                ))}
                               </tr>
-                            </tfoot>
-                          )
-                        })()}
-                      </table>
-                    </div>
-                  </div>
+                            </thead>
+                            <tbody>
+                              {/* Opening balance / carry-over row */}
+                              <tr style={{background:'#fffbeb'}}>
+                                <td style={{padding:'10px 6px',border:'1px solid #fde68a'}}></td>
+                                <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>
+                                  {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
+                                </td>
+                                <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
+                                <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
+                                  {carryOver !== null ? 'Report' : 'Solde initial'}
+                                </td>
+                                <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
+                                {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>)}
+                                <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
+                                  {fmt(ledger.startBalance)}
+                                </td>
+                                <td className="td text-xs text-gray-400" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
+                                  {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
+                                </td>
+                                <td colSpan={2} style={{border:'1px solid #fde68a',padding:'10px 12px'}}></td>
+                              </tr>
+
+                              {/* Pinned section header */}
+                              {pinnedCount > 0 && (
+                                <tr>
+                                  <td colSpan={11} style={{padding:'4px 12px',fontSize:10.5,fontWeight:700,color:'#0369a1',letterSpacing:'0.05em',background:'#e0f2fe',borderTop:'1px solid #bae6fd',borderBottom:'1px solid #bae6fd'}}>
+                                    📌 Épinglés — {pinnedCount} opération{pinnedCount > 1 ? 's' : ''}
+                                  </td>
+                                </tr>
+                              )}
+
+                              {displayEntries.length === 0 && (
+                                <tr>
+                                  <td colSpan={11} className="td text-center text-gray-400 py-8" style={{border:'1px solid #e2e8f0'}}>
+                                    Aucune opération pour cette période
+                                  </td>
+                                </tr>
+                              )}
+
+                              {displayEntries.map((e, i) => {
+                                const isPinned = stmtPinned.has(eKey(e))
+                                const isFirstUnpinned = i === pinnedCount && pinnedCount > 0
+                                const hlColor = stmtHighlights[eKey(e)] ? HL_COLORS[stmtHighlights[eKey(e)]] : null
+                                const isVente = e.src === 'vente'
+                                const isPos = e.delta >= 0
+                                const absAmt = Math.abs(e.delta)
+                                const amtColor = isPos ? '#1d4ed8' : '#16a34a'
+                                const v = e.raw
+                                const typeRowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
+                                  : e.type === 'mdo' ? '#fefce8' : undefined
+                                const zebraOdd = !isPinned && (i - pinnedCount) % 2 === 1
+                                const rowBg = hlColor || (isPinned ? '#f0f9ff' : typeRowBg || (zebraOdd ? '#f9fafb' : undefined))
+                                const isDragging = dragFrom === i
+                                const isDropTarget = dragOver === i && dragFrom !== null && dragFrom !== i
+                                return (
+                                  <tr key={eKey(e)}
+                                    draggable
+                                    onDragStart={(ev) => { ev.dataTransfer.effectAllowed = 'move'; setDragFrom(i) }}
+                                    onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setDragOver(i) }}
+                                    onDrop={(ev) => { ev.preventDefault(); handleReorder(dragFrom, i) }}
+                                    onDragEnd={() => { setDragFrom(null); setDragOver(null) }}
+                                    className="transition-colors duration-100"
+                                    style={{
+                                      background: rowBg,
+                                      opacity: isDragging ? 0.4 : 1,
+                                      borderTop: isDropTarget ? '2px solid #2563eb' : (isFirstUnpinned ? '2px solid #bfdbfe' : undefined),
+                                    }}>
+                                    {/* DRAG HANDLE */}
+                                    <td style={{width:28,padding:'0 4px',textAlign:'center',color:'#d1d5db',fontSize:17,cursor:'grab',userSelect:'none',lineHeight:1,...bdr}}>
+                                      ⠿
+                                    </td>
+                                    {/* DATE */}
+                                    <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{fmtDate(e.date)}</td>
+                                    {/* CAMION */}
+                                    <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#94a3b8',padding:'10px 12px'}}>
+                                      {e.detail || <span className="text-gray-200">—</span>}
+                                    </td>
+                                    {/* OPÉRATION */}
+                                    <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
+                                      {isPinned && <span style={{color:'#93c5fd',marginRight:5,fontSize:10}}>📌</span>}
+                                      {e.operation}
+                                    </td>
+                                    {/* TYPE BADGE */}
+                                    <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
+                                      {e.type === 'vente'
+                                        ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
+                                        : e.type === 'mdo'
+                                        ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                                        : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                                            {e.type === 'paiement' ? e.label : 'Remise'}
+                                          </span>}
+                                    </td>
+                                    {/* QTÉ */}
+                                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:400,color:'#374151',fontSize:13}}>
+                                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-200">—</span>}
+                                    </td>
+                                    {/* PRIX */}
+                                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:500,color:'#64748b',fontSize:12}}>
+                                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-200">—</span>}
+                                    </td>
+                                    {/* TOTAL */}
+                                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
+                                      {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
+                                    </td>
+                                    {/* SOLDE */}
+                                    <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                                      color: e.solde > 0 ? '#1e3a5f' : '#16a34a',letterSpacing:'-0.2px'}}>
+                                      {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
+                                    </td>
+                                    {/* NOTE */}
+                                    <td className="td text-xs text-gray-400" style={{...bdr,maxWidth:'130px',wordBreak:'break-word',padding:'10px 12px'}}>
+                                      {e.note || '—'}
+                                    </td>
+                                    {/* ACTIONS: pin + highlight + remise edit/delete */}
+                                    <td className="td" style={{...bdr,padding:'6px 8px',whiteSpace:'nowrap'}} onClick={ev => ev.stopPropagation()}>
+                                      <div className="flex items-center gap-1">
+                                        {/* PIN */}
+                                        <button
+                                          onClick={() => togglePin(e)}
+                                          title={isPinned ? 'Désépingler' : 'Épingler en haut'}
+                                          style={{fontSize:12,padding:'2px 3px',border:'none',background:'transparent',cursor:'pointer',
+                                            color: isPinned ? '#3b82f6' : '#d1d5db',transition:'color 0.15s',lineHeight:1}}>
+                                          📌
+                                        </button>
+                                        {/* HIGHLIGHT */}
+                                        <div className="relative">
+                                          <button
+                                            onClick={(ev) => { ev.stopPropagation(); setHlPicker(hlPicker === eKey(e) ? null : eKey(e)) }}
+                                            title="Surligner"
+                                            style={{fontSize:12,padding:'2px 3px',border:'none',background:'transparent',cursor:'pointer',
+                                              color: stmtHighlights[eKey(e)] ? '#f59e0b' : '#d1d5db',transition:'color 0.15s',lineHeight:1}}>
+                                            🎨
+                                          </button>
+                                          {hlPicker === eKey(e) && (
+                                            <div onClick={ev => ev.stopPropagation()}
+                                              className="absolute z-40 bg-white rounded-lg shadow-xl border border-gray-200 p-2 flex items-center gap-2"
+                                              style={{right:0,top:'100%',marginTop:4,minWidth:118}}>
+                                              {['yellow','green','blue','red'].map(c => (
+                                                <button key={c}
+                                                  onClick={() => applyHL(e, c)}
+                                                  title={c}
+                                                  style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${stmtHighlights[eKey(e)]===c?'#374151':'#e2e8f0'}`,
+                                                    background:HL_COLORS[c],cursor:'pointer',transition:'transform 0.1s',flexShrink:0}}
+                                                />
+                                              ))}
+                                              {stmtHighlights[eKey(e)] && (
+                                                <button onClick={() => applyHL(e, null)}
+                                                  style={{fontSize:11,color:'#94a3b8',background:'transparent',border:'none',cursor:'pointer',padding:'0 2px',fontWeight:700,lineHeight:1}}>
+                                                  ✕
+                                                </button>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                        {/* REMISE EDIT/DELETE */}
+                                        {e.src === 'remise' && (
+                                          <>
+                                            <button onClick={() => { setRemiseForm({ date: v.date, montant: String(v.montant), type_remise: v.type_remise||'Commerciale', motif: v.motif||'' }); setRemiseError(''); setRemiseModal(v) }}
+                                              className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
+                                            <button onClick={() => deleteRemise(v)}
+                                              className="btn-danger" style={{fontSize:10,padding:'2px 5px'}}>✕</button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                            {displayEntries.length > 0 && finalEntry && (
+                              <tfoot>
+                                <tr>
+                                  <td colSpan={8} style={{padding:'11px 12px',background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:13,borderTop:'2px solid #bfdbfe'}}>
+                                    Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
+                                  </td>
+                                  <td style={{padding:'11px 14px',background:'#eff6ff',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #bfdbfe',letterSpacing:'-0.2px'}}>
+                                    {fmt(finalEntry.solde)} <span style={{fontSize:12,fontWeight:600,color:'#94a3b8'}}>DHS</span>
+                                  </td>
+                                  <td colSpan={2} style={{background:'#eff6ff',borderTop:'2px solid #bfdbfe'}}></td>
+                                </tr>
+                              </tfoot>
+                            )}
+                          </table>
+                        </div>
+                      </div>
+                    )
+                  })()}
                   {/* ── SOLDE FINAL ── */}
                   <div className="flex items-center justify-between rounded-2xl"
                     style={{background:'#f0fdf4',border:'2px solid #86efac',padding:'20px 24px',
