@@ -319,40 +319,45 @@ export default function Clients() {
 <meta charset="UTF-8"><title>Relevé — ${selected.nom}</title>
 <style>
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
-  /* ── COMPACT HEADER ── */
-  .hdr{display:flex;align-items:flex-start;gap:16px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
+  /* ── HEADER ── */
+  .hdr{display:flex;align-items:flex-start;gap:20px;padding:14px 24px 12px;border-bottom:2px solid #e2e8f0}
   .co-block{flex:1;min-width:0}
-  .co-brand{display:flex;align-items:center;gap:10px}
-  .co-logo{width:38px;height:38px;flex-shrink:0}
-  .co-n{font-size:18px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1.05}
-  .co-tag{font-size:10px;color:#2563eb;font-weight:700;margin-top:2px;letter-spacing:0.02em}
-  .co-contact{font-size:9.5px;color:#64748b;margin-top:6px;line-height:1.7}
-  .cli-block{background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #2563eb;border-radius:7px;padding:10px 16px;min-width:195px;flex-shrink:0}
-  .cli-lbl{font-size:8.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px}
-  .cli-name{font-size:16px;font-weight:900;color:#0f172a;line-height:1.05}
-  .cli-meta{font-size:10px;color:#64748b;margin-top:4px;line-height:1.7}
-  .hdr-btns{display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:flex-end}
-  .btn-p,.btn-d{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer}
+  .co-brand{display:flex;align-items:center;gap:12px}
+  .co-logo{width:44px;height:44px;flex-shrink:0}
+  .co-n{font-size:21px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1.05}
+  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px;letter-spacing:0.03em}
+  .co-addr{font-size:11px;color:#475569;margin-top:6px;line-height:1}
+  .co-phones{font-size:11px;color:#1e3a5f;font-weight:600;margin-top:5px;line-height:1}
+  .co-email{font-size:11px;color:#2563eb;margin-top:3px;line-height:1}
+  /* ── CLIENT BLOCK — primary visual element ── */
+  .cli-block{background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:4px solid #1e3a5f;border-radius:8px;padding:13px 20px;min-width:215px;flex-shrink:0}
+  .cli-lbl{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px}
+  .cli-name{font-size:24px;font-weight:900;color:#0f172a;line-height:1.05;letter-spacing:-0.4px}
+  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
+  .cli-meta b{color:#1e3a5f;font-weight:700}
+  /* ── BUTTONS ── */
+  .hdr-btns{display:flex;flex-direction:column;gap:5px;flex-shrink:0;align-items:flex-end}
+  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer}
   .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
   /* ── TABLE ── */
-  .bdy{padding:10px 24px}
+  .bdy{padding:12px 24px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#eff6ff !important;color:#1d4ed8 !important;padding:9px 12px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;text-align:left;border-bottom:2px solid #bfdbfe;white-space:nowrap}
+  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:9px 12px;font-size:12.5px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;line-height:1.45}
+  tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
   tbody td.r{text-align:right;font-family:'Courier New',monospace}
-  tbody td.m{color:#94a3b8;font-size:11px}
-  tbody tr:nth-child(even) td{background:#f9fafb !important}
-  .tag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
-  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#eff6ff;border-top:2px solid #bfdbfe;border-bottom:1px solid #bfdbfe;font-weight:700;font-size:12px;color:#1d4ed8}
-  .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
-  .sf-lbl{font-size:14px;font-weight:700;color:#166534;letter-spacing:0.01em}
-  .sf-amt{font-size:32px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
-  .sf-unit{font-size:14px;font-weight:600;color:#4ade80;margin-left:4px}
-  .sf-sub{font-size:11px;color:#86efac;margin-top:4px;font-weight:500}
-  .foot{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9.5px;color:#94a3b8}
+  tbody td.m{color:#64748b;font-size:12.5px}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
+  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;background:#1e3a5f;font-weight:700;font-size:13px;color:#ffffff}
+  .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px 26px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+  .sf-lbl{font-size:15px;font-weight:700;color:#166534;letter-spacing:0.01em}
+  .sf-amt{font-size:36px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
+  .sf-unit{font-size:16px;font-weight:600;color:#4ade80;margin-left:5px}
+  .sf-sub{font-size:12px;color:#86efac;margin-top:5px;font-weight:500}
+  .foot{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10.5px;color:#64748b}
   @media print{.btn-p,.btn-d{display:none !important}}
   @page{size:A4;margin:7mm 10mm}
 </style>
@@ -379,16 +384,16 @@ export default function Clients() {
         <div class="co-tag">Matériaux de Construction</div>
       </div>
     </div>
-    <div class="co-contact">
-      Selouane, Nador &nbsp;·&nbsp; 06 61 32 56 65 &nbsp;·&nbsp; 06 61 97 87 47 &nbsp;·&nbsp; Bureau 06 62 82 88 20 &nbsp;·&nbsp; Dar.sadik@hotmail.com
-    </div>
+    <div class="co-addr">Selouane, Nador</div>
+    <div class="co-phones">06 61 32 56 65 &nbsp;·&nbsp; 06 61 97 87 47 &nbsp;·&nbsp; Bureau 06 62 82 88 20</div>
+    <div class="co-email">Dar.sadik@hotmail.com</div>
   </div>
   <div class="cli-block">
     <div class="cli-lbl">Client</div>
     <div class="cli-name">${selected.nom}</div>
     <div class="cli-meta">
-      Dépôt : ${selected.depot||'—'}${selected.tel ? ' &nbsp;·&nbsp; ' + selected.tel : ''}<br>
-      Période : ${periode}<br>
+      <b>Dépôt :</b> ${selected.depot||'—'}${selected.tel ? ' &nbsp;·&nbsp; <b>Tél :</b> ' + selected.tel : ''}<br>
+      <b>Période :</b> ${periode}<br>
       Généré le ${date}
     </div>
   </div>
@@ -402,47 +407,47 @@ export default function Clients() {
   <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th></tr></thead>
   <tbody>
     <tr style="background:#fffbeb !important">
-      <td style="color:#92400e;font-size:11.5px;white-space:nowrap">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
+      <td style="color:#92400e;font-size:12.5px;white-space:nowrap">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
       <td class="m">—</td>
-      <td style="font-weight:700;color:#92400e;font-size:11.5px;white-space:nowrap">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
+      <td style="font-weight:700;color:#92400e;font-size:12.5px;white-space:nowrap">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
       <td class="m">—</td>
       <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
-      <td class="r" style="color:#1e3a5f;font-weight:800;font-size:13.5px;white-space:nowrap">+ ${fmt(pLedger.startBalance)}</td>
+      <td class="r" style="color:#1e3a5f;font-weight:900;font-size:15px;white-space:nowrap">+ ${fmt(pLedger.startBalance)}</td>
       <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
     ${pLedger.entries.length === 0
-      ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:18px;font-style:italic">Aucune opération pour cette période</td></tr>'
+      ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:20px;font-style:italic">Aucune opération pour cette période</td></tr>'
       : pLedger.entries.map(e => {
           const abs = Math.abs(e.delta)
           const isPos = e.delta >= 0
-          const mvColor = isPos ? '#1d4ed8' : '#16a34a'
+          const mvColor = isPos ? '#1d4ed8' : '#15803d'
           const isVente = e.src === 'vente'
           const v = e.raw
           const rowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
             : e.type === 'mdo' ? '#fffbeb' : ''
-          const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
+          const soldeColor = e.solde > 0 ? '#1e3a5f' : '#15803d'
           const typeBadge = e.type === 'vente'
             ? `<span class="tag">${e.label}</span>`
             : e.type === 'mdo'
             ? `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">M.O.</span>`
             : `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">${e.type === 'paiement' ? e.label : 'Remise'}</span>`
           return `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
-            <td style="color:#64748b;font-size:11.5px;white-space:nowrap">${fmtDate(e.date)}</td>
+            <td style="color:#475569;font-size:13px;white-space:nowrap">${fmtDate(e.date)}</td>
             <td class="m" style="white-space:nowrap">${e.detail || '—'}</td>
-            <td style="font-size:11.5px;font-weight:600;color:#374151;white-space:nowrap">${e.operation}</td>
+            <td style="font-size:13.5px;font-weight:600;color:#1e293b;white-space:nowrap">${e.operation}</td>
             <td style="white-space:nowrap">${typeBadge}</td>
-            <td class="r" style="font-weight:400;color:#374151;font-size:12px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
-            <td class="r" style="font-weight:500;color:#64748b;font-size:12px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
-            <td class="r" style="font-size:13px"><span style="font-weight:800;color:${mvColor}">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
-            <td class="r" style="font-weight:800;font-size:13.5px;color:${soldeColor};white-space:nowrap">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
-            <td class="m" style="font-size:11px;max-width:120px">${e.note || '—'}</td>
+            <td class="r" style="font-weight:500;color:#1e293b;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
+            <td class="r" style="font-weight:500;color:#475569;font-size:13px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
+            <td class="r" style="font-size:14.5px"><span style="font-weight:800;color:${mvColor}">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
+            <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
+            <td class="m" style="max-width:120px">${e.note || '—'}</td>
           </tr>`
         }).join('')}
   </tbody>
 </table>
 ${pLedger.entries.length > 0 ? `<div class="totals-row">
   <span>Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</span>
-  <span style="font-size:13px;font-weight:800;font-family:'Courier New',monospace">${fmt(pLedger.finalBalance)} DHS</span>
+  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pLedger.finalBalance)} DHS</span>
 </div>` : ''}
 <div class="solde-final">
   <div>
