@@ -331,10 +331,12 @@ export default function Clients() {
   .co-phones{font-size:11px;color:#1e3a5f;font-weight:600;margin-top:5px;line-height:1}
   .co-email{font-size:11px;color:#2563eb;margin-top:3px;line-height:1}
   /* ── CLIENT BLOCK — primary visual element ── */
-  .cli-block{background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:4px solid #1e3a5f;border-radius:8px;padding:13px 20px;min-width:215px;flex-shrink:0}
-  .cli-lbl{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px}
-  .cli-name{font-size:24px;font-weight:900;color:#0f172a;line-height:1.05;letter-spacing:-0.4px}
-  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
+  .cli-block{background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:4px solid #1e3a5f;border-radius:8px;padding:13px 18px;min-width:230px;flex-shrink:0}
+  .cli-inner{display:flex;align-items:center;gap:14px}
+  .cli-avatar{width:52px;height:52px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:23px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-1px}
+  .cli-lbl{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:4px}
+  .cli-name{font-size:22px;font-weight:900;color:#0f172a;line-height:1.05;letter-spacing:0.3px;text-transform:uppercase}
+  .cli-meta{font-size:12px;color:#374151;margin-top:6px;line-height:1.8}
   .cli-meta b{color:#1e3a5f;font-weight:700}
   /* ── BUTTONS ── */
   .hdr-btns{display:flex;flex-direction:column;gap:5px;flex-shrink:0;align-items:flex-end}
@@ -389,12 +391,17 @@ export default function Clients() {
     <div class="co-email">Dar.sadik@hotmail.com</div>
   </div>
   <div class="cli-block">
-    <div class="cli-lbl">Client</div>
-    <div class="cli-name">${selected.nom}</div>
-    <div class="cli-meta">
-      <b>Dépôt :</b> ${selected.depot||'—'}${selected.tel ? ' &nbsp;·&nbsp; <b>Tél :</b> ' + selected.tel : ''}<br>
-      <b>Période :</b> ${periode}<br>
-      Généré le ${date}
+    <div class="cli-inner">
+      <div class="cli-avatar">${selected.nom.charAt(0).toUpperCase()}</div>
+      <div>
+        <div class="cli-lbl">Client</div>
+        <div class="cli-name">${selected.nom}</div>
+        <div class="cli-meta">
+          <b>Dépôt :</b> ${selected.depot||'—'}${selected.tel ? ' &nbsp;·&nbsp; <b>Tél :</b> ' + selected.tel : ''}<br>
+          <b>Période :</b> ${periode}<br>
+          Généré le ${date}
+        </div>
+      </div>
     </div>
   </div>
   <div class="hdr-btns">
@@ -436,7 +443,7 @@ export default function Clients() {
             <td class="m" style="white-space:nowrap">${e.detail || '—'}</td>
             <td style="font-size:13.5px;font-weight:600;color:#1e293b;white-space:nowrap">${e.operation}</td>
             <td style="white-space:nowrap">${typeBadge}</td>
-            <td class="r" style="font-weight:500;color:#1e293b;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
+            <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
             <td class="r" style="font-weight:500;color:#475569;font-size:13px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
             <td class="r" style="font-size:14.5px"><span style="font-weight:800;color:${mvColor}">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
             <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
