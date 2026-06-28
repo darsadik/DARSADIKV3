@@ -320,30 +320,30 @@ export default function Clients() {
 <style>
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
-  /* ── HEADER ── */
-  .hdr{display:flex;align-items:flex-start;gap:20px;padding:14px 24px 12px;border-bottom:2px solid #e2e8f0}
-  .co-block{flex:1;min-width:0}
+  /* ── COMPANY HEADER ── */
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  .co-block{min-width:0}
   .co-brand{display:flex;align-items:center;gap:12px}
   .co-logo{width:44px;height:44px;flex-shrink:0}
-  .co-n{font-size:21px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1.05}
-  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px;letter-spacing:0.03em}
-  .co-addr{font-size:11px;color:#475569;margin-top:6px;line-height:1}
-  .co-phones{font-size:11px;color:#1e3a5f;font-weight:600;margin-top:5px;line-height:1}
-  .co-email{font-size:11px;color:#2563eb;margin-top:3px;line-height:1}
-  /* ── CLIENT BLOCK — primary visual element ── */
-  .cli-block{background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:4px solid #1e3a5f;border-radius:8px;padding:13px 18px;min-width:230px;flex-shrink:0}
-  .cli-inner{display:flex;align-items:center;gap:14px}
-  .cli-avatar{width:52px;height:52px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:23px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-1px}
-  .cli-lbl{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:4px}
-  .cli-name{font-size:22px;font-weight:900;color:#0f172a;line-height:1.05;letter-spacing:0.3px;text-transform:uppercase}
-  .cli-meta{font-size:12px;color:#374151;margin-top:6px;line-height:1.8}
-  .cli-meta b{color:#1e3a5f;font-weight:700}
-  /* ── BUTTONS ── */
-  .hdr-btns{display:flex;flex-direction:column;gap:5px;flex-shrink:0;align-items:flex-end}
-  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer}
+  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
+  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  .co-r{text-align:right;flex-shrink:0}
+  .co-contact{font-size:11px;color:#1e3a5f;line-height:1.85}
+  .co-contact strong{font-weight:700}
+  .co-email{color:#2563eb}
+  .co-gen{font-size:9.5px;color:#94a3b8;margin-top:3px}
+  .btn-p,.btn-d{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;margin-left:4px}
   .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  /* ── CLIENT CARD — separate prominent section ── */
+  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
+  .cli-card{display:flex;align-items:center;gap:18px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:5px solid #1e3a5f;border-radius:10px;padding:14px 22px}
+  .cli-avatar{width:58px;height:58px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-1px}
+  .cli-name{font-size:26px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
+  .cli-meta b{color:#1e3a5f;font-weight:700}
   /* ── TABLE ── */
-  .bdy{padding:12px 24px}
+  .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
   thead th{background:#1e3a5f !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
@@ -387,26 +387,27 @@ export default function Clients() {
       </div>
     </div>
     <div class="co-addr">Selouane, Nador</div>
-    <div class="co-phones">06 61 32 56 65 &nbsp;·&nbsp; 06 61 97 87 47 &nbsp;·&nbsp; Bureau 06 62 82 88 20</div>
-    <div class="co-email">Dar.sadik@hotmail.com</div>
   </div>
-  <div class="cli-block">
-    <div class="cli-inner">
-      <div class="cli-avatar">${selected.nom.charAt(0).toUpperCase()}</div>
-      <div>
-        <div class="cli-lbl">Client</div>
-        <div class="cli-name">${selected.nom}</div>
-        <div class="cli-meta">
-          <b>Dépôt :</b> ${selected.depot||'—'}${selected.tel ? ' &nbsp;·&nbsp; <b>Tél :</b> ' + selected.tel : ''}<br>
-          <b>Période :</b> ${periode}<br>
-          Généré le ${date}
-        </div>
+  <div class="co-r">
+    <div class="co-contact">
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Bureau</strong> 06 62 82 88 20<br>
+      <span class="co-email">Dar.sadik@hotmail.com</span>
+    </div>
+    <div class="co-gen">Généré le ${date}</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+  </div>
+</div>
+<div class="cli-section">
+  <div class="cli-card">
+    <div class="cli-avatar">${selected.nom.charAt(0).toUpperCase()}</div>
+    <div>
+      <div class="cli-name">${selected.nom}</div>
+      <div class="cli-meta">
+        <b>Dépôt :</b> ${selected.depot||'—'}${selected.tel ? ' &nbsp;·&nbsp; <b>Tél :</b> ' + selected.tel : ''}<br>
+        <b>Période :</b> ${periode}
       </div>
     </div>
-  </div>
-  <div class="hdr-btns">
-    <button class="btn-p" onclick="window.print()">Imprimer</button>
-    <button class="btn-d" onclick="window.print()">Télécharger PDF</button>
   </div>
 </div>
 <div class="bdy">
@@ -444,7 +445,7 @@ export default function Clients() {
             <td style="font-size:13.5px;font-weight:600;color:#1e293b;white-space:nowrap">${e.operation}</td>
             <td style="white-space:nowrap">${typeBadge}</td>
             <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
-            <td class="r" style="font-weight:500;color:#475569;font-size:13px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
+            <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
             <td class="r" style="font-size:14.5px"><span style="font-weight:800;color:${mvColor}">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
             <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
             <td class="m" style="max-width:120px">${e.note || '—'}</td>
