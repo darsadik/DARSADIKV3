@@ -12,13 +12,12 @@ import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm } from '../../li
 import { saveAchat as dbSaveAchat, updateAchat as dbUpdateAchat, delAchat as dbDelAchat } from '../../lib/services/voyage/achats'
 import { saveLiv as dbSaveLiv, updateLiv as dbUpdateLiv, delLiv as dbDelLiv } from '../../lib/services/voyage/livraisons'
 import { saveChargeGrid as dbSaveChargeGrid, updateCharge as dbUpdateCharge, delCharge as dbDelCharge } from '../../lib/services/voyage/charges'
-import Section from '../../components/ui/Section'
 import AchatSection from '../../components/voyage/AchatSection'
 import LivraisonSection from '../../components/voyage/LivraisonSection'
 import ChargesSection from '../../components/voyage/ChargesSection'
-import Empty from '../../components/ui/Empty'
-import DelBtn from '../../components/ui/DelBtn'
-import EditBtn from '../../components/ui/EditBtn'
+import RetourSection from '../../components/voyage/RetourSection'
+import GasoilSection from '../../components/voyage/GasoilSection'
+import LocationSection from '../../components/voyage/LocationSection'
 
 export default function VoyageDetail() {
   const router   = useRouter()
@@ -1008,175 +1007,34 @@ export default function VoyageDetail() {
           {/* ── SECTION: RETOUR TRANSPORT ── */}
           </div>
           <div ref={sectionRefs.retour}>
-          <Section icon="↩️" title="Retour transport" color="purple"
-            action={
-              <button onClick={() => setShowRetour(v=>!v)}
-                className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-purple-700 transition">
-                {showRetour ? 'Fermer' : '+ Ajouter retour'}
-              </button>
-            }>
-            {showRetour && (
-              <form onSubmit={saveRetour} className="bg-white border border-purple-100 rounded-xl p-4 mb-4 grid grid-cols-2 md:grid-cols-3 gap-3">
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>
-                  <input type="date" value={retForm.date_retour} onChange={e=>setRetForm({...retForm,date_retour:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Client retour *</label>
-                  <input list="ret-clients" type="text" value={retForm.client_nom} onChange={e=>setRetForm({...retForm,client_nom:e.target.value})} className="input w-full text-sm" placeholder="Nom du client" required/>
-                  <datalist id="ret-clients">{clients.map(c=><option key={c.id} value={c.nom}/>)}</datalist>
-                </div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Destination</label>
-                  <input type="text" value={retForm.destination} onChange={e=>setRetForm({...retForm,destination:e.target.value})} className="input w-full text-sm" placeholder="Ex: Berkane..."/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant total *</label>
-                  <input type="number" value={retForm.montant} onChange={e=>setRetForm({...retForm,montant:e.target.value})} className="input w-full text-sm" placeholder="1500" required/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant payé</label>
-                  <input type="number" value={retForm.montant_paye} onChange={e=>setRetForm({...retForm,montant_paye:e.target.value})} className="input w-full text-sm" placeholder="0"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Restant</label>
-                  <div className="input w-full text-sm bg-slate-50 font-bold text-orange-600 flex items-center">
-                    {fmt(Math.max(0,(parseFloat(retForm.montant)||0)-(parseFloat(retForm.montant_paye)||0)))} DHS
-                  </div></div>
-                <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={()=>setShowRetour(false)} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
-                  <button type="submit" disabled={savingRetour} className="text-xs bg-purple-600 text-white px-4 py-1.5 rounded-lg font-semibold">{savingRetour?'...':'✅ Enregistrer'}</button>
-                </div>
-              </form>
-            )}
-            {retours.length===0 ? <Empty text="Aucun retour transport sur ce voyage"/> : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-slate-400 text-[10px] uppercase border-b border-slate-100">
-                      <th className="text-left pb-2 pr-3">Date</th>
-                      <th className="text-left pb-2 pr-3">Client</th>
-                      <th className="text-left pb-2 pr-3">Destination</th>
-                      <th className="text-right pb-2 pr-3">Montant</th>
-                      <th className="text-right pb-2 pr-3">Payé</th>
-                      <th className="text-right pb-2">Reste</th>
-                      <th className="pb-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {retours.map(r => (
-                      <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50">
-                        <td className="py-2 pr-3 text-slate-500">{fmtDate(r.date_retour)}</td>
-                        <td className="py-2 pr-3 font-semibold">{r.client_nom}</td>
-                        <td className="py-2 pr-3 text-slate-500">{r.destination||'—'}</td>
-                        <td className="py-2 pr-3 text-right font-bold text-purple-600">{fmt(r.montant)} DHS</td>
-                        <td className="py-2 pr-3 text-right text-emerald-600">{fmt(r.montant_paye)} DHS</td>
-                        <td className="py-2 text-right text-orange-500 font-semibold">{r.restant>0?fmt(r.restant)+' DHS ⚠':'✓'}</td>
-                        <td className="py-2 pl-1 flex items-center gap-0.5">
-                          <EditBtn onEdit={() => openEdit('retour', r)}/>
-                          <DelBtn onDel={() => delRetour(r)}/>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Section>
+          <RetourSection
+            retours={retours}
+            showRetour={showRetour} onToggleForm={() => setShowRetour(v => !v)}
+            retForm={retForm} onFormChange={setRetForm}
+            savingRetour={savingRetour}
+            clients={clients}
+            onSave={saveRetour} onCancel={() => setShowRetour(false)}
+            onEdit={r => openEdit('retour', r)} onDel={delRetour}
+          />
 
           {/* ── SECTION: GASOIL ── */}
           </div>
           <div ref={sectionRefs.gasoil}>
-          <Section icon="⛽" title={`Gasoil${gasoil.length > 0 ? ` (${gasoil.length} plein(s))` : ''}`} color="orange"
-            action={
-              <button onClick={loadCamionPleins}
-                className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-orange-600 transition">
-                + Lier un plein
-              </button>
-            }>
-
-            {/* Gasoil Picker */}
-            {showGasoilPicker && (
-              <div className="bg-white border border-orange-100 rounded-xl p-4 mb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold text-slate-700">
-                    Choisir un plein — {voyage?.camion_plaque}
-                  </span>
-                  <button onClick={() => setShowGasoilPicker(false)} className="text-slate-400 hover:text-slate-600">✕</button>
-                </div>
-                {camionPleins.length === 0 ? (
-                  <div className="text-center py-4 text-slate-400 text-xs">
-                    Aucun plein enregistré pour ce camion.
-                    <Link href="/gasoil" className="text-blue-500 hover:underline ml-1">
-                      → Ajouter dans Gasoil
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {camionPleins.map(p => (
-                      <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border border-slate-100 hover:bg-orange-50">
-                        <div className="text-xs">
-                          <span className="font-semibold text-slate-700">{fmtDate(p.date)}</span>
-                          <span className="text-slate-400 ml-2">{p.station || '—'}</span>
-                          <span className="text-orange-600 font-bold ml-2">{p.qte}L × {fmtD(p.prix_unitaire)} = {fmt(p.total)} DHS</span>
-                          {p.voyage_id && p.voyage_id !== parseInt(id) && (
-                            <span className="text-red-400 ml-2">(déjà lié à un autre voyage)</span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => linkGasoilToVoyage(p)}
-                          disabled={linkingGasoil}
-                          className="text-xs bg-orange-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-orange-600 ml-2">
-                          ✓ Lier
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {gasoil.length === 0 ? (
-              <div className="text-center py-3 space-y-1">
-                {fuelSource === 'km' ? (
-                  <div className="text-sm font-semibold text-emerald-600">
-                    ⚡ Alloué automatiquement — {fmt(fuelCost)} DHS ({fmt(voyageKm)} km)
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-500">
-                    Cliquez sur "+ Lier un plein" pour associer un gasoil à ce voyage
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-slate-400 text-[10px] uppercase border-b border-slate-100">
-                      <th className="text-left pb-2 pr-3">Date</th>
-                      <th className="text-left pb-2 pr-3">Station</th>
-                      <th className="text-right pb-2 pr-3">Litres</th>
-                      <th className="text-right pb-2 pr-3">Prix/L</th>
-                      <th className="text-right pb-2 pr-3">Total</th>
-                      <th className="pb-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gasoil.map(g => (
-                      <tr key={g.id} className="border-b border-slate-50 hover:bg-slate-50">
-                        <td className="py-2 pr-3 text-slate-500">{fmtDate(g.date_gasoil)}</td>
-                        <td className="py-2 pr-3 text-slate-500 truncate max-w-[140px]">{g.station}</td>
-                        <td className="py-2 pr-3 text-right">{g.qte_litres}L</td>
-                        <td className="py-2 pr-3 text-right">{fmtD(g.prix_unitaire)}</td>
-                        <td className="py-2 pr-3 text-right font-bold text-orange-600">{fmt(g.total)} DHS</td>
-                        <td className="py-2 pl-1"><DelBtn onDel={() => delGasoil(g)}/></td>
-                      </tr>
-                    ))}
-                    <tr className="bg-slate-50 font-bold">
-                      <td colSpan={4} className="py-2 pr-3 text-right text-[10px] uppercase text-slate-700">Total (historique)</td>
-                      <td className="py-2 pr-3 text-right text-orange-600">{fmt(totalGasoilManuel)} DHS</td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-                {fuelSource === 'km' && (
-                  <div className="mt-2 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-                    ⚡ Ce voyage utilise l'allocation km automatique ({fmt(fuelCost)} DHS) — les entrées ci-dessus sont conservées à titre d'historique.
-                  </div>
-                )}
-              </div>
-            )}
-          </Section>
+          <GasoilSection
+            gasoil={gasoil}
+            showGasoilPicker={showGasoilPicker} onClosePicker={() => setShowGasoilPicker(false)}
+            camionPleins={camionPleins}
+            linkingGasoil={linkingGasoil}
+            onLoadPleins={loadCamionPleins}
+            onLinkGasoil={linkGasoilToVoyage}
+            onDel={delGasoil}
+            fuelSource={fuelSource}
+            fuelCost={fuelCost}
+            voyageKm={voyageKm}
+            totalGasoilManuel={totalGasoilManuel}
+            camionPlaque={voyage?.camion_plaque}
+            voyageId={id}
+          />
 
           {/* ── SECTION: CHARGES ── */}
           </div>
@@ -1198,103 +1056,22 @@ export default function VoyageDetail() {
           {/* ── SECTION: LOCATION CAMION (camions loués only) ── */}
           {isLoue && (
             <div ref={sectionRefs.location}>
-            <Section icon="🔑" title="Location camion" color="purple"
-              action={
-                <button onClick={() => {
-                  if (!showLocation && locations.length > 0) {
-                    const l = locations[0]
-                    setLocForm({ loueur_id: l.loueur_id ? String(l.loueur_id) : '', montant_location: String(l.montant_location || ''), montant_paye: String(l.montant_paye || ''), note: l.note || '' })
-                  }
-                  setShowLocation(v => !v)
-                }}
-                  className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-purple-700 transition">
-                  {showLocation ? 'Fermer' : locations.length === 0 ? '+ Saisir location' : '✏️ Modifier'}
-                </button>
-              }>
-
-              {showLocation && (
-                <form onSubmit={saveLocation} className="bg-white border border-purple-100 rounded-xl p-4 mb-4 grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <div className="col-span-2 md:col-span-3">
-                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Loueur</label>
-                    <select value={locForm.loueur_id} onChange={e => setLocForm({...locForm, loueur_id: e.target.value})} className="input w-full text-sm">
-                      <option value="">— Sélectionner un loueur —</option>
-                      {loueurs.map(l => <option key={l.id} value={l.id}>{l.nom}{l.telephone ? ` · ${l.telephone}` : ''}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant location (DHS)</label>
-                    <input type="number" step="0.01" min="0" value={locForm.montant_location}
-                      onChange={e => setLocForm({...locForm, montant_location: e.target.value})}
-                      className="input w-full text-sm font-bold" placeholder="0" required />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant payé (DHS)</label>
-                    <input type="number" step="0.01" min="0" value={locForm.montant_paye}
-                      onChange={e => setLocForm({...locForm, montant_paye: e.target.value})}
-                      className="input w-full text-sm" placeholder="0" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Reste à payer</label>
-                    <div className="input w-full text-sm bg-slate-50 font-bold text-red-600 flex items-center">
-                      {fmt(Math.max(0, (parseFloat(locForm.montant_location)||0) - (parseFloat(locForm.montant_paye)||0)))} DHS
-                    </div>
-                  </div>
-                  <div className="col-span-2 md:col-span-3">
-                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">Note (optionnel)</label>
-                    <input type="text" value={locForm.note} onChange={e => setLocForm({...locForm, note: e.target.value})}
-                      className="input w-full text-sm" placeholder="ex: chèque #123, mode de paiement..." />
-                  </div>
-                  <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1">
-                    <button type="button" onClick={() => setShowLocation(false)}
-                      className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
-                    <button type="submit" disabled={savingLoc}
-                      className="text-xs bg-purple-600 text-white px-5 py-1.5 rounded-lg font-bold hover:bg-purple-700 transition">
-                      {savingLoc ? '...' : '✅ Enregistrer'}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {locations.length === 0 ? (
-                <div className="text-center py-4 space-y-1">
-                  <div className="text-sm text-slate-400">Location non saisie</div>
-                  <div className="text-xs text-slate-300">Cliquez sur "+ Saisir location" pour enregistrer le coût de location</div>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-slate-400 text-[10px] uppercase border-b border-slate-100">
-                        <th className="text-left pb-2 pr-3">Loueur</th>
-                        <th className="text-right pb-2 pr-3">Montant location</th>
-                        <th className="text-right pb-2 pr-3">Payé</th>
-                        <th className="text-right pb-2 pr-3">Reste</th>
-                        <th className="pb-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {locations.map(loc => (
-                        <tr key={loc.id} className="border-b border-slate-50 hover:bg-slate-50">
-                          <td className="py-2 pr-3 font-semibold text-slate-700">{loc.loueur_nom || '—'}</td>
-                          <td className="py-2 pr-3 text-right font-bold text-purple-600">{fmt(loc.montant_location)} DHS</td>
-                          <td className="py-2 pr-3 text-right font-semibold text-emerald-600">{fmt(loc.montant_paye)} DHS</td>
-                          <td className="py-2 pr-3 text-right font-bold text-red-600">
-                            {Math.max(0, (loc.montant_location||0) - (loc.montant_paye||0)) > 0
-                              ? `${fmt(Math.max(0, (loc.montant_location||0)-(loc.montant_paye||0)))} DHS`
-                              : <span className="text-emerald-600">✓ Soldé</span>
-                            }
-                          </td>
-                          <td className="py-2 pl-1"><DelBtn onDel={() => delLocation(loc)}/></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {locations[0]?.note && (
-                    <div className="mt-2 text-xs text-slate-400 px-1">📝 {locations[0].note}</div>
-                  )}
-                </div>
-              )}
-            </Section>
+            <LocationSection
+              locations={locations}
+              showLocation={showLocation}
+              onToggleForm={() => {
+                if (!showLocation && locations.length > 0) {
+                  const l = locations[0]
+                  setLocForm({ loueur_id: l.loueur_id ? String(l.loueur_id) : '', montant_location: String(l.montant_location || ''), montant_paye: String(l.montant_paye || ''), note: l.note || '' })
+                }
+                setShowLocation(v => !v)
+              }}
+              locForm={locForm} onFormChange={setLocForm}
+              savingLoc={savingLoc}
+              loueurs={loueurs}
+              onSave={saveLocation} onCancel={() => setShowLocation(false)}
+              onDel={delLocation}
+            />
             </div>
           )}
 
