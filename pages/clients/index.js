@@ -68,13 +68,16 @@ export default function Clients() {
       const s = JSON.parse(localStorage.getItem(`stmt-${selected.id}`) || '{}')
       setStmtHighlights(s.h || {})
       setStmtPinned(new Set(s.p || []))
-      setStmtOrder(s.o || null)
+      // Database order is source of truth; localStorage is a fallback
+      setStmtOrder(selected.display_order || s.o || null)
     } catch {}
   }, [selected?.id])
 
   function saveStmt(o, h, p) {
     if (!selected?.id) return
     localStorage.setItem(`stmt-${selected.id}`, JSON.stringify({ o, h, p: Array.from(p) }))
+    // Persist display order to database (fire-and-forget; highlights stay local)
+    supabase.from('clients').update({ display_order: o ?? null }).eq('id', selected.id)
   }
 
   async function loadClients() {
@@ -297,6 +300,9 @@ export default function Clients() {
       : (selected.solde || 0)
 
     const pLedger = buildLedger()
+    // Use the same display order as the screen (respects manual reordering and pins)
+    const pDisplayEntries = getDisplayEntries().length > 0 ? getDisplayEntries() : pLedger.entries
+    const pFinalBalance = pDisplayEntries.length ? pDisplayEntries[pDisplayEntries.length-1].solde : pLedger.startBalance
 
     function pMv(e) {
       const abs = Math.abs(e.delta)
@@ -349,14 +355,14 @@ export default function Clients() {
   thead th.r{text-align:right}
   tbody tr{page-break-inside:avoid}
   tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
-  tbody td.r{text-align:right;font-family:'Courier New',monospace}
-  tbody td.m{color:#64748b;font-size:12.5px}
+  tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
+  tbody td.m{color:#64748b;font-size:12.5px;white-space:nowrap}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
-  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;background:#1e3a5f;font-weight:700;font-size:13px;color:#ffffff}
+  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#eff6ff;border-top:3px solid #1e3a5f;border-bottom:2px solid #bfdbfe;font-weight:800;font-size:14px;color:#1e3a5f}
   .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px 26px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
   .sf-lbl{font-size:15px;font-weight:700;color:#166534;letter-spacing:0.01em}
-  .sf-amt{font-size:36px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
+  .sf-amt{font-size:42px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-1px}
   .sf-unit{font-size:16px;font-weight:600;color:#4ade80;margin-left:5px}
   .sf-sub{font-size:12px;color:#86efac;margin-top:5px;font-weight:500}
   .foot{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10.5px;color:#64748b}
@@ -421,11 +427,11 @@ export default function Clients() {
       <td class="m">—</td>
       <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
       <td class="r" style="color:#1e3a5f;font-weight:900;font-size:15px;white-space:nowrap">+ ${fmt(pLedger.startBalance)}</td>
-      <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
+      <td class="m" style="white-space:nowrap">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
-    ${pLedger.entries.length === 0
+    ${pDisplayEntries.length === 0
       ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:20px;font-style:italic">Aucune opération pour cette période</td></tr>'
-      : pLedger.entries.map(e => {
+      : pDisplayEntries.map(e => {
           const abs = Math.abs(e.delta)
           const isPos = e.delta >= 0
           const mvColor = isPos ? '#1d4ed8' : '#15803d'
@@ -446,16 +452,16 @@ export default function Clients() {
             <td style="white-space:nowrap">${typeBadge}</td>
             <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
             <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
-            <td class="r" style="font-size:14.5px"><span style="font-weight:800;color:${mvColor}">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
+            <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
             <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
-            <td class="m" style="max-width:120px">${e.note || '—'}</td>
+            <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis">${e.note || '—'}</td>
           </tr>`
         }).join('')}
   </tbody>
 </table>
-${pLedger.entries.length > 0 ? `<div class="totals-row">
-  <span>Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</span>
-  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pLedger.finalBalance)} DHS</span>
+${pDisplayEntries.length > 0 ? `<div class="totals-row">
+  <span>Total — ${pDisplayEntries.length} opération${pDisplayEntries.length !== 1 ? 's' : ''}</span>
+  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pFinalBalance)} DHS</span>
 </div>` : ''}
 <div class="solde-final">
   <div>
@@ -463,7 +469,7 @@ ${pLedger.entries.length > 0 ? `<div class="totals-row">
     <div class="sf-sub">${periode}</div>
   </div>
   <div style="text-align:right">
-    <div style="line-height:1"><span class="sf-amt">${fmt(pLedger.finalBalance)}</span><span class="sf-unit">DHS</span></div>
+    <div style="line-height:1"><span class="sf-amt">${fmt(pFinalBalance)}</span><span class="sf-unit">DHS</span></div>
   </div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
