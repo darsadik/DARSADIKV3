@@ -244,39 +244,48 @@ export default function Clients() {
 <meta charset="UTF-8"><title>Fiche Client — ${selected.nom}</title>
 <style>
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff}
-  .hdr{background:#fff;padding:7px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0}
-  .co-left{display:flex;align-items:center;gap:10px}
-  .co-logo{width:36px;height:36px;flex-shrink:0}
-  .co-n{font-size:15px;font-weight:900;color:#0f172a;letter-spacing:0.5px;text-transform:uppercase;line-height:1.1}
-  .co-tag{font-size:9.5px;color:#64748b;margin-top:1px;font-weight:600}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
+  /* ── HEADER ── */
+  .hdr{padding:14px 24px 10px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0}
+  .co-left{display:flex;align-items:center;gap:11px}
+  .co-logo{width:42px;height:42px;flex-shrink:0}
+  .co-n{font-size:17px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}
+  .co-tag{font-size:10px;color:#64748b;margin-top:2px;font-weight:600}
   .co-addr{font-size:9.5px;color:#94a3b8;margin-top:1px}
-  .co-r{text-align:right;font-size:10px;color:#64748b;line-height:1.75}
-  .co-r strong{color:#374151;font-size:10px}
+  .co-r{text-align:right}
+  .doc-title{font-size:10.5px;font-weight:800;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.14em;padding-bottom:4px;border-bottom:2px solid #e8b84b;display:inline-block;margin-bottom:6px}
+  .co-contact{font-size:10px;color:#64748b;line-height:1.75}
+  .co-contact strong{color:#374151}
   .co-email{font-size:9.5px;color:#94a3b8}
-  .btn-p,.btn-d{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;margin-right:4px}
-  .btn-p{background:#64748b;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:8px 20px}
-  .client-card{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;border-left:3px solid #3b82f6;margin-bottom:6px}
-  .cli-ini{width:30px;height:30px;background:#eff6ff;color:#1d4ed8;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex-shrink:0}
-  .cli-n{font-size:13px;font-weight:800;color:#0f172a}.cli-m{font-size:10px;color:#64748b;margin-top:1px}
-  .pbadge{display:inline-flex;align-items:center;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;color:#1d4ed8;margin-bottom:7px}
+  .btn-p,.btn-d{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;margin-left:4px}
+  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  /* ── INFO BAR ── */
+  .info-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 24px;background:#f8fafc;border-bottom:2px solid #e2e8f0}
+  .icard{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:8px 12px;border-left:3px solid #2563eb}
+  .icard.period{border-left-color:#d97706}
+  .icard-lbl{font-size:8.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px}
+  .icard-main{font-size:14px;font-weight:800;color:#0f172a}
+  .icard-sub{font-size:10px;color:#64748b;margin-top:2px}
+  /* ── TABLE ── */
+  .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#f8fafc !important;color:#475569 !important;padding:9px 12px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;text-align:left;border-top:1px solid #e2e8f0;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+  thead th{background:#eff6ff !important;color:#1d4ed8 !important;padding:9px 12px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;text-align:left;border-bottom:2px solid #bfdbfe;white-space:nowrap}
   thead th.r{text-align:right}
   tbody tr{page-break-inside:avoid}
   tbody td{padding:9px 12px;font-size:12.5px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;line-height:1.45}
   tbody td.r{text-align:right;font-family:'Courier New',monospace}
   tbody td.m{color:#94a3b8;font-size:11px}
   tbody tr:nth-child(even) td{background:#f9fafb !important}
-  .tag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9.5px;font-weight:700;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;letter-spacing:0.03em;white-space:nowrap}
-  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f1f5f9;border:1px solid #e2e8f0;border-top:2px solid #cbd5e1;font-weight:700;font-size:12px;color:#374151}
+  .tag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
+  /* ── TOTALS ── */
+  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#eff6ff;border-top:2px solid #bfdbfe;border-bottom:1px solid #bfdbfe;font-weight:700;font-size:12px;color:#1d4ed8}
+  /* ── FINAL BALANCE ── */
   .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
   .sf-lbl{font-size:14px;font-weight:700;color:#166534;letter-spacing:0.01em}
   .sf-amt{font-size:32px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
   .sf-unit{font-size:14px;font-weight:600;color:#4ade80;margin-left:4px}
   .sf-sub{font-size:11px;color:#86efac;margin-top:4px;font-weight:500}
-  .foot{margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9.5px;color:#94a3b8}
+  .foot{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9.5px;color:#94a3b8}
   @media print{.btn-p,.btn-d{display:none !important}}
   @page{size:A4;margin:7mm 10mm}
 </style>
@@ -304,34 +313,47 @@ export default function Clients() {
     </div>
   </div>
   <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47</div>
-    <div><strong>Bureau</strong> 06 62 82 88 20</div>
-    <div class="co-email">Dar.sadik@hotmail.com</div>
+    <div class="doc-title">Relevé de Compte Client</div>
+    <div class="co-contact">
+      <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47</div>
+      <div><strong>Bureau</strong> 06 62 82 88 20</div>
+      <div class="co-email">Dar.sadik@hotmail.com</div>
+    </div>
     <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:10px;color:#94a3b8;margin-top:3px">Généré le ${date}</div>
+    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${date}</div>
+  </div>
+</div>
+<div class="info-bar">
+  <div class="icard">
+    <div class="icard-lbl">Client</div>
+    <div class="icard-main">${selected.nom}</div>
+    <div class="icard-sub">Dépôt : ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; '+selected.tel:''}</div>
+  </div>
+  <div class="icard period">
+    <div class="icard-lbl">Période</div>
+    <div class="icard-main" style="font-size:12px">${periode}</div>
+    <div class="icard-sub">Généré le ${date}</div>
   </div>
 </div>
 <div class="bdy">
-<div class="client-card">
-  <div class="cli-ini">${selected.nom[0].toUpperCase()}</div>
-  <div><div class="cli-n">${selected.nom}</div><div class="cli-m">Dépôt : ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; '+selected.tel:''}</div></div>
-</div>
-<div class="pbadge">Période : ${periode}</div>
 <table>
   <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th></tr></thead>
   <tbody>
     <tr style="background:#fffbeb !important">
-      <td style="color:#92400e;font-size:11px">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
+      <td style="color:#92400e;font-size:11.5px;white-space:nowrap">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
       <td class="m">—</td>
-      <td style="font-weight:700;color:#92400e;font-size:11px">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
+      <td style="font-weight:700;color:#92400e;font-size:11.5px;white-space:nowrap">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
       <td class="m">—</td>
       <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
       <td class="r" style="color:#d97706;font-weight:800;font-size:13.5px;white-space:nowrap">+ ${fmt(pLedger.startBalance)}</td>
       <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
     ${pLedger.entries.length === 0
-      ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune opération pour cette période</td></tr>'
+      ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:18px;font-style:italic">Aucune opération pour cette période</td></tr>'
       : pLedger.entries.map(e => {
+          const abs = Math.abs(e.delta)
+          const isPos = e.delta >= 0
+          const mvColor = isPos ? '#1d4ed8' : '#16a34a'
           const isVente = e.src === 'vente'
           const v = e.raw
           const rowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
@@ -349,7 +371,7 @@ export default function Clients() {
             <td style="white-space:nowrap">${typeBadge}</td>
             <td class="r" style="font-weight:400;color:#374151;font-size:12px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
             <td class="r" style="font-weight:500;color:#64748b;font-size:12px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
-            <td class="r" style="font-size:13px">${pMv(e)}</td>
+            <td class="r" style="font-size:13px"><span style="font-weight:800;color:${mvColor}">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
             <td class="r" style="font-weight:800;font-size:13.5px;color:${soldeColor};white-space:nowrap">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
             <td class="m" style="font-size:11px;max-width:120px">${e.note || '—'}</td>
           </tr>`
@@ -358,7 +380,7 @@ export default function Clients() {
 </table>
 ${pLedger.entries.length > 0 ? `<div class="totals-row">
   <span>Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</span>
-  <span style="font-size:13px;font-weight:800;font-family:monospace">${fmt(pLedger.finalBalance)} DHS</span>
+  <span style="font-size:13px;font-weight:800;font-family:'Courier New',monospace">${fmt(pLedger.finalBalance)} DHS</span>
 </div>` : ''}
 <div class="solde-final">
   <div>
@@ -849,7 +871,7 @@ ${pLedger.entries.length > 0 ? `<div class="totals-row">
                           <tr>
                             {['Date','Camion','Opération','Type','Qté','Prix/u','Total DHS','Solde','Note',''].map((h,i) => (
                               <th key={i} className={`th${[4,5,6,7].includes(i)?' text-right':''}`}
-                                style={{background:'#f8fafc',color:'#475569',borderTop:'1px solid #e2e8f0',borderBottom:'2px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                style={{background:'#eff6ff',color:'#1d4ed8',borderBottom:'2px solid #bfdbfe',whiteSpace:'nowrap'}}>
                                 {h}
                               </th>
                             ))}
@@ -906,10 +928,10 @@ ${pLedger.entries.length > 0 ? `<div class="totals-row">
                                 </td>
                                 <td className="td" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',padding:'10px 14px'}}>
                                   {e.type === 'vente'
-                                    ? <span className="badge-gray" style={{fontSize:10,letterSpacing:'0.03em'}}>{e.label}</span>
+                                    ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
                                     : e.type === 'mdo'
-                                    ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em'}}>M.O.</span>
-                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em'}}>
+                                    ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
                                         {e.type === 'paiement' ? e.label : 'Remise'}
                                       </span>}
                                 </td>
