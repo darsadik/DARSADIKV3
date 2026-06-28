@@ -277,24 +277,30 @@ export default function VoyageDetail() {
   const profitNet   = revenuBrut - coutTotal
   const margePercent = revenuBrut > 0 ? Math.round(profitNet/revenuBrut*100) : 0
 
-  // Per-client distribution: quantity-weighted (proportional to briques delivered)
-  const clientsUniques = [...new Set(livraisons.map(l=>l.client_id).filter(Boolean))]
-  const nbClients      = Math.max(clientsUniques.length, 1)
-  const totalQteVoyage = livraisons.reduce((s,l) => s+(l.qte||0), 0)
+  // Per-client distribution: fuel proportional to briques only; location+charges by total qte
+  const clientsUniques    = [...new Set(livraisons.map(l=>l.client_id).filter(Boolean))]
+  const nbClients         = Math.max(clientsUniques.length, 1)
+  const totalQteVoyage    = livraisons.reduce((s,l) => s+(l.qte||0), 0)
+  const brikeLivsVoyage   = livraisons.filter(l => l.type_produit !== 'grignon')
+  const totalBrikesVoyage = brikeLivsVoyage.reduce((s,l) => s+(l.qte||0), 0)
+  const brikeCidsVoyage   = [...new Set(brikeLivsVoyage.map(l=>l.client_id).filter(Boolean))]
 
   const clientProfits = clientsUniques.map(cid => {
-    const myLivs    = livraisons.filter(l=>l.client_id===cid)
-    const isGrignon = myLivs[0]?.type_produit === 'grignon'
-    const cl        = isGrignon
+    const myLivs      = livraisons.filter(l=>l.client_id===cid)
+    const isGrignon   = myLivs[0]?.type_produit === 'grignon'
+    const cl          = isGrignon
       ? grignonClients.find(c=>c.id===cid)
       : clients.find(c=>c.id===cid)
-    const myCharges = charges.filter(c=>c.facture_client&&c.client_id===cid)
-    const myQte     = myLivs.reduce((s,l) => s+(l.qte||0), 0)
-    const qteShare  = totalQteVoyage > 0 ? myQte / totalQteVoyage : 1 / nbClients
-    const rev       = myLivs.reduce((s,l)=>s+(l.total_vente||0),0) + myCharges.reduce((s,c)=>s+(c.montant||0),0)
-    const cout      = myLivs.reduce((s,l)=>s+(l.total_achat||(l.qte||0)*(l.prix_achat||0)),0)
-                    + (fuelCost + totalLocation) * qteShare
-                    + totalChargesFixed * qteShare
+    const myCharges   = charges.filter(c=>c.facture_client&&c.client_id===cid)
+    const myQte       = myLivs.reduce((s,l) => s+(l.qte||0), 0)
+    const myBrikesQte = brikeLivsVoyage.filter(l=>l.client_id===cid).reduce((s,l)=>s+(l.qte||0), 0)
+    const fuelShare   = totalBrikesVoyage > 0 ? myBrikesQte / totalBrikesVoyage
+                      : (brikeCidsVoyage.includes(cid) ? 1 / brikeCidsVoyage.length : 0)
+    const qteShare    = totalQteVoyage > 0 ? myQte / totalQteVoyage : 1 / nbClients
+    const rev         = myLivs.reduce((s,l)=>s+(l.total_vente||0),0) + myCharges.reduce((s,c)=>s+(c.montant||0),0)
+    const cout        = myLivs.reduce((s,l)=>s+(l.total_achat||(l.qte||0)*(l.prix_achat||0)),0)
+                      + fuelCost * fuelShare + totalLocation * qteShare
+                      + totalChargesFixed * qteShare
     return { id: cid, nom: cl?.nom || myLivs[0]?.client_nom || '—', isGrignon, rev, cout, profit: rev-cout, qte: myQte, qteShare }
   })
 

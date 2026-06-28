@@ -507,17 +507,24 @@ export default function Voyages() {
   // ── PER CLIENT ────────────────────────────────────────────────────────────
   const cliMap = {}
   filteredVoyages.forEach(v => {
-    const myLivs = livraisons.filter(l => l.voyage_id === v.id)
+    const myLivs      = livraisons.filter(l => l.voyage_id === v.id)
+    const brikeLivs   = myLivs.filter(l => l.type_produit !== 'grignon')
+    const totalBrikesQteV = brikeLivs.reduce((s, l) => s + (l.qte||0), 0)
+    const brikeCidsV  = [...new Set(brikeLivs.map(l => l.client_id).filter(Boolean))]
     const cids   = [...new Set(myLivs.map(l => l.client_id).filter(Boolean))]
     const nb     = cids.length || 1
     const kmCost    = kmFuelCost(v)
     const totalGas  = kmCost !== null ? kmCost : gasoilData.filter(g => g.voyage_id === v.id).reduce((s, g) => s + (g.total||0), 0)
     const totalChgC = charges.filter(c => c.voyage_id === v.id && !c.facture_client).reduce((s, c) => s + (c.montant||0), 0)
     cids.forEach(cid => {
-      const myCliLivs  = myLivs.filter(l => l.client_id === cid)
+      const myCliLivs   = myLivs.filter(l => l.client_id === cid)
+      const myBrikeLivs = brikeLivs.filter(l => l.client_id === cid)
+      const myBrikesQte = myBrikeLivs.reduce((s, l) => s + (l.qte||0), 0)
       const rev        = myCliLivs.reduce((s, l) => s + (l.total_vente||0), 0)
       const coutAchat  = myCliLivs.reduce((s, l) => s + (l.total_achat||(l.qte||0)*(l.prix_achat||0)), 0)
-      const gasShare   = totalGas / nb
+      const gasShare   = totalBrikesQteV > 0
+        ? (myBrikesQte / totalBrikesQteV) * totalGas
+        : (brikeCidsV.includes(cid) ? totalGas / brikeCidsV.length : 0)
       const chgShare   = totalChgC / nb
       const chgDirect  = charges
         .filter(c => c.voyage_id === v.id && c.facture_client && c.client_id === cid)
@@ -1052,7 +1059,7 @@ export default function Voyages() {
               <h3 className="font-bold text-slate-700 text-sm">
                 Résultat par client
                 <span className="font-normal text-slate-400 text-xs ml-2">
-                  — gasoil et charges fixes divisés équitablement entre clients du voyage
+                  — gasoil divisé proportionnellement aux briques, charges fixes divisées équitablement
                 </span>
               </h3>
             </div>

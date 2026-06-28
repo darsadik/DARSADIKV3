@@ -308,17 +308,23 @@ export default function Rentabilite() {
     cliMap[l.client_id].qte    += (l.qte || 0)
   })
   voyages.forEach(v => {
-    const myLivs     = livraisons.filter(l => l.voyage_id === v.id)
-    const cids       = [...new Set(myLivs.map(l => l.client_id).filter(Boolean))]
-    const totalQteV  = myLivs.reduce((s, l) => s + (l.qte||0), 0)
-    const vFuelCost  = kmFuelCost(v) ?? gasoil.filter(g => g.voyage_id === v.id).reduce((s, g) => s + (g.total||0), 0)
-    const totalC     = charges.filter(c => c.voyage_id === v.id && !c.facture_client).reduce((s, c) => s + (c.montant||0), 0)
+    const myLivs          = livraisons.filter(l => l.voyage_id === v.id)
+    const brikeLivs       = myLivs.filter(l => l.type_produit !== 'grignon')
+    const cids            = [...new Set(myLivs.map(l => l.client_id).filter(Boolean))]
+    const brikeCids       = [...new Set(brikeLivs.map(l => l.client_id).filter(Boolean))]
+    const totalQteV       = myLivs.reduce((s, l) => s + (l.qte||0), 0)
+    const totalBrikesQteV = brikeLivs.reduce((s, l) => s + (l.qte||0), 0)
+    const vFuelCost       = kmFuelCost(v) ?? gasoil.filter(g => g.voyage_id === v.id).reduce((s, g) => s + (g.total||0), 0)
+    const totalC          = charges.filter(c => c.voyage_id === v.id && !c.facture_client).reduce((s, c) => s + (c.montant||0), 0)
     cids.forEach(cid => {
       if (!cliMap[cid]) return
-      const cQte     = myLivs.filter(l => l.client_id === cid).reduce((s, l) => s + (l.qte||0), 0)
-      const share    = totalQteV > 0 ? cQte / totalQteV : 1 / (cids.length || 1)
-      cliMap[cid].gas += vFuelCost * share
-      cliMap[cid].chg += totalC * share
+      const cQte      = myLivs.filter(l => l.client_id === cid).reduce((s, l) => s + (l.qte||0), 0)
+      const cBrikesQte = brikeLivs.filter(l => l.client_id === cid).reduce((s, l) => s + (l.qte||0), 0)
+      const chgShare   = totalQteV > 0 ? cQte / totalQteV : 1 / (cids.length || 1)
+      const fuelShare  = totalBrikesQteV > 0 ? cBrikesQte / totalBrikesQteV
+                       : (brikeCids.includes(cid) ? 1 / (brikeCids.length || 1) : 0)
+      cliMap[cid].gas += vFuelCost * fuelShare
+      cliMap[cid].chg += totalC * chgShare
     })
   })
   charges.filter(c => c.facture_client && c.client_id).forEach(c => {
@@ -724,7 +730,7 @@ export default function Rentabilite() {
                   <div className="px-5 py-4 border-b border-slate-100">
                     <h3 className="font-bold text-slate-700 text-sm">
                       Détail par client
-                      <span className="font-normal text-slate-400 ml-2 text-xs">— gasoil et charges fixes divisés équitablement entre clients du voyage</span>
+                      <span className="font-normal text-slate-400 ml-2 text-xs">— gasoil divisé proportionnellement aux briques, charges fixes divisées équitablement</span>
                     </h3>
                   </div>
                   <div className="overflow-x-auto">

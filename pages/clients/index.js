@@ -245,40 +245,40 @@ export default function Clients() {
 <style>
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff}
-  .hdr{background:linear-gradient(135deg,#0f2444 0%,#1a3a6b 60%,#1e4080 100%);padding:18px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #e8b84b}
-  .co-left{display:flex;align-items:center;gap:16px}
-  .co-logo{width:62px;height:62px;flex-shrink:0}
-  .co-n{font-size:26px;font-weight:900;color:#fff;letter-spacing:1px;line-height:1;text-transform:uppercase}
-  .co-tag{font-size:12px;color:#e8b84b;margin-top:4px;font-weight:600;letter-spacing:0.5px}
-  .co-addr{font-size:11px;color:#93c5fd;margin-top:3px}
-  .co-r{text-align:right;font-size:12px;color:#bfdbfe;line-height:2}
-  .co-r strong{color:#e8b84b;font-size:13px}
-  .co-email{font-size:11px;color:#93c5fd}
-  .btn-p,.btn-d{padding:6px 14px;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;margin-right:5px}
-  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:20px 28px}
-  .client-card{display:flex;align-items:center;gap:14px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;border-left:4px solid #1a3a6b;margin-bottom:12px}
-  .cli-ini{width:42px;height:42px;background:#1a3a6b;color:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;flex-shrink:0}
-  .cli-n{font-size:16px;font-weight:800}.cli-m{font-size:12px;color:#64748b;margin-top:2px}
-  .pbadge{display:inline-flex;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:4px 12px;font-size:12px;font-weight:700;color:#1d4ed8;margin-bottom:16px}
-  .sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#0f2444;border-bottom:2px solid #e8b84b;padding-bottom:5px;margin-bottom:0}
+  .hdr{background:#fff;padding:7px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0}
+  .co-left{display:flex;align-items:center;gap:10px}
+  .co-logo{width:36px;height:36px;flex-shrink:0}
+  .co-n{font-size:15px;font-weight:900;color:#0f172a;letter-spacing:0.5px;text-transform:uppercase;line-height:1.1}
+  .co-tag{font-size:9.5px;color:#64748b;margin-top:1px;font-weight:600}
+  .co-addr{font-size:9.5px;color:#94a3b8;margin-top:1px}
+  .co-r{text-align:right;font-size:10px;color:#64748b;line-height:1.75}
+  .co-r strong{color:#374151;font-size:10px}
+  .co-email{font-size:9.5px;color:#94a3b8}
+  .btn-p,.btn-d{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;margin-right:4px}
+  .btn-p{background:#64748b;color:#fff}.btn-d{background:#16a34a;color:#fff}
+  .bdy{padding:8px 20px}
+  .client-card{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;border-left:3px solid #3b82f6;margin-bottom:6px}
+  .cli-ini{width:30px;height:30px;background:#eff6ff;color:#1d4ed8;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex-shrink:0}
+  .cli-n{font-size:13px;font-weight:800;color:#0f172a}.cli-m{font-size:10px;color:#64748b;margin-top:1px}
+  .pbadge{display:inline-flex;align-items:center;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;color:#1d4ed8;margin-bottom:7px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th{background:#f8fafc !important;color:#475569 !important;padding:9px 12px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;text-align:left;border-top:1px solid #e2e8f0;border-bottom:2px solid #e2e8f0;white-space:nowrap}
   thead th.r{text-align:right}
-  tbody td{padding:8px 11px;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  tbody td.r{text-align:right;font-family:monospace}
+  tbody tr{page-break-inside:avoid}
+  tbody td{padding:9px 12px;font-size:12.5px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;line-height:1.45}
+  tbody td.r{text-align:right;font-family:'Courier New',monospace}
   tbody td.m{color:#94a3b8;font-size:11px}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
-  tfoot td{background:#0f2444 !important;color:#fff !important;padding:9px 11px;font-weight:700;font-size:12px;border:none !important;white-space:nowrap}
-  tfoot td.r{font-size:13px;text-align:right;white-space:nowrap}
-  .tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1}
-  .solde-final{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:18px}
-  .sf-lbl{font-size:11px;font-weight:600;color:#64748b}
-  .sf-amt{font-size:18px;font-weight:900;color:#7c3aed;line-height:1}
-  .sf-sub{font-size:10px;color:#94a3b8;margin-top:2px}
-  .foot{margin-top:16px;padding-top:9px;border-top:2px solid #e8b84b;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}
+  tbody tr:nth-child(even) td{background:#f9fafb !important}
+  .tag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9.5px;font-weight:700;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;letter-spacing:0.03em;white-space:nowrap}
+  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f1f5f9;border:1px solid #e2e8f0;border-top:2px solid #cbd5e1;font-weight:700;font-size:12px;color:#374151}
+  .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+  .sf-lbl{font-size:14px;font-weight:700;color:#166534;letter-spacing:0.01em}
+  .sf-amt{font-size:32px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
+  .sf-unit{font-size:14px;font-weight:600;color:#4ade80;margin-left:4px}
+  .sf-sub{font-size:11px;color:#86efac;margin-top:4px;font-weight:500}
+  .foot{margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9.5px;color:#94a3b8}
   @media print{.btn-p,.btn-d{display:none !important}}
-  @page{size:A4;margin:8mm 10mm}
+  @page{size:A4;margin:7mm 10mm}
 </style>
 </head><body>
 <div class="hdr">
@@ -307,8 +307,8 @@ export default function Clients() {
     <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47</div>
     <div><strong>Bureau</strong> 06 62 82 88 20</div>
     <div class="co-email">Dar.sadik@hotmail.com</div>
-    <div style="margin-top:8px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:10px;color:#93c5fd;margin-top:4px">Généré le ${date}</div>
+    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:3px">Généré le ${date}</div>
   </div>
 </div>
 <div class="bdy">
@@ -317,7 +317,6 @@ export default function Clients() {
   <div><div class="cli-n">${selected.nom}</div><div class="cli-m">Dépôt : ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; '+selected.tel:''}</div></div>
 </div>
 <div class="pbadge">Période : ${periode}</div>
-<div class="sec">Mouvements du compte (${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''})</div>
 <table>
   <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th></tr></thead>
   <tbody>
@@ -327,7 +326,7 @@ export default function Clients() {
       <td style="font-weight:700;color:#92400e;font-size:11px">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
       <td class="m">—</td>
       <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
-      <td class="r" style="color:#b45309;font-weight:800">+ ${fmt(pLedger.startBalance)}</td>
+      <td class="r" style="color:#d97706;font-weight:800;font-size:13.5px;white-space:nowrap">+ ${fmt(pLedger.startBalance)}</td>
       <td class="m">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
     </tr>
     ${pLedger.entries.length === 0
@@ -337,36 +336,38 @@ export default function Clients() {
           const v = e.raw
           const rowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
             : e.type === 'mdo' ? '#fffbeb' : ''
-          const soldeColor = e.solde > 0 ? '#7c3aed' : '#16a34a'
+          const soldeColor = e.solde > 0 ? '#d97706' : '#16a34a'
           const typeBadge = e.type === 'vente'
             ? `<span class="tag">${e.label}</span>`
             : e.type === 'mdo'
             ? `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">M.O.</span>`
             : `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">${e.type === 'paiement' ? e.label : 'Remise'}</span>`
           return `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
-            <td>${fmtDate(e.date)}</td>
-            <td class="m">${e.detail || '—'}</td>
-            <td style="font-size:11px;font-weight:600">${e.operation}</td>
-            <td>${typeBadge}</td>
-            <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '—'}</td>
-            <td class="r">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '—'}</td>
-            <td class="r">${pMv(e)}</td>
-            <td class="r" style="font-weight:800;color:${soldeColor}">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
-            <td class="m">${e.note || '—'}</td>
+            <td style="color:#64748b;font-size:11.5px;white-space:nowrap">${fmtDate(e.date)}</td>
+            <td class="m" style="white-space:nowrap">${e.detail || '—'}</td>
+            <td style="font-size:11.5px;font-weight:600;color:#374151;white-space:nowrap">${e.operation}</td>
+            <td style="white-space:nowrap">${typeBadge}</td>
+            <td class="r" style="font-weight:400;color:#374151;font-size:12px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
+            <td class="r" style="font-weight:500;color:#64748b;font-size:12px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
+            <td class="r" style="font-size:13px">${pMv(e)}</td>
+            <td class="r" style="font-weight:800;font-size:13.5px;color:${soldeColor};white-space:nowrap">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
+            <td class="m" style="font-size:11px;max-width:120px">${e.note || '—'}</td>
           </tr>`
         }).join('')}
   </tbody>
-  ${pLedger.entries.length > 0 ? `<tfoot>
-    <tr>
-      <td colspan="7">Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</td>
-      <td class="r">${fmt(pLedger.finalBalance)} DHS</td>
-      <td colspan="1"></td>
-    </tr>
-  </tfoot>` : ''}
 </table>
-<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-top:none;margin-bottom:16px">
-  <span style="font-size:12px;font-weight:900;color:#1e293b">Solde actuel à payer</span>
-  <span style="font-size:15px;font-weight:900;color:${pLedger.finalBalance>0?'#7c3aed':'#16a34a'};white-space:nowrap">${fmt(pLedger.finalBalance)} DHS</span>
+${pLedger.entries.length > 0 ? `<div class="totals-row">
+  <span>Total — ${pLedger.entries.length} opération${pLedger.entries.length !== 1 ? 's' : ''}</span>
+  <span style="font-size:13px;font-weight:800;font-family:monospace">${fmt(pLedger.finalBalance)} DHS</span>
+</div>` : ''}
+<div class="solde-final">
+  <div>
+    <div class="sf-lbl">Solde actuel à payer</div>
+    <div class="sf-sub">${periode}</div>
+  </div>
+  <div style="text-align:right">
+    <div style="line-height:1"><span class="sf-amt">${fmt(pLedger.finalBalance)}</span><span class="sf-unit">DHS</span></div>
+  </div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
@@ -790,7 +791,7 @@ export default function Clients() {
                       <span className="text-xs text-gray-400">· Report: {fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</span>
                     )}
                   </div>
-                  <span className="text-xl font-black" style={{color:(selected.solde||0)>0?'#7c3aed':'#16a34a'}}>
+                  <span className="text-xl font-black" style={{color:(selected.solde||0)>0?'#d97706':'#16a34a'}}>
                     {fmt(selected.solde || 0)} <span className="text-sm font-semibold text-gray-400">DHS</span>
                   </span>
                 </div>
@@ -848,7 +849,7 @@ export default function Clients() {
                           <tr>
                             {['Date','Camion','Opération','Type','Qté','Prix/u','Total DHS','Solde','Note',''].map((h,i) => (
                               <th key={i} className={`th${[4,5,6,7].includes(i)?' text-right':''}`}
-                                style={{background:'#0f2444',color:'#fff',border:'1px solid #1e3a5f',whiteSpace:'nowrap'}}>
+                                style={{background:'#f8fafc',color:'#475569',borderTop:'1px solid #e2e8f0',borderBottom:'2px solid #e2e8f0',whiteSpace:'nowrap'}}>
                                 {h}
                               </th>
                             ))}
@@ -857,22 +858,22 @@ export default function Clients() {
                         <tbody>
                           {/* Opening balance / carry-over row */}
                           <tr style={{background:'#fffbeb'}}>
-                            <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#92400e',whiteSpace:'nowrap'}}>
+                            <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 14px'}}>
                               {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                             </td>
-                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
-                            <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #e2e8f0'}}>
+                            <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>—</td>
+                            <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>
                               {carryOver !== null ? 'Report' : 'Solde initial'}
                             </td>
-                            <td className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>
-                            {[0,1,2].map(k => <td key={k} className="td text-center text-gray-300" style={{border:'1px solid #e2e8f0'}}>—</td>)}
-                            <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',color:'#b45309',fontSize:'14px',whiteSpace:'nowrap'}}>
+                            <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>—</td>
+                            {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>—</td>)}
+                            <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 16px',letterSpacing:'-0.2px'}}>
                               {fmt(ledger.startBalance)}
                             </td>
-                            <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0'}}>
+                            <td className="td text-xs text-gray-400" style={{border:'1px solid #fde68a',padding:'10px 14px'}}>
                               {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
                             </td>
-                            <td className="td" style={{border:'1px solid #e2e8f0'}}></td>
+                            <td className="td" style={{border:'1px solid #fde68a',padding:'10px 14px'}}></td>
                           </tr>
 
                           {ledger.entries.length === 0 && (
@@ -893,37 +894,39 @@ export default function Clients() {
                             const amtColor = isPos ? '#1d4ed8' : '#16a34a'
                             const v = e.raw
                             return (
-                              <tr key={`${e.src}-${v?.id}-${i}`} style={bgRow ? {background:bgRow} : {}}>
-                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',color:'#64748b',whiteSpace:'nowrap'}}>{fmtDate(e.date)}</td>
-                                <td className="td text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#374151'}}>
-                                  {e.detail || <span className="text-gray-300">—</span>}
+                              <tr key={`${e.src}-${v?.id}-${i}`}
+                                className="transition-all duration-100 hover:brightness-95"
+                                style={bgRow ? {background:bgRow} : (i % 2 === 1 ? {background:'#f9fafb'} : {})}>
+                                <td className="td text-xs" style={{border:'1px solid #f1f5f9',color:'#64748b',whiteSpace:'nowrap',padding:'10px 14px'}}>{fmtDate(e.date)}</td>
+                                <td className="td text-xs" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',color:'#374151',padding:'10px 14px'}}>
+                                  {e.detail || <span className="text-gray-200">—</span>}
                                 </td>
-                                <td className="td text-xs font-semibold" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap',color:'#374151'}}>
+                                <td className="td text-xs font-semibold" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',color:'#374151',padding:'10px 14px'}}>
                                   {e.operation}
                                 </td>
-                                <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
+                                <td className="td" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',padding:'10px 14px'}}>
                                   {e.type === 'vente'
-                                    ? <span className="badge-gray">{e.label}</span>
+                                    ? <span className="badge-gray" style={{fontSize:10,letterSpacing:'0.03em'}}>{e.label}</span>
                                     : e.type === 'mdo'
-                                    ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:4}}>M.O.</span>
-                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'2px 7px',borderRadius:4}}>
+                                    ? <span style={{background:'#fef08a',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em'}}>M.O.</span>
+                                    : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em'}}>
                                         {e.type === 'paiement' ? e.label : 'Remise'}
                                       </span>}
                                 </td>
-                                <td className="td text-right font-semibold text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
-                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-300">—</span>}
+                                <td className="td text-right" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',padding:'10px 14px',fontWeight:400,color:'#374151',fontSize:13}}>
+                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-200">—</span>}
                                 </td>
-                                <td className="td text-right text-xs" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
-                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-300">—</span>}
+                                <td className="td text-right" style={{border:'1px solid #f1f5f9',whiteSpace:'nowrap',padding:'10px 14px',fontWeight:500,color:'#64748b',fontSize:12}}>
+                                  {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-200">—</span>}
                                 </td>
-                                <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',color:amtColor}}>
+                                <td className="td text-right" style={{border:'1px solid #f1f5f9',fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 14px',color:amtColor}}>
                                   {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
                                 </td>
-                                <td className="td text-right font-bold" style={{border:'1px solid #e2e8f0',fontSize:'13px',whiteSpace:'nowrap',
-                                  color: e.solde > 0 ? '#7c3aed' : '#16a34a'}}>
+                                <td className="td text-right" style={{border:'1px solid #f1f5f9',fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 16px',
+                                  color: e.solde > 0 ? '#d97706' : '#16a34a',letterSpacing:'-0.2px'}}>
                                   {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
                                 </td>
-                                <td className="td text-xs text-gray-400" style={{border:'1px solid #e2e8f0',maxWidth:'150px',wordBreak:'break-word'}}>
+                                <td className="td text-xs text-gray-400" style={{border:'1px solid #f1f5f9',maxWidth:'150px',wordBreak:'break-word',padding:'10px 14px'}}>
                                   {e.note || '—'}
                                 </td>
                                 <td className="td" style={{border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>
@@ -945,11 +948,11 @@ export default function Clients() {
                           return (
                             <tfoot>
                               <tr>
-                                <td className="tfoot-td" colSpan={7} style={{border:'1px solid #cbd5e1'}}>Total — {ledger.entries.length} opération{ledger.entries.length !== 1 ? 's' : ''}</td>
-                                <td className="tfoot-td text-right" style={{border:'1px solid #cbd5e1',fontSize:'14px',color:'#c4b5fd'}}>
-                                  {fmt(last.solde)} DHS
+                                <td colSpan={7} style={{padding:'11px 14px',background:'#f8fafc',color:'#374151',fontWeight:700,fontSize:13,borderTop:'2px solid #cbd5e1',borderBottom:'1px solid #e2e8f0'}}>Total — {ledger.entries.length} opération{ledger.entries.length !== 1 ? 's' : ''}</td>
+                                <td style={{padding:'11px 16px',background:'#f8fafc',fontSize:15,fontWeight:900,color:'#d97706',textAlign:'right',borderTop:'2px solid #cbd5e1',borderBottom:'1px solid #e2e8f0',letterSpacing:'-0.2px'}}>
+                                  {fmt(last.solde)} <span style={{fontSize:12,fontWeight:600,color:'#94a3b8'}}>DHS</span>
                                 </td>
-                                <td className="tfoot-td" colSpan={2} style={{border:'1px solid #cbd5e1'}}></td>
+                                <td colSpan={2} style={{background:'#f8fafc',borderTop:'2px solid #cbd5e1',borderBottom:'1px solid #e2e8f0'}}></td>
                               </tr>
                             </tfoot>
                           )
@@ -958,11 +961,19 @@ export default function Clients() {
                     </div>
                   </div>
                   {/* ── SOLDE FINAL ── */}
-                  <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{background:'#f8fafc',border:'1px solid #e2e8f0'}}>
-                    <span className="text-sm font-semibold text-gray-500">Solde final période</span>
-                    <span className="text-xl font-black" style={{color:ledger.finalBalance>0?'#7c3aed':'#16a34a'}}>
-                      {fmt(ledger.finalBalance)} <span className="text-sm font-semibold text-gray-400">DHS</span>
-                    </span>
+                  <div className="flex items-center justify-between rounded-2xl"
+                    style={{background:'#f0fdf4',border:'2px solid #86efac',padding:'20px 24px',
+                      boxShadow:'0 4px 20px rgba(134,239,172,0.25)'}}>
+                    <div>
+                      <div className="font-bold tracking-wide" style={{color:'#166534',fontSize:15}}>Solde actuel à payer</div>
+                      <div className="mt-1" style={{color:'#4ade80',fontSize:12}}>{getFilterLabel()}</div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div className="font-black" style={{fontSize:32,color:ledger.finalBalance>0?'#15803d':'#16a34a',lineHeight:1,letterSpacing:'-0.5px'}}>
+                        {fmt(ledger.finalBalance)}
+                      </div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#86efac',marginTop:3}}>DHS</div>
+                    </div>
                   </div>
                 </>
               )}
