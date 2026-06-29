@@ -6,7 +6,7 @@ import { useAuth } from '../_app'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
-import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
+import { CHARGE_CATS, COMMON_CHARGE_KEYS, FRAIS_LABELS } from '../../lib/voyage-constants'
 import { loadVoyageData } from '../../lib/services/voyage/loaders'
 import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm } from '../../lib/services/voyage/updates'
 import { saveAchat as dbSaveAchat, updateAchat as dbUpdateAchat, delAchat as dbDelAchat } from '../../lib/services/voyage/achats'
@@ -62,7 +62,7 @@ export default function VoyageDetail() {
   const [savingLoc,    setSavingLoc]    = useState(false)
 
   const [achatForm, setAchatForm] = useState({ date_achat: today(), type_produit: 'brique', fournisseur_id: '', type_brique_id: '', qte: '', prix_achat: '', note: '' })
-  const [livForm,   setLivForm]   = useState({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
+  const [livForm,   setLivForm]   = useState({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '', frais: [] })
   const [retForm,   setRetForm]   = useState({ date_retour: today(), client_nom: '', destination: '', montant: '', montant_paye: '', note: '' })
 
   const emptyChgGrid = () => Object.fromEntries(CHARGE_CATS.map(c => [c.key, '']))
@@ -179,7 +179,7 @@ export default function VoyageDetail() {
       const [{ data: vs }, { data: ac }, { data: li }, { data: ga }, { data: ch }, { data: re }, { data: sl }] = await Promise.all([
         supabase.from('voyages').select('id,date_depart,camion_plaque,destination,statut,reference').order('date_depart', { ascending: false }),
         supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
-        supabase.from('voyage_livraisons').select('voyage_id,total_vente'),
+        supabase.from('voyage_livraisons').select('voyage_id,total_vente,frais_total'),
         supabase.from('voyage_gasoil').select('voyage_id,total'),
         supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
         supabase.from('voyage_retours').select('voyage_id,montant_paye'),
@@ -188,7 +188,7 @@ export default function VoyageDetail() {
       setSidebarVoyages(vs || [])
       const profits = {}
       ;(vs || []).forEach(v => {
-        const revLivs = (li||[]).filter(l=>l.voyage_id===v.id).reduce((s,l)=>s+(l.total_vente||0),0)
+        const revLivs = (li||[]).filter(l=>l.voyage_id===v.id).reduce((s,l)=>s+(l.total_vente||0)+(l.frais_total||0),0)
         const revRets = (re||[]).filter(r=>r.voyage_id===v.id).reduce((s,r)=>s+(r.montant_paye||0),0)
         const revChg  = (ch||[]).filter(c=>c.voyage_id===v.id&&c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
         const coutAc  = (ac||[]).filter(a=>a.voyage_id===v.id).reduce((s,a)=>s+(a.total_achat||(a.qte||0)*(a.prix_achat||0)),0)
@@ -261,7 +261,7 @@ export default function VoyageDetail() {
   const totalGasoilManuel  = gasoil.reduce((s,g) => s+(g.total||0), 0)
   const totalChargesFixed  = charges.filter(c=>!c.facture_client).reduce((s,c) => s+(c.montant||0), 0)
   const totalChargesClient = charges.filter(c=>c.facture_client).reduce((s,c) => s+(c.montant||0), 0)
-  const totalRevenuLivs    = livraisons.reduce((s,l) => s+(l.total_vente||0), 0)
+  const totalRevenuLivs    = livraisons.reduce((s,l) => s+(l.total_vente||0)+(l.frais_total||0), 0)
   const totalAchats        = achats.reduce((s,a) => s+(a.total_achat||(a.qte||0)*(a.prix_achat||0)), 0)
   const totalRetours       = retours.reduce((s,r) => s+(r.montant_paye||0), 0)
   const totalLocation      = locations.reduce((s,l) => s+(l.montant_location||0), 0)
@@ -297,7 +297,7 @@ export default function VoyageDetail() {
     const fuelShare   = totalBrikesVoyage > 0 ? myBrikesQte / totalBrikesVoyage
                       : (brikeCidsVoyage.includes(cid) ? 1 / brikeCidsVoyage.length : 0)
     const qteShare    = totalQteVoyage > 0 ? myQte / totalQteVoyage : 1 / nbClients
-    const rev         = myLivs.reduce((s,l)=>s+(l.total_vente||0),0) + myCharges.reduce((s,c)=>s+(c.montant||0),0)
+    const rev         = myLivs.reduce((s,l)=>s+(l.total_vente||0)+(l.frais_total||0),0) + myCharges.reduce((s,c)=>s+(c.montant||0),0)
     const cout        = myLivs.reduce((s,l)=>s+(l.total_achat||(l.qte||0)*(l.prix_achat||0)),0)
                       + fuelCost * fuelShare + totalLocation * qteShare
                       + totalChargesFixed * qteShare
@@ -413,11 +413,11 @@ export default function VoyageDetail() {
     try {
       await dbSaveLiv(id, livForm, { clients, grignonClients, typeBriques, voyage, achats })
       if (addAnotherLivRef.current) {
-        setLivForm(f => ({ ...f, client_id: '', qte: '', remise: '', note: '' }))
+        setLivForm(f => ({ ...f, client_id: '', qte: '', remise: '', note: '', frais: [] }))
         setShowLivNote(false)
       } else {
         setShowLiv(false)
-        setLivForm({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '' })
+        setLivForm({ date_livraison: today(), type_produit: 'brique', client_id: '', type_brique_id: '', qte: '', prix_vente: '', prix_achat: '', remise: '', note: '', frais: [] })
         setShowLivNote(false)
       }
       addAnotherLivRef.current = false
@@ -646,8 +646,44 @@ export default function VoyageDetail() {
                   <input type="number" step="0.01" value={ef.prix_achat||''} onChange={e=>setEf({prix_achat:e.target.value})} className="input w-full text-sm"/></div>
                 <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Remise (DHS)</label>
                   <input type="number" step="0.01" value={ef.remise||''} onChange={e=>setEf({remise:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total vente</label>
+                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total produits</label>
                   <div className="input w-full text-sm bg-slate-50 font-bold text-emerald-600">{fmt(Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0)))} DHS</div></div>
+                <div className="col-span-2"><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note livraison</label>
+                  <input type="text" value={ef.note||''} onChange={e=>setEf({note:e.target.value})} className="input w-full text-sm" placeholder="ex: SAIDIA, Chantier A…"/></div>
+                <div className="col-span-2 border-t border-slate-100 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Frais supplémentaires</label>
+                    <button type="button"
+                      onClick={()=>setEf({frais:[...(ef.frais||[]),{_id:Date.now(),label:FRAIS_LABELS[0],montant:'',note:''}]})}
+                      className="text-[10px] font-semibold text-emerald-600 hover:text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                      ＋ Ajouter
+                    </button>
+                  </div>
+                  {(ef.frais||[]).map((f,i)=>(
+                    <div key={f._id??f.id??i} className="flex gap-2 mb-1.5 items-center">
+                      <select value={f.label||FRAIS_LABELS[0]}
+                        onChange={e=>{const arr=[...(ef.frais||[])];arr[i]={...arr[i],label:e.target.value};setEf({frais:arr})}}
+                        className="input text-xs flex-1">
+                        {FRAIS_LABELS.map(l=><option key={l} value={l}>{l}</option>)}
+                        {!FRAIS_LABELS.includes(f.label) && f.label && <option value={f.label}>{f.label}</option>}
+                      </select>
+                      <input type="number" step="0.01" value={f.montant||''}
+                        onChange={e=>{const arr=[...(ef.frais||[])];arr[i]={...arr[i],montant:e.target.value};setEf({frais:arr})}}
+                        className="input text-xs w-28" placeholder="Montant DHS"/>
+                      <button type="button"
+                        onClick={()=>{const arr=[...(ef.frais||[])];arr.splice(i,1);setEf({frais:arr})}}
+                        className="text-red-400 hover:text-red-600 text-sm font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 transition flex-shrink-0">✕</button>
+                    </div>
+                  ))}
+                  {(ef.frais||[]).length > 0 && (
+                    <div className="text-[10px] text-emerald-700 font-bold mt-1">
+                      Total livraison : {fmt(
+                        Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0))
+                        + (ef.frais||[]).reduce((s,f)=>s+(parseFloat(f.montant)||0),0)
+                      )} DHS
+                    </div>
+                  )}
+                </div>
               </>}
               {editRow.type==='retour' && <>
                 <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>

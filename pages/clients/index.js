@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
@@ -36,6 +36,7 @@ export default function Clients() {
   const [editClientSaving, setEditClientSaving] = useState(false)
 
   const [clientRemises, setClientRemises] = useState([])
+  const [clientFraisMap, setClientFraisMap] = useState({}) // vente_id → [{label, montant, note}]
   const [remiseModal, setRemiseModal] = useState(null) // null | 'new' | remise object
   const [remiseForm, setRemiseForm] = useState({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' })
   const [remiseSaving, setRemiseSaving] = useState(false)
@@ -91,6 +92,7 @@ export default function Clients() {
     setSelected(client)
     setShowDetail(true)
     setLoadingDetail(true)
+    setClientFraisMap({})
     const [{ data: ventes }, { data: paiements }, { data: remises }] = await Promise.all([
       supabase.from('ventes').select('*').eq('client_id', client.id).order('date', { ascending: true }),
       supabase.from('paiements').select('*').eq('client_id', client.id).order('date', { ascending: true }),
@@ -99,6 +101,31 @@ export default function Clients() {
     setClientVentes(ventes || [])
     setClientPaiements(paiements || [])
     setClientRemises(remises || [])
+
+    // Load individual frais per livraison (requires voyage_livraison_frais SQL migration)
+    try {
+      const { data: livs } = await supabase
+        .from('voyage_livraisons')
+        .select('id,vente_id')
+        .eq('client_id', client.id)
+        .not('vente_id', 'is', null)
+      if (livs?.length) {
+        const livIds = livs.map(l => l.id)
+        const { data: fraisData, error: fraisErr } = await supabase
+          .from('voyage_livraison_frais')
+          .select('*')
+          .in('livraison_id', livIds)
+        if (!fraisErr && fraisData?.length) {
+          const map = {}
+          livs.forEach(l => {
+            const frs = fraisData.filter(f => f.livraison_id === l.id)
+            if (frs.length) map[l.vente_id] = frs
+          })
+          setClientFraisMap(map)
+        }
+      }
+    } catch (_) { /* voyage_livraison_frais table not yet created — run SQL migration */ }
+
     setLoadingDetail(false)
   }
 
@@ -311,7 +338,7 @@ export default function Clients() {
       return `<span style="font-weight:800;color:${color}">${isPos ? '+ ' : '− '}${fmt(abs)}</span>`
     }
     function pDetail(e) {
-      if (e.type === 'vente')         return [e.label !== '—' ? e.label : null, e.detail].filter(Boolean).join(' · ') || '—'
+      if (e.type === 'vente')         return [e.label !== '—' ? e.label : null, e.detail, e.raw?.frais_note].filter(Boolean).join(' · ') || '—'
       if (e.type === 'mdo')           return e.note || "Main d'œuvre"
       if (e.type === 'remise-voyage') return e.note || 'Remise voyage'
       if (e.type === 'paiement')      return [e.label, e.note].filter(Boolean).join(' · ') || '—'
@@ -445,7 +472,11 @@ export default function Clients() {
             : e.type === 'mdo'
             ? `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">M.O.</span>`
             : `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">${e.type === 'paiement' ? e.label : 'Remise'}</span>`
-          return `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
+          const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
+          const noteDisplay = fraisItems.length > 0
+            ? (e.note || '—')
+            : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
+          const mainRow = `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
             <td style="color:#475569;font-size:13px;white-space:nowrap">${fmtDate(e.date)}</td>
             <td class="m" style="white-space:nowrap">${e.detail || '—'}</td>
             <td style="font-size:13.5px;font-weight:600;color:#1e293b;white-space:nowrap">${e.operation}</td>
@@ -454,8 +485,15 @@ export default function Clients() {
             <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
             <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
             <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
-            <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis">${e.note || '—'}</td>
+            <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note ? 600 : 400};color:${e.note ? '#374151' : '#94a3b8'}">${noteDisplay}</td>
           </tr>`
+          const fraisRows = fraisItems.map(f => `<tr style="background:#fffbeb !important">
+            <td></td>
+            <td colspan="6" style="padding:3px 14px;font-size:11px;color:#92400e;font-style:italic">↳ <strong>${f.label}</strong>${f.note ? ` — ${f.note}` : ''}</td>
+            <td class="r" style="padding:3px 12px;font-size:12px;font-weight:700;color:#92400e;white-space:nowrap">+ ${fmt(f.montant)}</td>
+            <td></td>
+          </tr>`).join('')
+          return mainRow + fraisRows
         }).join('')}
   </tbody>
 </table>
@@ -561,13 +599,18 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
       const isRemiseVoyage = v.type_entree === 'remise'
       const isMdo = v.type_entree === 'mdo'
       const type = isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente'
+      // note = the delivery note the user wrote (e.g. SAIDIA, Chantier A)
+      // fraisNote = frais summary string (shown as fallback when no frais sub-rows available)
+      const deliveryNote = isRemiseVoyage ? (v.description_mdo || v.note || '') : isMdo ? (v.description_mdo || '') : (v.note || '')
+      const fraisNote    = (!isRemiseVoyage && !isMdo) ? (v.frais_note || '') : ''
       entries.push({
         date: v.date,
         created_at: v.created_at || '',
         type,
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
         detail: v.camion_plaque || '',
-        note: isRemiseVoyage ? (v.description_mdo || v.note || '') : isMdo ? (v.description_mdo || '') : (v.note || ''),
+        note: deliveryNote,
+        fraisNote,
         operation: opLabel(type, null),
         reference: makeRef(type, v),
         delta: v.total_vente || 0,
@@ -1048,8 +1091,16 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                                 const rowBg = hlColor || (isPinned ? '#f0f9ff' : typeRowBg || (zebraOdd ? '#f9fafb' : undefined))
                                 const isDragging = dragFrom === i
                                 const isDropTarget = dragOver === i && dragFrom !== null && dragFrom !== i
+                                // Frais sub-rows (if voyage_livraison_frais table exists and has data)
+                                const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
+                                // When frais shown as sub-rows, note column shows just the delivery note;
+                                // otherwise fall back to combined note+fraisNote string
+                                const noteDisplay = fraisItems.length > 0
+                                  ? (e.note || '—')
+                                  : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
                                 return (
-                                  <tr key={eKey(e)}
+                                  <Fragment key={eKey(e)}>
+                                  <tr
                                     draggable
                                     onDragStart={(ev) => { ev.dataTransfer.effectAllowed = 'move'; setDragFrom(i) }}
                                     onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setDragOver(i) }}
@@ -1103,9 +1154,10 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                                       color: e.solde > 0 ? '#1e3a5f' : '#16a34a',letterSpacing:'-0.2px'}}>
                                       {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
                                     </td>
-                                    {/* NOTE */}
-                                    <td className="td text-xs text-gray-400" style={{...bdr,maxWidth:'130px',wordBreak:'break-word',padding:'10px 12px'}}>
-                                      {e.note || '—'}
+                                    {/* NOTE — delivery note (prominent) */}
+                                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
+                                      color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                                      {noteDisplay}
                                     </td>
                                     {/* ACTIONS: pin + highlight + remise edit/delete */}
                                     <td className="td" style={{...bdr,padding:'6px 8px',whiteSpace:'nowrap'}} onClick={ev => ev.stopPropagation()}>
@@ -1160,6 +1212,20 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                                       </div>
                                     </td>
                                   </tr>
+                                  {/* FRAIS SUB-ROWS — shown when voyage_livraison_frais table exists */}
+                                  {fraisItems.map((f, fi) => (
+                                    <tr key={`frais-${fi}`} style={{background:'#fffbeb',borderBottom:'1px solid #fef3c7'}}>
+                                      <td style={{width:28,...bdr}}></td>
+                                      <td colSpan={6} style={{...bdr,padding:'4px 14px',fontSize:11,color:'#92400e',fontStyle:'italic'}}>
+                                        ↳ <span style={{fontWeight:600}}>{f.label}</span>{f.note ? ` — ${f.note}` : ''}
+                                      </td>
+                                      <td style={{...bdr,padding:'4px 12px',fontSize:12,fontWeight:700,color:'#92400e',textAlign:'right',whiteSpace:'nowrap'}}>
+                                        + {fmt(f.montant)}
+                                      </td>
+                                      <td colSpan={3} style={{...bdr}}></td>
+                                    </tr>
+                                  ))}
+                                  </Fragment>
                                 )
                               })}
                             </tbody>

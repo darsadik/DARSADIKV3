@@ -181,7 +181,7 @@ export default function Rentabilite() {
     setLoading(true)
     const [{ data: v }, { data: li }, { data: ac }, { data: ga }, { data: ch }, { data: re }, { data: ca }, { data: ag }, { data: loc }] = await Promise.all([
       supabase.from('voyages').select('*').gte('date_depart', filterFrom).lte('date_depart', filterTo).order('date_depart', { ascending: false }),
-      supabase.from('voyage_livraisons').select('voyage_id,type_produit,client_id,client_nom,qte,prix_achat,total_vente,total_achat'),
+      supabase.from('voyage_livraisons').select('voyage_id,type_produit,client_id,client_nom,qte,prix_achat,total_vente,total_achat,frais_total'),
       supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
       supabase.from('voyage_gasoil').select('voyage_id,total,qte_litres'),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
@@ -239,7 +239,7 @@ export default function Rentabilite() {
     const myRets    = retours.filter(r => vIds.includes(r.voyage_id))
     const myLocs    = locationsRnt.filter(l => vIds.includes(l.voyage_id))
 
-    const revenuLivs  = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0)
+    const revenuLivs  = myLivs.reduce((s, l) => s + (l.total_vente || 0) + (l.frais_total || 0), 0)
     const revenuRets  = myRets.reduce((s, r) => s + (r.montant || 0), 0)
     const chgCli      = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
     const revenuBrut  = revenuLivs + revenuRets + chgCli

@@ -78,10 +78,24 @@ Each voyage save writes to TWO tables:
 - Then insert into voyage_* table with `gasoil_id` / `retour_id` pointing back
 - These link ids are required for proper deletion (delGasoil, delRetour)
 
+## Frais supplémentaires par livraison (extra charges)
+
+Each livraison can carry optional extra charges (transport, déchargement, location, etc.).
+
+- Individual frais rows live in `voyage_livraison_frais` (FK → `voyage_livraisons.id`, CASCADE DELETE)
+- `voyage_livraisons.frais_total` stores the pre-summed total for fast aggregation
+- `ventes.frais_note` stores a text summary (e.g. "Transport 300 DHS · Déchargement 150 DHS")
+- `accounting_total = total_vente + frais_total` — this is what is billed to the client and stored in `ventes.total_vente` and used to update `clients.solde`
+
+Revenue formula on `voyage_livraisons`:
+```
+REVENU LIVRAISON = total_vente + frais_total
+```
+
 ## Profit formula per voyage
 
 ```
-REVENU BRUT  = Σ voyage_livraisons.total_vente
+REVENU BRUT  = Σ (voyage_livraisons.total_vente + voyage_livraisons.frais_total)
              + Σ voyage_retours.montant_paye
              + Σ voyage_charges.montant WHERE facture_client=true
 
@@ -112,10 +126,12 @@ Swapping them causes `typeBriques` state to contain grignon client names and vic
 These values are computed in JS and explicitly saved (they are NOT PostgreSQL GENERATED columns):
 
 - `voyage_achats.total_achat` = `qte × prix_achat`
-- `voyage_livraisons.total_vente` = `qte × prix_vente − remise`
+- `voyage_livraisons.total_vente` = `qte × prix_vente − remise`   ← product total only (no frais)
 - `voyage_livraisons.total_achat` = `qte × prix_achat`
 - `voyage_livraisons.marge` = `total_vente − total_achat`
+- `voyage_livraisons.frais_total` = sum of all extra charges on this livraison
 - `voyage_gasoil.total` = `qte_litres × prix_unitaire`
+- `ventes.total_vente` = `voyage_livraisons.total_vente + frais_total` (full amount billed to client)
 
 If any of these are missing from an insert, profit calculations silently read 0.
 
@@ -155,6 +171,20 @@ CREATE TABLE IF NOT EXISTS grignon_paiements (
   montant    NUMERIC(12,2),
   note       TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Extra charges per livraison (frais supplémentaires)
+ALTER TABLE voyage_livraisons ADD COLUMN IF NOT EXISTS frais_total NUMERIC(12,2) DEFAULT 0;
+ALTER TABLE ventes             ADD COLUMN IF NOT EXISTS note        TEXT;
+ALTER TABLE ventes             ADD COLUMN IF NOT EXISTS frais_note  TEXT;
+
+CREATE TABLE IF NOT EXISTS voyage_livraison_frais (
+  id           BIGSERIAL PRIMARY KEY,
+  livraison_id BIGINT REFERENCES voyage_livraisons(id) ON DELETE CASCADE,
+  label        TEXT          NOT NULL,
+  montant      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  note         TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 

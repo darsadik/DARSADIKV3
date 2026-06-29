@@ -40,7 +40,7 @@ export default function Dashboard() {
       { data: lv },
     ] = await Promise.all([
       supabase.from('voyages').select('*').order('date_depart', { ascending: false }).limit(100),
-      supabase.from('voyage_livraisons').select('voyage_id,total_vente,client_id,client_nom,type_produit'),
+      supabase.from('voyage_livraisons').select('id,voyage_id,date_livraison,total_vente,frais_total,client_id,client_nom,type_produit,note'),
       supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
       supabase.from('voyage_gasoil').select('voyage_id,total'),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
@@ -68,7 +68,7 @@ export default function Dashboard() {
     const ch = chargesVoy.filter(c => c.voyage_id === vid)
     const re = retoursVoy.filter(r => r.voyage_id === vid)
     const lo = locationsVoy.filter(l => l.voyage_id === vid)
-    const revenu = li.reduce((s, l) => s + (l.total_vente || 0), 0)
+    const revenu = li.reduce((s, l) => s + (l.total_vente || 0) + (l.frais_total || 0), 0)
       + re.reduce((s, r) => s + (r.montant || 0), 0)
       + ch.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
     const cout = ac.reduce((s, a) => s + (a.total_achat || (a.qte || 0) * (a.prix_achat || 0)), 0)
@@ -140,6 +140,11 @@ export default function Dashboard() {
   const camions = Object.entries(camionMap)
     .map(([plaque, d]) => ({ plaque, ...d, avg: d.voyages > 0 ? d.profit / d.voyages : 0 }))
     .sort((a, b) => b.profit - a.profit)
+
+  const recentLivraisons = [...livraisons]
+    .filter(l => l.date_livraison)
+    .sort((a, b) => b.date_livraison.localeCompare(a.date_livraison))
+    .slice(0, 8)
 
   return (
     <Layout title="Dashboard" subtitle="Cockpit opérationnel">
@@ -304,6 +309,53 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+
+            {/* ── LIVRAISONS RÉCENTES ── */}
+            {recentLivraisons.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                  <span className="font-bold text-slate-700 text-sm">Livraisons récentes</span>
+                  <Link href="/ventes" className="text-xs text-blue-500 font-semibold hover:underline">Toutes les ventes →</Link>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</th>
+                        <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Client</th>
+                        <th className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:table-cell">Note</th>
+                        <th className="text-right px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {recentLivraisons.map(l => {
+                        const deliveryTotal = (l.total_vente || 0) + (l.frais_total || 0)
+                        const voyage = voyages.find(v => v.id === l.voyage_id)
+                        return (
+                          <tr
+                            key={l.id || `${l.voyage_id}-${l.date_livraison}-${l.client_id}`}
+                            onClick={() => voyage && router.push(`/voyages/${l.voyage_id}`)}
+                            className={`${voyage ? 'cursor-pointer hover:bg-slate-50' : ''} transition`}
+                          >
+                            <td className="px-5 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(l.date_livraison)}</td>
+                            <td className="px-4 py-2.5 font-semibold text-slate-800 text-sm">{l.client_nom || '—'}</td>
+                            <td className="px-4 py-2.5 hidden md:table-cell">
+                              {l.note
+                                ? <span className="text-xs font-semibold text-slate-600 bg-slate-100 rounded px-2 py-0.5">{l.note}</span>
+                                : <span className="text-xs text-slate-300 italic">—</span>
+                              }
+                            </td>
+                            <td className="px-5 py-2.5 text-right font-bold text-emerald-600 whitespace-nowrap text-sm">
+                              {deliveryTotal > 0 ? `${fmt(deliveryTotal)} DHS` : <span className="text-slate-300">—</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* ── TOP VOYAGES + CLIENT ALERTS ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
