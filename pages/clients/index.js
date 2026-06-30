@@ -53,6 +53,9 @@ export default function Clients() {
   const [dragFrom, setDragFrom] = useState(null)
   const [dragOver, setDragOver] = useState(null)
   const [hlPicker, setHlPicker] = useState(null)
+  const [selectedRows, setSelectedRows] = useState(new Set())
+  const [lastClickedIdx, setLastClickedIdx] = useState(null)
+  const [stmtHistory, setStmtHistory] = useState([])
 
   // DATE FILTER STATE
   const [filterType, setFilterType] = useState('all')
@@ -72,6 +75,9 @@ export default function Clients() {
       // Database order is source of truth; localStorage is a fallback
       setStmtOrder(selected.display_order || s.o || null)
     } catch {}
+    setSelectedRows(new Set())
+    setLastClickedIdx(null)
+    setStmtHistory([])
   }, [selected?.id])
 
   function saveStmt(o, h, p) {
@@ -284,14 +290,71 @@ export default function Clients() {
     if (fromI == null || fromI === toI) return
     const disp = getDisplayEntries()
     const pinN = disp.filter(e => stmtPinned.has(eKey(e))).length
-    if ((fromI < pinN) !== (toI < pinN)) { setDragFrom(null); setDragOver(null); return }
-    const arr = [...disp]
-    const [mv] = arr.splice(fromI, 1)
-    arr.splice(toI, 0, mv)
-    const newOrder = arr.map(eKey)
+
+    // Determine which rows are moving (single or multi-selection group)
+    const draggedKey = eKey(disp[fromI])
+    const isDragSelected = selectedRows.has(draggedKey)
+    const toMoveKeys = isDragSelected && selectedRows.size > 1 ? selectedRows : new Set([draggedKey])
+
+    // Block cross-zone moves (pinned ↔ unpinned)
+    const allPinned   = [...toMoveKeys].every(k => stmtPinned.has(k))
+    const allUnpinned = [...toMoveKeys].every(k => !stmtPinned.has(k))
+    if (!allPinned && !allUnpinned) { setDragFrom(null); setDragOver(null); return }
+    if (allPinned !== (toI < pinN))  { setDragFrom(null); setDragOver(null); return }
+
+    // Split display entries into moving items and static items (preserve order in each)
+    const movingItems = disp.filter(e => toMoveKeys.has(eKey(e)))
+    const staticItems = disp.filter(e => !toMoveKeys.has(eKey(e)))
+
+    // Find where to insert in the static array
+    const targetKey = eKey(disp[toI])
+    const anchorIdx = staticItems.findIndex(e => eKey(e) === targetKey)
+    let insertIdx
+    if (anchorIdx !== -1) {
+      // Drag up → insert before anchor; drag down → insert after anchor
+      insertIdx = fromI > toI ? anchorIdx : anchorIdx + 1
+    } else {
+      // Drop target is itself a moving item — insert before next static item
+      insertIdx = staticItems.length
+      for (let j = toI + 1; j < disp.length; j++) {
+        if (!toMoveKeys.has(eKey(disp[j]))) {
+          const fi = staticItems.findIndex(e => eKey(e) === eKey(disp[j]))
+          if (fi !== -1) { insertIdx = fi; break }
+        }
+      }
+    }
+
+    const finalArr = [...staticItems.slice(0, insertIdx), ...movingItems, ...staticItems.slice(insertIdx)]
+    const newOrder = finalArr.map(eKey)
+    setStmtHistory(h => [...h.slice(-19), stmtOrder])
     setStmtOrder(newOrder)
     saveStmt(newOrder, stmtHighlights, stmtPinned)
     setDragFrom(null); setDragOver(null)
+  }
+
+  function undoReorder() {
+    if (!stmtHistory.length) return
+    const prev = stmtHistory[stmtHistory.length - 1]
+    setStmtHistory(h => h.slice(0, -1))
+    setStmtOrder(prev)
+    saveStmt(prev, stmtHighlights, stmtPinned)
+  }
+
+  function handleRowSelection(ev, i, key, displayEntries) {
+    if (ev.shiftKey && lastClickedIdx !== null) {
+      const lo = Math.min(lastClickedIdx, i), hi = Math.max(lastClickedIdx, i)
+      const ns = new Set(selectedRows)
+      for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
+      setSelectedRows(ns)
+    } else if (ev.ctrlKey || ev.metaKey) {
+      const ns = new Set(selectedRows)
+      if (ns.has(key)) ns.delete(key); else ns.add(key)
+      setSelectedRows(ns)
+      setLastClickedIdx(i)
+    } else {
+      setSelectedRows(selectedRows.size === 1 && selectedRows.has(key) ? new Set() : new Set([key]))
+      setLastClickedIdx(i)
+    }
   }
 
   function togglePin(e) {
@@ -311,6 +374,7 @@ export default function Clients() {
 
   function resetStmt() {
     setStmtOrder(null); setStmtHighlights({}); setStmtPinned(new Set())
+    setSelectedRows(new Set()); setLastClickedIdx(null); setStmtHistory([])
     saveStmt(null, {}, new Set())
   }
 
@@ -997,8 +1061,26 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                               <button onClick={(ev) => { ev.stopPropagation(); resetStmt() }}
                                 className="text-xs font-semibold border rounded transition-colors"
                                 style={{color:'#92400e',borderColor:'#fde68a',background:'#fffbeb',padding:'2px 8px'}}>
-                                ↺ Réinitialiser
+                                ↺ Ordre chrono
                               </button>
+                            )}
+                            {stmtHistory.length > 0 && (
+                              <button onClick={(ev) => { ev.stopPropagation(); undoReorder() }}
+                                className="text-xs font-semibold border rounded transition-colors"
+                                style={{color:'#1d4ed8',borderColor:'#bfdbfe',background:'#eff6ff',padding:'2px 8px'}}>
+                                ↩ Annuler
+                              </button>
+                            )}
+                            {selectedRows.size > 0 && (
+                              <span className="flex items-center gap-1 text-xs font-semibold"
+                                style={{color:'#1d4ed8',background:'#dbeafe',border:'1px solid #bfdbfe',borderRadius:4,padding:'2px 8px'}}>
+                                {selectedRows.size} sélectionné{selectedRows.size > 1 ? 's' : ''}
+                                <button
+                                  onClick={(ev) => { ev.stopPropagation(); setSelectedRows(new Set()) }}
+                                  style={{marginLeft:2,color:'#64748b',background:'transparent',border:'none',cursor:'pointer',fontWeight:700,lineHeight:1,fontSize:11}}>
+                                  ✕
+                                </button>
+                              </span>
                             )}
                             <div className="flex items-center gap-3 text-xs" style={{color:'#94a3b8'}}>
                               <span className="flex items-center gap-1">
@@ -1027,7 +1109,18 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                           <table className="w-full border-collapse">
                             <thead>
                               <tr>
-                                <th style={{...thS,width:28,padding:'9px 6px',background:'#eff6ff',borderBottom:'2px solid #bfdbfe'}}></th>
+                                <th style={{...thS,width:56,padding:'9px 8px',background:'#eff6ff',borderBottom:'2px solid #bfdbfe'}}>
+                                  <div style={{display:'flex',alignItems:'center',gap:5}}>
+                                    <input
+                                      type="checkbox"
+                                      title={displayEntries.length > 0 && displayEntries.every(e => selectedRows.has(eKey(e))) ? 'Tout désélectionner' : 'Tout sélectionner'}
+                                      checked={displayEntries.length > 0 && displayEntries.every(e => selectedRows.has(eKey(e)))}
+                                      onChange={ev => { ev.stopPropagation(); setSelectedRows(ev.target.checked ? new Set(displayEntries.map(eKey)) : new Set()) }}
+                                      onClick={ev => ev.stopPropagation()}
+                                      style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb',flexShrink:0}}
+                                    />
+                                  </div>
+                                </th>
                                 {[
                                   {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
                                   {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Solde',r:true},
@@ -1088,8 +1181,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                                 const typeRowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
                                   : e.type === 'mdo' ? '#fefce8' : undefined
                                 const zebraOdd = !isPinned && (i - pinnedCount) % 2 === 1
-                                const rowBg = hlColor || (isPinned ? '#f0f9ff' : typeRowBg || (zebraOdd ? '#f9fafb' : undefined))
-                                const isDragging = dragFrom === i
+                                const isSelected = selectedRows.has(eKey(e))
+                                const rowBg = hlColor || (isSelected ? '#dbeafe' : isPinned ? '#f0f9ff' : typeRowBg || (zebraOdd ? '#f9fafb' : undefined))
+                                const draggedEntry = dragFrom !== null && dragFrom < displayEntries.length ? displayEntries[dragFrom] : null
+                                const isDragGroupMode = !!(draggedEntry && selectedRows.has(eKey(draggedEntry)) && selectedRows.size > 1)
+                                const isDragging = isDragGroupMode ? isSelected : dragFrom === i
                                 const isDropTarget = dragOver === i && dragFrom !== null && dragFrom !== i
                                 // Frais sub-rows (if voyage_livraison_frais table exists and has data)
                                 const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
@@ -1106,15 +1202,40 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                                     onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setDragOver(i) }}
                                     onDrop={(ev) => { ev.preventDefault(); handleReorder(dragFrom, i) }}
                                     onDragEnd={() => { setDragFrom(null); setDragOver(null) }}
+                                    onClick={ev => handleRowSelection(ev, i, eKey(e), displayEntries)}
                                     className="transition-colors duration-100"
                                     style={{
                                       background: rowBg,
                                       opacity: isDragging ? 0.4 : 1,
                                       borderTop: isDropTarget ? '2px solid #2563eb' : (isFirstUnpinned ? '2px solid #bfdbfe' : undefined),
+                                      borderLeft: isSelected && !hlColor ? '3px solid #2563eb' : undefined,
+                                      cursor: 'pointer',
                                     }}>
-                                    {/* DRAG HANDLE */}
-                                    <td style={{width:28,padding:'0 4px',textAlign:'center',color:'#d1d5db',fontSize:17,cursor:'grab',userSelect:'none',lineHeight:1,...bdr}}>
-                                      ⠿
+                                    {/* CHECKBOX + DRAG HANDLE */}
+                                    <td style={{width:56,padding:'0 6px',textAlign:'center',userSelect:'none',lineHeight:1,...bdr}}>
+                                      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() => {}}
+                                          onClick={ev => {
+                                            ev.stopPropagation()
+                                            if (ev.shiftKey && lastClickedIdx !== null) {
+                                              const lo = Math.min(lastClickedIdx, i), hi = Math.max(lastClickedIdx, i)
+                                              const ns = new Set(selectedRows)
+                                              for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
+                                              setSelectedRows(ns)
+                                            } else {
+                                              const ns = new Set(selectedRows)
+                                              if (ns.has(eKey(e))) ns.delete(eKey(e)); else ns.add(eKey(e))
+                                              setSelectedRows(ns)
+                                              setLastClickedIdx(i)
+                                            }
+                                          }}
+                                          style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb',flexShrink:0}}
+                                        />
+                                        <span style={{color:'#d1d5db',fontSize:17,cursor:'grab'}}>⠿</span>
+                                      </div>
                                     </td>
                                     {/* DATE */}
                                     <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{fmtDate(e.date)}</td>

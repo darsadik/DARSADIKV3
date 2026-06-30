@@ -34,6 +34,7 @@ export default function Parametres() {
   const [briqForm, setBriqForm] = useState({ nom: '', description: '' })
   const [loueurForm, setLoueurForm] = useState({ nom: '', telephone: '', cin: '', rib: '', note: '' })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => { loadAll() }, [])
 
@@ -115,8 +116,10 @@ export default function Parametres() {
     e.preventDefault()
     if (!loueurForm.nom.trim()) return
     setSaving(true)
-    await supabase.from('loueurs').insert({ ...loueurForm })
+    setError('')
+    const { error: err } = await supabase.from('loueurs').insert({ ...loueurForm })
     setSaving(false)
+    if (err) { setError(err.message); return }
     setLoueurForm({ nom: '', telephone: '', cin: '', rib: '', note: '' })
     loadAll()
   }
@@ -273,6 +276,7 @@ export default function Parametres() {
           <div>
             <Section title="Ajouter un loueur" icon="➕">
               <form onSubmit={addLoueur} className="space-y-3">
+                {error && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
                 <div>
                   <label className="label">Nom du loueur</label>
                   <input className="input" placeholder="ex: Ahmed Bouzidi" value={loueurForm.nom} onChange={e => setLoueurForm({...loueurForm, nom: e.target.value})} required />
