@@ -4,12 +4,13 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtDate, today, startOfMonth, openPrintWindow } from '../../lib/utils'
 
-const fmtMois   = d => { if (!d) return ''; const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const [y,m] = d.split('-'); return `${months[parseInt(m)-1]} ${y}` }
+const fmtMois = d => { if (!d) return ''; const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const [y,m] = d.split('-'); return `${months[parseInt(m)-1]} ${y}` }
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
-
 
 export default function Clients() {
   const { user } = useAuth()
+
+  // ── CLIENT STATE ──
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -19,7 +20,7 @@ export default function Clients() {
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', depot: 'EL HAJEB', tel: '', solde: 0, opening_balance: 0 })
-  const [openingModal, setOpeningModal] = useState(null) // client being edited
+  const [openingModal, setOpeningModal] = useState(null)
   const [openingForm, setOpeningForm] = useState({ montant: '', date: '', note: '' })
   const [openingSaving, setOpeningSaving] = useState(false)
   const [showCustomDepot, setShowCustomDepot] = useState(false)
@@ -30,47 +31,30 @@ export default function Clients() {
     return [...new Set([...DEFAULT_DEPOTS, ...fromClients])].sort()
   }
   const [saving, setSaving] = useState(false)
-
-  const [editClientModal, setEditClientModal] = useState(null) // null | client
+  const [editClientModal, setEditClientModal] = useState(null)
   const [editClientForm, setEditClientForm] = useState({ nom: '', depot: '', tel: '' })
   const [editClientSaving, setEditClientSaving] = useState(false)
-
   const [clientRemises, setClientRemises] = useState([])
-  const [clientFraisMap, setClientFraisMap] = useState({}) // vente_id → [{label, montant, note}]
-  const [remiseModal, setRemiseModal] = useState(null) // null | 'new' | remise object
+  const [clientFraisMap, setClientFraisMap] = useState({})
+  const [remiseModal, setRemiseModal] = useState(null)
   const [remiseForm, setRemiseForm] = useState({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' })
   const [remiseSaving, setRemiseSaving] = useState(false)
   const [remiseError, setRemiseError] = useState('')
-
-  // MOBILE — controls whether detail panel is shown on small screens
   const [showDetail, setShowDetail] = useState(false)
 
-  // ── INTERACTIVE STATEMENT (screen-only, no PDF effect) ──
-  const HL_COLORS = { yellow:'#fef9c3', green:'#dcfce7', blue:'#dbeafe', red:'#fee2e2' }
-  const [stmtOrder, setStmtOrder] = useState(null)       // null = chronological
-  const [stmtHighlights, setStmtHighlights] = useState({})
-  const [stmtPinned, setStmtPinned] = useState(new Set())
-  const [dragFrom, setDragFrom] = useState(null)
-  const [dragOver, setDragOver] = useState(null)
-  const [hlPicker, setHlPicker] = useState(null)
-  const [selectedRows, setSelectedRows] = useState(new Set())
-  const [lastClickedIdx, setLastClickedIdx] = useState(null)
-  const [stmtHistory, setStmtHistory] = useState([])
+  // ── STATEMENT MODE ──
+  const [stmtMode, setStmtMode] = useState('chrono') // 'chrono' | 'presentation'
 
-  // ── SETTLEMENT ALLOCATION ──
-  const [clientAllocations, setClientAllocations] = useState([]) // {id, paiement_id, vente_id, montant}
-  const [stmtMode, setStmtMode] = useState('chrono')             // 'chrono' | 'reglement'
-  const [allocModal, setAllocModal] = useState(null)             // null | ledger payment entry
-  const [allocForm, setAllocForm] = useState({})                 // { [vente_id]: amount_string }
-  const [allocSaving, setAllocSaving] = useState(false)
-  // Settlement workflow
-  const [sgSelectedDeliveries, setSgSelectedDeliveries] = useState(new Set()) // vente_ids selected
-  const [sgSelectedPayment, setSgSelectedPayment] = useState(null)            // paiement_id selected
-  const [collapsedGroups, setCollapsedGroups] = useState(new Set())           // vente_ids collapsed
-  const [dismissedSuggestions, setDismissedSuggestions] = useState(new Set()) // paiement_ids ignored
-  const [suggestionSaving, setSuggestionSaving] = useState(false)
+  // ── PRESENTATION ORDER (stored in clients.presentation_order JSONB) ──
+  // Structure: { "vente:123": { p: "2026-05", s: 1748736000000 }, ... }
+  const [presentationOrder, setPresentationOrder] = useState({})
+  const [presHistory, setPresHistory] = useState([])   // undo stack, max 20 snapshots
+  const [presDragFrom, setPresDragFrom] = useState(null)
+  const [presDragOver, setPresDragOver] = useState(null)
+  const [presSelectedRows, setPresSelectedRows] = useState(new Set())
+  const [presLastClickedIdx, setPresLastClickedIdx] = useState(null)
 
-  // DATE FILTER STATE
+  // ── DATE FILTER STATE ──
   const [filterType, setFilterType] = useState('all')
   const [filterDate, setFilterDate] = useState(today())
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
@@ -78,32 +62,15 @@ export default function Clients() {
 
   useEffect(() => { loadClients() }, [])
 
-  // Load/save per-client statement preferences from localStorage
+  // Reset presentation state when client changes
   useEffect(() => {
     if (!selected?.id) return
-    try {
-      const s = JSON.parse(localStorage.getItem(`stmt-${selected.id}`) || '{}')
-      setStmtHighlights(s.h || {})
-      setStmtPinned(new Set(s.p || []))
-      // Database order is source of truth; localStorage is a fallback
-      setStmtOrder(selected.display_order || s.o || null)
-    } catch {}
-    setSelectedRows(new Set())
-    setLastClickedIdx(null)
-    setStmtHistory([])
+    setPresentationOrder(selected.presentation_order || {})
+    setPresHistory([])
+    setPresSelectedRows(new Set())
+    setPresLastClickedIdx(null)
     setStmtMode('chrono')
-    setSgSelectedDeliveries(new Set())
-    setSgSelectedPayment(null)
-    setCollapsedGroups(new Set())
-    setDismissedSuggestions(new Set())
   }, [selected?.id])
-
-  function saveStmt(o, h, p) {
-    if (!selected?.id) return
-    localStorage.setItem(`stmt-${selected.id}`, JSON.stringify({ o, h, p: Array.from(p) }))
-    // Persist display order to database (fire-and-forget; highlights stay local)
-    supabase.from('clients').update({ display_order: o ?? null }).eq('id', selected.id)
-  }
 
   async function loadClients() {
     setLoading(true)
@@ -117,7 +84,6 @@ export default function Clients() {
     setShowDetail(true)
     setLoadingDetail(true)
     setClientFraisMap({})
-    setClientAllocations([])
     const [{ data: ventes }, { data: paiements }, { data: remises }] = await Promise.all([
       supabase.from('ventes').select('*').eq('client_id', client.id).order('date', { ascending: true }),
       supabase.from('paiements').select('*').eq('client_id', client.id).order('date', { ascending: true }),
@@ -127,31 +93,15 @@ export default function Clients() {
     setClientPaiements(paiements || [])
     setClientRemises(remises || [])
 
-    // Load payment allocations
-    try {
-      const pIds = (paiements || []).map(p => p.id)
-      if (pIds.length) {
-        const { data: allocs } = await supabase
-          .from('paiement_allocations')
-          .select('*')
-          .in('paiement_id', pIds)
-        setClientAllocations(allocs || [])
-      }
-    } catch (_) { /* paiement_allocations table not yet created — run SQL migration */ }
-
-    // Load individual frais per livraison (requires voyage_livraison_frais SQL migration)
+    // Load frais per livraison
     try {
       const { data: livs } = await supabase
-        .from('voyage_livraisons')
-        .select('id,vente_id')
-        .eq('client_id', client.id)
-        .not('vente_id', 'is', null)
+        .from('voyage_livraisons').select('id,vente_id')
+        .eq('client_id', client.id).not('vente_id', 'is', null)
       if (livs?.length) {
         const livIds = livs.map(l => l.id)
         const { data: fraisData, error: fraisErr } = await supabase
-          .from('voyage_livraison_frais')
-          .select('*')
-          .in('livraison_id', livIds)
+          .from('voyage_livraison_frais').select('*').in('livraison_id', livIds)
         if (!fraisErr && fraisData?.length) {
           const map = {}
           livs.forEach(l => {
@@ -161,7 +111,7 @@ export default function Clients() {
           setClientFraisMap(map)
         }
       }
-    } catch (_) { /* voyage_livraison_frais table not yet created — run SQL migration */ }
+    } catch (_) {}
 
     setLoadingDetail(false)
   }
@@ -214,11 +164,7 @@ export default function Clients() {
 
   function editOpeningBalance(client) {
     setOpeningModal(client)
-    setOpeningForm({
-      montant: String(client.opening_balance || ''),
-      date:    client.opening_date || '',
-      note:    client.opening_note || '',
-    })
+    setOpeningForm({ montant: String(client.opening_balance || ''), date: client.opening_date || '', note: client.opening_note || '' })
   }
 
   async function saveOpeningBalance(e) {
@@ -231,10 +177,8 @@ export default function Clients() {
     const totalR = clientRemises.reduce((s, r) => s + (r.montant || 0), 0)
     const newSolde = n + totalV - totalP - totalR
     await supabase.from('clients').update({
-      opening_balance: n,
-      opening_date:    openingForm.date || null,
-      opening_note:    openingForm.note || null,
-      solde:           newSolde,
+      opening_balance: n, opening_date: openingForm.date || null,
+      opening_note: openingForm.note || null, solde: newSolde,
     }).eq('id', openingModal.id)
     setOpeningSaving(false)
     setOpeningModal(null)
@@ -244,12 +188,12 @@ export default function Clients() {
     }
   }
 
-  // ---- DATE FILTER LOGIC ----
+  // ── DATE FILTER LOGIC ──
   function getDateRange() {
-    if (filterType === 'all') return { from: null, to: null }
-    if (filterType === 'day') return { from: filterDate, to: filterDate }
-    if (filterType === 'week') return { from: startOfWeek(), to: today() }
-    if (filterType === 'month') return { from: startOfMonth(), to: today() }
+    if (filterType === 'all')    return { from: null, to: null }
+    if (filterType === 'day')    return { from: filterDate, to: filterDate }
+    if (filterType === 'week')   return { from: startOfWeek(), to: today() }
+    if (filterType === 'month')  return { from: startOfMonth(), to: today() }
     if (filterType === 'custom') return { from: filterFrom, to: filterTo }
     return { from: null, to: null }
   }
@@ -257,181 +201,67 @@ export default function Clients() {
   function filterByDate(items) {
     const { from, to } = getDateRange()
     if (!from && !to) return items
-    return items.filter(item => {
-      const d = item.date
-      return (!from || d >= from) && (!to || d <= to)
-    })
+    return items.filter(item => { const d = item.date; return (!from || d >= from) && (!to || d <= to) })
   }
 
   function getFilterLabel() {
     const { from, to } = getDateRange()
     if (!from) return 'Toutes les dates'
     if (filterType === 'day') return `Jour: ${filterDate}`
-    if (filterType === 'week') return `Cette semaine`
-    if (filterType === 'month') return `Ce mois`
+    if (filterType === 'week') return 'Cette semaine'
+    if (filterType === 'month') return 'Ce mois'
     return `Du ${from} au ${to}`
   }
 
-  const filteredVentes = filterByDate(clientVentes)
+  const filteredVentes    = filterByDate(clientVentes)
   const filteredPaiements = filterByDate(clientPaiements)
-  const filteredRemises = filterByDate(clientRemises)
-  const totalRemisesClient = filteredRemises.reduce((s, r) => s + (r.montant || 0), 0)
+  const filteredRemises   = filterByDate(clientRemises)
 
-  // ── MONTHLY CARRY-OVER LOGIC ──
-  // Computes: what did this client owe at the START of the filtered period?
-  // = opening_balance + all ventes BEFORE period start - all payments BEFORE period start
   function getCarryOver() {
     const { from } = getDateRange()
-    if (!from || filterType === 'all') return null  // no carry-over for "all time"
-    const openingBal = selected?.opening_balance || 0
-    const ventesBefore    = clientVentes.filter(v => v.date < from).reduce((s, v) => s + (v.total_vente || 0), 0)
-    const paiementsBefore = clientPaiements.filter(p => p.date < from).reduce((s, p) => s + (p.montant || 0), 0)
-    const remisesBefore   = clientRemises.filter(r => r.date < from).reduce((s, r) => s + (r.montant || 0), 0)
+    if (!from || filterType === 'all') return null
+    const openingBal       = selected?.opening_balance || 0
+    const ventesBefore     = clientVentes.filter(v => v.date < from).reduce((s, v) => s + (v.total_vente || 0), 0)
+    const paiementsBefore  = clientPaiements.filter(p => p.date < from).reduce((s, p) => s + (p.montant || 0), 0)
+    const remisesBefore    = clientRemises.filter(r => r.date < from).reduce((s, r) => s + (r.montant || 0), 0)
     return openingBal + ventesBefore - paiementsBefore - remisesBefore
   }
 
   function getPeriodLabel() {
     const { from } = getDateRange()
     if (!from) return null
-    // e.g. "Avril 2025", "Mars 2025"
     const d = new Date(from)
     return d.toLocaleDateString('fr-MA', { month: 'long', year: 'numeric' })
   }
 
-  const carryOver    = selected ? getCarryOver() : null
-  const periodLabel  = selected ? getPeriodLabel() : null
+  const carryOver   = selected ? getCarryOver() : null
+  const periodLabel = selected ? getPeriodLabel() : null
 
-  // ── INTERACTIVE STATEMENT HELPERS ──
+  // ── ENTRY KEY ──
   function eKey(e) { return `${e.src}:${e.raw?.id ?? e.date}` }
 
-  function getDisplayEntries() {
-    if (!selected || !ledger.entries.length) return []
-    const km = {}
-    ledger.entries.forEach(e => { km[eKey(e)] = e })
-    let ordered = stmtOrder
-      ? [...stmtOrder.filter(k => km[k]).map(k => km[k]), ...ledger.entries.filter(e => !stmtOrder.includes(eKey(e)))]
-      : [...ledger.entries]
-    const pinned = ordered.filter(e => stmtPinned.has(eKey(e)))
-    const unpinned = ordered.filter(e => !stmtPinned.has(eKey(e)))
-    let bal = ledger.startBalance
-    return [...pinned, ...unpinned].map(e => { bal += e.delta; return { ...e, solde: bal } })
+  // ── PRESENTATION HELPERS ──
+  function getEffectivePeriod(e) {
+    return presentationOrder[eKey(e)]?.p ?? e.date.slice(0, 7)
   }
 
-  function handleReorder(fromI, toI) {
-    if (fromI == null || fromI === toI) return
-    const disp = getDisplayEntries()
-    const pinN = disp.filter(e => stmtPinned.has(eKey(e))).length
-
-    // Determine which rows are moving (single or multi-selection group)
-    const draggedKey = eKey(disp[fromI])
-    const isDragSelected = selectedRows.has(draggedKey)
-    const toMoveKeys = isDragSelected && selectedRows.size > 1 ? selectedRows : new Set([draggedKey])
-
-    // Block cross-zone moves (pinned ↔ unpinned)
-    const allPinned   = [...toMoveKeys].every(k => stmtPinned.has(k))
-    const allUnpinned = [...toMoveKeys].every(k => !stmtPinned.has(k))
-    if (!allPinned && !allUnpinned) { setDragFrom(null); setDragOver(null); return }
-    if (allPinned !== (toI < pinN))  { setDragFrom(null); setDragOver(null); return }
-
-    // Split display entries into moving items and static items (preserve order in each)
-    const movingItems = disp.filter(e => toMoveKeys.has(eKey(e)))
-    const staticItems = disp.filter(e => !toMoveKeys.has(eKey(e)))
-
-    // Find where to insert in the static array
-    const targetKey = eKey(disp[toI])
-    const anchorIdx = staticItems.findIndex(e => eKey(e) === targetKey)
-    let insertIdx
-    if (anchorIdx !== -1) {
-      // Drag up → insert before anchor; drag down → insert after anchor
-      insertIdx = fromI > toI ? anchorIdx : anchorIdx + 1
-    } else {
-      // Drop target is itself a moving item — insert before next static item
-      insertIdx = staticItems.length
-      for (let j = toI + 1; j < disp.length; j++) {
-        if (!toMoveKeys.has(eKey(disp[j]))) {
-          const fi = staticItems.findIndex(e => eKey(e) === eKey(disp[j]))
-          if (fi !== -1) { insertIdx = fi; break }
-        }
-      }
-    }
-
-    const finalArr = [...staticItems.slice(0, insertIdx), ...movingItems, ...staticItems.slice(insertIdx)]
-    const newOrder = finalArr.map(eKey)
-    setStmtHistory(h => [...h.slice(-19), stmtOrder])
-    setStmtOrder(newOrder)
-    saveStmt(newOrder, stmtHighlights, stmtPinned)
-    setDragFrom(null); setDragOver(null)
+  function getEffectiveSeq(e) {
+    return presentationOrder[eKey(e)]?.s ?? new Date((e.created_at || e.date + 'T00:00:00')).getTime()
   }
 
-  function undoReorder() {
-    if (!stmtHistory.length) return
-    const prev = stmtHistory[stmtHistory.length - 1]
-    setStmtHistory(h => h.slice(0, -1))
-    setStmtOrder(prev)
-    saveStmt(prev, stmtHighlights, stmtPinned)
-  }
-
-  function handleRowSelection(ev, i, key, displayEntries) {
-    if (ev.shiftKey && lastClickedIdx !== null) {
-      const lo = Math.min(lastClickedIdx, i), hi = Math.max(lastClickedIdx, i)
-      const ns = new Set(selectedRows)
-      for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
-      setSelectedRows(ns)
-    } else if (ev.ctrlKey || ev.metaKey) {
-      const ns = new Set(selectedRows)
-      if (ns.has(key)) ns.delete(key); else ns.add(key)
-      setSelectedRows(ns)
-      setLastClickedIdx(i)
-    } else {
-      setSelectedRows(selectedRows.size === 1 && selectedRows.has(key) ? new Set() : new Set([key]))
-      setLastClickedIdx(i)
-    }
-  }
-
-  function togglePin(e) {
-    const p = new Set(stmtPinned)
-    p.has(eKey(e)) ? p.delete(eKey(e)) : p.add(eKey(e))
-    setStmtPinned(p)
-    saveStmt(stmtOrder, stmtHighlights, p)
-  }
-
-  function applyHL(e, color) {
-    const h = { ...stmtHighlights }
-    if (color) h[eKey(e)] = color; else delete h[eKey(e)]
-    setStmtHighlights(h)
-    saveStmt(stmtOrder, h, stmtPinned)
-    setHlPicker(null)
-  }
-
-  function resetStmt() {
-    setStmtOrder(null); setStmtHighlights({}); setStmtPinned(new Set())
-    setSelectedRows(new Set()); setLastClickedIdx(null); setStmtHistory([])
-    saveStmt(null, {}, new Set())
-  }
-
-  // ---- PRINT ----
+  // ── PRINT: CHRONOLOGICAL ──
   function printClient() {
-    if (stmtMode === 'reglement') { printSettlementClient(); return }
-    const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
-    const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
-    const totalRemises = filteredRemises.reduce((s, r) => s + (r.montant || 0), 0)
+    if (stmtMode === 'presentation') { printPresentationClient(); return }
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     const periode = getFilterLabel()
-    const soldeFinPeriode = carryOver !== null
-      ? carryOver + totalVentes - totalPaiements - totalRemises
-      : (selected.solde || 0)
-
     const pLedger = buildLedger()
-    // Use the same display order as the screen (respects manual reordering and pins)
-    const pDisplayEntries = getDisplayEntries().length > 0 ? getDisplayEntries() : pLedger.entries
-    const pFinalBalance = pDisplayEntries.length ? pDisplayEntries[pDisplayEntries.length-1].solde : pLedger.startBalance
+    const pDisplayEntries = pLedger.entries
+    const pFinalBalance = pLedger.finalBalance
 
     function pMv(e) {
-      const abs = Math.abs(e.delta)
-      const isPos = e.delta >= 0
-      const color = isPos ? '#1d4ed8' : '#16a34a'
-      return `<span style="font-weight:800;color:${color}">${isPos ? '+ ' : '− '}${fmt(abs)}</span>`
+      const abs = Math.abs(e.delta); const isPos = e.delta >= 0
+      return `<span style="font-weight:800;color:${isPos?'#1d4ed8':'#16a34a'}">${isPos?'+ ':'− '}${fmt(abs)}</span>`
     }
     function pDetail(e) {
       if (e.type === 'vente')         return [e.label !== '—' ? e.label : null, e.detail, e.raw?.frais_note].filter(Boolean).join(' · ') || '—'
@@ -449,29 +279,17 @@ export default function Clients() {
 <style>
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
-  /* ── COMPANY HEADER ── */
   .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
-  .co-block{min-width:0}
-  .co-brand{display:flex;align-items:center;gap:12px}
-  .co-logo{width:44px;height:44px;flex-shrink:0}
   .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
   .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
   .co-addr{font-size:11px;color:#475569;margin-top:5px}
   .co-r{text-align:right;flex-shrink:0}
-  .co-contact{font-size:11px;color:#1e3a5f;line-height:1.85}
-  .co-contact strong{font-weight:700}
-  .co-email{color:#2563eb}
-  .co-gen{font-size:9.5px;color:#94a3b8;margin-top:3px}
-  .btn-p,.btn-d{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;margin-left:4px}
-  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  /* ── CLIENT CARD — separate prominent section ── */
+  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
   .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
   .cli-card{display:flex;align-items:center;gap:18px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:5px solid #1e3a5f;border-radius:10px;padding:14px 22px}
   .cli-avatar{width:58px;height:58px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-1px}
   .cli-name{font-size:26px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
   .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
-  .cli-meta b{color:#1e3a5f;font-weight:700}
-  /* ── TABLE ── */
   .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
   thead th{background:#1e3a5f !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
@@ -487,215 +305,9 @@ export default function Clients() {
   .sf-lbl{font-size:15px;font-weight:700;color:#166534;letter-spacing:0.01em}
   .sf-amt{font-size:42px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-1px}
   .sf-unit{font-size:16px;font-weight:600;color:#4ade80;margin-left:5px}
-  .sf-sub{font-size:12px;color:#86efac;margin-top:5px;font-weight:500}
-  .foot{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10.5px;color:#64748b}
-  @media print{.btn-p,.btn-d{display:none !important}}
-  @page{size:A4;margin:7mm 10mm}
-</style>
-</head><body>
-<div class="hdr">
-  <div class="co-block">
-    <div class="co-brand">
-      <svg class="co-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-        <rect width="512" height="512" rx="90" fill="#1e3a5f"/>
-        <polygon points="40,170 256,50 472,170" fill="#e8b84b"/>
-        <rect x="60" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
-        <rect x="195" y="175" width="122" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
-        <rect x="337" y="175" width="115" height="70" rx="12" fill="#ffffff" opacity="0.95"/>
-        <rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
-        <rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
-        <rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity="0.95"/>
-        <rect x="60" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
-        <rect x="195" y="345" width="122" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
-        <rect x="337" y="345" width="115" height="70" rx="12" fill="#ffffff" opacity="0.85"/>
-        <rect x="40" y="425" width="432" height="14" rx="7" fill="#e8b84b" opacity="0.5"/>
-      </svg>
-      <div>
-        <div class="co-n">DAR SADIK</div>
-        <div class="co-tag">Matériaux de Construction</div>
-      </div>
-    </div>
-    <div class="co-addr">Selouane, Nador</div>
-  </div>
-  <div class="co-r">
-    <div class="co-contact">
-      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
-      <strong>Bureau</strong> 06 62 82 88 20<br>
-      <span class="co-email">Dar.sadik@hotmail.com</span>
-    </div>
-    <div class="co-gen">Généré le ${date}</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-  </div>
-</div>
-<div class="cli-section">
-  <div class="cli-card">
-    <div class="cli-avatar">${selected.nom.charAt(0).toUpperCase()}</div>
-    <div>
-      <div class="cli-name">${selected.nom}</div>
-      <div class="cli-meta">
-        <b>Dépôt :</b> ${selected.depot||'—'}${selected.tel ? ' &nbsp;·&nbsp; <b>Tél :</b> ' + selected.tel : ''}<br>
-        <b>Période :</b> ${periode}
-      </div>
-    </div>
-  </div>
-</div>
-<div class="bdy">
-<table>
-  <thead><tr><th>Date</th><th>Camion</th><th>Opération</th><th>Type</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th></tr></thead>
-  <tbody>
-    <tr style="background:#fffbeb !important">
-      <td style="color:#92400e;font-size:12.5px;white-space:nowrap">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td>
-      <td class="m">—</td>
-      <td style="font-weight:700;color:#92400e;font-size:12.5px;white-space:nowrap">${carryOver !== null ? 'Report' : 'Solde initial'}</td>
-      <td class="m">—</td>
-      <td class="r m">—</td><td class="r m">—</td><td class="r m">—</td>
-      <td class="r" style="color:#1e3a5f;font-weight:900;font-size:15px;white-space:nowrap">+ ${fmt(pLedger.startBalance)}</td>
-      <td class="m" style="white-space:nowrap">${carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}</td>
-    </tr>
-    ${pDisplayEntries.length === 0
-      ? '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:20px;font-style:italic">Aucune opération pour cette période</td></tr>'
-      : pDisplayEntries.map(e => {
-          const abs = Math.abs(e.delta)
-          const isPos = e.delta >= 0
-          const mvColor = isPos ? '#1d4ed8' : '#15803d'
-          const isVente = e.src === 'vente'
-          const v = e.raw
-          const rowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
-            : e.type === 'mdo' ? '#fffbeb' : ''
-          const soldeColor = e.solde > 0 ? '#1e3a5f' : '#15803d'
-          const typeBadge = e.type === 'vente'
-            ? `<span class="tag">${e.label}</span>`
-            : e.type === 'mdo'
-            ? `<span class="tag" style="background:#fef9c3;color:#92400e;border-color:#fde68a">M.O.</span>`
-            : `<span class="tag" style="background:#dcfce7;color:#15803d;border-color:#bbf7d0">${e.type === 'paiement' ? e.label : 'Remise'}</span>`
-          const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
-          const noteDisplay = fraisItems.length > 0
-            ? (e.note || '—')
-            : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
-          const mainRow = `<tr style="${rowBg ? `background:${rowBg} !important` : ''}">
-            <td style="color:#475569;font-size:13px;white-space:nowrap">${fmtDate(e.date)}</td>
-            <td class="m" style="white-space:nowrap">${e.detail || '—'}</td>
-            <td style="font-size:13.5px;font-weight:600;color:#1e293b;white-space:nowrap">${e.operation}</td>
-            <td style="white-space:nowrap">${typeBadge}</td>
-            <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : '<span style="color:#cbd5e1">—</span>'}</td>
-            <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : '<span style="color:#cbd5e1">—</span>'}</td>
-            <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos ? '+ ' : '− '}${fmt(abs)}</span></td>
-            <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde >= 0 ? '+ ' + fmt(e.solde) : '− ' + fmt(Math.abs(e.solde))}</td>
-            <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note ? 600 : 400};color:${e.note ? '#374151' : '#94a3b8'}">${noteDisplay}</td>
-          </tr>`
-          const fraisRows = fraisItems.map(f => `<tr style="background:#fffbeb !important">
-            <td></td>
-            <td colspan="6" style="padding:3px 14px;font-size:11px;color:#92400e;font-style:italic">↳ <strong>${f.label}</strong>${f.note ? ` — ${f.note}` : ''}</td>
-            <td class="r" style="padding:3px 12px;font-size:12px;font-weight:700;color:#92400e;white-space:nowrap">+ ${fmt(f.montant)}</td>
-            <td></td>
-          </tr>`).join('')
-          return mainRow + fraisRows
-        }).join('')}
-  </tbody>
-</table>
-${pDisplayEntries.length > 0 ? `<div class="totals-row">
-  <span>Total — ${pDisplayEntries.length} opération${pDisplayEntries.length !== 1 ? 's' : ''}</span>
-  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pFinalBalance)} DHS</span>
-</div>` : ''}
-<div class="solde-final">
-  <div>
-    <div class="sf-lbl">Solde actuel à payer</div>
-    <div class="sf-sub">${periode}</div>
-  </div>
-  <div style="text-align:right">
-    <div style="line-height:1"><span class="sf-amt">${fmt(pFinalBalance)}</span><span class="sf-unit">DHS</span></div>
-  </div>
-</div>
-<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
-</div></body></html>`)
-  }
-
-  function printSettlementClient() {
-    const _now = new Date()
-    const date = _now.toLocaleDateString('fr-MA', { day:'2-digit', month:'2-digit', year:'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
-    const sg = buildSettlementGroups()
-    const totalLivraisons = sg.groups.reduce((s, g) => s + (g.vente.total_vente || 0), 0)
-    const totalSettled   = sg.groups.reduce((s, g) => s + g.settled, 0)
-    const totalRemaining = sg.groups.reduce((s, g) => s + Math.max(0, g.remaining), 0)
-
-    function statusLabel(g) {
-      if (g.remaining <= 0.01) return `<span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid #bbf7d0">🟢 Réglée</span>`
-      if (g.settled > 0) return `<span style="background:#ffedd5;color:#c2410c;font-weight:700;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid #fed7aa">🟠 Part. réglée</span>`
-      return `<span style="background:#fee2e2;color:#dc2626;font-weight:700;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid #fecaca">🔴 Non réglée</span>`
-    }
-
-    const rowsHtml = sg.groups.map(g => {
-      const v = g.vente
-      const isFullySettled = g.remaining <= 0.01
-      const rowBg = isFullySettled ? '#f0fdf4' : g.settled > 0 ? '#fffbeb' : '#eff6ff'
-      const paySubRows = g.allocs.map(a => {
-        const p = clientPaiements.find(p2 => p2.id === a.paiement_id)
-        if (!p) return ''
-        return `<tr style="background:#f0fdf4">
-          <td style="padding:4px 12px 4px 28px;font-size:11px;color:#64748b;white-space:nowrap;border-bottom:1px solid #e8f5e9">↳ ${fmtDate(p.date)}</td>
-          <td style="padding:4px 12px;font-size:11px;color:#94a3b8;border-bottom:1px solid #e8f5e9">${p.camion_plaque || '—'}</td>
-          <td style="padding:4px 12px;border-bottom:1px solid #e8f5e9"><span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #bbf7d0">${p.mode||'Paiement'}</span></td>
-          <td style="padding:4px 12px;text-align:right;color:#94a3b8;font-size:11px;border-bottom:1px solid #e8f5e9">—</td>
-          <td style="padding:4px 12px;text-align:right;font-size:12px;font-weight:700;color:#16a34a;border-bottom:1px solid #e8f5e9">− ${fmt(a.montant)}</td>
-          <td style="padding:4px 12px;text-align:right;color:#94a3b8;font-size:11px;border-bottom:1px solid #e8f5e9">—</td>
-          <td style="padding:4px 12px;font-size:11px;color:#94a3b8;border-bottom:1px solid #e8f5e9">${p.note || '—'}</td>
-        </tr>`
-      }).join('')
-      return `<tr style="background:${rowBg}">
-        <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0">${fmtDate(v.date)}</td>
-        <td style="padding:9px 12px;font-size:12px;color:#94a3b8;border-bottom:1px solid #e2e8f0">${v.camion_plaque || '—'}</td>
-        <td style="padding:9px 12px;border-bottom:1px solid #e2e8f0">${statusLabel(g)}&nbsp;<span style="background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid #bfdbfe">${v.type_brique||'Livraison'}</span></td>
-        <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:#1d4ed8;border-bottom:1px solid #e2e8f0">+ ${fmt(v.total_vente||0)}</td>
-        <td style="padding:9px 12px;text-align:right;font-size:12px;font-weight:700;color:#16a34a;border-bottom:1px solid #e2e8f0">${g.settled > 0 ? '− ' + fmt(g.settled) : '<span style="color:#d1d5db">—</span>'}</td>
-        <td style="padding:9px 14px;text-align:right;font-size:13px;font-weight:900;color:${isFullySettled?'#16a34a':'#dc2626'};border-bottom:1px solid #e2e8f0">${isFullySettled ? '✓ Soldé' : fmt(g.remaining)}</td>
-        <td style="padding:9px 12px;font-size:11px;color:#94a3b8;border-bottom:1px solid #e2e8f0">${v.note || '—'}</td>
-      </tr>${paySubRows}`
-    }).join('')
-
-    const unallocHtml = sg.unallocatedPmts.length > 0 ? `
-      <tr><td colspan="7" style="padding:6px 12px;font-size:10.5px;font-weight:700;color:#92400e;background:#fffbeb;border-top:2px dashed #fde68a">
-        Paiements non affectés — ${sg.unallocatedPmts.length}
-      </td></tr>
-      ${sg.unallocatedPmts.map(p => `<tr style="background:#fffbeb">
-        <td style="padding:8px 12px;font-size:12px;color:#64748b;white-space:nowrap;border-bottom:1px solid #fde68a">${fmtDate(p.date)}</td>
-        <td style="padding:8px 12px;font-size:12px;color:#94a3b8;border-bottom:1px solid #fde68a">${p.camion_plaque||'—'}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #fde68a"><span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid #bbf7d0">${p.mode||'Paiement'}</span></td>
-        <td style="padding:8px 12px;text-align:right;color:#94a3b8;font-size:11px;border-bottom:1px solid #fde68a">—</td>
-        <td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:700;color:#16a34a;border-bottom:1px solid #fde68a">− ${fmt(p.montant)}</td>
-        <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #fde68a"><span style="background:#fef9c3;color:#92400e;font-weight:700;font-size:10px;padding:2px 6px;border-radius:20px;border:1px solid #fde68a">Non affecté</span></td>
-        <td style="padding:8px 12px;font-size:11px;color:#94a3b8;border-bottom:1px solid #fde68a">${p.note||'—'}</td>
-      </tr>`).join('')}` : ''
-
-    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
-<meta charset="UTF-8"><title>Relevé Règlement — ${selected.nom}</title>
-<style>
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #166534}
-  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
-  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
-  .co-addr{font-size:11px;color:#475569;margin-top:5px}
-  .co-r{text-align:right;flex-shrink:0;font-size:11px;color:#1e3a5f;line-height:1.85}
-  .mode-badge{display:inline-block;background:#dcfce7;color:#166534;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #bbf7d0;margin-bottom:10px}
-  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
-  .cli-card{display:flex;align-items:center;gap:18px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-left:5px solid #166534;border-radius:10px;padding:14px 22px}
-  .cli-avatar{width:52px;height:52px;border-radius:50%;background:#166534;color:#fff;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .cli-name{font-size:24px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px}
-  .cli-meta{font-size:12px;color:#374151;margin-top:6px;line-height:1.8}
-  .bdy{padding:10px 24px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#166534 !important;color:#fff !important;padding:9px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
-  thead th.r{text-align:right}
-  .summary{display:flex;justify-content:space-between;gap:16px;margin-top:14px;padding:14px 16px;background:#f0fdf4;border:2px solid #86efac;border-radius:12px}
-  .s-blk{text-align:center}
-  .s-lbl{font-size:10px;font-weight:700;color:#4ade80;text-transform:uppercase;letter-spacing:0.05em}
-  .s-val{font-size:20px;font-weight:900;color:#166534;line-height:1.2;margin-top:2px}
-  .foot{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#64748b}
-  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
-  @media print{.btn-p{display:none !important}}
-  @page{size:A4;margin:7mm 10mm}
-</style>
-</head><body>
+  .sf-sub{font-size:11px;color:#86efac;margin-top:4px}
+  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+</style></head><body>
 <div class="hdr">
   <div>
     <div style="display:flex;align-items:center;gap:12px">
@@ -705,10 +317,160 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     <div class="co-addr">Selouane, Nador</div>
   </div>
   <div class="co-r">
-    <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
-    <strong>Bureau</strong> 06 62 82 88 20<br>
-    <span style="color:#2563eb">Dar.sadik@hotmail.com</span><br>
-    <div style="margin-top:5px"><div class="mode-badge">⇌ Relevé de Règlement</div></div>
+    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Bureau</strong> 06 62 82 88 20<br>
+      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
+    </div>
+    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${date}</div>
+    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
+  </div>
+</div>
+<div class="cli-section">
+  <div class="cli-card">
+    <div class="cli-avatar">${selected.nom.charAt(0).toUpperCase()}</div>
+    <div>
+      <div class="cli-name">${selected.nom}</div>
+      <div class="cli-meta"><strong>Dépôt:</strong> ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; <strong>Tél:</strong> '+selected.tel:''} &nbsp;·&nbsp; <strong>Période:</strong> ${periode}</div>
+    </div>
+  </div>
+</div>
+<div class="bdy">
+<table>
+  <thead><tr>
+    <th>Date</th><th>Camion</th><th>Opération</th><th>Type</th>
+    <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th>
+  </tr></thead>
+  <tbody>
+    ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:12px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report période' : 'Solde initial'}</td><td></td><td class="r" style="color:#d1d5db">—</td><td class="r" style="color:#d1d5db">—</td><td class="r" style="color:#d1d5db">—</td><td class="r" style="font-weight:900;font-size:15px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmt(ancienSoldeVal)}</td><td class="m">${selected.opening_note||'Solde de départ'}</td></tr>` : ''}
+    ${pDisplayEntries.map(e => {
+      const isVente = e.src === 'vente'; const v = e.raw
+      const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
+      const mvColor = isPos ? '#1d4ed8' : '#16a34a'
+      const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
+      const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
+      const noteDisplay = fraisItems.length > 0 ? (e.note || '—') : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
+      const typeTag = e.type === 'vente'
+        ? `<span class="tag">${e.label}</span>`
+        : e.type === 'mdo'
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
+        : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'?e.label:'Remise'}</span>`
+      const mainRow = `<tr>
+        <td class="m" style="white-space:nowrap">${fmtDate(e.date)}</td>
+        <td class="m">${e.detail||'—'}</td>
+        <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
+        <td>${typeTag}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#cbd5e1">—</span>'}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?parseFloat(v.prix_vente||0).toFixed(2):'<span style="color:#cbd5e1">—</span>'}</td>
+        <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmt(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmt(e.solde):'− '+fmt(Math.abs(e.solde))}</td>
+        <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?600:400};color:${e.note?'#374151':'#94a3b8'}">${noteDisplay}</td>
+      </tr>`
+      const fraisRows = fraisItems.map(f => `<tr style="background:#fffbeb !important">
+        <td></td><td colspan="6" style="padding:3px 14px;font-size:11px;color:#92400e;font-style:italic">↳ <strong>${f.label}</strong>${f.note?` — ${f.note}`:''}</td>
+        <td class="r" style="padding:3px 12px;font-size:12px;font-weight:700;color:#92400e;white-space:nowrap">+ ${fmt(f.montant)}</td><td></td>
+      </tr>`).join('')
+      return mainRow + fraisRows
+    }).join('')}
+  </tbody>
+</table>
+${pDisplayEntries.length > 0 ? `<div class="totals-row">
+  <span>Total — ${pDisplayEntries.length} opération${pDisplayEntries.length !== 1 ? 's' : ''}</span>
+  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pFinalBalance)} DHS</span>
+</div>` : ''}
+<div class="solde-final">
+  <div><div class="sf-lbl">Solde actuel à payer</div><div class="sf-sub">${periode}</div></div>
+  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmt(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
+</div>
+<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
+</div></body></html>`)
+  }
+
+  // ── PRINT: PRESENTATION MODE ──
+  function printPresentationClient() {
+    const pLedger = buildPresentationLedger()
+    const pEntries = pLedger.entries
+    const _now = new Date()
+    const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+
+    let lastPeriod = null
+    const rows = pEntries.map(e => {
+      const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
+      const mvColor = isPos ? '#1d4ed8' : '#16a34a'
+      const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
+      const isMoved = !!presentationOrder[eKey(e)]
+      const periodChanged = isMoved && e.effectivePeriod !== e.date.slice(0, 7)
+      const typeTag = e.type === 'vente'
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">${e.label}</span>`
+        : e.type === 'mdo'
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
+        : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'?e.label:'Remise'}</span>`
+      let periodHeaderRow = ''
+      if (e.effectivePeriod !== lastPeriod) {
+        lastPeriod = e.effectivePeriod
+        periodHeaderRow = `<tr style="background:#eff6ff !important"><td colspan="7" style="padding:5px 12px;font-size:10px;font-weight:700;color:#1d4ed8;letter-spacing:0.05em;border-bottom:1px solid #bfdbfe">📅 ${fmtMois(e.effectivePeriod)}</td></tr>`
+      }
+      const mainRow = `<tr>
+        <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${periodChanged?`<br><span style="font-size:9px;color:#7c3aed">↕ ${fmtMois(e.effectivePeriod)}</span>`:''}${isMoved&&!periodChanged?`<br><span style="font-size:9px;color:#94a3b8">↕ Déplacé</span>`:''}</td>
+        <td class="m">${e.detail||'—'}</td>
+        <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
+        <td>${typeTag}</td>
+        <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmt(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmt(e.solde):'− '+fmt(Math.abs(e.solde))}</td>
+        <td class="m" style="font-weight:${e.note?600:400};color:${e.note?'#374151':'#94a3b8'}">${e.note||'—'}</td>
+      </tr>`
+      return periodHeaderRow + mainRow
+    }).join('')
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Relevé Présentation — ${selected.nom}</title>
+<style>
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #7c3aed}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
+  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  .co-r{text-align:right;flex-shrink:0}
+  .mode-badge{display:inline-block;background:#ede9fe;color:#7c3aed;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #ddd6fe;margin-bottom:6px}
+  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
+  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
+  .cli-card{display:flex;align-items:center;gap:18px;background:#faf5ff;border:1.5px solid #ddd6fe;border-left:5px solid #7c3aed;border-radius:10px;padding:14px 22px}
+  .cli-avatar{width:58px;height:58px;border-radius:50%;background:#7c3aed;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cli-name{font-size:26px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
+  .bdy{padding:10px 24px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#7c3aed !important;color:#fff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
+  thead th.r{text-align:right}
+  tbody tr{page-break-inside:avoid}
+  tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
+  tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
+  tbody td.m{color:#64748b;font-size:12.5px;white-space:nowrap}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#ede9fe;border-top:3px solid #7c3aed;font-weight:800;font-size:14px;color:#5b21b6}
+  .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px 26px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+  .sf-lbl{font-size:15px;font-weight:700;color:#166534}
+  .sf-amt{font-size:42px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-1px}
+  .sf-unit{font-size:16px;font-weight:600;color:#4ade80;margin-left:5px}
+  .sf-sub{font-size:11px;color:#86efac;margin-top:4px}
+  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
+    </div>
+    <div class="co-addr">Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Bureau</strong> 06 62 82 88 20<br>
+      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
+    </div>
+    <div style="margin-top:5px"><div class="mode-badge">↕ Vue Présentation</div></div>
     <div style="font-size:9.5px;color:#94a3b8">Généré le ${date}</div>
     <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
   </div>
@@ -718,104 +480,63 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     <div class="cli-avatar">${selected.nom.charAt(0).toUpperCase()}</div>
     <div>
       <div class="cli-name">${selected.nom}</div>
-      <div class="cli-meta"><strong>Dépôt:</strong> ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; <strong>Tél:</strong> '+selected.tel:''} &nbsp;·&nbsp; <strong>Période:</strong> ${getFilterLabel()}</div>
+      <div class="cli-meta"><strong>Dépôt:</strong> ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; <strong>Tél:</strong> '+selected.tel:''}</div>
     </div>
   </div>
 </div>
 <div class="bdy">
 <table>
   <thead><tr>
-    <th>Date livraison</th><th>Camion</th><th>Statut / Type</th>
-    <th class="r">Montant</th><th class="r">Réglé</th><th class="r">Restant</th><th>Note</th>
+    <th>Date compta.</th><th>Camion</th><th>Opération</th><th>Type</th>
+    <th class="r">Montant</th><th class="r">Solde</th><th>Note</th>
   </tr></thead>
-  <tbody>${rowsHtml}${unallocHtml}</tbody>
-  <tfoot><tr style="background:#f0fdf4">
-    <td colspan="3" style="padding:10px 12px;font-weight:700;font-size:13px;color:#166534;border-top:2px solid #86efac">
-      Bilan — ${sg.groups.length} livraison${sg.groups.length!==1?'s':''}
-    </td>
-    <td style="padding:10px 12px;text-align:right;font-weight:700;color:#1d4ed8;border-top:2px solid #86efac">+ ${fmt(totalLivraisons)} DHS</td>
-    <td style="padding:10px 12px;text-align:right;font-weight:700;color:#16a34a;border-top:2px solid #86efac">− ${fmt(totalSettled)} DHS</td>
-    <td style="padding:10px 14px;text-align:right;font-size:16px;font-weight:900;color:${totalRemaining>0?'#dc2626':'#16a34a'};border-top:2px solid #86efac">${fmt(totalRemaining)} DHS</td>
-    <td style="border-top:2px solid #86efac"></td>
-  </tr></tfoot>
+  <tbody>${rows}</tbody>
 </table>
-<div class="summary">
-  <div class="s-blk"><div class="s-lbl">Total livraisons</div><div class="s-val" style="color:#1d4ed8">+ ${fmt(totalLivraisons)} DHS</div></div>
-  <div class="s-blk"><div class="s-lbl">Total réglé</div><div class="s-val" style="color:#16a34a">− ${fmt(totalSettled)} DHS</div></div>
-  <div class="s-blk"><div class="s-lbl">Restant à payer</div><div class="s-val" style="color:${totalRemaining>0?'#dc2626':'#16a34a'}">${fmt(totalRemaining)} DHS</div></div>
-  <div class="s-blk"><div class="s-lbl">Livraisons réglées</div><div class="s-val" style="color:#166534">${sg.groups.filter(g=>g.remaining<=0.01).length} / ${sg.groups.length}</div></div>
+${pEntries.length > 0 ? `<div class="totals-row">
+  <span>Total — ${pEntries.length} opération${pEntries.length!==1?'s':''}</span>
+  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pLedger.finalBalance)} DHS</span>
+</div>` : ''}
+<div class="solde-final">
+  <div><div class="sf-lbl">Solde à payer</div><div class="sf-sub">Vue Présentation</div></div>
+  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmt(pLedger.finalBalance)}</span><span class="sf-unit">DHS</span></div></div>
 </div>
-<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Relevé de Règlement — Généré le ${date}</span></div>
+<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
 
-  // ---- EXPORT CSV ----
+  // ── EXPORT CSV ──
   function exportClientExcel() {
-    const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
-    const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
-    const periode = getFilterLabel()
-
-    let csv = `FICHE CLIENT — DAR SADIK\n`
-    csv += `Nom,${selected.nom}\nDépôt,${selected.depot||''}\nTéléphone,${selected.tel||''}\nSolde DHS,${selected.solde||0}\nPériode,${periode}\nTotal Ventes DHS,${totalVentes}\nTotal Paiements DHS,${totalPaiements}\n\n`
-    csv += `VENTES\nDate,Transport,Type,Quantité,Prix Vente/u,Total DHS\n`
-    filteredVentes.forEach(v => {
-      csv += `${fmtDate(v.date)},${v.camion_plaque},${v.type_brique||''},${v.qte||0},${v.prix_vente||0},${v.total_vente||0}\n`
-    })
-    csv += `\nPAIEMENTS\nDate,Mode,Montant DHS,Note\n`
-    filteredPaiements.forEach(p => {
-      csv += `${fmtDate(p.date)},${p.mode},${p.montant||0},${p.note||''}\n`
-    })
-
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
+    if (!selected) return
+    const header = ['Date','Type','Camion','Produit','Qte','Prix','Total DHS','BON','Note']
+    const venteRows = filteredVentes.map(v => [
+      fmtDate(v.date),
+      v.type_entree === 'remise' ? 'Remise' : v.type_entree === 'mdo' ? 'Charge' : 'Vente',
+      v.camion_plaque || '', v.type_brique || '',
+      v.type_entree === 'brique' ? (v.qte || 0) : '',
+      v.type_entree === 'brique' ? (v.prix_vente || 0) : '',
+      v.type_entree === 'remise' ? -(v.montant_mdo || 0) : (v.total_vente || 0),
+      v.bon || '', v.note || ''
+    ])
+    const pHeader = ['Date','Mode','Camion','Montant DHS','Note']
+    const pRows = filteredPaiements.map(p => [fmtDate(p.date), p.mode, p.camion_plaque || '', p.montant || 0, p.note || ''])
+    const all = [header, ...venteRows, [], pHeader, ...pRows]
+    const csv = all.map(r => r.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a')
-    a.href = url
-    a.download = `Client-${selected.nom}-${periode.replace(/[^a-zA-Z0-9]/g,'-')}.csv`
+    a.href = URL.createObjectURL(blob)
+    a.download = (selected.nom || 'Client') + '-' + today() + '.csv'
     a.click()
-    URL.revokeObjectURL(url)
   }
 
-  // ── AUTO-SUGGESTIONS: find unallocated payments that exactly match prior unsettled deliveries ──
-  const autoSuggestions = (() => {
-    if (!selected || loadingDetail || !clientAllocations) return []
-    const allocByVente = {}
-    const allocatedPmtIds = new Set()
-    clientAllocations.forEach(a => {
-      if (!allocByVente[a.vente_id]) allocByVente[a.vente_id] = []
-      allocByVente[a.vente_id].push(a)
-      allocatedPmtIds.add(a.paiement_id)
-    })
-    const unallocPmts = clientPaiements.filter(p => !allocatedPmtIds.has(p.id) && !dismissedSuggestions.has(p.id))
-    const suggestions = []
-    unallocPmts.forEach(p => {
-      const priorDeliveries = clientVentes.filter(v => {
-        if (v.type_entree && v.type_entree !== 'brique') return false
-        if (v.date >= p.date) return false
-        const settled = (allocByVente[v.id] || []).reduce((s, a) => s + (a.montant || 0), 0)
-        return (v.total_vente || 0) - settled > 0.01
-      })
-      if (!priorDeliveries.length) return
-      const priorRemaining = priorDeliveries.reduce((s, v) => {
-        const settled = (allocByVente[v.id] || []).reduce((s2, a) => s2 + (a.montant || 0), 0)
-        return s + Math.max(0, (v.total_vente || 0) - settled)
-      }, 0)
-      if (Math.abs(priorRemaining - (p.montant || 0)) < 2 && priorDeliveries.length > 0) {
-        suggestions.push({ paiement: p, deliveries: priorDeliveries, total: priorRemaining })
-      }
-    })
-    return suggestions
-  })()
-
+  // ── COMPUTED VALUES ──
   const filtered = clients.filter(c => !search || (c.nom + c.depot).toLowerCase().includes(search.toLowerCase()))
   const totalCreances = filtered.reduce((s, c) => s + (c.solde || 0), 0)
-  const totalVentesClient = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+  const totalVentesClient    = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
   const totalPaiementsClient = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
   const ledger = selected && !loadingDetail ? buildLedger() : { entries: [], startBalance: 0, finalBalance: 0 }
 
-  // ── RECONCILIATION — computed vs stored solde ───────────────────────────────
   const computedSolde = selected && !loadingDetail
-    ? (selected.opening_balance || 0)
-      + clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
+    ? (selected.opening_balance || 0) + clientVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
       - clientPaiements.reduce((s, p) => s + (p.montant || 0), 0)
       - clientRemises.reduce((s, r) => s + (r.montant || 0), 0)
     : null
@@ -830,6 +551,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     setSelected({ ...selected, solde: computedSolde })
   }
 
+  // ── BUILD LEDGER (chronological, accounting source of truth) ──
   function buildLedger() {
     const startBalance = carryOver !== null ? carryOver : (selected?.opening_balance || 0)
     const entries = []
@@ -848,69 +570,30 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
       return 'Autre'
     }
 
-    function makeRef(type, raw) {
-      if (type === 'paiement') {
-        const mode = (raw.mode || '').trim()
-        const pre = mode.startsWith('Chèque') ? 'CHQ'
-          : mode.startsWith('Virement') ? 'VIR'
-          : mode.startsWith('Espèce')   ? 'ESP'
-          : mode.startsWith('Traite')   ? 'TRT'
-          : mode.substring(0,3).toUpperCase() || 'PMT'
-        return `${pre}-${(raw.date||'').replace(/-/g,'')}`
-      }
-      return raw.bon || ''
-    }
-
     filteredVentes.forEach(v => {
       const isRemiseVoyage = v.type_entree === 'remise'
       const isMdo = v.type_entree === 'mdo'
       const type = isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente'
-      // note = the delivery note the user wrote (e.g. SAIDIA, Chantier A)
-      // fraisNote = frais summary string (shown as fallback when no frais sub-rows available)
       const deliveryNote = isRemiseVoyage ? (v.description_mdo || v.note || '') : isMdo ? (v.description_mdo || '') : (v.note || '')
       const fraisNote    = (!isRemiseVoyage && !isMdo) ? (v.frais_note || '') : ''
       entries.push({
-        date: v.date,
-        created_at: v.created_at || '',
-        type,
+        date: v.date, created_at: v.created_at || '', type,
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
-        detail: v.camion_plaque || '',
-        note: deliveryNote,
-        fraisNote,
-        operation: opLabel(type, null),
-        reference: makeRef(type, v),
-        delta: v.total_vente || 0,
-        src: 'vente',
-        raw: v,
+        detail: v.camion_plaque || '', note: deliveryNote, fraisNote,
+        operation: opLabel(type, null), delta: v.total_vente || 0, src: 'vente', raw: v,
       })
     })
 
     filteredPaiements.forEach(p => entries.push({
-      date: p.date,
-      created_at: p.created_at || '',
-      type: 'paiement',
-      label: p.mode || 'Paiement',
-      detail: p.camion_plaque || '',
-      note: p.note || '',
-      operation: 'Paiement',
-      reference: makeRef('paiement', p),
-      delta: -(p.montant || 0),
-      src: 'paiement',
-      raw: p,
+      date: p.date, created_at: p.created_at || '', type: 'paiement',
+      label: p.mode || 'Paiement', detail: p.camion_plaque || '', note: p.note || '',
+      operation: 'Paiement', delta: -(p.montant || 0), src: 'paiement', raw: p,
     }))
 
     filteredRemises.forEach(r => entries.push({
-      date: r.date,
-      created_at: r.created_at || '',
-      type: 'remise',
-      label: r.type_remise || 'Remise',
-      detail: '',
-      note: r.motif || '',
-      operation: opLabel('remise', r.type_remise),
-      reference: '',
-      delta: -(r.montant || 0),
-      src: 'remise',
-      raw: r,
+      date: r.date, created_at: r.created_at || '', type: 'remise',
+      label: r.type_remise || 'Remise', detail: '', note: r.motif || '',
+      operation: opLabel('remise', r.type_remise), delta: -(r.montant || 0), src: 'remise', raw: r,
     }))
 
     entries.sort((a, b) => {
@@ -920,140 +603,136 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
 
     let balance = startBalance
     entries.forEach(e => { balance += e.delta; e.solde = balance })
-
     return { entries, startBalance, finalBalance: balance }
   }
 
-  function buildSettlementGroups() {
-    const allocByVente = {}
-    const allocatedPmtIds = new Set()
-    clientAllocations.forEach(a => {
-      if (!allocByVente[a.vente_id]) allocByVente[a.vente_id] = []
-      allocByVente[a.vente_id].push(a)
-      allocatedPmtIds.add(a.paiement_id)
+  // ── BUILD PRESENTATION LEDGER (sorted by effectivePeriod/effectiveSeq) ──
+  function buildPresentationLedger() {
+    const startBal = selected?.opening_balance || 0
+    const allEntries = []
+
+    function opLabel(type, typeRemise) {
+      if (type === 'vente')         return 'Livraison'
+      if (type === 'mdo')           return "Main d'œuvre"
+      if (type === 'remise-voyage') return 'Remise'
+      if (type === 'paiement')      return 'Paiement'
+      if (type === 'remise') {
+        if (typeRemise === 'Fidélité')    return 'Remise fidélité'
+        if (typeRemise === 'Commerciale') return 'Remise commerciale'
+        if (typeRemise === 'Correction')  return 'Correction'
+        return 'Remise'
+      }
+      return 'Autre'
+    }
+
+    clientVentes.forEach(v => {
+      const isRemiseVoyage = v.type_entree === 'remise'
+      const isMdo = v.type_entree === 'mdo'
+      const type = isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente'
+      const entry = {
+        date: v.date, created_at: v.created_at || '', type,
+        label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
+        detail: v.camion_plaque || '', note: isRemiseVoyage ? (v.description_mdo||v.note||'') : isMdo ? (v.description_mdo||'') : (v.note||''),
+        fraisNote: (!isRemiseVoyage && !isMdo) ? (v.frais_note || '') : '',
+        operation: opLabel(type, null), delta: v.total_vente || 0, src: 'vente', raw: v,
+      }
+      entry.effectivePeriod = getEffectivePeriod(entry)
+      entry.effectiveSeq    = getEffectiveSeq(entry)
+      allEntries.push(entry)
     })
 
-    const groups = filteredVentes.map(v => {
-      const allocs = allocByVente[v.id] || []
-      const settled = allocs.reduce((s, a) => s + (a.montant || 0), 0)
-      const remaining = (v.total_vente || 0) - settled
-      return { vente: v, allocs, settled, remaining }
+    clientPaiements.forEach(p => {
+      const entry = {
+        date: p.date, created_at: p.created_at || '', type: 'paiement',
+        label: p.mode || 'Paiement', detail: p.camion_plaque || '', note: p.note || '',
+        operation: 'Paiement', delta: -(p.montant || 0), src: 'paiement', raw: p,
+      }
+      entry.effectivePeriod = getEffectivePeriod(entry)
+      entry.effectiveSeq    = getEffectiveSeq(entry)
+      allEntries.push(entry)
     })
 
-    const unallocatedPmts = filteredPaiements.filter(p => !allocatedPmtIds.has(p.id))
-    return { groups, unallocatedPmts }
-  }
-
-  function openAllocModal(paymentEntry) {
-    const existing = clientAllocations.filter(a => a.paiement_id === paymentEntry.raw?.id)
-    const form = {}
-    existing.forEach(a => { form[a.vente_id] = String(a.montant) })
-    setAllocForm(form)
-    setAllocModal(paymentEntry)
-  }
-
-  async function saveAllocation() {
-    if (!allocModal || !selected) return
-    setAllocSaving(true)
-    const paiementId = allocModal.raw.id
-
-    await supabase.from('paiement_allocations').delete().eq('paiement_id', paiementId)
-
-    const toInsert = Object.entries(allocForm)
-      .filter(([, v]) => parseFloat(v) > 0)
-      .map(([venteId, montant]) => ({
-        client_id: selected.id,
-        paiement_id: paiementId,
-        vente_id: parseInt(venteId),
-        montant: parseFloat(montant),
-      }))
-
-    if (toInsert.length) {
-      await supabase.from('paiement_allocations').insert(toInsert)
-    }
-
-    const pIds = clientPaiements.map(p => p.id)
-    if (pIds.length) {
-      const { data: allocs } = await supabase.from('paiement_allocations').select('*').in('paiement_id', pIds)
-      setClientAllocations(allocs || [])
-    }
-    setAllocSaving(false)
-    setAllocModal(null)
-  }
-
-  async function removeAllocation(allocId) {
-    if (!confirm('Supprimer cette affectation ?')) return
-    await supabase.from('paiement_allocations').delete().eq('id', allocId)
-    setClientAllocations(clientAllocations.filter(a => a.id !== allocId))
-  }
-
-  async function reloadAllocations() {
-    const pIds = clientPaiements.map(p => p.id)
-    if (!pIds.length) return
-    const { data: allocs } = await supabase.from('paiement_allocations').select('*').in('paiement_id', pIds)
-    setClientAllocations(allocs || [])
-  }
-
-  async function associerSelection() {
-    if (!sgSelectedPayment || sgSelectedDeliveries.size === 0 || !selected) return
-    setSuggestionSaving(true)
-    const p = clientPaiements.find(p2 => p2.id === sgSelectedPayment)
-    if (!p) { setSuggestionSaving(false); return }
-
-    let remaining = p.montant || 0
-    const toInsert = []
-    // FIFO: distribute payment across selected deliveries sorted by date
-    const deliveries = [...sgSelectedDeliveries]
-      .map(id => clientVentes.find(v => v.id === id))
-      .filter(Boolean)
-      .sort((a, b) => (a.date < b.date ? -1 : 1))
-
-    for (const v of deliveries) {
-      if (remaining <= 0.01) break
-      const otherSettled = clientAllocations
-        .filter(a => a.paiement_id !== p.id && a.vente_id === v.id)
-        .reduce((s, a) => s + (a.montant || 0), 0)
-      const maxAvail = Math.max(0, (v.total_vente || 0) - otherSettled)
-      const toAllocate = Math.min(remaining, maxAvail)
-      if (toAllocate > 0.01) {
-        toInsert.push({ client_id: selected.id, paiement_id: p.id, vente_id: v.id, montant: Math.round(toAllocate * 100) / 100 })
-        remaining -= toAllocate
+    clientRemises.forEach(r => {
+      const entry = {
+        date: r.date, created_at: r.created_at || '', type: 'remise',
+        label: r.type_remise || 'Remise', detail: '', note: r.motif || '',
+        operation: opLabel('remise', r.type_remise), delta: -(r.montant || 0), src: 'remise', raw: r,
       }
-    }
+      entry.effectivePeriod = getEffectivePeriod(entry)
+      entry.effectiveSeq    = getEffectiveSeq(entry)
+      allEntries.push(entry)
+    })
 
-    await supabase.from('paiement_allocations').delete().eq('paiement_id', p.id)
-    if (toInsert.length) await supabase.from('paiement_allocations').insert(toInsert)
-    await reloadAllocations()
-    setSgSelectedDeliveries(new Set())
-    setSgSelectedPayment(null)
-    setSuggestionSaving(false)
+    allEntries.sort((a, b) => {
+      if (a.effectivePeriod !== b.effectivePeriod) return a.effectivePeriod < b.effectivePeriod ? -1 : 1
+      return a.effectiveSeq - b.effectiveSeq
+    })
+
+    let balance = startBal
+    allEntries.forEach(e => { balance += e.delta; e.solde = balance })
+    return { entries: allEntries, startBalance: startBal, finalBalance: balance }
   }
 
-  async function acceptSuggestion(suggestion) {
-    setSuggestionSaving(true)
-    const p = suggestion.paiement
-    let remaining = p.montant || 0
-    const toInsert = []
-    const sorted = [...suggestion.deliveries].sort((a, b) => (a.date < b.date ? -1 : 1))
-    for (const v of sorted) {
-      if (remaining <= 0.01) break
-      const otherSettled = clientAllocations
-        .filter(a => a.paiement_id !== p.id && a.vente_id === v.id)
-        .reduce((s, a) => s + (a.montant || 0), 0)
-      const maxAvail = Math.max(0, (v.total_vente || 0) - otherSettled)
-      const toAllocate = Math.min(remaining, maxAvail)
-      if (toAllocate > 0.01) {
-        toInsert.push({ client_id: selected.id, paiement_id: p.id, vente_id: v.id, montant: Math.round(toAllocate * 100) / 100 })
-        remaining -= toAllocate
-      }
-    }
-    await supabase.from('paiement_allocations').delete().eq('paiement_id', p.id)
-    if (toInsert.length) await supabase.from('paiement_allocations').insert(toInsert)
-    await reloadAllocations()
-    setDismissedSuggestions(ds => new Set([...ds, p.id]))
-    setSuggestionSaving(false)
+  // ── PRESENTATION ORDER PERSISTENCE ──
+  async function savePresentationOrder(newOrder) {
+    setPresentationOrder(newOrder)
+    if (!selected?.id) return
+    await supabase.from('clients').update({ presentation_order: newOrder }).eq('id', selected.id)
   }
 
+  function handlePresentationReorder(fromIdx, toIdx, displayEntries) {
+    if (fromIdx === null || fromIdx === toIdx) return
+
+    const draggedKey = eKey(displayEntries[fromIdx])
+    const isDragSelected = presSelectedRows.has(draggedKey)
+    const toMoveKeys = isDragSelected && presSelectedRows.size > 1
+      ? new Set(presSelectedRows)
+      : new Set([draggedKey])
+
+    // Save snapshot for undo
+    setPresHistory(h => [...h.slice(-19), JSON.parse(JSON.stringify(presentationOrder))])
+
+    const newOrder = { ...presentationOrder }
+    const staticEntries = displayEntries.filter(e => !toMoveKeys.has(eKey(e)))
+    const movingEntries  = displayEntries.filter(e =>  toMoveKeys.has(eKey(e)))
+
+    // Find insertion point in static array
+    const targetKey  = eKey(displayEntries[toIdx])
+    let anchorIdx    = staticEntries.findIndex(e => eKey(e) === targetKey)
+    if (anchorIdx === -1) anchorIdx = staticEntries.length
+    const insertIdx  = fromIdx > toIdx ? anchorIdx : anchorIdx + 1
+
+    // Target period from the static context at drop position
+    const prevStatic = insertIdx > 0 ? staticEntries[insertIdx - 1] : null
+    const nextStatic = insertIdx < staticEntries.length ? staticEntries[insertIdx] : null
+    const targetPeriod = prevStatic?.effectivePeriod ?? nextStatic?.effectivePeriod ?? movingEntries[0].effectivePeriod
+
+    // Distribute moving entries evenly between prev and next seq
+    const seqBefore = prevStatic?.effectiveSeq ?? ((nextStatic?.effectiveSeq ?? Date.now()) - movingEntries.length * 2000000)
+    const seqAfter  = nextStatic?.effectiveSeq ?? (seqBefore + movingEntries.length * 2000000)
+    const gap = (seqAfter - seqBefore) / (movingEntries.length + 1)
+
+    movingEntries.forEach((e, i) => {
+      newOrder[eKey(e)] = { p: targetPeriod, s: Math.round(seqBefore + gap * (i + 1)) }
+    })
+
+    setPresSelectedRows(new Set())
+    savePresentationOrder(newOrder)
+  }
+
+  function undoPresentation() {
+    if (!presHistory.length) return
+    const prev = presHistory[presHistory.length - 1]
+    setPresHistory(h => h.slice(0, -1))
+    savePresentationOrder(prev)
+  }
+
+  function resetPresentation() {
+    setPresHistory([])
+    savePresentationOrder({})
+  }
+
+  // ── REMISE FUNCTIONS ──
   async function reloadRemises() {
     const { data } = await supabase.from('remises').select('*').eq('client_id', selected.id).order('date', { ascending: true })
     setClientRemises(data || [])
@@ -1066,12 +745,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     const montant = parseFloat(remiseForm.montant) || 0
     if (remiseModal === 'new') {
       const { error } = await supabase.from('remises').insert({
-        date: remiseForm.date,
-        client_id: selected.id,
-        client_nom: selected.nom,
-        montant,
-        type_remise: remiseForm.type_remise,
-        motif: remiseForm.motif || null,
+        date: remiseForm.date, client_id: selected.id, client_nom: selected.nom,
+        montant, type_remise: remiseForm.type_remise, motif: remiseForm.motif || null,
         created_by: user?.email || null,
       })
       if (error) { setRemiseError(error.message); setRemiseSaving(false); return }
@@ -1081,10 +756,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     } else {
       const delta = montant - (remiseModal.montant || 0)
       const { error } = await supabase.from('remises').update({
-        date: remiseForm.date,
-        montant,
-        type_remise: remiseForm.type_remise,
-        motif: remiseForm.motif || null,
+        date: remiseForm.date, montant, type_remise: remiseForm.type_remise, motif: remiseForm.motif || null,
       }).eq('id', remiseModal.id)
       if (error) { setRemiseError(error.message); setRemiseSaving(false); return }
       const newSolde = (selected.solde || 0) - delta
@@ -1110,277 +782,205 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
 
   const handleBack = () => { setShowDetail(false) }
 
-  function exportClientExcel() {
-    if (!selected) return
-    const header = ['Date','Type','Camion','Produit','Qte','Prix','Total DHS','BON','Note']
-    const venteRows = filteredVentes.map(v => [
-      fmtDate(v.date),
-      v.type_entree === 'remise' ? 'Remise' : v.type_entree === 'mdo' ? 'Charge' : 'Vente',
-      v.camion_plaque || '', v.type_brique || '',
-      v.type_entree === 'brique' ? (v.qte || 0) : '',
-      v.type_entree === 'brique' ? (v.prix_vente || 0) : '',
-      v.type_entree === 'remise' ? -(v.montant_mdo || 0) : (v.total_vente || 0),
-      v.bon || '', v.note || ''
-    ])
-    const pHeader = ['Date','Mode','Camion','Montant DHS','Note']
-    const pRows = filteredPaiements.map(p => [fmtDate(p.date), p.mode, p.camion_plaque || '', p.montant || 0, p.note || ''])
-    const all = [header, ...venteRows, [], pHeader, ...pRows]
-    const csv = all.map(r => r.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(',')).join('\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = (selected.nom || 'Client') + '-' + today() + '.csv'
-    a.click()
-  }
+  // ── RENDER: PRESENTATION TABLE ──
+  function renderPresentationTable() {
+    const presLedger   = buildPresentationLedger()
+    const displayEntries = presLedger.entries
+    const thS = { background:'#ede9fe', color:'#5b21b6', borderBottom:'2px solid #ddd6fe', whiteSpace:'nowrap', padding:'9px 12px', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
+    const bdr = { border:'1px solid #f1f5f9' }
 
-
-  function renderSettlementTable() {
-    const sg = buildSettlementGroups()
-    const bdr2 = { border: '1px solid #f1f5f9' }
-    const thS2 = { background: '#f0fdf4', color: '#166534', borderBottom: '2px solid #bbf7d0', whiteSpace: 'nowrap', padding: '9px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }
-    const totalLivraisons = sg.groups.reduce((s, g) => s + (g.vente.total_vente || 0), 0)
-    const totalSettled   = sg.groups.reduce((s, g) => s + g.settled, 0)
-    const totalRemaining = sg.groups.reduce((s, g) => s + Math.max(0, g.remaining), 0)
-
-    function statusBadge(g) {
-      if (g.remaining <= 0.01) return <span style={{display:'inline-flex',alignItems:'center',gap:3,background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'3px 8px',borderRadius:20,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>🟢 Réglée</span>
-      if (g.settled > 0) return <span style={{display:'inline-flex',alignItems:'center',gap:3,background:'#ffedd5',color:'#c2410c',fontWeight:700,fontSize:10,padding:'3px 8px',borderRadius:20,border:'1px solid #fed7aa',whiteSpace:'nowrap'}}>🟠 Part. réglée</span>
-      return <span style={{display:'inline-flex',alignItems:'center',gap:3,background:'#fee2e2',color:'#dc2626',fontWeight:700,fontSize:10,padding:'3px 8px',borderRadius:20,border:'1px solid #fecaca',whiteSpace:'nowrap'}}>🔴 Non réglée</span>
+    if (displayEntries.length === 0) {
+      return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune opération</div>
     }
 
-    const selPayment = sgSelectedPayment ? clientPaiements.find(p => p.id === sgSelectedPayment) : null
-    const canAssocier = sgSelectedDeliveries.size > 0 && sgSelectedPayment !== null
-
-    if (sg.groups.length === 0 && sg.unallocatedPmts.length === 0) {
-      return <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>Aucune opération pour cette période</div>
-    }
+    let lastPeriod = null
 
     return (
       <div>
-        {/* ── AUTO-SUGGESTIONS BANNER ── */}
-        {autoSuggestions.length > 0 && (
-          <div style={{margin:'12px 16px 0',borderRadius:10,border:'1px solid #a5b4fc',background:'#eef2ff',padding:'10px 14px'}}>
-            <div style={{fontSize:10.5,fontWeight:700,color:'#4338ca',marginBottom:7,letterSpacing:'0.05em'}}>
-              💡 CORRESPONDANCES AUTOMATIQUES
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {autoSuggestions.map((s, si) => (
-                <div key={si} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'#fff',borderRadius:8,padding:'8px 10px',border:'1px solid #c7d2fe'}}>
-                  <div style={{flex:1,minWidth:0,fontSize:12,color:'#3730a3'}}>
-                    Paiement <strong>{fmt(s.paiement.montant)} DHS</strong>
-                    <span style={{color:'#818cf8',margin:'0 5px'}}>·</span>
-                    {fmtDate(s.paiement.date)} · {s.paiement.mode}
-                    <span style={{display:'inline-block',margin:'0 6px',color:'#818cf8'}}>→</span>
-                    <strong>{s.deliveries.length}</strong> livraison{s.deliveries.length>1?'s':''} antérieure{s.deliveries.length>1?'s':''} non réglées
-                    <span style={{color:'#818cf8',margin:'0 5px'}}>·</span>
-                    <strong>{fmt(s.total)} DHS</strong>
-                  </div>
-                  <div style={{display:'flex',gap:6,flexShrink:0}}>
-                    <button onClick={() => acceptSuggestion(s)} disabled={suggestionSaving}
-                      style={{fontSize:11,fontWeight:700,padding:'4px 12px',borderRadius:6,border:'none',background:'#4f46e5',color:'#fff',cursor:'pointer'}}>
-                      ✓ Accepter
-                    </button>
-                    <button onClick={() => setDismissedSuggestions(ds => new Set([...ds, s.paiement.id]))}
-                      style={{fontSize:11,fontWeight:600,padding:'4px 8px',borderRadius:6,border:'1px solid #c7d2fe',background:'transparent',color:'#6366f1',cursor:'pointer'}}>
-                      Ignorer
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* PRESENTATION TOOLBAR */}
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',borderBottom:'1px solid #f1f5f9',background:'#faf5ff',flexWrap:'wrap'}}>
+          <span style={{fontSize:11,color:'#7c3aed',flex:1,minWidth:0}}>
+            ↕ Faites glisser les lignes pour réorganiser. Les dates comptables restent inchangées.
+          </span>
+          {presSelectedRows.size > 0 && (
+            <span style={{fontSize:11,fontWeight:700,color:'#1d4ed8',background:'#dbeafe',border:'1px solid #bfdbfe',borderRadius:4,padding:'2px 8px',display:'flex',alignItems:'center',gap:4}}>
+              {presSelectedRows.size} sélectionné{presSelectedRows.size > 1 ? 's' : ''}
+              <button onClick={() => setPresSelectedRows(new Set())}
+                style={{background:'transparent',border:'none',cursor:'pointer',color:'#64748b',fontWeight:700,fontSize:11,lineHeight:1,padding:0}}>✕</button>
+            </span>
+          )}
+          {presHistory.length > 0 && (
+            <button onClick={undoPresentation}
+              style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:5,border:'1px solid #bfdbfe',background:'#eff6ff',color:'#1d4ed8',cursor:'pointer'}}>
+              ↩ Annuler
+            </button>
+          )}
+          {Object.keys(presentationOrder).length > 0 && (
+            <button onClick={resetPresentation}
+              style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:5,border:'1px solid #fde68a',background:'#fffbeb',color:'#92400e',cursor:'pointer'}}>
+              ↺ Réinitialiser
+            </button>
+          )}
+        </div>
 
-        {/* ── SELECTION ACTION BAR ── */}
-        {(sgSelectedDeliveries.size > 0 || sgSelectedPayment) && (
-          <div style={{margin:'10px 16px 0',borderRadius:10,border:'2px solid #2563eb',background:'#eff6ff',padding:'10px 14px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-            <div style={{flex:1,minWidth:0,fontSize:12,color:'#1d4ed8',fontWeight:600,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-              {sgSelectedDeliveries.size > 0 && (
-                <span style={{background:'#dbeafe',padding:'3px 8px',borderRadius:12,fontWeight:700,fontSize:11}}>
-                  {sgSelectedDeliveries.size} livraison{sgSelectedDeliveries.size>1?'s':''} ✓
-                </span>
-              )}
-              {sgSelectedDeliveries.size > 0 && sgSelectedPayment && <span style={{color:'#93c5fd',fontSize:16}}>+</span>}
-              {selPayment && (
-                <span style={{background:'#dcfce7',color:'#15803d',padding:'3px 8px',borderRadius:12,fontWeight:700,fontSize:11}}>
-                  Paiement {fmt(selPayment.montant)} DHS ({fmtDate(selPayment.date)}) ✓
-                </span>
-              )}
-              {!canAssocier && (
-                <span style={{color:'#93c5fd',fontSize:11,fontStyle:'italic'}}>
-                  {sgSelectedDeliveries.size === 0 ? 'Sélectionnez des livraisons ↑' : 'Sélectionnez un paiement ↓'}
-                </span>
-              )}
-            </div>
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              {canAssocier && (
-                <button onClick={associerSelection} disabled={suggestionSaving}
-                  style={{fontSize:12,fontWeight:700,padding:'6px 16px',borderRadius:7,border:'none',background:'#2563eb',color:'#fff',cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)'}}>
-                  {suggestionSaving ? '...' : '⇌ Associer'}
-                </button>
-              )}
-              <button onClick={() => { setSgSelectedDeliveries(new Set()); setSgSelectedPayment(null) }}
-                style={{fontSize:11,fontWeight:600,padding:'6px 10px',borderRadius:7,border:'1px solid #bfdbfe',background:'transparent',color:'#64748b',cursor:'pointer'}}>
-                ✕
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── SETTLEMENT TABLE ── */}
-        <div className="overflow-x-auto" style={{marginTop:8}}>
+        <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th style={{...thS2,width:36,padding:'9px 6px',textAlign:'center'}}>
+                <th style={{...thS,width:36,padding:'9px 6px',textAlign:'center'}}>
                   <input type="checkbox"
-                    checked={sg.groups.length > 0 && sg.groups.every(g => sgSelectedDeliveries.has(g.vente.id))}
-                    onChange={ev => setSgSelectedDeliveries(ev.target.checked ? new Set(sg.groups.map(g => g.vente.id)) : new Set())}
-                    style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb'}} />
+                    checked={displayEntries.length > 0 && displayEntries.every(e => presSelectedRows.has(eKey(e)))}
+                    onChange={ev => setPresSelectedRows(ev.target.checked ? new Set(displayEntries.map(eKey)) : new Set())}
+                    style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
                 </th>
+                <th style={{...thS,width:20,padding:'9px 4px'}}></th>
                 {[
-                  {l:'Date',r:false},{l:'Camion',r:false},{l:'Statut / Type',r:false},
-                  {l:'Montant',r:true},{l:'Réglé',r:true},{l:'Restant',r:true},
-                  {l:'Note',r:false},{l:'',r:false},
-                ].map((col, i) => (
-                  <th key={i} style={{...thS2, textAlign: col.r ? 'right' : 'left'}}>{col.l}</th>
+                  {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
+                  {l:'Total DHS',r:true},{l:'Solde',r:true},{l:'Note',r:false}
+                ].map((col,i) => (
+                  <th key={i} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {sg.groups.map((g, gi) => {
-                const v = g.vente
-                const isFullySettled = g.remaining <= 0.01
-                const isPartial = g.settled > 0 && !isFullySettled
-                const rowBg = isFullySettled ? '#f0fdf4' : isPartial ? '#fffbeb' : '#eff6ff'
-                const isSelected = sgSelectedDeliveries.has(v.id)
-                const isCollapsed = collapsedGroups.has(v.id)
-                const hasAllocs = g.allocs.length > 0
+              {displayEntries.map((e, i) => {
+                const isPos      = e.delta >= 0
+                const absAmt     = Math.abs(e.delta)
+                const amtColor   = isPos ? '#1d4ed8' : '#16a34a'
+                const isSelected = presSelectedRows.has(eKey(e))
+                const isDragging = presDragFrom === i
+                const isDropTarget = presDragOver === i && presDragFrom !== null && presDragFrom !== i
+                const isMoved    = !!presentationOrder[eKey(e)]
+                const accountingPeriod = e.date.slice(0, 7)
+                const periodChanged = isMoved && e.effectivePeriod !== accountingPeriod
+                const typeRowBg  = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
+                  : e.type === 'mdo' ? '#fefce8' : undefined
+                const rowBg = isSelected ? '#ede9fe' : typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
+
+                const showPeriodHeader = e.effectivePeriod !== lastPeriod
+                lastPeriod = e.effectivePeriod
+
                 return (
-                  <Fragment key={`sg-${gi}`}>
-                    <tr style={{background: isSelected ? '#dbeafe' : rowBg, borderLeft: isSelected ? '3px solid #2563eb' : '3px solid transparent'}}>
-                      <td style={{...bdr2, padding:'0 6px', textAlign:'center', width:36}}>
-                        <input type="checkbox" checked={isSelected}
-                          onChange={() => { const ns = new Set(sgSelectedDeliveries); if (ns.has(v.id)) ns.delete(v.id); else ns.add(v.id); setSgSelectedDeliveries(ns) }}
-                          style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb'}} />
+                  <Fragment key={eKey(e)}>
+                    {showPeriodHeader && (
+                      <tr>
+                        <td colSpan={10} style={{padding:'6px 12px',fontSize:10.5,fontWeight:700,color:'#5b21b6',background:'#ede9fe',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',letterSpacing:'0.05em'}}>
+                          📅 {fmtMois(e.effectivePeriod)}
+                        </td>
+                      </tr>
+                    )}
+                    <tr
+                      draggable
+                      onDragStart={ev => { ev.dataTransfer.effectAllowed = 'move'; setPresDragFrom(i) }}
+                      onDragOver={ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setPresDragOver(i) }}
+                      onDrop={ev => { ev.preventDefault(); handlePresentationReorder(presDragFrom, i, displayEntries) }}
+                      onDragEnd={() => { setPresDragFrom(null); setPresDragOver(null) }}
+                      onClick={ev => {
+                        const key = eKey(e)
+                        if (ev.shiftKey && presLastClickedIdx !== null) {
+                          const lo = Math.min(presLastClickedIdx, i), hi = Math.max(presLastClickedIdx, i)
+                          const ns = new Set(presSelectedRows)
+                          for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
+                          setPresSelectedRows(ns)
+                        } else if (ev.ctrlKey || ev.metaKey) {
+                          const ns = new Set(presSelectedRows)
+                          ns.has(key) ? ns.delete(key) : ns.add(key)
+                          setPresSelectedRows(ns); setPresLastClickedIdx(i)
+                        } else {
+                          setPresSelectedRows(new Set([key])); setPresLastClickedIdx(i)
+                        }
+                      }}
+                      style={{
+                        background: rowBg, opacity: isDragging ? 0.4 : 1,
+                        borderTop: isDropTarget ? '2px solid #7c3aed' : undefined,
+                        borderLeft: isSelected ? '3px solid #7c3aed' : undefined,
+                        cursor: 'grab',
+                      }}
+                    >
+                      {/* CHECKBOX */}
+                      <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}}>
+                        <input type="checkbox" checked={isSelected} onChange={() => {}}
+                          onClick={ev => { ev.stopPropagation(); const ns = new Set(presSelectedRows); ns.has(eKey(e)) ? ns.delete(eKey(e)) : ns.add(eKey(e)); setPresSelectedRows(ns); setPresLastClickedIdx(i) }}
+                          style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
                       </td>
-                      <td style={{...bdr2, padding:'10px 12px', fontSize:12, color:'#64748b', whiteSpace:'nowrap'}}>{fmtDate(v.date)}</td>
-                      <td style={{...bdr2, padding:'10px 12px', fontSize:12, color:'#94a3b8'}}>{v.camion_plaque || '—'}</td>
-                      <td style={{...bdr2, padding:'9px 12px'}}>
-                        <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap'}}>
-                          {statusBadge(g)}
-                          <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe'}}>
-                            {v.type_brique || 'Livraison'}
-                          </span>
-                          {hasAllocs && (
-                            <button onClick={() => { const ns = new Set(collapsedGroups); if (ns.has(v.id)) ns.delete(v.id); else ns.add(v.id); setCollapsedGroups(ns) }}
-                              title={isCollapsed ? 'Afficher les paiements' : 'Réduire'}
-                              style={{fontSize:10,padding:'1px 5px',border:'1px solid #cbd5e1',borderRadius:3,background:'transparent',cursor:'pointer',color:'#64748b',lineHeight:1}}>
-                              {isCollapsed ? `▶ ${g.allocs.length}` : '▼'}
-                            </button>
-                          )}
-                        </div>
+                      {/* DRAG HANDLE */}
+                      <td style={{width:20,textAlign:'center',color:'#d1d5db',fontSize:17,userSelect:'none',...bdr}}>⠿</td>
+                      {/* DATE + MOVED INDICATOR */}
+                      <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>
+                        <div>{fmtDate(e.date)}</div>
+                        {isMoved && (
+                          <div style={{fontSize:9,marginTop:2}}>
+                            <span style={{background:'#ede9fe',color:'#7c3aed',fontWeight:700,padding:'1px 4px',borderRadius:3}}>↕</span>
+                            <span style={{color:'#94a3b8',marginLeft:3}}>
+                              {periodChanged ? `→ ${fmtMois(e.effectivePeriod)}` : 'Déplacé'}
+                            </span>
+                          </div>
+                        )}
                       </td>
-                      <td style={{...bdr2, padding:'10px 12px', textAlign:'right', fontSize:14, fontWeight:700, color:'#1d4ed8'}}>+ {fmt(v.total_vente || 0)}</td>
-                      <td style={{...bdr2, padding:'10px 12px', textAlign:'right', fontSize:13, fontWeight:700, color:'#16a34a'}}>
-                        {g.settled > 0 ? `− ${fmt(g.settled)}` : <span style={{color:'#d1d5db'}}>—</span>}
+                      {/* CAMION */}
+                      <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#94a3b8',padding:'10px 12px'}}>
+                        {e.detail || <span className="text-gray-200">—</span>}
                       </td>
-                      <td style={{...bdr2, padding:'10px 14px', textAlign:'right', fontSize:14, fontWeight:900, color: isFullySettled ? '#16a34a' : '#dc2626'}}>
-                        {isFullySettled ? '✓ Soldé' : fmt(g.remaining)}
+                      {/* OPÉRATION */}
+                      <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
+                        {e.operation}
                       </td>
-                      <td style={{...bdr2, padding:'10px 12px', fontSize:11, color:'#94a3b8', maxWidth:140, wordBreak:'break-word'}}>{v.note || '—'}</td>
-                      <td style={{...bdr2, padding:'6px 8px'}}></td>
+                      {/* TYPE BADGE */}
+                      <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
+                        {e.type === 'vente'
+                          ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
+                          : e.type === 'mdo'
+                          ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                          : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                              {e.type === 'paiement' ? e.label : 'Remise'}
+                            </span>}
+                      </td>
+                      {/* TOTAL */}
+                      <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
+                        {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
+                      </td>
+                      {/* SOLDE */}
+                      <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                        color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
+                        {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
+                      </td>
+                      {/* NOTE */}
+                      <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
+                        color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                        {e.note || '—'}
+                      </td>
                     </tr>
-                    {!isCollapsed && g.allocs.map((a, ai) => {
-                      const p = clientPaiements.find(p2 => p2.id === a.paiement_id)
-                      if (!p) return null
-                      return (
-                        <tr key={`alloc-${ai}`} style={{background:'#f0fdf4'}}>
-                          <td style={{...bdr2, padding:'5px 6px'}}></td>
-                          <td style={{...bdr2, padding:'5px 12px', paddingLeft:26, fontSize:11, color:'#64748b', whiteSpace:'nowrap'}}>↳ {fmtDate(p.date)}</td>
-                          <td style={{...bdr2, padding:'5px 12px', fontSize:11, color:'#94a3b8'}}>{p.camion_plaque || '—'}</td>
-                          <td style={{...bdr2, padding:'5px 12px'}}>
-                            <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0'}}>{p.mode || 'Paiement'}</span>
-                            {a.note && <span style={{fontSize:10,color:'#94a3b8',marginLeft:5,fontStyle:'italic'}}>{a.note}</span>}
-                          </td>
-                          <td style={{...bdr2, padding:'5px 12px', textAlign:'right', color:'#94a3b8', fontSize:11}}>—</td>
-                          <td style={{...bdr2, padding:'5px 12px', textAlign:'right', fontSize:13, fontWeight:700, color:'#16a34a'}}>− {fmt(a.montant)}</td>
-                          <td style={{...bdr2, padding:'5px 12px', textAlign:'right', color:'#94a3b8', fontSize:11}}>—</td>
-                          <td style={{...bdr2, padding:'5px 12px', fontSize:11, color:'#94a3b8'}}>{p.note || '—'}</td>
-                          <td style={{...bdr2, padding:'5px 8px', textAlign:'center'}}>
-                            <button onClick={() => removeAllocation(a.id)} title="Supprimer"
-                              style={{fontSize:10,color:'#ef4444',background:'transparent',border:'1px solid #fecaca',borderRadius:3,padding:'1px 5px',cursor:'pointer'}}>✕</button>
-                          </td>
-                        </tr>
-                      )
-                    })}
                   </Fragment>
                 )
               })}
-
-              {/* ── UNALLOCATED PAYMENTS — selectable via radio ── */}
-              {sg.unallocatedPmts.length > 0 && (
-                <Fragment>
-                  <tr>
-                    <td colSpan={9} style={{padding:'7px 12px',fontSize:10.5,fontWeight:700,color:'#92400e',background:'#fffbeb',borderTop:'2px dashed #fde68a',letterSpacing:'0.05em'}}>
-                      Paiements non affectés — {sg.unallocatedPmts.length} · Sélectionnez un paiement à associer aux livraisons cochées
-                    </td>
-                  </tr>
-                  {sg.unallocatedPmts.map((p, pi) => {
-                    const isSelPmt = sgSelectedPayment === p.id
-                    return (
-                      <tr key={`unalloc-${pi}`} style={{background: isSelPmt ? '#eff6ff' : '#fffbeb', borderLeft: isSelPmt ? '3px solid #2563eb' : '3px solid transparent'}}>
-                        <td style={{...bdr2, padding:'0 6px', textAlign:'center', width:36}}>
-                          <input type="radio" name="sgPayment" checked={isSelPmt}
-                            onChange={() => setSgSelectedPayment(isSelPmt ? null : p.id)}
-                            style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb'}} />
-                        </td>
-                        <td style={{...bdr2, padding:'9px 12px', fontSize:12, color:'#64748b', whiteSpace:'nowrap'}}>{fmtDate(p.date)}</td>
-                        <td style={{...bdr2, padding:'9px 12px', fontSize:12, color:'#94a3b8'}}>{p.camion_plaque || '—'}</td>
-                        <td style={{...bdr2, padding:'9px 12px'}}>
-                          <div style={{display:'flex',alignItems:'center',gap:6}}>
-                            <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0'}}>{p.mode || 'Paiement'}</span>
-                            <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 6px',borderRadius:20,border:'1px solid #fde68a'}}>Non affecté</span>
-                          </div>
-                        </td>
-                        <td style={{...bdr2, padding:'9px 12px', textAlign:'right', color:'#94a3b8', fontSize:11}}>—</td>
-                        <td style={{...bdr2, padding:'9px 12px', textAlign:'right', fontSize:14, fontWeight:700, color:'#16a34a'}}>− {fmt(p.montant)}</td>
-                        <td style={{...bdr2, padding:'9px 12px', textAlign:'right', color:'#94a3b8', fontSize:11}}>—</td>
-                        <td style={{...bdr2, padding:'9px 12px', fontSize:11, color:'#94a3b8'}}>{p.note || '—'}</td>
-                        <td style={{...bdr2, padding:'6px 8px'}}>
-                          <button onClick={() => openAllocModal({raw:p, delta:-(p.montant||0), label:p.mode||'Paiement', date:p.date})}
-                            title="Affecter manuellement"
-                            style={{fontSize:10,padding:'2px 5px',border:'1px solid #bfdbfe',background:'#eff6ff',color:'#2563eb',borderRadius:3,cursor:'pointer',fontWeight:700}}>⇌</button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </Fragment>
-              )}
             </tbody>
-            <tfoot>
-              <tr>
-                <td style={{background:'#f0fdf4',borderTop:'2px solid #bbf7d0'}}></td>
-                <td colSpan={3} style={{padding:'11px 12px',background:'#f0fdf4',color:'#166534',fontWeight:700,fontSize:13,borderTop:'2px solid #bbf7d0'}}>
-                  Bilan — {sg.groups.length} livraison{sg.groups.length!==1?'s':''}
-                </td>
-                <td style={{padding:'11px 12px',background:'#f0fdf4',fontSize:13,fontWeight:700,color:'#1d4ed8',textAlign:'right',borderTop:'2px solid #bbf7d0'}}>{fmt(totalLivraisons)} DHS</td>
-                <td style={{padding:'11px 12px',background:'#f0fdf4',fontSize:13,fontWeight:700,color:'#16a34a',textAlign:'right',borderTop:'2px solid #bbf7d0'}}>− {fmt(totalSettled)} DHS</td>
-                <td style={{padding:'11px 14px',background:'#f0fdf4',fontSize:15,fontWeight:900,color:totalRemaining>0?'#dc2626':'#16a34a',textAlign:'right',borderTop:'2px solid #bbf7d0',letterSpacing:'-0.2px'}}>{fmt(totalRemaining)} DHS</td>
-                <td colSpan={2} style={{background:'#f0fdf4',borderTop:'2px solid #bbf7d0'}}></td>
-              </tr>
-            </tfoot>
+            {displayEntries.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={7} style={{padding:'11px 12px',background:'#ede9fe',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'2px solid #ddd6fe'}}>
+                    Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
+                  </td>
+                  <td style={{padding:'11px 14px',background:'#ede9fe',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #ddd6fe',letterSpacing:'-0.2px'}}>
+                    {fmt(presLedger.finalBalance)} <span style={{fontSize:12,fontWeight:600,color:'#a78bfa'}}>DHS</span>
+                  </td>
+                  <td style={{background:'#ede9fe',borderTop:'2px solid #ddd6fe'}}></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
     )
   }
 
+  // ═══════════════════════════════════════════════════════
+  // JSX
+  // ═══════════════════════════════════════════════════════
   return (
     <Layout title="Clients Briques" subtitle="Gestion des clients et suivi des comptes">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* CLIENT LIST — hidden on mobile when detail is open */}
+        {/* CLIENT LIST */}
         <div className={`lg:col-span-1 ${showDetail ? 'hidden lg:block' : 'block'}`}>
           <div className="card">
             <div className="flex items-center justify-between mb-4">
@@ -1402,23 +1002,17 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                         <select className="input flex-1" value={form.depot} onChange={e => setForm({...form, depot: e.target.value})}>
                           {getAllDepots().map(d => <option key={d}>{d}</option>)}
                         </select>
-                        <button type="button" title="Ajouter un nouveau dépôt"
-                          onClick={() => setShowCustomDepot(true)}
-                          className="btn-secondary text-xs px-2">+ Nouveau</button>
+                        <button type="button" onClick={() => setShowCustomDepot(true)} className="btn-secondary text-xs px-2">+ Nouveau</button>
                       </div>
                     ) : (
                       <div className="flex gap-1">
                         <input className="input flex-1" placeholder="Nom du dépôt..." value={customDepotValue}
                           onChange={e => setCustomDepotValue(e.target.value.toUpperCase())} />
                         <button type="button" className="btn-primary text-xs px-2"
-                          onClick={() => { if(customDepotValue.trim()) { setForm({...form, depot: customDepotValue.trim()}); setShowCustomDepot(false) } }}>
-                          ✓
-                        </button>
-                        <button type="button" className="btn-secondary text-xs px-2"
-                          onClick={() => setShowCustomDepot(false)}>✕</button>
+                          onClick={() => { if(customDepotValue.trim()) { setForm({...form, depot: customDepotValue.trim()}); setShowCustomDepot(false) } }}>✓</button>
+                        <button type="button" className="btn-secondary text-xs px-2" onClick={() => setShowCustomDepot(false)}>✕</button>
                       </div>
                     )}
-                    {showCustomDepot && <div className="text-xs text-gray-400 mt-1">Tapez le nom du nouveau dépôt</div>}
                   </div>
                   <div>
                     <label className="label">Téléphone</label>
@@ -1426,9 +1020,10 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                   </div>
                 </div>
                 <div>
-                  <label className="label">Solde d'ouverture (ancien solde DHS)</label>
-                  <input className="input" type="number" placeholder="0" value={form.opening_balance} onChange={e => setForm({...form, opening_balance: e.target.value, solde: e.target.value})} />
-                  <div className="text-xs text-gray-400 mt-1">Montant dû par ce client avant cette app</div>
+                  <label className="label">Solde d'ouverture (DHS)</label>
+                  <input className="input" type="number" placeholder="0" value={form.opening_balance}
+                    onChange={e => setForm({...form, opening_balance: e.target.value, solde: e.target.value})} />
+                  <div className="text-xs text-gray-400 mt-1">Montant dû avant cette app</div>
                 </div>
                 <div className="flex gap-2">
                   <button type="submit" disabled={saving} className="btn-primary text-xs">{saving ? 'Enregistrement...' : '✓ Enregistrer'}</button>
@@ -1446,16 +1041,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                 const s = c.solde || 0
                 const isActive = selected?.id === c.id
                 return (
-                  <div
-                    key={c.id}
-                    onClick={() => selectClient(c)}
-                    role="button"
-                    tabIndex={0}
+                  <div key={c.id} onClick={() => selectClient(c)} role="button" tabIndex={0}
                     onKeyDown={e => e.key === 'Enter' && selectClient(c)}
                     className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border select-none
                       ${isActive ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-100 hover:bg-gray-100 active:bg-blue-50'}`}
-                    style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
-                  >
+                    style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
                     <div className="flex-1 min-w-0">
                       <div className={`font-semibold text-sm truncate ${isActive ? 'text-brand-700' : 'text-gray-900'}`}>{c.nom}</div>
                       <div className="text-xs text-gray-400">{c.depot}</div>
@@ -1479,7 +1069,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
           </div>
         </div>
 
-        {/* CLIENT DETAIL — shown on mobile only when showDetail=true */}
+        {/* CLIENT DETAIL */}
         <div className={`lg:col-span-2 ${showDetail ? 'block' : 'hidden lg:block'}`}>
           {!selected ? (
             <div className="card flex flex-col items-center justify-center py-20 text-center">
@@ -1492,12 +1082,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
 
               {/* CLIENT HEADER */}
               <div className="card">
-                {/* MOBILE BACK BUTTON */}
-                <button
-                  onClick={handleBack}
-                  className="lg:hidden flex items-center gap-2 text-blue-600 text-sm font-semibold mb-4 active:opacity-70"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
+                <button onClick={handleBack} className="lg:hidden flex items-center gap-2 text-blue-600 text-sm font-semibold mb-4 active:opacity-70"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}>
                   ← Retour à la liste
                 </button>
 
@@ -1515,11 +1101,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div style={{display:'flex',gap:'6px'}}>
                     <button onClick={printClient} className="btn-primary text-xs px-3 py-1.5" style={{background:'#4f46e5'}}>🖨️ PDF</button>
                     <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📊 Excel</button>
-                  </div>
-                    <button onClick={exportClientExcel} className="btn-primary text-xs px-3 py-1.5" style={{background:'#16a34a'}}>📥 Excel</button>
                     <button onClick={() => openEditClient(selected)} className="btn-secondary text-xs">✎ Client</button>
                     <button onClick={() => editSolde(selected)} className="btn-secondary text-xs">✎ Solde</button>
                     <button onClick={() => editOpeningBalance(selected)} className="btn-secondary text-xs" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>🏦 Solde initial</button>
@@ -1527,17 +1110,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                   </div>
                 </div>
 
-                {/* DATE FILTER BAR */}
+                {/* DATE FILTER */}
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">📅 Filtrer par période</div>
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {[
-                      { key: 'all', label: 'Tout' },
-                      { key: 'day', label: 'Jour' },
-                      { key: 'week', label: 'Semaine' },
-                      { key: 'month', label: 'Mois' },
-                      { key: 'custom', label: 'Personnalisé' },
-                    ].map(f => (
+                    {[{key:'all',label:'Tout'},{key:'day',label:'Jour'},{key:'week',label:'Semaine'},{key:'month',label:'Mois'},{key:'custom',label:'Personnalisé'}].map(f => (
                       <button key={f.key} onClick={() => setFilterType(f.key)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all
                           ${filterType === f.key ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
@@ -1545,7 +1122,6 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                       </button>
                     ))}
                   </div>
-
                   {filterType === 'day' && (
                     <div className="flex items-center gap-2">
                       <label className="text-xs text-gray-500">Date:</label>
@@ -1561,13 +1137,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                     </div>
                   )}
                   {filterType !== 'all' && (
-                    <div className="mt-2 text-xs text-brand-600 font-semibold">
-                      📅 Période affichée: {getFilterLabel()}
-                    </div>
+                    <div className="mt-2 text-xs text-brand-600 font-semibold">📅 Période affichée: {getFilterLabel()}</div>
                   )}
                 </div>
 
-                {/* SOLDE ACTUEL À PAYER */}
+                {/* SOLDE ACTUEL */}
                 <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Solde actuel</span>
@@ -1580,7 +1154,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                   </span>
                 </div>
 
-                {/* RECONCILIATION BADGE — shown only when detail is loaded */}
+                {/* RECONCILIATION */}
                 {!loadingDetail && computedSolde !== null && (
                   hasDiscrepancy ? (
                     <div className="mt-3 p-3 rounded-xl text-xs flex items-center justify-between gap-3 flex-wrap"
@@ -1589,11 +1163,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                         <div className="font-bold text-amber-700 mb-1">⚠️ Solde incohérent détecté</div>
                         <div className="text-amber-600">
                           Solde enregistré: <strong>{fmt(selected.solde)} DHS</strong>
-                          {' '}· Solde calculé (base transactionnelle): <strong>{fmt(computedSolde)} DHS</strong>
+                          {' '}· Solde calculé: <strong>{fmt(computedSolde)} DHS</strong>
                           {' '}· Écart: <strong>{fmt(soldeGap)} DHS</strong>
-                        </div>
-                        <div className="text-amber-500 mt-1">
-                          Calcul: Solde initial ({fmt(selected.opening_balance || 0)}) + Ventes ({fmt(clientVentes.reduce((s,v)=>s+(v.total_vente||0),0))}) − Paiements ({fmt(clientPaiements.reduce((s,p)=>s+(p.montant||0),0))}) − Remises ({fmt(clientRemises.reduce((s,r)=>s+(r.montant||0),0))})
                         </div>
                       </div>
                       <button onClick={fixSolde}
@@ -1605,7 +1176,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                     <div className="mt-3 px-3 py-2 rounded-xl text-xs flex items-center gap-2"
                       style={{background:'#f0fdf4', border:'1px solid #bbf7d0'}}>
                       <span className="text-green-600 font-bold">✓ Solde vérifié</span>
-                      <span className="text-green-500">Le solde enregistré correspond aux transactions ({fmt(computedSolde)} DHS)</span>
+                      <span className="text-green-500">Le solde correspond aux transactions ({fmt(computedSolde)} DHS)</span>
                     </div>
                   )
                 )}
@@ -1615,369 +1186,216 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                 <div className="card text-center py-10 text-gray-400">Chargement...</div>
               ) : (
                 <>
-                  {/* ── UNIFIED ACCOUNT LEDGER ── */}
+                  {/* LEDGER CARD */}
                   {(() => {
-                    const displayEntries = getDisplayEntries()
-                    const pinnedCount = displayEntries.filter(e => stmtPinned.has(eKey(e))).length
+                    const displayEntries = ledger.entries
                     const finalEntry = displayEntries.length ? displayEntries[displayEntries.length - 1] : null
                     const thS = {background:'#eff6ff',color:'#1d4ed8',borderBottom:'2px solid #bfdbfe',whiteSpace:'nowrap',padding:'9px 12px',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',userSelect:'none'}
                     const bdr = {border:'1px solid #f1f5f9'}
                     return (
-                      <div className="card" style={{padding:0,overflow:'hidden'}} onClick={() => setHlPicker(null)}>
+                      <div className="card" style={{padding:0,overflow:'hidden'}}>
                         {/* TOOLBAR */}
                         <div className="flex items-center justify-between flex-wrap gap-2" style={{padding:'10px 16px',borderBottom:'1px solid #f1f5f9'}}>
                           <div className="flex items-center gap-3 flex-wrap">
                             <h3 className="font-semibold text-gray-900" style={{fontSize:14}}>
                               Historique du compte
-                              <span className="text-gray-400 font-normal text-sm ml-2">({displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''})</span>
+                              <span className="text-gray-400 font-normal text-sm ml-2">
+                                ({stmtMode === 'presentation'
+                                  ? buildPresentationLedger().entries.length
+                                  : displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''})
+                              </span>
                             </h3>
                             {/* MODE TOGGLE */}
                             <div style={{display:'flex',borderRadius:6,overflow:'hidden',border:'1px solid #e2e8f0',flexShrink:0}}>
                               <button
-                                onClick={(ev) => { ev.stopPropagation(); setStmtMode('chrono') }}
+                                onClick={ev => { ev.stopPropagation(); setStmtMode('chrono') }}
                                 style={{padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer',border:'none',
                                   background: stmtMode === 'chrono' ? '#2563eb' : '#f8fafc',
-                                  color: stmtMode === 'chrono' ? '#fff' : '#64748b',transition:'all 0.15s'}}>
+                                  color: stmtMode === 'chrono' ? '#fff' : '#64748b', transition:'all 0.15s'}}>
                                 Chronologique
                               </button>
                               <button
-                                onClick={(ev) => { ev.stopPropagation(); setStmtMode('reglement') }}
+                                onClick={ev => { ev.stopPropagation(); setStmtMode('presentation') }}
                                 style={{padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer',border:'none',borderLeft:'1px solid #e2e8f0',
-                                  background: stmtMode === 'reglement' ? '#2563eb' : '#f8fafc',
-                                  color: stmtMode === 'reglement' ? '#fff' : '#64748b',transition:'all 0.15s'}}>
-                                ⇌ Règlement
+                                  background: stmtMode === 'presentation' ? '#7c3aed' : '#f8fafc',
+                                  color: stmtMode === 'presentation' ? '#fff' : '#64748b', transition:'all 0.15s'}}>
+                                ↕ Présentation
                               </button>
                             </div>
-                            {(stmtOrder || stmtPinned.size > 0 || Object.keys(stmtHighlights).length > 0) && (
-                              <button onClick={(ev) => { ev.stopPropagation(); resetStmt() }}
-                                className="text-xs font-semibold border rounded transition-colors"
-                                style={{color:'#92400e',borderColor:'#fde68a',background:'#fffbeb',padding:'2px 8px'}}>
-                                ↺ Ordre chrono
-                              </button>
-                            )}
-                            {stmtHistory.length > 0 && (
-                              <button onClick={(ev) => { ev.stopPropagation(); undoReorder() }}
-                                className="text-xs font-semibold border rounded transition-colors"
-                                style={{color:'#1d4ed8',borderColor:'#bfdbfe',background:'#eff6ff',padding:'2px 8px'}}>
-                                ↩ Annuler
-                              </button>
-                            )}
-                            {selectedRows.size > 0 && (
-                              <span className="flex items-center gap-1 text-xs font-semibold"
-                                style={{color:'#1d4ed8',background:'#dbeafe',border:'1px solid #bfdbfe',borderRadius:4,padding:'2px 8px'}}>
-                                {selectedRows.size} sélectionné{selectedRows.size > 1 ? 's' : ''}
-                                <button
-                                  onClick={(ev) => { ev.stopPropagation(); setSelectedRows(new Set()) }}
-                                  style={{marginLeft:2,color:'#64748b',background:'transparent',border:'none',cursor:'pointer',fontWeight:700,lineHeight:1,fontSize:11}}>
-                                  ✕
-                                </button>
-                              </span>
-                            )}
-                            <div className="flex items-center gap-3 text-xs" style={{color:'#94a3b8'}}>
-                              <span className="flex items-center gap-1">
-                                <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{background:'#dbeafe',border:'1px solid #bfdbfe'}}></span>
-                                Livraison
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{background:'#dcfce7',border:'1px solid #bbf7d0'}}></span>
-                                Paiement
-                              </span>
-                              {stmtPinned.size > 0 && (
-                                <span className="font-semibold" style={{color:'#0369a1'}}>
-                                  📌 {stmtPinned.size} épinglé{stmtPinned.size > 1 ? 's' : ''}
+                            {/* Legend (chrono only) */}
+                            {stmtMode === 'chrono' && (
+                              <div className="flex items-center gap-3 text-xs" style={{color:'#94a3b8'}}>
+                                <span className="flex items-center gap-1">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{background:'#dbeafe',border:'1px solid #bfdbfe'}}></span>
+                                  Livraison
                                 </span>
-                              )}
-                            </div>
+                                <span className="flex items-center gap-1">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{background:'#dcfce7',border:'1px solid #bbf7d0'}}></span>
+                                  Paiement
+                                </span>
+                              </div>
+                            )}
                           </div>
                           <button
-                            onClick={(ev) => { ev.stopPropagation(); setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseError(''); setRemiseModal('new') }}
+                            onClick={() => { setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseError(''); setRemiseModal('new') }}
                             className="btn-primary text-xs px-3 py-1.5 flex-shrink-0" style={{background:'#7c3aed'}}>
                             + Remise
                           </button>
                         </div>
 
-                        {stmtMode === 'reglement' ? renderSettlementTable() : <div className="overflow-x-auto">
-                          <table className="w-full border-collapse">
-                            <thead>
-                              <tr>
-                                <th style={{...thS,width:56,padding:'9px 8px',background:'#eff6ff',borderBottom:'2px solid #bfdbfe'}}>
-                                  <div style={{display:'flex',alignItems:'center',gap:5}}>
-                                    <input
-                                      type="checkbox"
-                                      title={displayEntries.length > 0 && displayEntries.every(e => selectedRows.has(eKey(e))) ? 'Tout désélectionner' : 'Tout sélectionner'}
-                                      checked={displayEntries.length > 0 && displayEntries.every(e => selectedRows.has(eKey(e)))}
-                                      onChange={ev => { ev.stopPropagation(); setSelectedRows(ev.target.checked ? new Set(displayEntries.map(eKey)) : new Set()) }}
-                                      onClick={ev => ev.stopPropagation()}
-                                      style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb',flexShrink:0}}
-                                    />
-                                  </div>
-                                </th>
-                                {[
-                                  {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
-                                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Solde',r:true},
-                                  {l:'Note',r:false},{l:'',r:false}
-                                ].map((col,i) => (
-                                  <th key={i} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {/* Opening balance / carry-over row */}
-                              <tr style={{background:'#fffbeb'}}>
-                                <td style={{padding:'10px 6px',border:'1px solid #fde68a'}}></td>
-                                <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>
-                                  {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
-                                </td>
-                                <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
-                                <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
-                                  {carryOver !== null ? 'Report' : 'Solde initial'}
-                                </td>
-                                <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
-                                {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>)}
-                                <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
-                                  {fmt(ledger.startBalance)}
-                                </td>
-                                <td className="td text-xs text-gray-400" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
-                                  {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
-                                </td>
-                                <td colSpan={2} style={{border:'1px solid #fde68a',padding:'10px 12px'}}></td>
-                              </tr>
-
-                              {/* Pinned section header */}
-                              {pinnedCount > 0 && (
+                        {/* TABLE BODY — switch between modes */}
+                        {stmtMode === 'presentation' ? renderPresentationTable() : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full border-collapse">
+                              <thead>
                                 <tr>
-                                  <td colSpan={11} style={{padding:'4px 12px',fontSize:10.5,fontWeight:700,color:'#0369a1',letterSpacing:'0.05em',background:'#e0f2fe',borderTop:'1px solid #bae6fd',borderBottom:'1px solid #bae6fd'}}>
-                                    📌 Épinglés — {pinnedCount} opération{pinnedCount > 1 ? 's' : ''}
-                                  </td>
+                                  {[
+                                    {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
+                                    {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Solde',r:true},
+                                    {l:'Note',r:false},{l:'',r:false}
+                                  ].map((col,i) => (
+                                    <th key={i} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
+                                  ))}
                                 </tr>
-                              )}
-
-                              {displayEntries.length === 0 && (
-                                <tr>
-                                  <td colSpan={11} className="td text-center text-gray-400 py-8" style={{border:'1px solid #e2e8f0'}}>
-                                    Aucune opération pour cette période
+                              </thead>
+                              <tbody>
+                                {/* Opening balance / carry-over row */}
+                                <tr style={{background:'#fffbeb'}}>
+                                  <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>
+                                    {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                                   </td>
+                                  <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
+                                  <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
+                                    {carryOver !== null ? 'Report' : 'Solde initial'}
+                                  </td>
+                                  <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
+                                  {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>)}
+                                  <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
+                                    {fmt(ledger.startBalance)}
+                                  </td>
+                                  <td className="td text-xs text-gray-400" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
+                                    {carryOver !== null ? `Début de ${periodLabel}` : (selected.opening_note || 'Solde de départ')}
+                                  </td>
+                                  <td style={{border:'1px solid #fde68a',padding:'10px 12px'}}></td>
                                 </tr>
-                              )}
 
-                              {displayEntries.map((e, i) => {
-                                const isPinned = stmtPinned.has(eKey(e))
-                                const isFirstUnpinned = i === pinnedCount && pinnedCount > 0
-                                const hlColor = stmtHighlights[eKey(e)] ? HL_COLORS[stmtHighlights[eKey(e)]] : null
-                                const isVente = e.src === 'vente'
-                                const isPos = e.delta >= 0
-                                const absAmt = Math.abs(e.delta)
-                                const amtColor = isPos ? '#1d4ed8' : '#16a34a'
-                                const v = e.raw
-                                const typeRowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
-                                  : e.type === 'mdo' ? '#fefce8' : undefined
-                                const zebraOdd = !isPinned && (i - pinnedCount) % 2 === 1
-                                const isSelected = selectedRows.has(eKey(e))
-                                const rowBg = hlColor || (isSelected ? '#dbeafe' : isPinned ? '#f0f9ff' : typeRowBg || (zebraOdd ? '#f9fafb' : undefined))
-                                const draggedEntry = dragFrom !== null && dragFrom < displayEntries.length ? displayEntries[dragFrom] : null
-                                const isDragGroupMode = !!(draggedEntry && selectedRows.has(eKey(draggedEntry)) && selectedRows.size > 1)
-                                const isDragging = isDragGroupMode ? isSelected : dragFrom === i
-                                const isDropTarget = dragOver === i && dragFrom !== null && dragFrom !== i
-                                // Frais sub-rows (if voyage_livraison_frais table exists and has data)
-                                const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
-                                // When frais shown as sub-rows, note column shows just the delivery note;
-                                // otherwise fall back to combined note+fraisNote string
-                                const noteDisplay = fraisItems.length > 0
-                                  ? (e.note || '—')
-                                  : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
-                                const allocCount = e.src === 'paiement' ? clientAllocations.filter(a => a.paiement_id === e.raw?.id).length : 0
-                                return (
-                                  <Fragment key={eKey(e)}>
-                                  <tr
-                                    draggable
-                                    onDragStart={(ev) => { ev.dataTransfer.effectAllowed = 'move'; setDragFrom(i) }}
-                                    onDragOver={(ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setDragOver(i) }}
-                                    onDrop={(ev) => { ev.preventDefault(); handleReorder(dragFrom, i) }}
-                                    onDragEnd={() => { setDragFrom(null); setDragOver(null) }}
-                                    onClick={ev => handleRowSelection(ev, i, eKey(e), displayEntries)}
-                                    className="transition-colors duration-100"
-                                    style={{
-                                      background: rowBg,
-                                      opacity: isDragging ? 0.4 : 1,
-                                      borderTop: isDropTarget ? '2px solid #2563eb' : (isFirstUnpinned ? '2px solid #bfdbfe' : undefined),
-                                      borderLeft: isSelected && !hlColor ? '3px solid #2563eb' : undefined,
-                                      cursor: 'pointer',
-                                    }}>
-                                    {/* CHECKBOX + DRAG HANDLE */}
-                                    <td style={{width:56,padding:'0 6px',textAlign:'center',userSelect:'none',lineHeight:1,...bdr}}>
-                                      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
-                                        <input
-                                          type="checkbox"
-                                          checked={isSelected}
-                                          onChange={() => {}}
-                                          onClick={ev => {
-                                            ev.stopPropagation()
-                                            if (ev.shiftKey && lastClickedIdx !== null) {
-                                              const lo = Math.min(lastClickedIdx, i), hi = Math.max(lastClickedIdx, i)
-                                              const ns = new Set(selectedRows)
-                                              for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
-                                              setSelectedRows(ns)
-                                            } else {
-                                              const ns = new Set(selectedRows)
-                                              if (ns.has(eKey(e))) ns.delete(eKey(e)); else ns.add(eKey(e))
-                                              setSelectedRows(ns)
-                                              setLastClickedIdx(i)
-                                            }
-                                          }}
-                                          style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb',flexShrink:0}}
-                                        />
-                                        <span style={{color:'#d1d5db',fontSize:17,cursor:'grab'}}>⠿</span>
-                                      </div>
-                                    </td>
-                                    {/* DATE */}
-                                    <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{fmtDate(e.date)}</td>
-                                    {/* CAMION */}
-                                    <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#94a3b8',padding:'10px 12px'}}>
-                                      {e.detail || <span className="text-gray-200">—</span>}
-                                    </td>
-                                    {/* OPÉRATION */}
-                                    <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
-                                      {isPinned && <span style={{color:'#93c5fd',marginRight:5,fontSize:10}}>📌</span>}
-                                      {e.operation}
-                                    </td>
-                                    {/* TYPE BADGE */}
-                                    <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
-                                      {e.type === 'vente'
-                                        ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
-                                        : e.type === 'mdo'
-                                        ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
-                                        : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
-                                            {e.type === 'paiement' ? e.label : 'Remise'}
-                                          </span>}
-                                    </td>
-                                    {/* QTÉ */}
-                                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:400,color:'#374151',fontSize:13}}>
-                                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-200">—</span>}
-                                    </td>
-                                    {/* PRIX */}
-                                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:500,color:'#64748b',fontSize:12}}>
-                                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-200">—</span>}
-                                    </td>
-                                    {/* TOTAL */}
-                                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
-                                      {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
-                                    </td>
-                                    {/* SOLDE */}
-                                    <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
-                                      color: e.solde > 0 ? '#1e3a5f' : '#16a34a',letterSpacing:'-0.2px'}}>
-                                      {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
-                                    </td>
-                                    {/* NOTE — delivery note (prominent) */}
-                                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
-                                      color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
-                                      {noteDisplay}
-                                      {allocCount > 0 && (
-                                        <span style={{display:'inline-block',marginLeft:4,fontSize:9,background:'#2563eb',color:'#fff',padding:'1px 5px',borderRadius:8,fontWeight:700,verticalAlign:'middle',fontStyle:'normal'}}>
-                                          ⇌ {allocCount}
-                                        </span>
-                                      )}
-                                    </td>
-                                    {/* ACTIONS: pin + highlight + remise edit/delete */}
-                                    <td className="td" style={{...bdr,padding:'6px 8px',whiteSpace:'nowrap'}} onClick={ev => ev.stopPropagation()}>
-                                      <div className="flex items-center gap-1">
-                                        {/* PIN */}
-                                        <button
-                                          onClick={() => togglePin(e)}
-                                          title={isPinned ? 'Désépingler' : 'Épingler en haut'}
-                                          style={{fontSize:12,padding:'2px 3px',border:'none',background:'transparent',cursor:'pointer',
-                                            color: isPinned ? '#3b82f6' : '#d1d5db',transition:'color 0.15s',lineHeight:1}}>
-                                          📌
-                                        </button>
-                                        {/* HIGHLIGHT */}
-                                        <div className="relative">
-                                          <button
-                                            onClick={(ev) => { ev.stopPropagation(); setHlPicker(hlPicker === eKey(e) ? null : eKey(e)) }}
-                                            title="Surligner"
-                                            style={{fontSize:12,padding:'2px 3px',border:'none',background:'transparent',cursor:'pointer',
-                                              color: stmtHighlights[eKey(e)] ? '#f59e0b' : '#d1d5db',transition:'color 0.15s',lineHeight:1}}>
-                                            🎨
-                                          </button>
-                                          {hlPicker === eKey(e) && (
-                                            <div onClick={ev => ev.stopPropagation()}
-                                              className="absolute z-40 bg-white rounded-lg shadow-xl border border-gray-200 p-2 flex items-center gap-2"
-                                              style={{right:0,top:'100%',marginTop:4,minWidth:118}}>
-                                              {['yellow','green','blue','red'].map(c => (
-                                                <button key={c}
-                                                  onClick={() => applyHL(e, c)}
-                                                  title={c}
-                                                  style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${stmtHighlights[eKey(e)]===c?'#374151':'#e2e8f0'}`,
-                                                    background:HL_COLORS[c],cursor:'pointer',transition:'transform 0.1s',flexShrink:0}}
-                                                />
-                                              ))}
-                                              {stmtHighlights[eKey(e)] && (
-                                                <button onClick={() => applyHL(e, null)}
-                                                  style={{fontSize:11,color:'#94a3b8',background:'transparent',border:'none',cursor:'pointer',padding:'0 2px',fontWeight:700,lineHeight:1}}>
-                                                  ✕
-                                                </button>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                        {/* REMISE EDIT/DELETE */}
-                                        {e.src === 'remise' && (
-                                          <>
-                                            <button onClick={() => { setRemiseForm({ date: v.date, montant: String(v.montant), type_remise: v.type_remise||'Commerciale', motif: v.motif||'' }); setRemiseError(''); setRemiseModal(v) }}
-                                              className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
-                                            <button onClick={() => deleteRemise(v)}
-                                              className="btn-danger" style={{fontSize:10,padding:'2px 5px'}}>✕</button>
-                                          </>
-                                        )}
-                                        {/* AFFECTER — payments only */}
-                                        {e.src === 'paiement' && (
-                                          <button
-                                            onClick={() => openAllocModal(e)}
-                                            title="Affecter ce paiement à des livraisons"
-                                            style={{fontSize:10,padding:'2px 5px',border:'1px solid #bfdbfe',background:'#eff6ff',color:'#2563eb',borderRadius:3,cursor:'pointer',fontWeight:700,lineHeight:1,whiteSpace:'nowrap'}}>
-                                            ⇌ Affecter
-                                          </button>
-                                        )}
-                                      </div>
+                                {displayEntries.length === 0 && (
+                                  <tr>
+                                    <td colSpan={10} className="td text-center text-gray-400 py-8" style={{border:'1px solid #e2e8f0'}}>
+                                      Aucune opération pour cette période
                                     </td>
                                   </tr>
-                                  {/* FRAIS SUB-ROWS — shown when voyage_livraison_frais table exists */}
-                                  {fraisItems.map((f, fi) => (
-                                    <tr key={`frais-${fi}`} style={{background:'#fffbeb',borderBottom:'1px solid #fef3c7'}}>
-                                      <td style={{width:28,...bdr}}></td>
-                                      <td colSpan={6} style={{...bdr,padding:'4px 14px',fontSize:11,color:'#92400e',fontStyle:'italic'}}>
-                                        ↳ <span style={{fontWeight:600}}>{f.label}</span>{f.note ? ` — ${f.note}` : ''}
-                                      </td>
-                                      <td style={{...bdr,padding:'4px 12px',fontSize:12,fontWeight:700,color:'#92400e',textAlign:'right',whiteSpace:'nowrap'}}>
-                                        + {fmt(f.montant)}
-                                      </td>
-                                      <td colSpan={3} style={{...bdr}}></td>
-                                    </tr>
-                                  ))}
-                                  </Fragment>
-                                )
-                              })}
-                            </tbody>
-                            {displayEntries.length > 0 && finalEntry && (
-                              <tfoot>
-                                <tr>
-                                  <td colSpan={8} style={{padding:'11px 12px',background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:13,borderTop:'2px solid #bfdbfe'}}>
-                                    Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
-                                  </td>
-                                  <td style={{padding:'11px 14px',background:'#eff6ff',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #bfdbfe',letterSpacing:'-0.2px'}}>
-                                    {fmt(finalEntry.solde)} <span style={{fontSize:12,fontWeight:600,color:'#94a3b8'}}>DHS</span>
-                                  </td>
-                                  <td colSpan={2} style={{background:'#eff6ff',borderTop:'2px solid #bfdbfe'}}></td>
-                                </tr>
-                              </tfoot>
-                            )}
-                          </table>
-                        </div>}
+                                )}
+
+                                {displayEntries.map((e, i) => {
+                                  const isVente = e.src === 'vente'
+                                  const isPos = e.delta >= 0
+                                  const absAmt = Math.abs(e.delta)
+                                  const amtColor = isPos ? '#1d4ed8' : '#16a34a'
+                                  const v = e.raw
+                                  const typeRowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
+                                    : e.type === 'mdo' ? '#fefce8' : undefined
+                                  const rowBg = typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
+                                  const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
+                                  const noteDisplay = fraisItems.length > 0
+                                    ? (e.note || '—')
+                                    : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
+                                  return (
+                                    <Fragment key={eKey(e)}>
+                                      <tr style={{ background: rowBg }}>
+                                        {/* DATE */}
+                                        <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{fmtDate(e.date)}</td>
+                                        {/* CAMION */}
+                                        <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#94a3b8',padding:'10px 12px'}}>
+                                          {e.detail || <span className="text-gray-200">—</span>}
+                                        </td>
+                                        {/* OPÉRATION */}
+                                        <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
+                                          {e.operation}
+                                        </td>
+                                        {/* TYPE BADGE */}
+                                        <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
+                                          {e.type === 'vente'
+                                            ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
+                                            : e.type === 'mdo'
+                                            ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                                            : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                                                {e.type === 'paiement' ? e.label : 'Remise'}
+                                              </span>}
+                                        </td>
+                                        {/* QTÉ */}
+                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:400,color:'#374151',fontSize:13}}>
+                                          {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-200">—</span>}
+                                        </td>
+                                        {/* PRIX */}
+                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:500,color:'#64748b',fontSize:12}}>
+                                          {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-200">—</span>}
+                                        </td>
+                                        {/* TOTAL */}
+                                        <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
+                                          {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
+                                        </td>
+                                        {/* SOLDE */}
+                                        <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                                          color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
+                                          {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
+                                        </td>
+                                        {/* NOTE */}
+                                        <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
+                                          color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                                          {noteDisplay}
+                                        </td>
+                                        {/* ACTIONS — remise edit/delete only */}
+                                        <td className="td" style={{...bdr,padding:'6px 8px',whiteSpace:'nowrap'}} onClick={ev => ev.stopPropagation()}>
+                                          {e.src === 'remise' && (
+                                            <div className="flex items-center gap-1">
+                                              <button onClick={() => { setRemiseForm({ date: v.date, montant: String(v.montant), type_remise: v.type_remise||'Commerciale', motif: v.motif||'' }); setRemiseError(''); setRemiseModal(v) }}
+                                                className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
+                                              <button onClick={() => deleteRemise(v)}
+                                                className="btn-danger" style={{fontSize:10,padding:'2px 5px'}}>✕</button>
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                      {/* FRAIS SUB-ROWS */}
+                                      {fraisItems.map((f, fi) => (
+                                        <tr key={`frais-${fi}`} style={{background:'#fffbeb',borderBottom:'1px solid #fef3c7'}}>
+                                          <td colSpan={6} style={{...bdr,padding:'4px 14px',fontSize:11,color:'#92400e',fontStyle:'italic'}}>
+                                            ↳ <span style={{fontWeight:600}}>{f.label}</span>{f.note ? ` — ${f.note}` : ''}
+                                          </td>
+                                          <td style={{...bdr,padding:'4px 12px',fontSize:12,fontWeight:700,color:'#92400e',textAlign:'right',whiteSpace:'nowrap'}}>
+                                            + {fmt(f.montant)}
+                                          </td>
+                                          <td colSpan={3} style={{...bdr}}></td>
+                                        </tr>
+                                      ))}
+                                    </Fragment>
+                                  )
+                                })}
+                              </tbody>
+                              {displayEntries.length > 0 && finalEntry && (
+                                <tfoot>
+                                  <tr>
+                                    <td colSpan={7} style={{padding:'11px 12px',background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:13,borderTop:'2px solid #bfdbfe'}}>
+                                      Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
+                                    </td>
+                                    <td style={{padding:'11px 14px',background:'#eff6ff',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #bfdbfe',letterSpacing:'-0.2px'}}>
+                                      {fmt(finalEntry.solde)} <span style={{fontSize:12,fontWeight:600,color:'#94a3b8'}}>DHS</span>
+                                    </td>
+                                    <td colSpan={2} style={{background:'#eff6ff',borderTop:'2px solid #bfdbfe'}}></td>
+                                  </tr>
+                                </tfoot>
+                              )}
+                            </table>
+                          </div>
+                        )}
                       </div>
                     )
                   })()}
-                  {/* ── SOLDE FINAL ── */}
+
+                  {/* SOLDE FINAL */}
                   <div className="flex items-center justify-between rounded-2xl"
-                    style={{background:'#f0fdf4',border:'2px solid #86efac',padding:'20px 24px',
-                      boxShadow:'0 4px 20px rgba(134,239,172,0.25)'}}>
+                    style={{background:'#f0fdf4',border:'2px solid #86efac',padding:'20px 24px',boxShadow:'0 4px 20px rgba(134,239,172,0.25)'}}>
                     <div>
                       <div className="font-bold tracking-wide" style={{color:'#166534',fontSize:15}}>Solde actuel à payer</div>
                       <div className="mt-1" style={{color:'#4ade80',fontSize:12}}>{getFilterLabel()}</div>
@@ -1996,123 +1414,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
         </div>
       </div>
 
-      {/* ── ALLOCATION MODAL ── */}
-      {allocModal && (() => {
-        const pmtAmount = Math.abs(allocModal.delta)
-        const totalAllocated = Object.values(allocForm).reduce((s, v) => s + (parseFloat(v) || 0), 0)
-        const remaining = pmtAmount - totalAllocated
-        const overAllocated = totalAllocated > pmtAmount + 0.01
-        const deliveries = clientVentes.filter(v => !v.type_entree || v.type_entree === 'brique')
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.55)'}}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{maxHeight:'90vh'}}>
-              {/* HEADER */}
-              <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
-                <div>
-                  <h2 className="font-bold text-gray-900">⇌ Affecter le paiement</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {allocModal.label} · {fmtDate(allocModal.date)} · <strong>{fmt(pmtAmount)} DHS</strong>
-                  </p>
-                </div>
-                <button onClick={() => setAllocModal(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
-              </div>
-
-              {/* PAYMENT PROGRESS BAR */}
-              <div className="flex-shrink-0 px-5 pt-4 pb-2">
-                <div className="p-3 rounded-xl" style={{background:'#eff6ff',border:'1px solid #bfdbfe'}}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-blue-700">Paiement à affecter: {fmt(pmtAmount)} DHS</span>
-                    <span className={`text-xs font-bold ${overAllocated ? 'text-red-600' : remaining < 0.01 ? 'text-green-600' : 'text-blue-600'}`}>
-                      {overAllocated ? `⚠️ Dépassement de ${fmt(Math.abs(remaining))} DHS` : remaining < 0.01 ? '✓ Entièrement affecté' : `${fmt(remaining)} DHS disponible`}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full" style={{background:'#bfdbfe'}}>
-                    <div className="h-2 rounded-full transition-all duration-200" style={{
-                      background: overAllocated ? '#dc2626' : '#2563eb',
-                      width: `${Math.min(100, (totalAllocated / pmtAmount) * 100)}%`,
-                    }}></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* DELIVERIES LIST */}
-              <div className="flex-1 overflow-y-auto px-5 pb-2">
-                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Livraisons à solder</div>
-                {deliveries.length === 0 ? (
-                  <div className="text-center text-gray-400 py-6 text-sm italic">Aucune livraison pour ce client</div>
-                ) : (
-                  <div className="space-y-2">
-                    {deliveries.map(v => {
-                      const otherSettled = clientAllocations
-                        .filter(a => a.paiement_id !== allocModal.raw?.id && a.vente_id === v.id)
-                        .reduce((s, a) => s + (a.montant || 0), 0)
-                      const maxAvail = Math.max(0, (v.total_vente || 0) - otherSettled)
-                      const currentVal = allocForm[v.id] !== undefined ? allocForm[v.id] : ''
-                      const isActive = !!(currentVal && parseFloat(currentVal) > 0)
-                      return (
-                        <div key={v.id} className="flex items-center gap-3 p-3 rounded-xl border transition-colors"
-                          style={{borderColor: isActive ? '#bbf7d0' : '#e2e8f0', background: isActive ? '#f0fdf4' : '#f9fafb'}}>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-bold text-gray-500">{fmtDate(v.date)}</span>
-                              <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'1px 6px',borderRadius:3,border:'1px solid #bfdbfe'}}>
-                                {v.type_brique}
-                              </span>
-                              {v.camion_plaque && <span className="text-xs text-gray-400">{v.camion_plaque}</span>}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
-                              <span>Total: <strong>{fmt(v.total_vente || 0)} DHS</strong></span>
-                              {otherSettled > 0 && <span className="text-green-600">Déjà réglé: {fmt(otherSettled)} DHS</span>}
-                              <span className="text-blue-600">Restant max: {fmt(maxAvail)} DHS</span>
-                            </div>
-                          </div>
-                          <div style={{flexShrink:0,width:120}}>
-                            <input
-                              type="number" min="0" max={maxAvail} step="0.01"
-                              className="input text-right"
-                              style={{fontSize:13,fontWeight:700,padding:'5px 8px',borderColor: isActive ? '#bbf7d0' : undefined}}
-                              placeholder="0"
-                              value={currentVal}
-                              onChange={ev => {
-                                const val = ev.target.value
-                                const updated = {...allocForm}
-                                if (val === '' || parseFloat(val) === 0) delete updated[v.id]
-                                else updated[v.id] = val
-                                setAllocForm(updated)
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* FOOTER */}
-              <div className="flex-shrink-0 p-5 border-t border-gray-100">
-                {overAllocated && (
-                  <div className="mb-3 p-2 rounded-lg text-xs font-semibold" style={{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca'}}>
-                    ⚠️ Le total affecté ({fmt(totalAllocated)} DHS) dépasse le montant du paiement ({fmt(pmtAmount)} DHS)
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={saveAllocation}
-                    disabled={allocSaving || overAllocated || Object.keys(allocForm).length === 0}
-                    className="btn-primary flex-1 justify-center"
-                    style={{background:'#2563eb',opacity:(allocSaving || overAllocated || Object.keys(allocForm).length === 0)?0.6:1}}>
-                    {allocSaving ? 'Enregistrement...' : `✓ Enregistrer — ${fmt(totalAllocated)} DHS affectés`}
-                  </button>
-                  <button onClick={() => setAllocModal(null)} className="btn-secondary">Annuler</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* ── REMISE MODAL ── */}
+      {/* REMISE MODAL */}
       {remiseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -2133,26 +1435,20 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                 <div>
                   <label className="label">Montant (DHS)</label>
                   <input type="number" inputMode="decimal" className="input" placeholder="ex: 2500" step="0.01" min="0"
-                    value={remiseForm.montant}
-                    onChange={e => setRemiseForm({...remiseForm, montant: e.target.value})}
+                    value={remiseForm.montant} onChange={e => setRemiseForm({...remiseForm, montant: e.target.value})}
                     required autoFocus />
                 </div>
               </div>
               <div>
                 <label className="label">Type de remise</label>
-                <select className="input" value={remiseForm.type_remise}
-                  onChange={e => setRemiseForm({...remiseForm, type_remise: e.target.value})}>
-                  <option>Commerciale</option>
-                  <option>Fidélité</option>
-                  <option>Correction</option>
-                  <option>Autre</option>
+                <select className="input" value={remiseForm.type_remise} onChange={e => setRemiseForm({...remiseForm, type_remise: e.target.value})}>
+                  <option>Commerciale</option><option>Fidélité</option><option>Correction</option><option>Autre</option>
                 </select>
               </div>
               <div>
                 <label className="label">Motif</label>
                 <input type="text" className="input" placeholder="ex: Remise fin de mois mai 2026"
-                  value={remiseForm.motif}
-                  onChange={e => setRemiseForm({...remiseForm, motif: e.target.value})} />
+                  value={remiseForm.motif} onChange={e => setRemiseForm({...remiseForm, motif: e.target.value})} />
               </div>
               {remiseForm.montant && (
                 <div className="p-3 rounded-xl text-sm" style={{background:'#faf5ff', border:'1px solid #e9d5ff'}}>
@@ -2181,8 +1477,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                 </div>
               )}
               <div className="flex gap-2 pt-1">
-                <button type="submit" disabled={remiseSaving}
-                  className="btn-primary flex-1 justify-center" style={{background:'#7c3aed'}}>
+                <button type="submit" disabled={remiseSaving} className="btn-primary flex-1 justify-center" style={{background:'#7c3aed'}}>
                   {remiseSaving ? 'Enregistrement...' : '✓ Enregistrer'}
                 </button>
                 <button type="button" onClick={() => { setRemiseModal(null); setRemiseError('') }} className="btn-secondary">Annuler</button>
@@ -2192,7 +1487,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
         </div>
       )}
 
-      {/* ── EDIT CLIENT MODAL ── */}
+      {/* EDIT CLIENT MODAL */}
       {editClientModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -2207,25 +1502,21 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
               <div>
                 <label className="label">Nom complet</label>
                 <input type="text" className="input" placeholder="Nom du client" required autoFocus
-                  value={editClientForm.nom}
-                  onChange={e => setEditClientForm({...editClientForm, nom: e.target.value})} />
+                  value={editClientForm.nom} onChange={e => setEditClientForm({...editClientForm, nom: e.target.value})} />
               </div>
               <div>
                 <label className="label">Dépôt</label>
-                <select className="input" value={editClientForm.depot}
-                  onChange={e => setEditClientForm({...editClientForm, depot: e.target.value})}>
+                <select className="input" value={editClientForm.depot} onChange={e => setEditClientForm({...editClientForm, depot: e.target.value})}>
                   {getAllDepots().map(d => <option key={d}>{d}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Téléphone</label>
                 <input type="text" className="input" placeholder="06 ..."
-                  value={editClientForm.tel}
-                  onChange={e => setEditClientForm({...editClientForm, tel: e.target.value})} />
+                  value={editClientForm.tel} onChange={e => setEditClientForm({...editClientForm, tel: e.target.value})} />
               </div>
               <div className="flex gap-2 pt-1">
-                <button type="submit" disabled={editClientSaving}
-                  className="btn-primary flex-1 justify-center">
+                <button type="submit" disabled={editClientSaving} className="btn-primary flex-1 justify-center">
                   {editClientSaving ? 'Enregistrement...' : '✓ Enregistrer'}
                 </button>
                 <button type="button" onClick={() => setEditClientModal(null)} className="btn-secondary">Annuler</button>
@@ -2235,10 +1526,9 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
         </div>
       )}
 
-      {/* ── SOLDE REPORTÉ MODAL ── */}
+      {/* OPENING BALANCE MODAL */}
       {openingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{background:'rgba(0,0,0,0.5)'}}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
               <div>
@@ -2251,24 +1541,20 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
               <div>
                 <label className="label">Montant (DHS)</label>
                 <input type="text" inputMode="decimal" className="input" placeholder="ex: 45000"
-                  value={openingForm.montant}
-                  onChange={e => setOpeningForm({...openingForm, montant: e.target.value})}
+                  value={openingForm.montant} onChange={e => setOpeningForm({...openingForm, montant: e.target.value})}
                   required autoFocus />
-                <p className="text-xs text-gray-400 mt-1">Le total dû par ce client avant cette app</p>
+                <p className="text-xs text-gray-400 mt-1">Le total dû avant cette app</p>
               </div>
               <div>
                 <label className="label">Date de référence</label>
-                <input type="date" className="input"
-                  value={openingForm.date}
+                <input type="date" className="input" value={openingForm.date}
                   onChange={e => setOpeningForm({...openingForm, date: e.target.value})} />
-                <p className="text-xs text-gray-400 mt-1">ex: 30/04/2026 — s'affichera comme « Solde au avril 2026 »</p>
+                <p className="text-xs text-gray-400 mt-1">ex: 30/04/2026 — « Solde au avril 2026 »</p>
               </div>
               <div>
                 <label className="label">Note / Origine</label>
-                <input type="text" className="input"
-                  placeholder="ex: Solde Excel avril 2026, Factures Q1..."
-                  value={openingForm.note}
-                  onChange={e => setOpeningForm({...openingForm, note: e.target.value})} />
+                <input type="text" className="input" placeholder="ex: Solde Excel avril 2026"
+                  value={openingForm.note} onChange={e => setOpeningForm({...openingForm, note: e.target.value})} />
               </div>
               {openingForm.montant && (
                 <div className="p-3 rounded-xl text-sm" style={{background:'#fffbeb', border:'1px solid #fde68a'}}>
@@ -2280,8 +1566,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                 </div>
               )}
               <div className="flex gap-2 pt-1">
-                <button type="submit" disabled={openingSaving}
-                  className="btn-primary flex-1 justify-center" style={{background:'#92400e'}}>
+                <button type="submit" disabled={openingSaving} className="btn-primary flex-1 justify-center" style={{background:'#92400e'}}>
                   {openingSaving ? 'Enregistrement...' : '✓ Enregistrer'}
                 </button>
                 <button type="button" onClick={() => setOpeningModal(null)} className="btn-secondary">Annuler</button>
