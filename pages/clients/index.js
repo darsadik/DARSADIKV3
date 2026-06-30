@@ -63,6 +63,12 @@ export default function Clients() {
   const [allocModal, setAllocModal] = useState(null)             // null | ledger payment entry
   const [allocForm, setAllocForm] = useState({})                 // { [vente_id]: amount_string }
   const [allocSaving, setAllocSaving] = useState(false)
+  // Settlement workflow
+  const [sgSelectedDeliveries, setSgSelectedDeliveries] = useState(new Set()) // vente_ids selected
+  const [sgSelectedPayment, setSgSelectedPayment] = useState(null)            // paiement_id selected
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set())           // vente_ids collapsed
+  const [dismissedSuggestions, setDismissedSuggestions] = useState(new Set()) // paiement_ids ignored
+  const [suggestionSaving, setSuggestionSaving] = useState(false)
 
   // DATE FILTER STATE
   const [filterType, setFilterType] = useState('all')
@@ -86,6 +92,10 @@ export default function Clients() {
     setLastClickedIdx(null)
     setStmtHistory([])
     setStmtMode('chrono')
+    setSgSelectedDeliveries(new Set())
+    setSgSelectedPayment(null)
+    setCollapsedGroups(new Set())
+    setDismissedSuggestions(new Set())
   }, [selected?.id])
 
   function saveStmt(o, h, p) {
@@ -401,6 +411,7 @@ export default function Clients() {
 
   // ---- PRINT ----
   function printClient() {
+    if (stmtMode === 'reglement') { printSettlementClient(); return }
     const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
     const totalPaiements = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
     const totalRemises = filteredRemises.reduce((s, r) => s + (r.montant || 0), 0)
@@ -599,6 +610,145 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
 </div></body></html>`)
   }
 
+  function printSettlementClient() {
+    const _now = new Date()
+    const date = _now.toLocaleDateString('fr-MA', { day:'2-digit', month:'2-digit', year:'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+    const sg = buildSettlementGroups()
+    const totalLivraisons = sg.groups.reduce((s, g) => s + (g.vente.total_vente || 0), 0)
+    const totalSettled   = sg.groups.reduce((s, g) => s + g.settled, 0)
+    const totalRemaining = sg.groups.reduce((s, g) => s + Math.max(0, g.remaining), 0)
+
+    function statusLabel(g) {
+      if (g.remaining <= 0.01) return `<span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid #bbf7d0">🟢 Réglée</span>`
+      if (g.settled > 0) return `<span style="background:#ffedd5;color:#c2410c;font-weight:700;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid #fed7aa">🟠 Part. réglée</span>`
+      return `<span style="background:#fee2e2;color:#dc2626;font-weight:700;font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid #fecaca">🔴 Non réglée</span>`
+    }
+
+    const rowsHtml = sg.groups.map(g => {
+      const v = g.vente
+      const isFullySettled = g.remaining <= 0.01
+      const rowBg = isFullySettled ? '#f0fdf4' : g.settled > 0 ? '#fffbeb' : '#eff6ff'
+      const paySubRows = g.allocs.map(a => {
+        const p = clientPaiements.find(p2 => p2.id === a.paiement_id)
+        if (!p) return ''
+        return `<tr style="background:#f0fdf4">
+          <td style="padding:4px 12px 4px 28px;font-size:11px;color:#64748b;white-space:nowrap;border-bottom:1px solid #e8f5e9">↳ ${fmtDate(p.date)}</td>
+          <td style="padding:4px 12px;font-size:11px;color:#94a3b8;border-bottom:1px solid #e8f5e9">${p.camion_plaque || '—'}</td>
+          <td style="padding:4px 12px;border-bottom:1px solid #e8f5e9"><span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #bbf7d0">${p.mode||'Paiement'}</span></td>
+          <td style="padding:4px 12px;text-align:right;color:#94a3b8;font-size:11px;border-bottom:1px solid #e8f5e9">—</td>
+          <td style="padding:4px 12px;text-align:right;font-size:12px;font-weight:700;color:#16a34a;border-bottom:1px solid #e8f5e9">− ${fmt(a.montant)}</td>
+          <td style="padding:4px 12px;text-align:right;color:#94a3b8;font-size:11px;border-bottom:1px solid #e8f5e9">—</td>
+          <td style="padding:4px 12px;font-size:11px;color:#94a3b8;border-bottom:1px solid #e8f5e9">${p.note || '—'}</td>
+        </tr>`
+      }).join('')
+      return `<tr style="background:${rowBg}">
+        <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0">${fmtDate(v.date)}</td>
+        <td style="padding:9px 12px;font-size:12px;color:#94a3b8;border-bottom:1px solid #e2e8f0">${v.camion_plaque || '—'}</td>
+        <td style="padding:9px 12px;border-bottom:1px solid #e2e8f0">${statusLabel(g)}&nbsp;<span style="background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid #bfdbfe">${v.type_brique||'Livraison'}</span></td>
+        <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:#1d4ed8;border-bottom:1px solid #e2e8f0">+ ${fmt(v.total_vente||0)}</td>
+        <td style="padding:9px 12px;text-align:right;font-size:12px;font-weight:700;color:#16a34a;border-bottom:1px solid #e2e8f0">${g.settled > 0 ? '− ' + fmt(g.settled) : '<span style="color:#d1d5db">—</span>'}</td>
+        <td style="padding:9px 14px;text-align:right;font-size:13px;font-weight:900;color:${isFullySettled?'#16a34a':'#dc2626'};border-bottom:1px solid #e2e8f0">${isFullySettled ? '✓ Soldé' : fmt(g.remaining)}</td>
+        <td style="padding:9px 12px;font-size:11px;color:#94a3b8;border-bottom:1px solid #e2e8f0">${v.note || '—'}</td>
+      </tr>${paySubRows}`
+    }).join('')
+
+    const unallocHtml = sg.unallocatedPmts.length > 0 ? `
+      <tr><td colspan="7" style="padding:6px 12px;font-size:10.5px;font-weight:700;color:#92400e;background:#fffbeb;border-top:2px dashed #fde68a">
+        Paiements non affectés — ${sg.unallocatedPmts.length}
+      </td></tr>
+      ${sg.unallocatedPmts.map(p => `<tr style="background:#fffbeb">
+        <td style="padding:8px 12px;font-size:12px;color:#64748b;white-space:nowrap;border-bottom:1px solid #fde68a">${fmtDate(p.date)}</td>
+        <td style="padding:8px 12px;font-size:12px;color:#94a3b8;border-bottom:1px solid #fde68a">${p.camion_plaque||'—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #fde68a"><span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid #bbf7d0">${p.mode||'Paiement'}</span></td>
+        <td style="padding:8px 12px;text-align:right;color:#94a3b8;font-size:11px;border-bottom:1px solid #fde68a">—</td>
+        <td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:700;color:#16a34a;border-bottom:1px solid #fde68a">− ${fmt(p.montant)}</td>
+        <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #fde68a"><span style="background:#fef9c3;color:#92400e;font-weight:700;font-size:10px;padding:2px 6px;border-radius:20px;border:1px solid #fde68a">Non affecté</span></td>
+        <td style="padding:8px 12px;font-size:11px;color:#94a3b8;border-bottom:1px solid #fde68a">${p.note||'—'}</td>
+      </tr>`).join('')}` : ''
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Relevé Règlement — ${selected.nom}</title>
+<style>
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #166534}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
+  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  .co-r{text-align:right;flex-shrink:0;font-size:11px;color:#1e3a5f;line-height:1.85}
+  .mode-badge{display:inline-block;background:#dcfce7;color:#166534;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #bbf7d0;margin-bottom:10px}
+  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
+  .cli-card{display:flex;align-items:center;gap:18px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-left:5px solid #166534;border-radius:10px;padding:14px 22px}
+  .cli-avatar{width:52px;height:52px;border-radius:50%;background:#166534;color:#fff;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cli-name{font-size:24px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px}
+  .cli-meta{font-size:12px;color:#374151;margin-top:6px;line-height:1.8}
+  .bdy{padding:10px 24px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#166534 !important;color:#fff !important;padding:9px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
+  thead th.r{text-align:right}
+  .summary{display:flex;justify-content:space-between;gap:16px;margin-top:14px;padding:14px 16px;background:#f0fdf4;border:2px solid #86efac;border-radius:12px}
+  .s-blk{text-align:center}
+  .s-lbl{font-size:10px;font-weight:700;color:#4ade80;text-transform:uppercase;letter-spacing:0.05em}
+  .s-val{font-size:20px;font-weight:900;color:#166534;line-height:1.2;margin-top:2px}
+  .foot{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#64748b}
+  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
+  @media print{.btn-p{display:none !important}}
+  @page{size:A4;margin:7mm 10mm}
+</style>
+</head><body>
+<div class="hdr">
+  <div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
+    </div>
+    <div class="co-addr">Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+    <strong>Bureau</strong> 06 62 82 88 20<br>
+    <span style="color:#2563eb">Dar.sadik@hotmail.com</span><br>
+    <div style="margin-top:5px"><div class="mode-badge">⇌ Relevé de Règlement</div></div>
+    <div style="font-size:9.5px;color:#94a3b8">Généré le ${date}</div>
+    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
+  </div>
+</div>
+<div class="cli-section">
+  <div class="cli-card">
+    <div class="cli-avatar">${selected.nom.charAt(0).toUpperCase()}</div>
+    <div>
+      <div class="cli-name">${selected.nom}</div>
+      <div class="cli-meta"><strong>Dépôt:</strong> ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; <strong>Tél:</strong> '+selected.tel:''} &nbsp;·&nbsp; <strong>Période:</strong> ${getFilterLabel()}</div>
+    </div>
+  </div>
+</div>
+<div class="bdy">
+<table>
+  <thead><tr>
+    <th>Date livraison</th><th>Camion</th><th>Statut / Type</th>
+    <th class="r">Montant</th><th class="r">Réglé</th><th class="r">Restant</th><th>Note</th>
+  </tr></thead>
+  <tbody>${rowsHtml}${unallocHtml}</tbody>
+  <tfoot><tr style="background:#f0fdf4">
+    <td colspan="3" style="padding:10px 12px;font-weight:700;font-size:13px;color:#166534;border-top:2px solid #86efac">
+      Bilan — ${sg.groups.length} livraison${sg.groups.length!==1?'s':''}
+    </td>
+    <td style="padding:10px 12px;text-align:right;font-weight:700;color:#1d4ed8;border-top:2px solid #86efac">+ ${fmt(totalLivraisons)} DHS</td>
+    <td style="padding:10px 12px;text-align:right;font-weight:700;color:#16a34a;border-top:2px solid #86efac">− ${fmt(totalSettled)} DHS</td>
+    <td style="padding:10px 14px;text-align:right;font-size:16px;font-weight:900;color:${totalRemaining>0?'#dc2626':'#16a34a'};border-top:2px solid #86efac">${fmt(totalRemaining)} DHS</td>
+    <td style="border-top:2px solid #86efac"></td>
+  </tr></tfoot>
+</table>
+<div class="summary">
+  <div class="s-blk"><div class="s-lbl">Total livraisons</div><div class="s-val" style="color:#1d4ed8">+ ${fmt(totalLivraisons)} DHS</div></div>
+  <div class="s-blk"><div class="s-lbl">Total réglé</div><div class="s-val" style="color:#16a34a">− ${fmt(totalSettled)} DHS</div></div>
+  <div class="s-blk"><div class="s-lbl">Restant à payer</div><div class="s-val" style="color:${totalRemaining>0?'#dc2626':'#16a34a'}">${fmt(totalRemaining)} DHS</div></div>
+  <div class="s-blk"><div class="s-lbl">Livraisons réglées</div><div class="s-val" style="color:#166534">${sg.groups.filter(g=>g.remaining<=0.01).length} / ${sg.groups.length}</div></div>
+</div>
+<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Relevé de Règlement — Généré le ${date}</span></div>
+</div></body></html>`)
+  }
+
   // ---- EXPORT CSV ----
   function exportClientExcel() {
     const totalVentes = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
@@ -624,6 +774,37 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  // ── AUTO-SUGGESTIONS: find unallocated payments that exactly match prior unsettled deliveries ──
+  const autoSuggestions = (() => {
+    if (!selected || loadingDetail || !clientAllocations) return []
+    const allocByVente = {}
+    const allocatedPmtIds = new Set()
+    clientAllocations.forEach(a => {
+      if (!allocByVente[a.vente_id]) allocByVente[a.vente_id] = []
+      allocByVente[a.vente_id].push(a)
+      allocatedPmtIds.add(a.paiement_id)
+    })
+    const unallocPmts = clientPaiements.filter(p => !allocatedPmtIds.has(p.id) && !dismissedSuggestions.has(p.id))
+    const suggestions = []
+    unallocPmts.forEach(p => {
+      const priorDeliveries = clientVentes.filter(v => {
+        if (v.type_entree && v.type_entree !== 'brique') return false
+        if (v.date >= p.date) return false
+        const settled = (allocByVente[v.id] || []).reduce((s, a) => s + (a.montant || 0), 0)
+        return (v.total_vente || 0) - settled > 0.01
+      })
+      if (!priorDeliveries.length) return
+      const priorRemaining = priorDeliveries.reduce((s, v) => {
+        const settled = (allocByVente[v.id] || []).reduce((s2, a) => s2 + (a.montant || 0), 0)
+        return s + Math.max(0, (v.total_vente || 0) - settled)
+      }, 0)
+      if (Math.abs(priorRemaining - (p.montant || 0)) < 2 && priorDeliveries.length > 0) {
+        suggestions.push({ paiement: p, deliveries: priorDeliveries, total: priorRemaining })
+      }
+    })
+    return suggestions
+  })()
 
   const filtered = clients.filter(c => !search || (c.nom + c.depot).toLowerCase().includes(search.toLowerCase()))
   const totalCreances = filtered.reduce((s, c) => s + (c.solde || 0), 0)
@@ -806,6 +987,73 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     setClientAllocations(clientAllocations.filter(a => a.id !== allocId))
   }
 
+  async function reloadAllocations() {
+    const pIds = clientPaiements.map(p => p.id)
+    if (!pIds.length) return
+    const { data: allocs } = await supabase.from('paiement_allocations').select('*').in('paiement_id', pIds)
+    setClientAllocations(allocs || [])
+  }
+
+  async function associerSelection() {
+    if (!sgSelectedPayment || sgSelectedDeliveries.size === 0 || !selected) return
+    setSuggestionSaving(true)
+    const p = clientPaiements.find(p2 => p2.id === sgSelectedPayment)
+    if (!p) { setSuggestionSaving(false); return }
+
+    let remaining = p.montant || 0
+    const toInsert = []
+    // FIFO: distribute payment across selected deliveries sorted by date
+    const deliveries = [...sgSelectedDeliveries]
+      .map(id => clientVentes.find(v => v.id === id))
+      .filter(Boolean)
+      .sort((a, b) => (a.date < b.date ? -1 : 1))
+
+    for (const v of deliveries) {
+      if (remaining <= 0.01) break
+      const otherSettled = clientAllocations
+        .filter(a => a.paiement_id !== p.id && a.vente_id === v.id)
+        .reduce((s, a) => s + (a.montant || 0), 0)
+      const maxAvail = Math.max(0, (v.total_vente || 0) - otherSettled)
+      const toAllocate = Math.min(remaining, maxAvail)
+      if (toAllocate > 0.01) {
+        toInsert.push({ client_id: selected.id, paiement_id: p.id, vente_id: v.id, montant: Math.round(toAllocate * 100) / 100 })
+        remaining -= toAllocate
+      }
+    }
+
+    await supabase.from('paiement_allocations').delete().eq('paiement_id', p.id)
+    if (toInsert.length) await supabase.from('paiement_allocations').insert(toInsert)
+    await reloadAllocations()
+    setSgSelectedDeliveries(new Set())
+    setSgSelectedPayment(null)
+    setSuggestionSaving(false)
+  }
+
+  async function acceptSuggestion(suggestion) {
+    setSuggestionSaving(true)
+    const p = suggestion.paiement
+    let remaining = p.montant || 0
+    const toInsert = []
+    const sorted = [...suggestion.deliveries].sort((a, b) => (a.date < b.date ? -1 : 1))
+    for (const v of sorted) {
+      if (remaining <= 0.01) break
+      const otherSettled = clientAllocations
+        .filter(a => a.paiement_id !== p.id && a.vente_id === v.id)
+        .reduce((s, a) => s + (a.montant || 0), 0)
+      const maxAvail = Math.max(0, (v.total_vente || 0) - otherSettled)
+      const toAllocate = Math.min(remaining, maxAvail)
+      if (toAllocate > 0.01) {
+        toInsert.push({ client_id: selected.id, paiement_id: p.id, vente_id: v.id, montant: Math.round(toAllocate * 100) / 100 })
+        remaining -= toAllocate
+      }
+    }
+    await supabase.from('paiement_allocations').delete().eq('paiement_id', p.id)
+    if (toInsert.length) await supabase.from('paiement_allocations').insert(toInsert)
+    await reloadAllocations()
+    setDismissedSuggestions(ds => new Set([...ds, p.id]))
+    setSuggestionSaving(false)
+  }
+
   async function reloadRemises() {
     const { data } = await supabase.from('remises').select('*').eq('client_id', selected.id).order('date', { ascending: true })
     setClientRemises(data || [])
@@ -894,143 +1142,236 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     const totalSettled   = sg.groups.reduce((s, g) => s + g.settled, 0)
     const totalRemaining = sg.groups.reduce((s, g) => s + Math.max(0, g.remaining), 0)
 
+    function statusBadge(g) {
+      if (g.remaining <= 0.01) return <span style={{display:'inline-flex',alignItems:'center',gap:3,background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'3px 8px',borderRadius:20,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>🟢 Réglée</span>
+      if (g.settled > 0) return <span style={{display:'inline-flex',alignItems:'center',gap:3,background:'#ffedd5',color:'#c2410c',fontWeight:700,fontSize:10,padding:'3px 8px',borderRadius:20,border:'1px solid #fed7aa',whiteSpace:'nowrap'}}>🟠 Part. réglée</span>
+      return <span style={{display:'inline-flex',alignItems:'center',gap:3,background:'#fee2e2',color:'#dc2626',fontWeight:700,fontSize:10,padding:'3px 8px',borderRadius:20,border:'1px solid #fecaca',whiteSpace:'nowrap'}}>🔴 Non réglée</span>
+    }
+
+    const selPayment = sgSelectedPayment ? clientPaiements.find(p => p.id === sgSelectedPayment) : null
+    const canAssocier = sgSelectedDeliveries.size > 0 && sgSelectedPayment !== null
+
     if (sg.groups.length === 0 && sg.unallocatedPmts.length === 0) {
-      return (
-        <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
-          Aucune opération pour cette période
-        </div>
-      )
+      return <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>Aucune opération pour cette période</div>
     }
 
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              {[
-                { l: 'Date', r: false }, { l: 'Camion', r: false }, { l: 'Produit / Mode', r: false },
-                { l: 'Montant', r: true }, { l: 'Réglé', r: true }, { l: 'Restant', r: true },
-                { l: 'Note', r: false }, { l: '', r: false },
-              ].map((col, i) => (
-                <th key={i} style={{ ...thS2, textAlign: col.r ? 'right' : 'left' }}>{col.l}</th>
+      <div>
+        {/* ── AUTO-SUGGESTIONS BANNER ── */}
+        {autoSuggestions.length > 0 && (
+          <div style={{margin:'12px 16px 0',borderRadius:10,border:'1px solid #a5b4fc',background:'#eef2ff',padding:'10px 14px'}}>
+            <div style={{fontSize:10.5,fontWeight:700,color:'#4338ca',marginBottom:7,letterSpacing:'0.05em'}}>
+              💡 CORRESPONDANCES AUTOMATIQUES
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {autoSuggestions.map((s, si) => (
+                <div key={si} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'#fff',borderRadius:8,padding:'8px 10px',border:'1px solid #c7d2fe'}}>
+                  <div style={{flex:1,minWidth:0,fontSize:12,color:'#3730a3'}}>
+                    Paiement <strong>{fmt(s.paiement.montant)} DHS</strong>
+                    <span style={{color:'#818cf8',margin:'0 5px'}}>·</span>
+                    {fmtDate(s.paiement.date)} · {s.paiement.mode}
+                    <span style={{display:'inline-block',margin:'0 6px',color:'#818cf8'}}>→</span>
+                    <strong>{s.deliveries.length}</strong> livraison{s.deliveries.length>1?'s':''} antérieure{s.deliveries.length>1?'s':''} non réglées
+                    <span style={{color:'#818cf8',margin:'0 5px'}}>·</span>
+                    <strong>{fmt(s.total)} DHS</strong>
+                  </div>
+                  <div style={{display:'flex',gap:6,flexShrink:0}}>
+                    <button onClick={() => acceptSuggestion(s)} disabled={suggestionSaving}
+                      style={{fontSize:11,fontWeight:700,padding:'4px 12px',borderRadius:6,border:'none',background:'#4f46e5',color:'#fff',cursor:'pointer'}}>
+                      ✓ Accepter
+                    </button>
+                    <button onClick={() => setDismissedSuggestions(ds => new Set([...ds, s.paiement.id]))}
+                      style={{fontSize:11,fontWeight:600,padding:'4px 8px',borderRadius:6,border:'1px solid #c7d2fe',background:'transparent',color:'#6366f1',cursor:'pointer'}}>
+                      Ignorer
+                    </button>
+                  </div>
+                </div>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sg.groups.map((g, gi) => {
-              const v = g.vente
-              const isFullySettled = g.remaining <= 0.01
-              const isPartial = g.settled > 0 && !isFullySettled
-              const rowBg = isFullySettled ? '#f0fdf4' : isPartial ? '#fffbeb' : '#eff6ff'
-              const statusIcon = isFullySettled ? '✓' : isPartial ? '◐' : '○'
-              const statusColor = isFullySettled ? '#16a34a' : isPartial ? '#d97706' : '#1d4ed8'
-              return (
-                <Fragment key={`sg-${gi}`}>
-                  <tr style={{ background: rowBg }}>
-                    <td style={{ ...bdr2, padding: '10px 12px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDate(v.date)}</td>
-                    <td style={{ ...bdr2, padding: '10px 12px', fontSize: 12, color: '#94a3b8' }}>{v.camion_plaque || '—'}</td>
-                    <td style={{ ...bdr2, padding: '10px 12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: statusColor, fontWeight: 700, fontSize: 14 }}>{statusIcon}</span>
-                        <span style={{ background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid #bfdbfe' }}>
-                          {v.type_brique || 'Livraison'}
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{ ...bdr2, padding: '10px 12px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1d4ed8' }}>
-                      + {fmt(v.total_vente || 0)}
-                    </td>
-                    <td style={{ ...bdr2, padding: '10px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
-                      {g.settled > 0 ? `− ${fmt(g.settled)}` : <span style={{ color: '#d1d5db' }}>—</span>}
-                    </td>
-                    <td style={{ ...bdr2, padding: '10px 14px', textAlign: 'right', fontSize: 14, fontWeight: 900, color: isFullySettled ? '#16a34a' : '#dc2626' }}>
-                      {isFullySettled ? '✓ Soldé' : fmt(g.remaining)}
-                    </td>
-                    <td style={{ ...bdr2, padding: '10px 12px', fontSize: 11, color: '#94a3b8', maxWidth: 140, wordBreak: 'break-word' }}>{v.note || '—'}</td>
-                    <td style={{ ...bdr2, padding: '6px 8px' }}></td>
-                  </tr>
-                  {g.allocs.map((a, ai) => {
-                    const p = clientPaiements.find(p2 => p2.id === a.paiement_id)
-                    if (!p) return null
-                    return (
-                      <tr key={`alloc-${ai}`} style={{ background: '#f0fdf4' }}>
-                        <td style={{ ...bdr2, padding: '5px 12px', fontSize: 11, color: '#64748b', paddingLeft: 28, whiteSpace: 'nowrap' }}>
-                          ↳ {fmtDate(p.date)}
-                        </td>
-                        <td style={{ ...bdr2, padding: '5px 12px', fontSize: 11, color: '#94a3b8' }}>{p.camion_plaque || '—'}</td>
-                        <td style={{ ...bdr2, padding: '5px 12px' }}>
-                          <span style={{ background: '#dcfce7', color: '#15803d', fontWeight: 700, fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid #bbf7d0' }}>
-                            {p.mode || 'Paiement'}
+            </div>
+          </div>
+        )}
+
+        {/* ── SELECTION ACTION BAR ── */}
+        {(sgSelectedDeliveries.size > 0 || sgSelectedPayment) && (
+          <div style={{margin:'10px 16px 0',borderRadius:10,border:'2px solid #2563eb',background:'#eff6ff',padding:'10px 14px',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+            <div style={{flex:1,minWidth:0,fontSize:12,color:'#1d4ed8',fontWeight:600,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              {sgSelectedDeliveries.size > 0 && (
+                <span style={{background:'#dbeafe',padding:'3px 8px',borderRadius:12,fontWeight:700,fontSize:11}}>
+                  {sgSelectedDeliveries.size} livraison{sgSelectedDeliveries.size>1?'s':''} ✓
+                </span>
+              )}
+              {sgSelectedDeliveries.size > 0 && sgSelectedPayment && <span style={{color:'#93c5fd',fontSize:16}}>+</span>}
+              {selPayment && (
+                <span style={{background:'#dcfce7',color:'#15803d',padding:'3px 8px',borderRadius:12,fontWeight:700,fontSize:11}}>
+                  Paiement {fmt(selPayment.montant)} DHS ({fmtDate(selPayment.date)}) ✓
+                </span>
+              )}
+              {!canAssocier && (
+                <span style={{color:'#93c5fd',fontSize:11,fontStyle:'italic'}}>
+                  {sgSelectedDeliveries.size === 0 ? 'Sélectionnez des livraisons ↑' : 'Sélectionnez un paiement ↓'}
+                </span>
+              )}
+            </div>
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              {canAssocier && (
+                <button onClick={associerSelection} disabled={suggestionSaving}
+                  style={{fontSize:12,fontWeight:700,padding:'6px 16px',borderRadius:7,border:'none',background:'#2563eb',color:'#fff',cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)'}}>
+                  {suggestionSaving ? '...' : '⇌ Associer'}
+                </button>
+              )}
+              <button onClick={() => { setSgSelectedDeliveries(new Set()); setSgSelectedPayment(null) }}
+                style={{fontSize:11,fontWeight:600,padding:'6px 10px',borderRadius:7,border:'1px solid #bfdbfe',background:'transparent',color:'#64748b',cursor:'pointer'}}>
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── SETTLEMENT TABLE ── */}
+        <div className="overflow-x-auto" style={{marginTop:8}}>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th style={{...thS2,width:36,padding:'9px 6px',textAlign:'center'}}>
+                  <input type="checkbox"
+                    checked={sg.groups.length > 0 && sg.groups.every(g => sgSelectedDeliveries.has(g.vente.id))}
+                    onChange={ev => setSgSelectedDeliveries(ev.target.checked ? new Set(sg.groups.map(g => g.vente.id)) : new Set())}
+                    style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb'}} />
+                </th>
+                {[
+                  {l:'Date',r:false},{l:'Camion',r:false},{l:'Statut / Type',r:false},
+                  {l:'Montant',r:true},{l:'Réglé',r:true},{l:'Restant',r:true},
+                  {l:'Note',r:false},{l:'',r:false},
+                ].map((col, i) => (
+                  <th key={i} style={{...thS2, textAlign: col.r ? 'right' : 'left'}}>{col.l}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sg.groups.map((g, gi) => {
+                const v = g.vente
+                const isFullySettled = g.remaining <= 0.01
+                const isPartial = g.settled > 0 && !isFullySettled
+                const rowBg = isFullySettled ? '#f0fdf4' : isPartial ? '#fffbeb' : '#eff6ff'
+                const isSelected = sgSelectedDeliveries.has(v.id)
+                const isCollapsed = collapsedGroups.has(v.id)
+                const hasAllocs = g.allocs.length > 0
+                return (
+                  <Fragment key={`sg-${gi}`}>
+                    <tr style={{background: isSelected ? '#dbeafe' : rowBg, borderLeft: isSelected ? '3px solid #2563eb' : '3px solid transparent'}}>
+                      <td style={{...bdr2, padding:'0 6px', textAlign:'center', width:36}}>
+                        <input type="checkbox" checked={isSelected}
+                          onChange={() => { const ns = new Set(sgSelectedDeliveries); if (ns.has(v.id)) ns.delete(v.id); else ns.add(v.id); setSgSelectedDeliveries(ns) }}
+                          style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb'}} />
+                      </td>
+                      <td style={{...bdr2, padding:'10px 12px', fontSize:12, color:'#64748b', whiteSpace:'nowrap'}}>{fmtDate(v.date)}</td>
+                      <td style={{...bdr2, padding:'10px 12px', fontSize:12, color:'#94a3b8'}}>{v.camion_plaque || '—'}</td>
+                      <td style={{...bdr2, padding:'9px 12px'}}>
+                        <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap'}}>
+                          {statusBadge(g)}
+                          <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe'}}>
+                            {v.type_brique || 'Livraison'}
                           </span>
-                          {a.note && <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 5, fontStyle: 'italic' }}>{a.note}</span>}
+                          {hasAllocs && (
+                            <button onClick={() => { const ns = new Set(collapsedGroups); if (ns.has(v.id)) ns.delete(v.id); else ns.add(v.id); setCollapsedGroups(ns) }}
+                              title={isCollapsed ? 'Afficher les paiements' : 'Réduire'}
+                              style={{fontSize:10,padding:'1px 5px',border:'1px solid #cbd5e1',borderRadius:3,background:'transparent',cursor:'pointer',color:'#64748b',lineHeight:1}}>
+                              {isCollapsed ? `▶ ${g.allocs.length}` : '▼'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{...bdr2, padding:'10px 12px', textAlign:'right', fontSize:14, fontWeight:700, color:'#1d4ed8'}}>+ {fmt(v.total_vente || 0)}</td>
+                      <td style={{...bdr2, padding:'10px 12px', textAlign:'right', fontSize:13, fontWeight:700, color:'#16a34a'}}>
+                        {g.settled > 0 ? `− ${fmt(g.settled)}` : <span style={{color:'#d1d5db'}}>—</span>}
+                      </td>
+                      <td style={{...bdr2, padding:'10px 14px', textAlign:'right', fontSize:14, fontWeight:900, color: isFullySettled ? '#16a34a' : '#dc2626'}}>
+                        {isFullySettled ? '✓ Soldé' : fmt(g.remaining)}
+                      </td>
+                      <td style={{...bdr2, padding:'10px 12px', fontSize:11, color:'#94a3b8', maxWidth:140, wordBreak:'break-word'}}>{v.note || '—'}</td>
+                      <td style={{...bdr2, padding:'6px 8px'}}></td>
+                    </tr>
+                    {!isCollapsed && g.allocs.map((a, ai) => {
+                      const p = clientPaiements.find(p2 => p2.id === a.paiement_id)
+                      if (!p) return null
+                      return (
+                        <tr key={`alloc-${ai}`} style={{background:'#f0fdf4'}}>
+                          <td style={{...bdr2, padding:'5px 6px'}}></td>
+                          <td style={{...bdr2, padding:'5px 12px', paddingLeft:26, fontSize:11, color:'#64748b', whiteSpace:'nowrap'}}>↳ {fmtDate(p.date)}</td>
+                          <td style={{...bdr2, padding:'5px 12px', fontSize:11, color:'#94a3b8'}}>{p.camion_plaque || '—'}</td>
+                          <td style={{...bdr2, padding:'5px 12px'}}>
+                            <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0'}}>{p.mode || 'Paiement'}</span>
+                            {a.note && <span style={{fontSize:10,color:'#94a3b8',marginLeft:5,fontStyle:'italic'}}>{a.note}</span>}
+                          </td>
+                          <td style={{...bdr2, padding:'5px 12px', textAlign:'right', color:'#94a3b8', fontSize:11}}>—</td>
+                          <td style={{...bdr2, padding:'5px 12px', textAlign:'right', fontSize:13, fontWeight:700, color:'#16a34a'}}>− {fmt(a.montant)}</td>
+                          <td style={{...bdr2, padding:'5px 12px', textAlign:'right', color:'#94a3b8', fontSize:11}}>—</td>
+                          <td style={{...bdr2, padding:'5px 12px', fontSize:11, color:'#94a3b8'}}>{p.note || '—'}</td>
+                          <td style={{...bdr2, padding:'5px 8px', textAlign:'center'}}>
+                            <button onClick={() => removeAllocation(a.id)} title="Supprimer"
+                              style={{fontSize:10,color:'#ef4444',background:'transparent',border:'1px solid #fecaca',borderRadius:3,padding:'1px 5px',cursor:'pointer'}}>✕</button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </Fragment>
+                )
+              })}
+
+              {/* ── UNALLOCATED PAYMENTS — selectable via radio ── */}
+              {sg.unallocatedPmts.length > 0 && (
+                <Fragment>
+                  <tr>
+                    <td colSpan={9} style={{padding:'7px 12px',fontSize:10.5,fontWeight:700,color:'#92400e',background:'#fffbeb',borderTop:'2px dashed #fde68a',letterSpacing:'0.05em'}}>
+                      Paiements non affectés — {sg.unallocatedPmts.length} · Sélectionnez un paiement à associer aux livraisons cochées
+                    </td>
+                  </tr>
+                  {sg.unallocatedPmts.map((p, pi) => {
+                    const isSelPmt = sgSelectedPayment === p.id
+                    return (
+                      <tr key={`unalloc-${pi}`} style={{background: isSelPmt ? '#eff6ff' : '#fffbeb', borderLeft: isSelPmt ? '3px solid #2563eb' : '3px solid transparent'}}>
+                        <td style={{...bdr2, padding:'0 6px', textAlign:'center', width:36}}>
+                          <input type="radio" name="sgPayment" checked={isSelPmt}
+                            onChange={() => setSgSelectedPayment(isSelPmt ? null : p.id)}
+                            style={{width:13,height:13,cursor:'pointer',accentColor:'#2563eb'}} />
                         </td>
-                        <td style={{ ...bdr2, padding: '5px 12px', textAlign: 'right', color: '#94a3b8', fontSize: 11 }}>—</td>
-                        <td style={{ ...bdr2, padding: '5px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
-                          − {fmt(a.montant)}
+                        <td style={{...bdr2, padding:'9px 12px', fontSize:12, color:'#64748b', whiteSpace:'nowrap'}}>{fmtDate(p.date)}</td>
+                        <td style={{...bdr2, padding:'9px 12px', fontSize:12, color:'#94a3b8'}}>{p.camion_plaque || '—'}</td>
+                        <td style={{...bdr2, padding:'9px 12px'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:6}}>
+                            <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0'}}>{p.mode || 'Paiement'}</span>
+                            <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 6px',borderRadius:20,border:'1px solid #fde68a'}}>Non affecté</span>
+                          </div>
                         </td>
-                        <td style={{ ...bdr2, padding: '5px 12px', textAlign: 'right', color: '#94a3b8', fontSize: 11 }}>—</td>
-                        <td style={{ ...bdr2, padding: '5px 12px', fontSize: 11, color: '#94a3b8' }}>{p.note || '—'}</td>
-                        <td style={{ ...bdr2, padding: '5px 8px', textAlign: 'center' }}>
-                          <button
-                            onClick={() => removeAllocation(a.id)}
-                            title="Supprimer cette affectation"
-                            style={{ fontSize: 10, color: '#ef4444', background: 'transparent', border: '1px solid #fecaca', borderRadius: 3, padding: '1px 5px', cursor: 'pointer' }}>
-                            ✕
-                          </button>
+                        <td style={{...bdr2, padding:'9px 12px', textAlign:'right', color:'#94a3b8', fontSize:11}}>—</td>
+                        <td style={{...bdr2, padding:'9px 12px', textAlign:'right', fontSize:14, fontWeight:700, color:'#16a34a'}}>− {fmt(p.montant)}</td>
+                        <td style={{...bdr2, padding:'9px 12px', textAlign:'right', color:'#94a3b8', fontSize:11}}>—</td>
+                        <td style={{...bdr2, padding:'9px 12px', fontSize:11, color:'#94a3b8'}}>{p.note || '—'}</td>
+                        <td style={{...bdr2, padding:'6px 8px'}}>
+                          <button onClick={() => openAllocModal({raw:p, delta:-(p.montant||0), label:p.mode||'Paiement', date:p.date})}
+                            title="Affecter manuellement"
+                            style={{fontSize:10,padding:'2px 5px',border:'1px solid #bfdbfe',background:'#eff6ff',color:'#2563eb',borderRadius:3,cursor:'pointer',fontWeight:700}}>⇌</button>
                         </td>
                       </tr>
                     )
                   })}
                 </Fragment>
-              )
-            })}
-
-            {sg.unallocatedPmts.length > 0 && (
-              <Fragment>
-                <tr>
-                  <td colSpan={8} style={{ padding: '6px 12px', fontSize: 10.5, fontWeight: 700, color: '#92400e', background: '#fffbeb', borderTop: '2px dashed #fde68a', letterSpacing: '0.05em' }}>
-                    Paiements non affectés — {sg.unallocatedPmts.length}
-                  </td>
-                </tr>
-                {sg.unallocatedPmts.map((p, pi) => (
-                  <tr key={`unalloc-${pi}`} style={{ background: '#fffbeb' }}>
-                    <td style={{ ...bdr2, padding: '9px 12px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDate(p.date)}</td>
-                    <td style={{ ...bdr2, padding: '9px 12px', fontSize: 12, color: '#94a3b8' }}>{p.camion_plaque || '—'}</td>
-                    <td style={{ ...bdr2, padding: '9px 12px' }}>
-                      <span style={{ background: '#dcfce7', color: '#15803d', fontWeight: 700, fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid #bbf7d0' }}>
-                        {p.mode || 'Paiement'}
-                      </span>
-                    </td>
-                    <td style={{ ...bdr2, padding: '9px 12px', textAlign: 'right', color: '#94a3b8', fontSize: 11 }}>—</td>
-                    <td style={{ ...bdr2, padding: '9px 12px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#16a34a' }}>− {fmt(p.montant)}</td>
-                    <td style={{ ...bdr2, padding: '9px 12px', textAlign: 'right' }}>
-                      <span style={{ background: '#fef9c3', color: '#92400e', fontWeight: 700, fontSize: 10, padding: '2px 6px', borderRadius: 3, border: '1px solid #fde68a' }}>Non affecté</span>
-                    </td>
-                    <td style={{ ...bdr2, padding: '9px 12px', fontSize: 11, color: '#94a3b8' }}>{p.note || '—'}</td>
-                    <td style={{ ...bdr2, padding: '6px 8px' }}></td>
-                  </tr>
-                ))}
-              </Fragment>
-            )}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={3} style={{ padding: '11px 12px', background: '#f0fdf4', color: '#166534', fontWeight: 700, fontSize: 13, borderTop: '2px solid #bbf7d0' }}>
-                Bilan règlement — {sg.groups.length} livraison{sg.groups.length !== 1 ? 's' : ''}
-              </td>
-              <td style={{ padding: '11px 12px', background: '#f0fdf4', fontSize: 13, fontWeight: 700, color: '#1d4ed8', textAlign: 'right', borderTop: '2px solid #bbf7d0' }}>
-                {fmt(totalLivraisons)} DHS
-              </td>
-              <td style={{ padding: '11px 12px', background: '#f0fdf4', fontSize: 13, fontWeight: 700, color: '#16a34a', textAlign: 'right', borderTop: '2px solid #bbf7d0' }}>
-                − {fmt(totalSettled)} DHS
-              </td>
-              <td style={{ padding: '11px 14px', background: '#f0fdf4', fontSize: 15, fontWeight: 900, color: totalRemaining > 0 ? '#dc2626' : '#16a34a', textAlign: 'right', borderTop: '2px solid #bbf7d0', letterSpacing: '-0.2px' }}>
-                {fmt(totalRemaining)} DHS
-              </td>
-              <td colSpan={2} style={{ background: '#f0fdf4', borderTop: '2px solid #bbf7d0' }}></td>
-            </tr>
-          </tfoot>
-        </table>
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td style={{background:'#f0fdf4',borderTop:'2px solid #bbf7d0'}}></td>
+                <td colSpan={3} style={{padding:'11px 12px',background:'#f0fdf4',color:'#166534',fontWeight:700,fontSize:13,borderTop:'2px solid #bbf7d0'}}>
+                  Bilan — {sg.groups.length} livraison{sg.groups.length!==1?'s':''}
+                </td>
+                <td style={{padding:'11px 12px',background:'#f0fdf4',fontSize:13,fontWeight:700,color:'#1d4ed8',textAlign:'right',borderTop:'2px solid #bbf7d0'}}>{fmt(totalLivraisons)} DHS</td>
+                <td style={{padding:'11px 12px',background:'#f0fdf4',fontSize:13,fontWeight:700,color:'#16a34a',textAlign:'right',borderTop:'2px solid #bbf7d0'}}>− {fmt(totalSettled)} DHS</td>
+                <td style={{padding:'11px 14px',background:'#f0fdf4',fontSize:15,fontWeight:900,color:totalRemaining>0?'#dc2626':'#16a34a',textAlign:'right',borderTop:'2px solid #bbf7d0',letterSpacing:'-0.2px'}}>{fmt(totalRemaining)} DHS</td>
+                <td colSpan={2} style={{background:'#f0fdf4',borderTop:'2px solid #bbf7d0'}}></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
     )
   }
