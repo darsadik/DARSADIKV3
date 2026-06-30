@@ -11,12 +11,12 @@ const today = () => new Date().toISOString().split('T')[0]
 const startOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
 
-// Blue Chronologique palette
-const BLUE = '#2563eb'
-const BLUE_BG = '#eff6ff'
-const BLUE_BORDER = '#bfdbfe'
-const BLUE_TEXT = '#1d4ed8'
-const BLUE_DARK = '#1e40af'
+// Purple Présentation palette
+const BLUE = '#7c3aed'
+const BLUE_BG = '#ede9fe'
+const BLUE_BORDER = '#ddd6fe'
+const BLUE_TEXT = '#5b21b6'
+const BLUE_DARK = '#4c1d95'
 
 const secHeader = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
