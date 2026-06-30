@@ -57,6 +57,13 @@ export default function Clients() {
   const [lastClickedIdx, setLastClickedIdx] = useState(null)
   const [stmtHistory, setStmtHistory] = useState([])
 
+  // ── SETTLEMENT ALLOCATION ──
+  const [clientAllocations, setClientAllocations] = useState([]) // {id, paiement_id, vente_id, montant}
+  const [stmtMode, setStmtMode] = useState('chrono')             // 'chrono' | 'reglement'
+  const [allocModal, setAllocModal] = useState(null)             // null | ledger payment entry
+  const [allocForm, setAllocForm] = useState({})                 // { [vente_id]: amount_string }
+  const [allocSaving, setAllocSaving] = useState(false)
+
   // DATE FILTER STATE
   const [filterType, setFilterType] = useState('all')
   const [filterDate, setFilterDate] = useState(today())
@@ -78,6 +85,7 @@ export default function Clients() {
     setSelectedRows(new Set())
     setLastClickedIdx(null)
     setStmtHistory([])
+    setStmtMode('chrono')
   }, [selected?.id])
 
   function saveStmt(o, h, p) {
@@ -99,6 +107,7 @@ export default function Clients() {
     setShowDetail(true)
     setLoadingDetail(true)
     setClientFraisMap({})
+    setClientAllocations([])
     const [{ data: ventes }, { data: paiements }, { data: remises }] = await Promise.all([
       supabase.from('ventes').select('*').eq('client_id', client.id).order('date', { ascending: true }),
       supabase.from('paiements').select('*').eq('client_id', client.id).order('date', { ascending: true }),
@@ -107,6 +116,18 @@ export default function Clients() {
     setClientVentes(ventes || [])
     setClientPaiements(paiements || [])
     setClientRemises(remises || [])
+
+    // Load payment allocations
+    try {
+      const pIds = (paiements || []).map(p => p.id)
+      if (pIds.length) {
+        const { data: allocs } = await supabase
+          .from('paiement_allocations')
+          .select('*')
+          .in('paiement_id', pIds)
+        setClientAllocations(allocs || [])
+      }
+    } catch (_) { /* paiement_allocations table not yet created — run SQL migration */ }
 
     // Load individual frais per livraison (requires voyage_livraison_frais SQL migration)
     try {
@@ -722,6 +743,69 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     return { entries, startBalance, finalBalance: balance }
   }
 
+  function buildSettlementGroups() {
+    const allocByVente = {}
+    const allocatedPmtIds = new Set()
+    clientAllocations.forEach(a => {
+      if (!allocByVente[a.vente_id]) allocByVente[a.vente_id] = []
+      allocByVente[a.vente_id].push(a)
+      allocatedPmtIds.add(a.paiement_id)
+    })
+
+    const groups = filteredVentes.map(v => {
+      const allocs = allocByVente[v.id] || []
+      const settled = allocs.reduce((s, a) => s + (a.montant || 0), 0)
+      const remaining = (v.total_vente || 0) - settled
+      return { vente: v, allocs, settled, remaining }
+    })
+
+    const unallocatedPmts = filteredPaiements.filter(p => !allocatedPmtIds.has(p.id))
+    return { groups, unallocatedPmts }
+  }
+
+  function openAllocModal(paymentEntry) {
+    const existing = clientAllocations.filter(a => a.paiement_id === paymentEntry.raw?.id)
+    const form = {}
+    existing.forEach(a => { form[a.vente_id] = String(a.montant) })
+    setAllocForm(form)
+    setAllocModal(paymentEntry)
+  }
+
+  async function saveAllocation() {
+    if (!allocModal || !selected) return
+    setAllocSaving(true)
+    const paiementId = allocModal.raw.id
+
+    await supabase.from('paiement_allocations').delete().eq('paiement_id', paiementId)
+
+    const toInsert = Object.entries(allocForm)
+      .filter(([, v]) => parseFloat(v) > 0)
+      .map(([venteId, montant]) => ({
+        client_id: selected.id,
+        paiement_id: paiementId,
+        vente_id: parseInt(venteId),
+        montant: parseFloat(montant),
+      }))
+
+    if (toInsert.length) {
+      await supabase.from('paiement_allocations').insert(toInsert)
+    }
+
+    const pIds = clientPaiements.map(p => p.id)
+    if (pIds.length) {
+      const { data: allocs } = await supabase.from('paiement_allocations').select('*').in('paiement_id', pIds)
+      setClientAllocations(allocs || [])
+    }
+    setAllocSaving(false)
+    setAllocModal(null)
+  }
+
+  async function removeAllocation(allocId) {
+    if (!confirm('Supprimer cette affectation ?')) return
+    await supabase.from('paiement_allocations').delete().eq('id', allocId)
+    setClientAllocations(clientAllocations.filter(a => a.id !== allocId))
+  }
+
   async function reloadRemises() {
     const { data } = await supabase.from('remises').select('*').eq('client_id', selected.id).order('date', { ascending: true })
     setClientRemises(data || [])
@@ -801,6 +885,155 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     a.click()
   }
 
+
+  function renderSettlementTable() {
+    const sg = buildSettlementGroups()
+    const bdr2 = { border: '1px solid #f1f5f9' }
+    const thS2 = { background: '#f0fdf4', color: '#166534', borderBottom: '2px solid #bbf7d0', whiteSpace: 'nowrap', padding: '9px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }
+    const totalLivraisons = sg.groups.reduce((s, g) => s + (g.vente.total_vente || 0), 0)
+    const totalSettled   = sg.groups.reduce((s, g) => s + g.settled, 0)
+    const totalRemaining = sg.groups.reduce((s, g) => s + Math.max(0, g.remaining), 0)
+
+    if (sg.groups.length === 0 && sg.unallocatedPmts.length === 0) {
+      return (
+        <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
+          Aucune opération pour cette période
+        </div>
+      )
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              {[
+                { l: 'Date', r: false }, { l: 'Camion', r: false }, { l: 'Produit / Mode', r: false },
+                { l: 'Montant', r: true }, { l: 'Réglé', r: true }, { l: 'Restant', r: true },
+                { l: 'Note', r: false }, { l: '', r: false },
+              ].map((col, i) => (
+                <th key={i} style={{ ...thS2, textAlign: col.r ? 'right' : 'left' }}>{col.l}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sg.groups.map((g, gi) => {
+              const v = g.vente
+              const isFullySettled = g.remaining <= 0.01
+              const isPartial = g.settled > 0 && !isFullySettled
+              const rowBg = isFullySettled ? '#f0fdf4' : isPartial ? '#fffbeb' : '#eff6ff'
+              const statusIcon = isFullySettled ? '✓' : isPartial ? '◐' : '○'
+              const statusColor = isFullySettled ? '#16a34a' : isPartial ? '#d97706' : '#1d4ed8'
+              return (
+                <Fragment key={`sg-${gi}`}>
+                  <tr style={{ background: rowBg }}>
+                    <td style={{ ...bdr2, padding: '10px 12px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDate(v.date)}</td>
+                    <td style={{ ...bdr2, padding: '10px 12px', fontSize: 12, color: '#94a3b8' }}>{v.camion_plaque || '—'}</td>
+                    <td style={{ ...bdr2, padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: statusColor, fontWeight: 700, fontSize: 14 }}>{statusIcon}</span>
+                        <span style={{ background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid #bfdbfe' }}>
+                          {v.type_brique || 'Livraison'}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ ...bdr2, padding: '10px 12px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1d4ed8' }}>
+                      + {fmt(v.total_vente || 0)}
+                    </td>
+                    <td style={{ ...bdr2, padding: '10px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
+                      {g.settled > 0 ? `− ${fmt(g.settled)}` : <span style={{ color: '#d1d5db' }}>—</span>}
+                    </td>
+                    <td style={{ ...bdr2, padding: '10px 14px', textAlign: 'right', fontSize: 14, fontWeight: 900, color: isFullySettled ? '#16a34a' : '#dc2626' }}>
+                      {isFullySettled ? '✓ Soldé' : fmt(g.remaining)}
+                    </td>
+                    <td style={{ ...bdr2, padding: '10px 12px', fontSize: 11, color: '#94a3b8', maxWidth: 140, wordBreak: 'break-word' }}>{v.note || '—'}</td>
+                    <td style={{ ...bdr2, padding: '6px 8px' }}></td>
+                  </tr>
+                  {g.allocs.map((a, ai) => {
+                    const p = clientPaiements.find(p2 => p2.id === a.paiement_id)
+                    if (!p) return null
+                    return (
+                      <tr key={`alloc-${ai}`} style={{ background: '#f0fdf4' }}>
+                        <td style={{ ...bdr2, padding: '5px 12px', fontSize: 11, color: '#64748b', paddingLeft: 28, whiteSpace: 'nowrap' }}>
+                          ↳ {fmtDate(p.date)}
+                        </td>
+                        <td style={{ ...bdr2, padding: '5px 12px', fontSize: 11, color: '#94a3b8' }}>{p.camion_plaque || '—'}</td>
+                        <td style={{ ...bdr2, padding: '5px 12px' }}>
+                          <span style={{ background: '#dcfce7', color: '#15803d', fontWeight: 700, fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid #bbf7d0' }}>
+                            {p.mode || 'Paiement'}
+                          </span>
+                          {a.note && <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 5, fontStyle: 'italic' }}>{a.note}</span>}
+                        </td>
+                        <td style={{ ...bdr2, padding: '5px 12px', textAlign: 'right', color: '#94a3b8', fontSize: 11 }}>—</td>
+                        <td style={{ ...bdr2, padding: '5px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
+                          − {fmt(a.montant)}
+                        </td>
+                        <td style={{ ...bdr2, padding: '5px 12px', textAlign: 'right', color: '#94a3b8', fontSize: 11 }}>—</td>
+                        <td style={{ ...bdr2, padding: '5px 12px', fontSize: 11, color: '#94a3b8' }}>{p.note || '—'}</td>
+                        <td style={{ ...bdr2, padding: '5px 8px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => removeAllocation(a.id)}
+                            title="Supprimer cette affectation"
+                            style={{ fontSize: 10, color: '#ef4444', background: 'transparent', border: '1px solid #fecaca', borderRadius: 3, padding: '1px 5px', cursor: 'pointer' }}>
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </Fragment>
+              )
+            })}
+
+            {sg.unallocatedPmts.length > 0 && (
+              <Fragment>
+                <tr>
+                  <td colSpan={8} style={{ padding: '6px 12px', fontSize: 10.5, fontWeight: 700, color: '#92400e', background: '#fffbeb', borderTop: '2px dashed #fde68a', letterSpacing: '0.05em' }}>
+                    Paiements non affectés — {sg.unallocatedPmts.length}
+                  </td>
+                </tr>
+                {sg.unallocatedPmts.map((p, pi) => (
+                  <tr key={`unalloc-${pi}`} style={{ background: '#fffbeb' }}>
+                    <td style={{ ...bdr2, padding: '9px 12px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDate(p.date)}</td>
+                    <td style={{ ...bdr2, padding: '9px 12px', fontSize: 12, color: '#94a3b8' }}>{p.camion_plaque || '—'}</td>
+                    <td style={{ ...bdr2, padding: '9px 12px' }}>
+                      <span style={{ background: '#dcfce7', color: '#15803d', fontWeight: 700, fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid #bbf7d0' }}>
+                        {p.mode || 'Paiement'}
+                      </span>
+                    </td>
+                    <td style={{ ...bdr2, padding: '9px 12px', textAlign: 'right', color: '#94a3b8', fontSize: 11 }}>—</td>
+                    <td style={{ ...bdr2, padding: '9px 12px', textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#16a34a' }}>− {fmt(p.montant)}</td>
+                    <td style={{ ...bdr2, padding: '9px 12px', textAlign: 'right' }}>
+                      <span style={{ background: '#fef9c3', color: '#92400e', fontWeight: 700, fontSize: 10, padding: '2px 6px', borderRadius: 3, border: '1px solid #fde68a' }}>Non affecté</span>
+                    </td>
+                    <td style={{ ...bdr2, padding: '9px 12px', fontSize: 11, color: '#94a3b8' }}>{p.note || '—'}</td>
+                    <td style={{ ...bdr2, padding: '6px 8px' }}></td>
+                  </tr>
+                ))}
+              </Fragment>
+            )}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3} style={{ padding: '11px 12px', background: '#f0fdf4', color: '#166534', fontWeight: 700, fontSize: 13, borderTop: '2px solid #bbf7d0' }}>
+                Bilan règlement — {sg.groups.length} livraison{sg.groups.length !== 1 ? 's' : ''}
+              </td>
+              <td style={{ padding: '11px 12px', background: '#f0fdf4', fontSize: 13, fontWeight: 700, color: '#1d4ed8', textAlign: 'right', borderTop: '2px solid #bbf7d0' }}>
+                {fmt(totalLivraisons)} DHS
+              </td>
+              <td style={{ padding: '11px 12px', background: '#f0fdf4', fontSize: 13, fontWeight: 700, color: '#16a34a', textAlign: 'right', borderTop: '2px solid #bbf7d0' }}>
+                − {fmt(totalSettled)} DHS
+              </td>
+              <td style={{ padding: '11px 14px', background: '#f0fdf4', fontSize: 15, fontWeight: 900, color: totalRemaining > 0 ? '#dc2626' : '#16a34a', textAlign: 'right', borderTop: '2px solid #bbf7d0', letterSpacing: '-0.2px' }}>
+                {fmt(totalRemaining)} DHS
+              </td>
+              <td colSpan={2} style={{ background: '#f0fdf4', borderTop: '2px solid #bbf7d0' }}></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    )
+  }
 
   return (
     <Layout title="Clients Briques" subtitle="Gestion des clients et suivi des comptes">
@@ -1057,6 +1290,23 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                               Historique du compte
                               <span className="text-gray-400 font-normal text-sm ml-2">({displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''})</span>
                             </h3>
+                            {/* MODE TOGGLE */}
+                            <div style={{display:'flex',borderRadius:6,overflow:'hidden',border:'1px solid #e2e8f0',flexShrink:0}}>
+                              <button
+                                onClick={(ev) => { ev.stopPropagation(); setStmtMode('chrono') }}
+                                style={{padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer',border:'none',
+                                  background: stmtMode === 'chrono' ? '#2563eb' : '#f8fafc',
+                                  color: stmtMode === 'chrono' ? '#fff' : '#64748b',transition:'all 0.15s'}}>
+                                Chronologique
+                              </button>
+                              <button
+                                onClick={(ev) => { ev.stopPropagation(); setStmtMode('reglement') }}
+                                style={{padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer',border:'none',borderLeft:'1px solid #e2e8f0',
+                                  background: stmtMode === 'reglement' ? '#2563eb' : '#f8fafc',
+                                  color: stmtMode === 'reglement' ? '#fff' : '#64748b',transition:'all 0.15s'}}>
+                                ⇌ Règlement
+                              </button>
+                            </div>
                             {(stmtOrder || stmtPinned.size > 0 || Object.keys(stmtHighlights).length > 0) && (
                               <button onClick={(ev) => { ev.stopPropagation(); resetStmt() }}
                                 className="text-xs font-semibold border rounded transition-colors"
@@ -1105,7 +1355,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                           </button>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        {stmtMode === 'reglement' ? renderSettlementTable() : <div className="overflow-x-auto">
                           <table className="w-full border-collapse">
                             <thead>
                               <tr>
@@ -1194,6 +1444,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                                 const noteDisplay = fraisItems.length > 0
                                   ? (e.note || '—')
                                   : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
+                                const allocCount = e.src === 'paiement' ? clientAllocations.filter(a => a.paiement_id === e.raw?.id).length : 0
                                 return (
                                   <Fragment key={eKey(e)}>
                                   <tr
@@ -1279,6 +1530,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                                     <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
                                       color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
                                       {noteDisplay}
+                                      {allocCount > 0 && (
+                                        <span style={{display:'inline-block',marginLeft:4,fontSize:9,background:'#2563eb',color:'#fff',padding:'1px 5px',borderRadius:8,fontWeight:700,verticalAlign:'middle',fontStyle:'normal'}}>
+                                          ⇌ {allocCount}
+                                        </span>
+                                      )}
                                     </td>
                                     {/* ACTIONS: pin + highlight + remise edit/delete */}
                                     <td className="td" style={{...bdr,padding:'6px 8px',whiteSpace:'nowrap'}} onClick={ev => ev.stopPropagation()}>
@@ -1330,6 +1586,15 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                                               className="btn-danger" style={{fontSize:10,padding:'2px 5px'}}>✕</button>
                                           </>
                                         )}
+                                        {/* AFFECTER — payments only */}
+                                        {e.src === 'paiement' && (
+                                          <button
+                                            onClick={() => openAllocModal(e)}
+                                            title="Affecter ce paiement à des livraisons"
+                                            style={{fontSize:10,padding:'2px 5px',border:'1px solid #bfdbfe',background:'#eff6ff',color:'#2563eb',borderRadius:3,cursor:'pointer',fontWeight:700,lineHeight:1,whiteSpace:'nowrap'}}>
+                                            ⇌ Affecter
+                                          </button>
+                                        )}
                                       </div>
                                     </td>
                                   </tr>
@@ -1364,7 +1629,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
                               </tfoot>
                             )}
                           </table>
-                        </div>
+                        </div>}
                       </div>
                     )
                   })()}
@@ -1389,6 +1654,122 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
           )}
         </div>
       </div>
+
+      {/* ── ALLOCATION MODAL ── */}
+      {allocModal && (() => {
+        const pmtAmount = Math.abs(allocModal.delta)
+        const totalAllocated = Object.values(allocForm).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+        const remaining = pmtAmount - totalAllocated
+        const overAllocated = totalAllocated > pmtAmount + 0.01
+        const deliveries = clientVentes.filter(v => !v.type_entree || v.type_entree === 'brique')
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.55)'}}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{maxHeight:'90vh'}}>
+              {/* HEADER */}
+              <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
+                <div>
+                  <h2 className="font-bold text-gray-900">⇌ Affecter le paiement</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {allocModal.label} · {fmtDate(allocModal.date)} · <strong>{fmt(pmtAmount)} DHS</strong>
+                  </p>
+                </div>
+                <button onClick={() => setAllocModal(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+              </div>
+
+              {/* PAYMENT PROGRESS BAR */}
+              <div className="flex-shrink-0 px-5 pt-4 pb-2">
+                <div className="p-3 rounded-xl" style={{background:'#eff6ff',border:'1px solid #bfdbfe'}}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-blue-700">Paiement à affecter: {fmt(pmtAmount)} DHS</span>
+                    <span className={`text-xs font-bold ${overAllocated ? 'text-red-600' : remaining < 0.01 ? 'text-green-600' : 'text-blue-600'}`}>
+                      {overAllocated ? `⚠️ Dépassement de ${fmt(Math.abs(remaining))} DHS` : remaining < 0.01 ? '✓ Entièrement affecté' : `${fmt(remaining)} DHS disponible`}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full" style={{background:'#bfdbfe'}}>
+                    <div className="h-2 rounded-full transition-all duration-200" style={{
+                      background: overAllocated ? '#dc2626' : '#2563eb',
+                      width: `${Math.min(100, (totalAllocated / pmtAmount) * 100)}%`,
+                    }}></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* DELIVERIES LIST */}
+              <div className="flex-1 overflow-y-auto px-5 pb-2">
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Livraisons à solder</div>
+                {deliveries.length === 0 ? (
+                  <div className="text-center text-gray-400 py-6 text-sm italic">Aucune livraison pour ce client</div>
+                ) : (
+                  <div className="space-y-2">
+                    {deliveries.map(v => {
+                      const otherSettled = clientAllocations
+                        .filter(a => a.paiement_id !== allocModal.raw?.id && a.vente_id === v.id)
+                        .reduce((s, a) => s + (a.montant || 0), 0)
+                      const maxAvail = Math.max(0, (v.total_vente || 0) - otherSettled)
+                      const currentVal = allocForm[v.id] !== undefined ? allocForm[v.id] : ''
+                      const isActive = !!(currentVal && parseFloat(currentVal) > 0)
+                      return (
+                        <div key={v.id} className="flex items-center gap-3 p-3 rounded-xl border transition-colors"
+                          style={{borderColor: isActive ? '#bbf7d0' : '#e2e8f0', background: isActive ? '#f0fdf4' : '#f9fafb'}}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-gray-500">{fmtDate(v.date)}</span>
+                              <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'1px 6px',borderRadius:3,border:'1px solid #bfdbfe'}}>
+                                {v.type_brique}
+                              </span>
+                              {v.camion_plaque && <span className="text-xs text-gray-400">{v.camion_plaque}</span>}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
+                              <span>Total: <strong>{fmt(v.total_vente || 0)} DHS</strong></span>
+                              {otherSettled > 0 && <span className="text-green-600">Déjà réglé: {fmt(otherSettled)} DHS</span>}
+                              <span className="text-blue-600">Restant max: {fmt(maxAvail)} DHS</span>
+                            </div>
+                          </div>
+                          <div style={{flexShrink:0,width:120}}>
+                            <input
+                              type="number" min="0" max={maxAvail} step="0.01"
+                              className="input text-right"
+                              style={{fontSize:13,fontWeight:700,padding:'5px 8px',borderColor: isActive ? '#bbf7d0' : undefined}}
+                              placeholder="0"
+                              value={currentVal}
+                              onChange={ev => {
+                                const val = ev.target.value
+                                const updated = {...allocForm}
+                                if (val === '' || parseFloat(val) === 0) delete updated[v.id]
+                                else updated[v.id] = val
+                                setAllocForm(updated)
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* FOOTER */}
+              <div className="flex-shrink-0 p-5 border-t border-gray-100">
+                {overAllocated && (
+                  <div className="mb-3 p-2 rounded-lg text-xs font-semibold" style={{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca'}}>
+                    ⚠️ Le total affecté ({fmt(totalAllocated)} DHS) dépasse le montant du paiement ({fmt(pmtAmount)} DHS)
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveAllocation}
+                    disabled={allocSaving || overAllocated || Object.keys(allocForm).length === 0}
+                    className="btn-primary flex-1 justify-center"
+                    style={{background:'#2563eb',opacity:(allocSaving || overAllocated || Object.keys(allocForm).length === 0)?0.6:1}}>
+                    {allocSaving ? 'Enregistrement...' : `✓ Enregistrer — ${fmt(totalAllocated)} DHS affectés`}
+                  </button>
+                  <button onClick={() => setAllocModal(null)} className="btn-secondary">Annuler</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── REMISE MODAL ── */}
       {remiseModal && (
