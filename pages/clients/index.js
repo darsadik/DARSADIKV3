@@ -54,6 +54,16 @@ export default function Clients() {
   const [presSelectedRows, setPresSelectedRows] = useState(new Set())
   const [presLastClickedIdx, setPresLastClickedIdx] = useState(null)
 
+  // ── CHRONO HIGHLIGHT (localStorage, never touches accounting) ──
+  const [chronoHighlights, setChronoHighlights] = useState(new Set())
+
+  // ── PRESENTATION SAVES (localStorage) ──
+  const [presentations, setPresentations] = useState([])
+  const [activePresName, setActivePresName] = useState(null)
+  const [showSavePresModal, setShowSavePresModal] = useState(false)
+  const [savePresName, setSavePresName] = useState('')
+  const [showPresLibrary, setShowPresLibrary] = useState(false)
+
   // ── DATE FILTER STATE ──
   const [filterType, setFilterType] = useState('all')
   const [filterDate, setFilterDate] = useState(today())
@@ -70,6 +80,13 @@ export default function Clients() {
     setPresSelectedRows(new Set())
     setPresLastClickedIdx(null)
     setStmtMode('chrono')
+    try {
+      const hl = localStorage.getItem(`chrono_hl_${selected.id}`)
+      setChronoHighlights(hl ? new Set(JSON.parse(hl)) : new Set())
+      const pres = localStorage.getItem(`presentations_${selected.id}`)
+      setPresentations(pres ? JSON.parse(pres) : [])
+      setActivePresName(null)
+    } catch (_) {}
   }, [selected?.id])
 
   async function loadClients() {
@@ -389,7 +406,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
   // ── PRINT: PRESENTATION MODE ──
   function printPresentationClient() {
     const pLedger = buildPresentationLedger()
-    const pEntries = pLedger.entries
+    const isSelectionPrint = presSelectedRows.size > 0
+    const pEntries = isSelectionPrint
+      ? pLedger.entries.filter(e => presSelectedRows.has(eKey(e)))
+      : pLedger.entries
+    const pFinalBalance = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
 
@@ -494,11 +515,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
 </table>
 ${pEntries.length > 0 ? `<div class="totals-row">
   <span>Total — ${pEntries.length} opération${pEntries.length!==1?'s':''}</span>
-  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pLedger.finalBalance)} DHS</span>
+  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pFinalBalance)} DHS</span>
 </div>` : ''}
 <div class="solde-final">
-  <div><div class="sf-lbl">Solde à payer</div><div class="sf-sub">Vue Présentation</div></div>
-  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmt(pLedger.finalBalance)}</span><span class="sf-unit">DHS</span></div></div>
+  <div><div class="sf-lbl">Solde à payer</div><div class="sf-sub">${isSelectionPrint ? `${pEntries.length} opération${pEntries.length!==1?'s':''} sélectionnée${pEntries.length!==1?'s':''}` : 'Vue Présentation'}</div></div>
+  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmt(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
@@ -732,6 +753,46 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     savePresentationOrder({})
   }
 
+  // ── CHRONO HIGHLIGHT ──
+  function toggleHighlight(key) {
+    const ns = new Set(chronoHighlights)
+    ns.has(key) ? ns.delete(key) : ns.add(key)
+    setChronoHighlights(ns)
+    try { localStorage.setItem(`chrono_hl_${selected.id}`, JSON.stringify([...ns])) } catch (_) {}
+  }
+
+  // ── PRESENTATION SAVES ──
+  function savePresentation(name) {
+    if (!name.trim()) return
+    const pres = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      selectedKeys: [...presSelectedRows],
+      order: { ...presentationOrder },
+      savedAt: new Date().toISOString(),
+    }
+    const updated = [...presentations.filter(p => p.name !== name.trim()), pres]
+    setPresentations(updated)
+    setActivePresName(name.trim())
+    try { localStorage.setItem(`presentations_${selected.id}`, JSON.stringify(updated)) } catch (_) {}
+    setShowSavePresModal(false)
+    setSavePresName('')
+  }
+
+  function loadPresentation(pres) {
+    savePresentationOrder(pres.order)
+    setPresSelectedRows(new Set(pres.selectedKeys))
+    setPresHistory([])
+    setActivePresName(pres.name)
+    setShowPresLibrary(false)
+  }
+
+  function deletePresentation(id) {
+    const updated = presentations.filter(p => p.id !== id)
+    setPresentations(updated)
+    try { localStorage.setItem(`presentations_${selected.id}`, JSON.stringify(updated)) } catch (_) {}
+  }
+
   // ── REMISE FUNCTIONS ──
   async function reloadRemises() {
     const { data } = await supabase.from('remises').select('*').eq('client_id', selected.id).order('date', { ascending: true })
@@ -789,6 +850,11 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     const thS = { background:'#ede9fe', color:'#5b21b6', borderBottom:'2px solid #ddd6fe', whiteSpace:'nowrap', padding:'9px 12px', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
     const bdr = { border:'1px solid #f1f5f9' }
 
+    // Selection totals for floating toolbar
+    const selectedEntries = displayEntries.filter(e => presSelectedRows.has(eKey(e)))
+    const selectedTotal   = selectedEntries.reduce((s, e) => s + e.delta, 0)
+    const selectedSolde   = selectedEntries.length > 0 ? selectedEntries[selectedEntries.length - 1].solde : presLedger.finalBalance
+
     if (displayEntries.length === 0) {
       return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune opération</div>
     }
@@ -797,17 +863,16 @@ ${pEntries.length > 0 ? `<div class="totals-row">
 
     return (
       <div>
-        {/* PRESENTATION TOOLBAR */}
+        {/* STATIC TOOLBAR — drag hint + undo/reset + library */}
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',borderBottom:'1px solid #f1f5f9',background:'#faf5ff',flexWrap:'wrap'}}>
           <span style={{fontSize:11,color:'#7c3aed',flex:1,minWidth:0}}>
             ↕ Faites glisser les lignes pour réorganiser. Les dates comptables restent inchangées.
           </span>
-          {presSelectedRows.size > 0 && (
-            <span style={{fontSize:11,fontWeight:700,color:'#1d4ed8',background:'#dbeafe',border:'1px solid #bfdbfe',borderRadius:4,padding:'2px 8px',display:'flex',alignItems:'center',gap:4}}>
-              {presSelectedRows.size} sélectionné{presSelectedRows.size > 1 ? 's' : ''}
-              <button onClick={() => setPresSelectedRows(new Set())}
-                style={{background:'transparent',border:'none',cursor:'pointer',color:'#64748b',fontWeight:700,fontSize:11,lineHeight:1,padding:0}}>✕</button>
-            </span>
+          {presentations.length > 0 && (
+            <button onClick={() => setShowPresLibrary(true)}
+              style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:5,border:'1px solid #ddd6fe',background:'#ede9fe',color:'#5b21b6',cursor:'pointer'}}>
+              📁 Mes présentations ({presentations.length})
+            </button>
           )}
           {presHistory.length > 0 && (
             <button onClick={undoPresentation}
@@ -822,6 +887,37 @@ ${pEntries.length > 0 ? `<div class="totals-row">
             </button>
           )}
         </div>
+
+        {/* FLOATING ACTION TOOLBAR — appears only when rows are selected */}
+        {presSelectedRows.size > 0 && (
+          <div style={{background:'#1e3a5f',color:'#fff',padding:'10px 16px',display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,boxShadow:'0 4px 16px rgba(30,58,95,0.35)'}}>
+            <div style={{flex:1,minWidth:180}}>
+              <div style={{fontWeight:700,fontSize:13,lineHeight:1.3}}>
+                {presSelectedRows.size} opération{presSelectedRows.size > 1 ? 's' : ''} sélectionnée{presSelectedRows.size > 1 ? 's' : ''}
+              </div>
+              <div style={{fontSize:12,opacity:0.85,marginTop:3,display:'flex',gap:16}}>
+                <span>Total : <strong>{selectedTotal >= 0 ? '+' : '−'} {fmt(Math.abs(selectedTotal))} DHS</strong></span>
+                <span>Solde : <strong>{fmt(selectedSolde)} DHS</strong></span>
+              </div>
+            </div>
+            <button onClick={printPresentationClient}
+              style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#fff',color:'#1e3a5f',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              🖨️ Imprimer
+            </button>
+            <button onClick={printPresentationClient}
+              style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#c7d2fe',color:'#1e40af',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              📄 PDF
+            </button>
+            <button onClick={() => { setSavePresName(activePresName || ''); setShowSavePresModal(true) }}
+              style={{padding:'5px 12px',borderRadius:6,border:'1px solid rgba(255,255,255,0.35)',background:'transparent',color:'#fff',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              💾 Enregistrer la présentation
+            </button>
+            <button onClick={() => setPresSelectedRows(new Set())}
+              style={{padding:'5px 12px',borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'transparent',color:'#fca5a5',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              ✕ Annuler
+            </button>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -1293,16 +1389,18 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                   const absAmt = Math.abs(e.delta)
                                   const amtColor = isPos ? '#1d4ed8' : '#16a34a'
                                   const v = e.raw
+                                  const isHighlighted = chronoHighlights.has(eKey(e))
                                   const typeRowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
                                     : e.type === 'mdo' ? '#fefce8' : undefined
-                                  const rowBg = typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
+                                  const rowBg = isHighlighted ? '#fef9c3' : (typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined))
                                   const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
                                   const noteDisplay = fraisItems.length > 0
                                     ? (e.note || '—')
                                     : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
                                   return (
                                     <Fragment key={eKey(e)}>
-                                      <tr style={{ background: rowBg }}>
+                                      <tr style={{ background: rowBg, cursor: 'pointer', transition: 'background 0.1s' }}
+                                        onClick={() => toggleHighlight(eKey(e))}>
                                         {/* DATE */}
                                         <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{fmtDate(e.date)}</td>
                                         {/* CAMION */}
@@ -1572,6 +1670,90 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                 <button type="button" onClick={() => setOpeningModal(null)} className="btn-secondary">Annuler</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SAVE PRESENTATION MODAL */}
+      {showSavePresModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">💾 Enregistrer la présentation</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{presSelectedRows.size} opération{presSelectedRows.size!==1?'s':''} sélectionnée{presSelectedRows.size!==1?'s':''}</p>
+              </div>
+              <button onClick={() => setShowSavePresModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="label">Nom de la présentation</label>
+                <input className="input" autoFocus placeholder="ex: Mai 2026, Réunion Client, Chantier Oujda…"
+                  value={savePresName}
+                  onChange={e => setSavePresName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') savePresentation(savePresName) }} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {['Mai 2026','Juin 2026','Paiements en retard','Réunion Client'].map(n => (
+                  <button key={n} onClick={() => setSavePresName(n)}
+                    style={{padding:'3px 9px',borderRadius:20,border:'1px solid #e2e8f0',background:'#f8fafc',color:'#475569',fontSize:11,cursor:'pointer',fontWeight:600}}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => savePresentation(savePresName)} disabled={!savePresName.trim()}
+                  className="btn-primary flex-1 justify-center" style={{background:'#1e3a5f'}}>
+                  ✓ Enregistrer
+                </button>
+                <button onClick={() => setShowSavePresModal(false)} className="btn-secondary">Annuler</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRESENTATION LIBRARY MODAL */}
+      {showPresLibrary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">📁 Mes présentations</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{selected?.nom}</p>
+              </div>
+              <button onClick={() => setShowPresLibrary(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <div className="p-5">
+              {presentations.length === 0 ? (
+                <div className="text-center text-gray-400 py-8 italic">Aucune présentation sauvegardée</div>
+              ) : (
+                <div className="space-y-2">
+                  {presentations.map(p => (
+                    <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 text-sm">{p.name}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {p.selectedKeys?.length ?? 0} opération{(p.selectedKeys?.length ?? 0)!==1?'s':''} sélectionnée{(p.selectedKeys?.length ?? 0)!==1?'s':''}
+                          {p.savedAt ? ` · ${new Date(p.savedAt).toLocaleDateString('fr-MA')}` : ''}
+                        </div>
+                      </div>
+                      <button onClick={() => loadPresentation(p)}
+                        style={{padding:'4px 12px',borderRadius:6,border:'none',background:'#1e3a5f',color:'#fff',fontWeight:700,fontSize:11,cursor:'pointer'}}>
+                        Ouvrir
+                      </button>
+                      <button onClick={() => { if(confirm(`Supprimer "${p.name}" ?`)) deletePresentation(p.id) }}
+                        style={{padding:'4px 8px',borderRadius:6,border:'1px solid #fecaca',background:'#fef2f2',color:'#dc2626',fontWeight:700,fontSize:11,cursor:'pointer'}}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <button onClick={() => setShowPresLibrary(false)} className="btn-secondary w-full">Fermer</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
