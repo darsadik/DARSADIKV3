@@ -428,33 +428,32 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
 
-    let lastPeriod = null
     const rows = pEntries.map(e => {
       const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
       const mvColor = isPos ? '#1d4ed8' : '#16a34a'
       const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
       const isMoved = !!presentationOrder[eKey(e)]
-      const periodChanged = isMoved && e.effectivePeriod !== e.date.slice(0, 7)
+      const v = e.raw
+      const isVenteLine = e.src === 'vente' && e.type !== 'remise-voyage' && e.type !== 'mdo'
+      const dash = '<span style="color:#e2e8f0">—</span>'
+      const qteCell  = isVenteLine ? `<span style="font-weight:700;color:#374151">${fmt(v.qte)}</span>` : dash
+      const prixCell = isVenteLine ? `<span style="font-weight:500;color:#64748b">${parseFloat(v.prix_vente||0).toFixed(2)}</span>` : dash
       const typeTag = e.type === 'vente'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">${e.label}</span>`
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
         : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'?e.label:'Remise'}</span>`
-      let periodHeaderRow = ''
-      if (e.effectivePeriod !== lastPeriod) {
-        lastPeriod = e.effectivePeriod
-        periodHeaderRow = `<tr style="background:#eff6ff !important"><td colspan="7" style="padding:5px 12px;font-size:10px;font-weight:700;color:#1d4ed8;letter-spacing:0.05em;border-bottom:1px solid #bfdbfe">📅 ${fmtMois(e.effectivePeriod)}</td></tr>`
-      }
-      const mainRow = `<tr>
-        <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${periodChanged?`<br><span style="font-size:9px;color:#7c3aed">↕ ${fmtMois(e.effectivePeriod)}</span>`:''}${isMoved&&!periodChanged?`<br><span style="font-size:9px;color:#94a3b8">↕ Déplacé</span>`:''}</td>
+      return `<tr>
+        <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>
         <td class="m">${e.detail||'—'}</td>
         <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
         <td>${typeTag}</td>
+        <td class="r">${qteCell}</td>
+        <td class="r">${prixCell}</td>
         <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmt(abs)}</span></td>
         <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmt(e.solde):'− '+fmt(Math.abs(e.solde))}</td>
         <td class="m" style="font-weight:${e.note?600:400};color:${e.note?'#374151':'#94a3b8'}">${e.note||'—'}</td>
       </tr>`
-      return periodHeaderRow + mainRow
     }).join('')
 
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
@@ -524,8 +523,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
 <div class="bdy">
 <table>
   <thead><tr>
-    <th>Date compta.</th><th>Camion</th><th>Opération</th><th>Type</th>
-    <th class="r">Montant</th><th class="r">Solde</th><th>Note</th>
+    <th>Date</th><th>Camion</th><th>Opération</th><th>Type</th>
+    <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th>
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>
