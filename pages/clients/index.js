@@ -1134,11 +1134,11 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                       draggable
                       onDragStart={ev => { ev.dataTransfer.effectAllowed = 'move'; setPresDragFrom(i) }}
                       onClick={ev => ev.stopPropagation()}
-                      style={{width:20,textAlign:'center',color:'#d1d5db',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
+                      style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
                       ⠿
                     </td>
                     {/* DATE + MOVED INDICATOR */}
-                    <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>
+                    <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>
                       <div>{fmtDate(e.date)}</div>
                       {isMoved && (
                         <div style={{fontSize:9,marginTop:2}}>
@@ -1147,8 +1147,8 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                       )}
                     </td>
                     {/* CAMION */}
-                    <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#94a3b8',padding:'10px 12px'}}>
-                      {e.detail || <span className="text-gray-200">—</span>}
+                    <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px'}}>
+                      {e.detail || <span className="text-gray-400">—</span>}
                     </td>
                     {/* OPÉRATION */}
                     <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
@@ -1165,12 +1165,12 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                           </span>}
                     </td>
                     {/* QTÉ */}
-                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:400,color:'#374151',fontSize:13}}>
-                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-200">—</span>}
+                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:13}}>
+                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-400">—</span>}
                     </td>
                     {/* PRIX/U */}
-                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:500,color:'#64748b',fontSize:12}}>
-                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-200">—</span>}
+                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:12}}>
+                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-400">—</span>}
                     </td>
                     {/* TOTAL */}
                     <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
@@ -1183,7 +1183,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                     </td>
                     {/* NOTE */}
                     <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
-                      color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                      color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
                       {e.note || '—'}
                     </td>
                   </tr>
@@ -1193,22 +1193,20 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                   const cfAmt = fmt(Math.abs(carryForwardBalance))
                   return (
                     <Fragment key={`rf-${eKey(e)}`}>
-                      <tr style={{background:'#fef3c7',borderTop:'2px solid #f59e0b',cursor:'default'}}>
-                        <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}}></td>
-                        <td style={{width:20,...bdr}}></td>
-                        <td style={{...bdr,color:'#92400e',padding:'10px 12px',fontSize:12,whiteSpace:'nowrap'}}>—</td>
-                        <td style={{...bdr,padding:'10px 12px',color:'#d1d5db'}}>—</td>
-                        <td style={{...bdr,color:'#92400e',padding:'10px 12px',fontWeight:700,fontSize:12}}>Report (Solde reporté)</td>
-                        <td style={{...bdr,padding:'10px 12px'}}>
+                      <tr style={{background:'#fef3c7',cursor:'default'}}>
+                        <td style={{width:36,padding:'0 6px',textAlign:'center',border:'1px solid #fde68a'}}></td>
+                        <td style={{width:20,textAlign:'center',color:'#fde68a',fontSize:17,userSelect:'none',border:'1px solid #fde68a'}}>—</td>
+                        <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>—</td>
+                        <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
+                        <td className="td text-xs font-semibold" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>Report (Solde reporté)</td>
+                        <td style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
                           <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>Report</span>
                         </td>
-                        <td style={{...bdr,padding:'10px 12px',textAlign:'right',color:'#d1d5db'}}>—</td>
-                        <td style={{...bdr,padding:'10px 12px',textAlign:'right',color:'#d1d5db'}}>—</td>
-                        <td style={{...bdr,padding:'10px 12px',textAlign:'right',color:'#d1d5db'}}>—</td>
-                        <td style={{...bdr,padding:'10px 14px',textAlign:'right',fontWeight:900,fontSize:15,color:'#b45309',whiteSpace:'nowrap',letterSpacing:'-0.2px'}}>
+                        {[0,1,2].map(k => <td key={k} className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>)}
+                        <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
                           {cfSign}{cfAmt}
                         </td>
-                        <td style={{...bdr,padding:'10px 12px',color:'#92400e',fontStyle:'italic',fontSize:11}}>Solde avant sélection</td>
+                        <td className="td text-xs" style={{border:'1px solid #fde68a',padding:'10px 12px',color:'#92400e',fontStyle:'italic'}}>Solde avant sélection</td>
                       </tr>
                       {rowEl}
                     </Fragment>
@@ -1569,10 +1567,10 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                       <tr style={{ background: rowBg, cursor: 'pointer', transition: 'background 0.1s' }}
                                         onClick={() => toggleHighlight(eKey(e))}>
                                         {/* DATE */}
-                                        <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{fmtDate(e.date)}</td>
+                                        <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>{fmtDate(e.date)}</td>
                                         {/* CAMION */}
-                                        <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#94a3b8',padding:'10px 12px'}}>
-                                          {e.detail || <span className="text-gray-200">—</span>}
+                                        <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px'}}>
+                                          {e.detail || <span className="text-gray-400">—</span>}
                                         </td>
                                         {/* OPÉRATION */}
                                         <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
@@ -1589,12 +1587,12 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                               </span>}
                                         </td>
                                         {/* QTÉ */}
-                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:400,color:'#374151',fontSize:13}}>
-                                          {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-200">—</span>}
+                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:13}}>
+                                          {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-400">—</span>}
                                         </td>
                                         {/* PRIX */}
-                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:500,color:'#64748b',fontSize:12}}>
-                                          {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-200">—</span>}
+                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:12}}>
+                                          {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-400">—</span>}
                                         </td>
                                         {/* TOTAL */}
                                         <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
@@ -1607,7 +1605,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                         </td>
                                         {/* NOTE */}
                                         <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
-                                          color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                                          color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
                                           {noteDisplay}
                                         </td>
                                         {/* ACTIONS — remise edit/delete only */}
