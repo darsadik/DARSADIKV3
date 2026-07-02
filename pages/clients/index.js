@@ -430,10 +430,24 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
       ? pLedger.entries.filter(e => presSelectedRows.has(eKey(e)))
       : pLedger.entries
     const pFinalBalance = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
+
+    let selectionCarryForward = null
+    if (isSelectionPrint && pLedger.entries.length > 0) {
+      const firstSelIdxInFull = pLedger.entries.findIndex(e => presSelectedRows.has(eKey(e)))
+      if (firstSelIdxInFull > 0) {
+        selectionCarryForward = pLedger.entries[firstSelIdxInFull - 1].solde
+      }
+    }
+    const reportRowHtml = selectionCarryForward !== null ? (() => {
+      const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
+      const cfAmt = fmt(Math.abs(selectionCarryForward))
+      return `<tr style="background:#fef3c7;border-top:2px solid #f59e0b"><td class="m" style="white-space:nowrap;color:#92400e">—</td><td class="m">—</td><td style="font-size:12px;font-weight:700;color:#92400e">Report (Solde reporté)</td><td><span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Report</span></td><td class="r" style="color:#d1d5db">—</td><td class="r" style="color:#d1d5db">—</td><td class="r" style="color:#d1d5db">—</td><td class="r" style="font-weight:900;font-size:15.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${cfSign}${cfAmt}</td><td class="m" style="color:#92400e;font-style:italic">Solde avant sélection</td></tr>`
+    })() : ''
+
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
 
-    const rows = pEntries.map(e => {
+    const rows = reportRowHtml + pEntries.map(e => {
       // ── Opening balance row ──
       if (e.type === 'opening') {
         const soldeAmber = e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`
@@ -909,6 +923,11 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     const selectedTotal   = selectedEntries.reduce((s, e) => s + e.delta, 0)
     const selectedSolde   = selectedEntries.length > 0 ? selectedEntries[selectedEntries.length - 1].solde : presLedger.finalBalance
 
+    const firstSelIdx = presSelectedRows.size > 0
+      ? displayEntries.findIndex(e => presSelectedRows.has(eKey(e)))
+      : -1
+    const carryForwardBalance = firstSelIdx > 0 ? displayEntries[firstSelIdx - 1].solde : null
+
     if (displayEntries.length === 0) {
       return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune opération</div>
     }
@@ -1052,7 +1071,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                   : e.type === 'mdo' ? '#fefce8' : undefined
                 const rowBg = isSelected ? '#ede9fe' : typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
 
-                return (
+                const rowEl = (
                   <tr key={eKey(e)}
                     /* ── Drop zone (for row reorder) ── */
                     onDragOver={ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setPresDragOver(i) }}
@@ -1169,6 +1188,33 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                     </td>
                   </tr>
                 )
+                if (i === firstSelIdx && carryForwardBalance !== null) {
+                  const cfSign = carryForwardBalance >= 0 ? '+ ' : '− '
+                  const cfAmt = fmt(Math.abs(carryForwardBalance))
+                  return (
+                    <Fragment key={`rf-${eKey(e)}`}>
+                      <tr style={{background:'#fef3c7',borderTop:'2px solid #f59e0b',cursor:'default'}}>
+                        <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}}></td>
+                        <td style={{width:20,...bdr}}></td>
+                        <td style={{...bdr,color:'#92400e',padding:'10px 12px',fontSize:12,whiteSpace:'nowrap'}}>—</td>
+                        <td style={{...bdr,padding:'10px 12px',color:'#d1d5db'}}>—</td>
+                        <td style={{...bdr,color:'#92400e',padding:'10px 12px',fontWeight:700,fontSize:12}}>Report (Solde reporté)</td>
+                        <td style={{...bdr,padding:'10px 12px'}}>
+                          <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>Report</span>
+                        </td>
+                        <td style={{...bdr,padding:'10px 12px',textAlign:'right',color:'#d1d5db'}}>—</td>
+                        <td style={{...bdr,padding:'10px 12px',textAlign:'right',color:'#d1d5db'}}>—</td>
+                        <td style={{...bdr,padding:'10px 12px',textAlign:'right',color:'#d1d5db'}}>—</td>
+                        <td style={{...bdr,padding:'10px 14px',textAlign:'right',fontWeight:900,fontSize:15,color:'#b45309',whiteSpace:'nowrap',letterSpacing:'-0.2px'}}>
+                          {cfSign}{cfAmt}
+                        </td>
+                        <td style={{...bdr,padding:'10px 12px',color:'#92400e',fontStyle:'italic',fontSize:11}}>Solde avant sélection</td>
+                      </tr>
+                      {rowEl}
+                    </Fragment>
+                  )
+                }
+                return rowEl
               })}
             </tbody>
             {displayEntries.length > 0 && (
