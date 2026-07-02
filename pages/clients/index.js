@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
@@ -54,6 +54,11 @@ export default function Clients() {
   const [presSelectedRows, setPresSelectedRows] = useState(new Set())
   const [presLastClickedIdx, setPresLastClickedIdx] = useState(null)
 
+  // ── DRAG-SELECT STATE (mouse drag across rows to multi-select) ──
+  const [presDragSelectStart, setPresDragSelectStart] = useState(null)
+  const [presDragSelectActive, setPresDragSelectActive] = useState(false)
+  const presSelectInitRef = useRef(null) // selection snapshot at mousedown
+
   // ── CHRONO HIGHLIGHT (localStorage, never touches accounting) ──
   const [chronoHighlights, setChronoHighlights] = useState(new Set())
 
@@ -88,6 +93,13 @@ export default function Clients() {
       setActivePresName(null)
     } catch (_) {}
   }, [selected?.id])
+
+  // End drag-selection on mouse-up anywhere on the page
+  useEffect(() => {
+    const up = () => { setPresDragSelectStart(null); setPresDragSelectActive(false) }
+    window.addEventListener('mouseup', up)
+    return () => window.removeEventListener('mouseup', up)
+  }, [])
 
   async function loadClients() {
     setLoading(true)
@@ -294,6 +306,8 @@ export default function Clients() {
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Relevé — ${selected.nom}</title>
 <style>
+  @page{margin:0mm}
+  @media print{.btn-p{display:none!important}}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
   .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
@@ -446,6 +460,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Relevé Présentation — ${selected.nom}</title>
 <style>
+  @page{margin:0mm}
+  @media print{.btn-p{display:none!important}}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #7c3aed}
   .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
@@ -845,7 +861,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
 
   // ── RENDER: PRESENTATION TABLE ──
   function renderPresentationTable() {
-    const presLedger   = buildPresentationLedger()
+    const presLedger     = buildPresentationLedger()
     const displayEntries = presLedger.entries
     const thS = { background:'#ede9fe', color:'#5b21b6', borderBottom:'2px solid #ddd6fe', whiteSpace:'nowrap', padding:'9px 12px', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
     const bdr = { border:'1px solid #f1f5f9' }
@@ -859,14 +875,12 @@ ${pEntries.length > 0 ? `<div class="totals-row">
       return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune opération</div>
     }
 
-    let lastPeriod = null
-
     return (
       <div>
         {/* STATIC TOOLBAR — drag hint + undo/reset + library */}
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',borderBottom:'1px solid #f1f5f9',background:'#faf5ff',flexWrap:'wrap'}}>
           <span style={{fontSize:11,color:'#7c3aed',flex:1,minWidth:0}}>
-            ↕ Faites glisser les lignes pour réorganiser. Les dates comptables restent inchangées.
+            ↕ Glissez les lignes pour réorganiser · Cliquez pour sélectionner · Maj+Clic pour une plage
           </span>
           {presentations.length > 0 && (
             <button onClick={() => setShowPresLibrary(true)}
@@ -900,11 +914,11 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                 <span>Solde : <strong>{fmt(selectedSolde)} DHS</strong></span>
               </div>
             </div>
-            <button onClick={printPresentationClient}
+            <button onClick={() => { printPresentationClient(); setPresSelectedRows(new Set()) }}
               style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#fff',color:'#1e3a5f',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
               🖨️ Imprimer
             </button>
-            <button onClick={printPresentationClient}
+            <button onClick={() => { printPresentationClient(); setPresSelectedRows(new Set()) }}
               style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#c7d2fe',color:'#1e40af',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
               📄 PDF
             </button>
@@ -919,27 +933,31 @@ ${pEntries.length > 0 ? `<div class="totals-row">
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" style={{userSelect:'none'}}>
           <table className="w-full border-collapse">
             <thead>
               <tr>
+                {/* Select-all checkbox */}
                 <th style={{...thS,width:36,padding:'9px 6px',textAlign:'center'}}>
                   <input type="checkbox"
                     checked={displayEntries.length > 0 && displayEntries.every(e => presSelectedRows.has(eKey(e)))}
                     onChange={ev => setPresSelectedRows(ev.target.checked ? new Set(displayEntries.map(eKey)) : new Set())}
                     style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
                 </th>
+                {/* Drag handle col */}
                 <th style={{...thS,width:20,padding:'9px 4px'}}></th>
                 {[
                   {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
-                  {l:'Total DHS',r:true},{l:'Solde',r:true},{l:'Note',r:false}
-                ].map((col,i) => (
-                  <th key={i} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
+                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Solde',r:true},{l:'Note',r:false}
+                ].map((col,ci) => (
+                  <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {displayEntries.map((e, i) => {
+                const isVente    = e.src === 'vente'
+                const v          = e.raw
                 const isPos      = e.delta >= 0
                 const absAmt     = Math.abs(e.delta)
                 const amtColor   = isPos ? '#1d4ed8' : '#16a34a'
@@ -947,113 +965,133 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                 const isDragging = presDragFrom === i
                 const isDropTarget = presDragOver === i && presDragFrom !== null && presDragFrom !== i
                 const isMoved    = !!presentationOrder[eKey(e)]
-                const accountingPeriod = e.date.slice(0, 7)
-                const periodChanged = isMoved && e.effectivePeriod !== accountingPeriod
                 const typeRowBg  = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
                   : e.type === 'mdo' ? '#fefce8' : undefined
                 const rowBg = isSelected ? '#ede9fe' : typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
 
-                const showPeriodHeader = e.effectivePeriod !== lastPeriod
-                lastPeriod = e.effectivePeriod
-
                 return (
-                  <Fragment key={eKey(e)}>
-                    {showPeriodHeader && (
-                      <tr>
-                        <td colSpan={10} style={{padding:'6px 12px',fontSize:10.5,fontWeight:700,color:'#5b21b6',background:'#ede9fe',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',letterSpacing:'0.05em'}}>
-                          📅 {fmtMois(e.effectivePeriod)}
-                        </td>
-                      </tr>
-                    )}
-                    <tr
+                  <tr key={eKey(e)}
+                    /* ── Drop zone (for row reorder) ── */
+                    onDragOver={ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setPresDragOver(i) }}
+                    onDrop={ev => { ev.preventDefault(); handlePresentationReorder(presDragFrom, i, displayEntries) }}
+                    onDragEnd={() => { setPresDragFrom(null); setPresDragOver(null) }}
+                    /* ── ERP-style toggle click ── */
+                    onClick={ev => {
+                      if (presDragSelectActive) return // was a drag, not a click
+                      const key = eKey(e)
+                      if (ev.shiftKey && presLastClickedIdx !== null) {
+                        const lo = Math.min(presLastClickedIdx, i), hi = Math.max(presLastClickedIdx, i)
+                        const ns = new Set(presSelectInitRef.current ?? presSelectedRows)
+                        for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
+                        setPresSelectedRows(ns)
+                      } else {
+                        // Plain click or Ctrl/Cmd+Click: toggle this row
+                        const ns = new Set(presSelectedRows)
+                        ns.has(key) ? ns.delete(key) : ns.add(key)
+                        setPresSelectedRows(ns)
+                        setPresLastClickedIdx(i)
+                        presSelectInitRef.current = new Set(ns)
+                      }
+                    }}
+                    /* ── Drag-select (mousedown → mouseenter) ── */
+                    onMouseDown={ev => {
+                      if (ev.button !== 0) return
+                      setPresDragSelectStart(i)
+                      setPresDragSelectActive(false)
+                      presSelectInitRef.current = new Set(presSelectedRows)
+                    }}
+                    onMouseEnter={ev => {
+                      if (presDragSelectStart === null || !(ev.buttons & 1) || presDragFrom !== null) return
+                      setPresDragSelectActive(true)
+                      const lo = Math.min(presDragSelectStart, i), hi = Math.max(presDragSelectStart, i)
+                      const ns = new Set(presSelectInitRef.current ?? presSelectedRows)
+                      for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
+                      setPresSelectedRows(ns)
+                      setPresLastClickedIdx(i)
+                    }}
+                    style={{
+                      background: rowBg,
+                      opacity: isDragging ? 0.4 : 1,
+                      borderTop: isDropTarget ? '2px solid #7c3aed' : undefined,
+                      borderLeft: isSelected ? '3px solid #7c3aed' : undefined,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {/* CHECKBOX — still visible but clicking anywhere on row works */}
+                    <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}} onClick={ev => ev.stopPropagation()}>
+                      <input type="checkbox" checked={isSelected} onChange={() => {
+                        const ns = new Set(presSelectedRows)
+                        ns.has(eKey(e)) ? ns.delete(eKey(e)) : ns.add(eKey(e))
+                        setPresSelectedRows(ns); setPresLastClickedIdx(i)
+                        presSelectInitRef.current = new Set(ns)
+                      }}
+                        style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
+                    </td>
+                    {/* DRAG HANDLE — only this initiates row reorder */}
+                    <td
                       draggable
                       onDragStart={ev => { ev.dataTransfer.effectAllowed = 'move'; setPresDragFrom(i) }}
-                      onDragOver={ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setPresDragOver(i) }}
-                      onDrop={ev => { ev.preventDefault(); handlePresentationReorder(presDragFrom, i, displayEntries) }}
-                      onDragEnd={() => { setPresDragFrom(null); setPresDragOver(null) }}
-                      onClick={ev => {
-                        const key = eKey(e)
-                        if (ev.shiftKey && presLastClickedIdx !== null) {
-                          const lo = Math.min(presLastClickedIdx, i), hi = Math.max(presLastClickedIdx, i)
-                          const ns = new Set(presSelectedRows)
-                          for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
-                          setPresSelectedRows(ns)
-                        } else if (ev.ctrlKey || ev.metaKey) {
-                          const ns = new Set(presSelectedRows)
-                          ns.has(key) ? ns.delete(key) : ns.add(key)
-                          setPresSelectedRows(ns); setPresLastClickedIdx(i)
-                        } else {
-                          setPresSelectedRows(new Set([key])); setPresLastClickedIdx(i)
-                        }
-                      }}
-                      style={{
-                        background: rowBg, opacity: isDragging ? 0.4 : 1,
-                        borderTop: isDropTarget ? '2px solid #7c3aed' : undefined,
-                        borderLeft: isSelected ? '3px solid #7c3aed' : undefined,
-                        cursor: 'grab',
-                      }}
-                    >
-                      {/* CHECKBOX */}
-                      <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}}>
-                        <input type="checkbox" checked={isSelected} onChange={() => {}}
-                          onClick={ev => { ev.stopPropagation(); const ns = new Set(presSelectedRows); ns.has(eKey(e)) ? ns.delete(eKey(e)) : ns.add(eKey(e)); setPresSelectedRows(ns); setPresLastClickedIdx(i) }}
-                          style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
-                      </td>
-                      {/* DRAG HANDLE */}
-                      <td style={{width:20,textAlign:'center',color:'#d1d5db',fontSize:17,userSelect:'none',...bdr}}>⠿</td>
-                      {/* DATE + MOVED INDICATOR */}
-                      <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>
-                        <div>{fmtDate(e.date)}</div>
-                        {isMoved && (
-                          <div style={{fontSize:9,marginTop:2}}>
-                            <span style={{background:'#ede9fe',color:'#7c3aed',fontWeight:700,padding:'1px 4px',borderRadius:3}}>↕</span>
-                            <span style={{color:'#94a3b8',marginLeft:3}}>
-                              {periodChanged ? `→ ${fmtMois(e.effectivePeriod)}` : 'Déplacé'}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      {/* CAMION */}
-                      <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#94a3b8',padding:'10px 12px'}}>
-                        {e.detail || <span className="text-gray-200">—</span>}
-                      </td>
-                      {/* OPÉRATION */}
-                      <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
-                        {e.operation}
-                      </td>
-                      {/* TYPE BADGE */}
-                      <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
-                        {e.type === 'vente'
-                          ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
-                          : e.type === 'mdo'
-                          ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
-                          : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
-                              {e.type === 'paiement' ? e.label : 'Remise'}
-                            </span>}
-                      </td>
-                      {/* TOTAL */}
-                      <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
-                        {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
-                      </td>
-                      {/* SOLDE */}
-                      <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
-                        color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
-                        {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
-                      </td>
-                      {/* NOTE */}
-                      <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
-                        color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
-                        {e.note || '—'}
-                      </td>
-                    </tr>
-                  </Fragment>
+                      onClick={ev => ev.stopPropagation()}
+                      style={{width:20,textAlign:'center',color:'#d1d5db',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
+                      ⠿
+                    </td>
+                    {/* DATE + MOVED INDICATOR */}
+                    <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>
+                      <div>{fmtDate(e.date)}</div>
+                      {isMoved && (
+                        <div style={{fontSize:9,marginTop:2}}>
+                          <span style={{background:'#ede9fe',color:'#7c3aed',fontWeight:700,padding:'1px 4px',borderRadius:3}}>↕ Déplacé</span>
+                        </div>
+                      )}
+                    </td>
+                    {/* CAMION */}
+                    <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#94a3b8',padding:'10px 12px'}}>
+                      {e.detail || <span className="text-gray-200">—</span>}
+                    </td>
+                    {/* OPÉRATION */}
+                    <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
+                      {e.operation}
+                    </td>
+                    {/* TYPE BADGE */}
+                    <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
+                      {e.type === 'vente'
+                        ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
+                        : e.type === 'mdo'
+                        ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                        : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                            {e.type === 'paiement' ? e.label : 'Remise'}
+                          </span>}
+                    </td>
+                    {/* QTÉ */}
+                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:400,color:'#374151',fontSize:13}}>
+                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-200">—</span>}
+                    </td>
+                    {/* PRIX/U */}
+                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:500,color:'#64748b',fontSize:12}}>
+                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-200">—</span>}
+                    </td>
+                    {/* TOTAL */}
+                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
+                      {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
+                    </td>
+                    {/* SOLDE */}
+                    <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                      color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
+                      {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
+                    </td>
+                    {/* NOTE */}
+                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
+                      color: e.note ? '#374151' : '#cbd5e1', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                      {e.note || '—'}
+                    </td>
+                  </tr>
                 )
               })}
             </tbody>
             {displayEntries.length > 0 && (
               <tfoot>
                 <tr>
-                  <td colSpan={7} style={{padding:'11px 12px',background:'#ede9fe',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'2px solid #ddd6fe'}}>
+                  <td colSpan={9} style={{padding:'11px 12px',background:'#ede9fe',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'2px solid #ddd6fe'}}>
                     Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
                   </td>
                   <td style={{padding:'11px 14px',background:'#ede9fe',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #ddd6fe',letterSpacing:'-0.2px'}}>
