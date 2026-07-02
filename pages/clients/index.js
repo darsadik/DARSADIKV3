@@ -36,6 +36,7 @@ export default function Clients() {
   const [editClientSaving, setEditClientSaving] = useState(false)
   const [clientRemises, setClientRemises] = useState([])
   const [clientFraisMap, setClientFraisMap] = useState({})
+  const [clientLivNoteMap, setClientLivNoteMap] = useState({})
   const [remiseModal, setRemiseModal] = useState(null)
   const [remiseForm, setRemiseForm] = useState({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' })
   const [remiseSaving, setRemiseSaving] = useState(false)
@@ -113,6 +114,7 @@ export default function Clients() {
     setShowDetail(true)
     setLoadingDetail(true)
     setClientFraisMap({})
+    setClientLivNoteMap({})
     const [{ data: ventes }, { data: paiements }, { data: remises }] = await Promise.all([
       supabase.from('ventes').select('*').eq('client_id', client.id).order('date', { ascending: true }),
       supabase.from('paiements').select('*').eq('client_id', client.id).order('date', { ascending: true }),
@@ -125,9 +127,12 @@ export default function Clients() {
     // Load frais per livraison
     try {
       const { data: livs } = await supabase
-        .from('voyage_livraisons').select('id,vente_id')
+        .from('voyage_livraisons').select('id,vente_id,note')
         .eq('client_id', client.id).not('vente_id', 'is', null)
       if (livs?.length) {
+        const noteMap = {}
+        livs.forEach(l => { if (l.note && l.vente_id) noteMap[l.vente_id] = l.note })
+        setClientLivNoteMap(noteMap)
         const livIds = livs.map(l => l.id)
         const { data: fraisData, error: fraisErr } = await supabase
           .from('voyage_livraison_frais').select('*').in('livraison_id', livIds)
@@ -625,7 +630,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
       const isRemiseVoyage = v.type_entree === 'remise'
       const isMdo = v.type_entree === 'mdo'
       const type = isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente'
-      const deliveryNote = isRemiseVoyage ? (v.description_mdo || v.note || '') : isMdo ? (v.description_mdo || '') : (v.note || '')
+      const deliveryNote = isRemiseVoyage ? (v.description_mdo || v.note || '') : isMdo ? (v.description_mdo || '') : (v.note || clientLivNoteMap[v.id] || '')
       const fraisNote    = (!isRemiseVoyage && !isMdo) ? (v.frais_note || '') : ''
       entries.push({
         date: v.date, created_at: v.created_at || '', type,
@@ -683,7 +688,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
       const entry = {
         date: v.date, created_at: v.created_at || '', type,
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
-        detail: v.camion_plaque || '', note: isRemiseVoyage ? (v.description_mdo||v.note||'') : isMdo ? (v.description_mdo||'') : (v.note||''),
+        detail: v.camion_plaque || '', note: isRemiseVoyage ? (v.description_mdo||v.note||'') : isMdo ? (v.description_mdo||'') : (v.note||clientLivNoteMap[v.id]||''),
         fraisNote: (!isRemiseVoyage && !isMdo) ? (v.frais_note || '') : '',
         operation: opLabel(type, null), delta: v.total_vente || 0, src: 'vente', raw: v,
       }
