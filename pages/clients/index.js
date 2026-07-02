@@ -429,6 +429,21 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
 
     const rows = pEntries.map(e => {
+      // ── Opening balance row ──
+      if (e.type === 'opening') {
+        const soldeAmber = e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`
+        return `<tr style="background:#fffbeb !important">
+          <td class="m" style="color:#92400e;white-space:nowrap">${e.date ? fmtDate(e.date) : '—'}</td>
+          <td class="m">—</td>
+          <td style="font-size:12px;font-weight:600;color:#92400e">Solde initial</td>
+          <td><span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Solde initial</span></td>
+          <td class="r" style="color:#e2e8f0">—</td>
+          <td class="r" style="color:#e2e8f0">—</td>
+          <td class="r" style="color:#e2e8f0">—</td>
+          <td class="r" style="font-weight:900;font-size:15.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${soldeAmber}</td>
+          <td class="m" style="color:#92400e;font-style:italic">${e.note || 'Solde de départ'}</td>
+        </tr>`
+      }
       const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
       const mvColor = isPos ? '#1d4ed8' : '#16a34a'
       const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
@@ -699,14 +714,31 @@ ${pEntries.length > 0 ? `<div class="totals-row">
       allEntries.push(entry)
     })
 
+    // When no override exists: match chrono sort exactly (date asc, then created_at asc)
+    // When at least one entry has an override: use effectivePeriod/effectiveSeq
     allEntries.sort((a, b) => {
+      const aO = presentationOrder[eKey(a)], bO = presentationOrder[eKey(b)]
+      if (!aO && !bO) {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1
+        const ac = a.created_at || a.date + 'T00:00:00', bc = b.created_at || b.date + 'T00:00:00'
+        return ac < bc ? -1 : ac > bc ? 1 : 0
+      }
       if (a.effectivePeriod !== b.effectivePeriod) return a.effectivePeriod < b.effectivePeriod ? -1 : 1
       return a.effectiveSeq - b.effectiveSeq
     })
 
     let balance = startBal
     allEntries.forEach(e => { balance += e.delta; e.solde = balance })
-    return { entries: allEntries, startBalance: startBal, finalBalance: balance }
+
+    // Opening balance row — always prepended first, selectable in Presentation view
+    const openingEntry = {
+      date: selected.opening_date || '', created_at: '',
+      type: 'opening', src: 'opening', raw: { id: 'opening' },
+      label: 'Solde initial', detail: '', note: selected.opening_note || 'Solde de départ',
+      operation: 'Solde initial', delta: 0, solde: startBal,
+      effectivePeriod: '', effectiveSeq: -Infinity,
+    }
+    return { entries: [openingEntry, ...allEntries], startBalance: startBal, finalBalance: balance }
   }
 
   // ── PRESENTATION ORDER PERSISTENCE ──
@@ -718,6 +750,8 @@ ${pEntries.length > 0 ? `<div class="totals-row">
 
   function handlePresentationReorder(fromIdx, toIdx, displayEntries) {
     if (fromIdx === null || fromIdx === toIdx) return
+    if (displayEntries[fromIdx]?.type === 'opening') return // can't move opening row
+    if (displayEntries[toIdx]?.type === 'opening') return   // can't drop before opening row
 
     const draggedKey = eKey(displayEntries[fromIdx])
     const isDragSelected = presSelectedRows.has(draggedKey)
@@ -955,6 +989,51 @@ ${pEntries.length > 0 ? `<div class="totals-row">
             </thead>
             <tbody>
               {displayEntries.map((e, i) => {
+                // ── Opening balance row ──
+                if (e.type === 'opening') {
+                  const isSelected = presSelectedRows.has(eKey(e))
+                  const amber = '#fde68a'
+                  const bdrA = { border: `1px solid ${amber}` }
+                  return (
+                    <tr key="opening:opening"
+                      onClick={() => {
+                        const key = eKey(e); const ns = new Set(presSelectedRows)
+                        ns.has(key) ? ns.delete(key) : ns.add(key)
+                        setPresSelectedRows(ns); setPresLastClickedIdx(i); presSelectInitRef.current = new Set(ns)
+                      }}
+                      style={{ background: isSelected ? '#fef3c7' : '#fffbeb', cursor: 'pointer',
+                        borderLeft: isSelected ? '3px solid #f59e0b' : undefined }}>
+                      <td style={{ width:36, padding:'0 6px', textAlign:'center', ...bdrA }} onClick={ev => ev.stopPropagation()}>
+                        <input type="checkbox" checked={isSelected} onChange={() => {
+                          const ns = new Set(presSelectedRows); const key = eKey(e)
+                          ns.has(key) ? ns.delete(key) : ns.add(key)
+                          setPresSelectedRows(ns); setPresLastClickedIdx(i); presSelectInitRef.current = new Set(ns)
+                        }} style={{ width:13, height:13, cursor:'pointer', accentColor:'#f59e0b' }} />
+                      </td>
+                      <td style={{ width:20, textAlign:'center', color:'#fde68a', fontSize:17, userSelect:'none', ...bdrA }}>—</td>
+                      <td className="td text-xs" style={{ ...bdrA, color:'#92400e', whiteSpace:'nowrap', padding:'10px 12px' }}>
+                        {e.date ? fmtDate(e.date) : '—'}
+                      </td>
+                      <td className="td text-center text-gray-300" style={{ ...bdrA, padding:'10px 12px' }}>—</td>
+                      <td className="td text-xs font-semibold" style={{ ...bdrA, color:'#92400e', whiteSpace:'nowrap', padding:'10px 12px' }}>
+                        Solde initial
+                      </td>
+                      <td style={{ ...bdrA, padding:'10px 12px' }}>
+                        <span style={{ background:'#fef3c7', color:'#92400e', fontWeight:700, fontSize:10, padding:'2px 7px', borderRadius:3, border:`1px solid ${amber}`, whiteSpace:'nowrap' }}>
+                          Solde initial
+                        </span>
+                      </td>
+                      {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{ ...bdrA, padding:'10px 12px' }}>—</td>)}
+                      <td className="td text-right font-black" style={{ ...bdrA, color:'#b45309', fontSize:15, whiteSpace:'nowrap', padding:'10px 14px', letterSpacing:'-0.2px' }}>
+                        {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
+                      </td>
+                      <td className="td text-xs" style={{ ...bdrA, padding:'10px 12px', color:'#92400e', fontStyle:'italic' }}>
+                        {e.note || 'Solde de départ'}
+                      </td>
+                    </tr>
+                  )
+                }
+
                 const isVente    = e.src === 'vente'
                 const v          = e.raw
                 const isPos      = e.delta >= 0
