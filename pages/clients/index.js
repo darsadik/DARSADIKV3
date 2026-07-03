@@ -958,109 +958,73 @@ ${pEntries.length > 0 ? `<div class="totals-row">
   }
 
   function printSelectedClients() {
-    const selClients = filtered.filter(c => selectedClientIds.has(c.id))
+    const selClients = filtered.filter(function(c) { return selectedClientIds.has(c.id) })
     if (!selClients.length) return
     const _now = new Date()
-    const dateStr = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+    const hh = String(_now.getHours()).padStart(2, '0')
+    const mm = String(_now.getMinutes()).padStart(2, '0')
+    const dateStr = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + hh + ':' + mm
     const n = selClients.length
     const suf = n !== 1 ? 's' : ''
     const clientsFullLabel = n + ' client' + suf + ' sélectionné' + suf
     const clientsShortLabel = n + ' client' + suf
     let periodeLabel
     if (reportPeriodActive && reportTo) {
-      const fromStr = reportFrom ? fmtDate(reportFrom) : 'début'
-      periodeLabel = 'Du ' + fromStr + ' au ' + fmtDate(reportTo)
+      periodeLabel = 'Du ' + (reportFrom ? fmtDate(reportFrom) : 'début') + ' au ' + fmtDate(reportTo)
     } else {
       periodeLabel = 'Toutes les dates'
     }
-    const totalSolde = selClients.reduce((s, c) => s + (reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)), 0)
+    const totalSolde = selClients.reduce(function(s, c) { return s + (reportPeriodActive ? (reportBalances[c.id] != null ? reportBalances[c.id] : c.solde || 0) : (c.solde || 0)) }, 0)
     const totalColor = totalSolde > 0 ? '#dc2626' : '#16a34a'
     const totalSoldeStr = fmt(totalSolde)
-    const rows = selClients.map((c, i) => {
-      const solde = reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)
+    const p = 'padding:10px 14px;border-bottom:1px solid #e8ecf0'
+    let rows = ''
+    for (let i = 0; i < selClients.length; i++) {
+      const c = selClients[i]
+      const solde = reportPeriodActive ? (reportBalances[c.id] != null ? reportBalances[c.id] : c.solde || 0) : (c.solde || 0)
       const soldeColor = solde >= 100000 ? '#dc2626' : solde >= 30000 ? '#d97706' : solde > 0 ? '#1d4ed8' : '#16a34a'
-      const p = 'padding:10px 14px;border-bottom:1px solid #e8ecf0'
-      const tr = i % 2 === 1 ? '<tr style="background:#f8fafc">' : '<tr>'
-      return tr
+      const rowBg = i % 2 === 1 ? ' style="background:#f8fafc"' : ''
+      rows += '<tr' + rowBg + '>'
         + '<td style="' + p + ';font-size:13px;color:#374151">' + (i + 1) + '</td>'
         + '<td style="' + p + ';font-size:14px;font-weight:700;color:#0f172a;text-transform:uppercase">' + c.nom + '</td>'
         + '<td style="' + p + ';font-size:13px;color:#475569">' + (c.depot || '—') + '</td>'
         + '<td style="' + p + ';font-size:13px;color:#475569">' + (c.tel || '—') + '</td>'
         + '<td style="' + p + ';text-align:right;font-size:15px;font-weight:900;color:' + soldeColor + ';white-space:nowrap;font-family:monospace;letter-spacing:-0.3px">' + fmt(solde) + ' DHS</td>'
         + '</tr>'
-    }).join('')
-    const svgLogo = '<svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>'
-    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
-<meta charset="UTF-8"><title>Créances Clients</title>
-<style>
-  @page{margin:12mm}
-  @media print{.btn-p{display:none!important}}
-  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
-  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
-  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
-  .co-addr{font-size:11px;color:#475569;margin-top:5px}
-  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
-  .bdy{padding:12px 24px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f!important;color:#fff!important;padding:10px 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
-  tbody tr{page-break-inside:avoid}
-  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
-</style></head><body>
-<div class="hdr">
-  <div>
-    <div style="display:flex;align-items:center;gap:12px">
-      ${svgLogo}
-      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
-    </div>
-    <div class="co-addr">Selouane, Nador</div>
-  </div>
-  <div style="text-align:right">
-    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
-      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;&middot;&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
-      <strong>Bureau</strong> 06 62 82 88 20<br>
-      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
-    </div>
-    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${dateStr}</div>
-    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
-  </div>
-</div>
-<div class="bdy">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-    <div>
-      <div style="font-size:17px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px">Rapport Créances Clients</div>
-      <div style="font-size:11px;color:#2563eb;font-weight:700;margin-top:3px">Période : ${periodeLabel}</div>
-    </div>
-    <div style="font-size:12px;color:#475569;font-weight:600">${clientsFullLabel}</div>
-  </div>
-  <table>
-    <thead><tr>
-      <th style="width:40px">#</th><th>Client</th><th>Dépôt</th><th>Téléphone</th>
-      <th style="text-align:right">Créance (DHS)</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#eff6ff;border-top:3px solid #1e3a5f;font-weight:800;font-size:14px;color:#1e3a5f">
-    <span>Total — ${clientsFullLabel}</span>
-    <span style="font-size:15px;font-weight:900;font-family:monospace">${totalSoldeStr} DHS</span>
-  </div>
-  <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px">
-    <div>
-      <div style="font-size:12px;font-weight:700;color:#166534">Total créances sélectionnées</div>
-      <div style="font-size:10px;color:#86efac;margin-top:2px">${clientsShortLabel} · ${periodeLabel}</div>
-    </div>
-    <div style="text-align:right">
-      <div style="font-size:30px;font-weight:900;color:${totalColor};line-height:1;letter-spacing:-0.5px">${totalSoldeStr}</div>
-      <div style="font-size:12px;font-weight:600;color:#4ade80;margin-top:2px">DHS</div>
-    </div>
-  </div>
-  <div class="foot">
-    <span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span>
-    <span>Généré le ${dateStr}</span>
-  </div>
-</div>
-</body></html>`)
+    }
+    const css = '@page{margin:12mm} @media print{.btn-p{display:none!important}} *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box;margin:0;padding:0} body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f} table{width:100%;border-collapse:collapse} thead th{background:#1e3a5f;color:#fff;padding:10px 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;text-align:left;white-space:nowrap} .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}'
+    const svg = '<svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>'
+    const html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Créances Clients</title><style>' + css + '</style></head><body>'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0">'
+      + '<div><div style="display:flex;align-items:center;gap:12px">' + svg
+      + '<div><div style="font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase">DAR SADIK</div>'
+      + '<div style="font-size:11px;color:#2563eb;font-weight:700">Matériaux de Construction</div></div></div>'
+      + '<div style="font-size:11px;color:#475569;margin-top:5px">Selouane, Nador</div></div>'
+      + '<div style="text-align:right"><div style="font-size:11px;color:#1e3a5f;line-height:1.85"><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;&middot;&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br><strong>Bureau</strong> 06 62 82 88 20</div>'
+      + '<div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ' + dateStr + '</div>'
+      + '<div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div></div></div>'
+      + '<div style="padding:12px 24px">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+      + '<div><div style="font-size:17px;font-weight:900;color:#1e3a5f;text-transform:uppercase">Rapport Créances Clients</div>'
+      + '<div style="font-size:11px;color:#2563eb;font-weight:700;margin-top:3px">Période : ' + periodeLabel + '</div></div>'
+      + '<div style="font-size:12px;color:#475569;font-weight:600">' + clientsFullLabel + '</div></div>'
+      + '<table><thead><tr>'
+      + '<th style="width:40px">#</th><th>Client</th><th>Dépôt</th><th>Téléphone</th>'
+      + '<th style="text-align:right">Créance (DHS)</th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#eff6ff;border-top:3px solid #1e3a5f;font-weight:800;font-size:14px;color:#1e3a5f">'
+      + '<span>Total — ' + clientsFullLabel + '</span>'
+      + '<span style="font-size:15px;font-weight:900;font-family:monospace">' + totalSoldeStr + ' DHS</span></div>'
+      + '<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px">'
+      + '<div><div style="font-size:12px;font-weight:700;color:#166534">Total créances sélectionnées</div>'
+      + '<div style="font-size:10px;color:#86efac;margin-top:2px">' + clientsShortLabel + ' · ' + periodeLabel + '</div></div>'
+      + '<div style="text-align:right"><div style="font-size:30px;font-weight:900;color:' + totalColor + ';line-height:1;letter-spacing:-0.5px">' + totalSoldeStr + '</div>'
+      + '<div style="font-size:12px;font-weight:600;color:#4ade80;margin-top:2px">DHS</div></div></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0">'
+      + '<span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span>'
+      + '<span>Généré le ' + dateStr + '</span></div>'
+      + '</div></body></html>'
+    openPrintWindow(html)
   }
 
   const handleBack = () => { setShowDetail(false) }
