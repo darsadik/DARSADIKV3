@@ -962,11 +962,20 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     if (!selClients.length) return
     const _now = new Date()
     const dateStr = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
-    const periodeLabel = reportPeriodActive && reportTo
-      ? `Du ${reportFrom ? fmtDate(reportFrom) : 'début'} au ${fmtDate(reportTo)}`
-      : 'Toutes les dates'
+    const n = selClients.length
+    const suf = n !== 1 ? 's' : ''
+    const clientsFullLabel = n + ' client' + suf + ' sélectionné' + suf
+    const clientsShortLabel = n + ' client' + suf
+    let periodeLabel
+    if (reportPeriodActive && reportTo) {
+      const fromStr = reportFrom ? fmtDate(reportFrom) : 'début'
+      periodeLabel = 'Du ' + fromStr + ' au ' + fmtDate(reportTo)
+    } else {
+      periodeLabel = 'Toutes les dates'
+    }
     const totalSolde = selClients.reduce((s, c) => s + (reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)), 0)
     const totalColor = totalSolde > 0 ? '#dc2626' : '#16a34a'
+    const totalSoldeStr = fmt(totalSolde)
     const rows = selClients.map((c, i) => {
       const solde = reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)
       const soldeColor = solde >= 100000 ? '#dc2626' : solde >= 30000 ? '#d97706' : solde > 0 ? '#1d4ed8' : '#16a34a'
@@ -980,6 +989,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
         + '<td style="' + p + ';text-align:right;font-size:15px;font-weight:900;color:' + soldeColor + ';white-space:nowrap;font-family:monospace;letter-spacing:-0.3px">' + fmt(solde) + ' DHS</td>'
         + '</tr>'
     }).join('')
+    const svgLogo = '<svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>'
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Créances Clients</title>
 <style>
@@ -1001,14 +1011,14 @@ ${pEntries.length > 0 ? `<div class="totals-row">
 <div class="hdr">
   <div>
     <div style="display:flex;align-items:center;gap:12px">
-      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      ${svgLogo}
       <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
     </div>
     <div class="co-addr">Selouane, Nador</div>
   </div>
   <div style="text-align:right">
     <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
-      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;&middot;&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
       <strong>Bureau</strong> 06 62 82 88 20<br>
       <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
     </div>
@@ -1022,7 +1032,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
       <div style="font-size:17px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px">Rapport Créances Clients</div>
       <div style="font-size:11px;color:#2563eb;font-weight:700;margin-top:3px">Période : ${periodeLabel}</div>
     </div>
-    <div style="font-size:12px;color:#475569;font-weight:600">${selClients.length} client${selClients.length !== 1 ? 's' : ''} sélectionné${selClients.length !== 1 ? 's' : ''}</div>
+    <div style="font-size:12px;color:#475569;font-weight:600">${clientsFullLabel}</div>
   </div>
   <table>
     <thead><tr>
@@ -1032,16 +1042,16 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     <tbody>${rows}</tbody>
   </table>
   <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#eff6ff;border-top:3px solid #1e3a5f;font-weight:800;font-size:14px;color:#1e3a5f">
-    <span>Total — ${selClients.length} client${selClients.length !== 1 ? 's' : ''} sélectionné${selClients.length !== 1 ? 's' : ''}</span>
-    <span style="font-size:15px;font-weight:900;font-family:'Courier New',monospace">${fmt(totalSolde)} DHS</span>
+    <span>Total — ${clientsFullLabel}</span>
+    <span style="font-size:15px;font-weight:900;font-family:monospace">${totalSoldeStr} DHS</span>
   </div>
   <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px">
     <div>
       <div style="font-size:12px;font-weight:700;color:#166534">Total créances sélectionnées</div>
-      <div style="font-size:10px;color:#86efac;margin-top:2px">${selClients.length} client${selClients.length !== 1 ? 's' : ''} · ${periodeLabel}</div>
+      <div style="font-size:10px;color:#86efac;margin-top:2px">${clientsShortLabel} · ${periodeLabel}</div>
     </div>
     <div style="text-align:right">
-      <div style="font-size:30px;font-weight:900;color:${totalColor};line-height:1;letter-spacing:-0.5px">${fmt(totalSolde)}</div>
+      <div style="font-size:30px;font-weight:900;color:${totalColor};line-height:1;letter-spacing:-0.5px">${totalSoldeStr}</div>
       <div style="font-size:12px;font-weight:600;color:#4ade80;margin-top:2px">DHS</div>
     </div>
   </div>
