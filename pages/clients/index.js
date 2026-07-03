@@ -970,13 +970,15 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     const rows = selClients.map((c, i) => {
       const solde = reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)
       const soldeColor = solde >= 100000 ? '#dc2626' : solde >= 30000 ? '#d97706' : solde > 0 ? '#1d4ed8' : '#16a34a'
-      return `<tr style="${i % 2 === 1 ? 'background:#f8fafc' : ''}">
-        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;font-size:13px;color:#374151">${i + 1}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;font-size:14px;font-weight:700;color:#0f172a;text-transform:uppercase">${c.nom}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;font-size:13px;color:#475569">${c.depot || '—'}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;font-size:13px;color:#475569">${c.tel || '—'}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;text-align:right;font-size:15px;font-weight:900;color:${soldeColor};white-space:nowrap;font-family:'Courier New',monospace;letter-spacing:-0.3px">${fmt(solde)} DHS</td>
-      </tr>`
+      const p = 'padding:10px 14px;border-bottom:1px solid #e8ecf0'
+      const tr = i % 2 === 1 ? '<tr style="background:#f8fafc">' : '<tr>'
+      return tr
+        + '<td style="' + p + ';font-size:13px;color:#374151">' + (i + 1) + '</td>'
+        + '<td style="' + p + ';font-size:14px;font-weight:700;color:#0f172a;text-transform:uppercase">' + c.nom + '</td>'
+        + '<td style="' + p + ';font-size:13px;color:#475569">' + (c.depot || '—') + '</td>'
+        + '<td style="' + p + ';font-size:13px;color:#475569">' + (c.tel || '—') + '</td>'
+        + '<td style="' + p + ';text-align:right;font-size:15px;font-weight:900;color:' + soldeColor + ';white-space:nowrap;font-family:monospace;letter-spacing:-0.3px">' + fmt(solde) + ' DHS</td>'
+        + '</tr>'
     }).join('')
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Créances Clients</title>
