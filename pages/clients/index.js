@@ -76,6 +76,17 @@ export default function Clients() {
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo, setFilterTo] = useState(today())
 
+  // ── REPORT PERIOD FILTER (Créance Client list) ──
+  const [reportFrom, setReportFrom] = useState('')
+  const [reportTo, setReportTo] = useState('')
+  const [reportPeriodActive, setReportPeriodActive] = useState(false)
+  const [reportBalances, setReportBalances] = useState({})
+  const [reportLoading, setReportLoading] = useState(false)
+
+  // ── CLIENT LIST MULTI-SELECTION ──
+  const [selectedClientIds, setSelectedClientIds] = useState(new Set())
+  const [lastClickedClientIdx, setLastClickedClientIdx] = useState(null)
+
   useEffect(() => { loadClients() }, [])
 
   // Reset presentation state when client changes
@@ -107,6 +118,26 @@ export default function Clients() {
     const { data } = await supabase.from('clients').select('*').order('solde', { ascending: false })
     setClients(data || [])
     setLoading(false)
+  }
+
+  async function loadPeriodBalances(clientList) {
+    if (!reportTo) return
+    setReportLoading(true)
+    const cl = clientList || clients
+    const [{ data: ventes }, { data: paiements }, { data: remises }] = await Promise.all([
+      supabase.from('ventes').select('client_id,total_vente').lte('date', reportTo),
+      supabase.from('paiements').select('client_id,montant').lte('date', reportTo),
+      supabase.from('remises').select('client_id,montant').lte('date', reportTo),
+    ])
+    const balances = {}
+    cl.forEach(c => {
+      const cv = (ventes || []).filter(v => v.client_id === c.id).reduce((s, v) => s + (v.total_vente || 0), 0)
+      const cp = (paiements || []).filter(p => p.client_id === c.id).reduce((s, p) => s + (p.montant || 0), 0)
+      const cr = (remises || []).filter(r => r.client_id === c.id).reduce((s, r) => s + (r.montant || 0), 0)
+      balances[c.id] = (c.opening_balance || 0) + cv - cp - cr
+    })
+    setReportBalances(balances)
+    setReportLoading(false)
   }
 
   async function selectClient(client) {
@@ -600,7 +631,12 @@ ${pEntries.length > 0 ? `<div class="totals-row">
 
   // ── COMPUTED VALUES ──
   const filtered = clients.filter(c => !search || (c.nom + c.depot).toLowerCase().includes(search.toLowerCase()))
-  const totalCreances = filtered.reduce((s, c) => s + (c.solde || 0), 0)
+  const totalCreances = reportPeriodActive
+    ? filtered.reduce((s, c) => s + (reportBalances[c.id] ?? c.solde || 0), 0)
+    : filtered.reduce((s, c) => s + (c.solde || 0), 0)
+  const selectedCreancesTotal = filtered
+    .filter(c => selectedClientIds.has(c.id))
+    .reduce((s, c) => s + (reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)), 0)
   const totalVentesClient    = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
   const totalPaiementsClient = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
   const ledger = selected && !loadingDetail ? buildLedger() : { entries: [], startBalance: 0, finalBalance: 0 }
@@ -907,6 +943,112 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     setSelected({ ...selected, solde: newSolde })
     loadClients()
     setClientRemises(clientRemises.filter(x => x.id !== r.id))
+  }
+
+  function handleClientCheck(clientId, idx, ev) {
+    const ns = new Set(selectedClientIds)
+    if (ev.shiftKey && lastClickedClientIdx !== null) {
+      const lo = Math.min(lastClickedClientIdx, idx), hi = Math.max(lastClickedClientIdx, idx)
+      filtered.slice(lo, hi + 1).forEach(c => ns.add(c.id))
+    } else {
+      ns.has(clientId) ? ns.delete(clientId) : ns.add(clientId)
+    }
+    setSelectedClientIds(ns)
+    setLastClickedClientIdx(idx)
+  }
+
+  function printSelectedClients() {
+    const selClients = filtered.filter(c => selectedClientIds.has(c.id))
+    if (!selClients.length) return
+    const _now = new Date()
+    const dateStr = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+    const periodeLabel = reportPeriodActive && reportTo
+      ? `Du ${reportFrom ? fmtDate(reportFrom) : 'début'} au ${fmtDate(reportTo)}`
+      : 'Toutes les dates'
+    const totalSolde = selClients.reduce((s, c) => s + (reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)), 0)
+    const totalColor = totalSolde > 0 ? '#dc2626' : '#16a34a'
+    const rows = selClients.map((c, i) => {
+      const solde = reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)
+      const soldeColor = solde >= 100000 ? '#dc2626' : solde >= 30000 ? '#d97706' : solde > 0 ? '#1d4ed8' : '#16a34a'
+      return `<tr style="${i % 2 === 1 ? 'background:#f8fafc' : ''}">
+        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;font-size:13px;color:#374151">${i + 1}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;font-size:14px;font-weight:700;color:#0f172a;text-transform:uppercase">${c.nom}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;font-size:13px;color:#475569">${c.depot || '—'}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;font-size:13px;color:#475569">${c.tel || '—'}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e8ecf0;text-align:right;font-size:15px;font-weight:900;color:${soldeColor};white-space:nowrap;font-family:'Courier New',monospace;letter-spacing:-0.3px">${fmt(solde)} DHS</td>
+      </tr>`
+    }).join('')
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Créances Clients</title>
+<style>
+  @page{margin:12mm}
+  @media print{.btn-p{display:none!important}}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
+  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
+  .bdy{padding:12px 24px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#1e3a5f!important;color:#fff!important;padding:10px 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
+  tbody tr{page-break-inside:avoid}
+  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
+    </div>
+    <div class="co-addr">Selouane, Nador</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Bureau</strong> 06 62 82 88 20<br>
+      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
+    </div>
+    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${dateStr}</div>
+    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
+  </div>
+</div>
+<div class="bdy">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div>
+      <div style="font-size:17px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px">Rapport Créances Clients</div>
+      <div style="font-size:11px;color:#2563eb;font-weight:700;margin-top:3px">Période : ${periodeLabel}</div>
+    </div>
+    <div style="font-size:12px;color:#475569;font-weight:600">${selClients.length} client${selClients.length !== 1 ? 's' : ''} sélectionné${selClients.length !== 1 ? 's' : ''}</div>
+  </div>
+  <table>
+    <thead><tr>
+      <th style="width:40px">#</th><th>Client</th><th>Dépôt</th><th>Téléphone</th>
+      <th style="text-align:right">Créance (DHS)</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#eff6ff;border-top:3px solid #1e3a5f;font-weight:800;font-size:14px;color:#1e3a5f">
+    <span>Total — ${selClients.length} client${selClients.length !== 1 ? 's' : ''} sélectionné${selClients.length !== 1 ? 's' : ''}</span>
+    <span style="font-size:15px;font-weight:900;font-family:'Courier New',monospace">${fmt(totalSolde)} DHS</span>
+  </div>
+  <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+    <div>
+      <div style="font-size:12px;font-weight:700;color:#166534">Total créances sélectionnées</div>
+      <div style="font-size:10px;color:#86efac;margin-top:2px">${selClients.length} client${selClients.length !== 1 ? 's' : ''} · ${periodeLabel}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:30px;font-weight:900;color:${totalColor};line-height:1;letter-spacing:-0.5px">${fmt(totalSolde)}</div>
+      <div style="font-size:12px;font-weight:600;color:#4ade80;margin-top:2px">DHS</div>
+    </div>
+  </div>
+  <div class="foot">
+    <span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span>
+    <span>Généré le ${dateStr}</span>
+  </div>
+</div>
+</body></html>`)
   }
 
   const handleBack = () => { setShowDetail(false) }
@@ -1245,7 +1387,13 @@ ${pEntries.length > 0 ? `<div class="totals-row">
         <div className={`lg:col-span-1 ${showDetail ? 'hidden lg:block' : 'block'}`}>
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900">Liste clients</h2>
+              <div className="flex items-center gap-2">
+                <input type="checkbox"
+                  checked={filtered.length > 0 && filtered.every(c => selectedClientIds.has(c.id))}
+                  onChange={ev => { setSelectedClientIds(ev.target.checked ? new Set(filtered.map(c => c.id)) : new Set()); setLastClickedClientIdx(null) }}
+                  style={{width:14,height:14,cursor:'pointer',accentColor:'#1e3a5f',flexShrink:0}} />
+                <h2 className="font-semibold text-gray-900">Liste clients</h2>
+              </div>
               <button onClick={() => setShowForm(!showForm)} className="btn-primary text-xs px-3 py-1.5">+ Nouveau</button>
             </div>
 
@@ -1293,29 +1441,77 @@ ${pEntries.length > 0 ? `<div class="totals-row">
               </form>
             )}
 
+            {/* PERIOD FILTER FOR CRÉANCE REPORT */}
+            <div className="mb-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-bold text-gray-600 uppercase tracking-wide">📅 Créances par période</div>
+                {reportPeriodActive && (
+                  <button onClick={() => { setReportPeriodActive(false); setReportBalances({}); setReportFrom(''); setReportTo('') }}
+                    className="text-xs text-red-500 font-semibold hover:text-red-700">✕ Effacer</button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <label className="text-xs text-gray-500 whitespace-nowrap">Du:</label>
+                  <input type="date" className="input text-xs" style={{width:'130px',padding:'4px 6px'}}
+                    value={reportFrom} onChange={e => setReportFrom(e.target.value)} />
+                </div>
+                <div className="flex items-center gap-1">
+                  <label className="text-xs text-gray-500 whitespace-nowrap">Au:</label>
+                  <input type="date" className="input text-xs" style={{width:'130px',padding:'4px 6px'}}
+                    value={reportTo} onChange={e => setReportTo(e.target.value)} />
+                </div>
+                <button
+                  onClick={() => { if (reportTo) { setReportPeriodActive(true); loadPeriodBalances(clients) } }}
+                  disabled={!reportTo || reportLoading}
+                  className="btn-primary text-xs px-3 py-1.5 flex-shrink-0" style={{background:'#1e3a5f'}}>
+                  {reportLoading ? 'Calcul...' : 'Calculer'}
+                </button>
+              </div>
+              {reportPeriodActive && !reportLoading && (
+                <div className="mt-2 text-xs font-semibold" style={{color:'#1d4ed8'}}>
+                  ✓ Soldes calculés au {fmtDate(reportTo)}{reportFrom ? ` — depuis le ${fmtDate(reportFrom)}` : ''}
+                </div>
+              )}
+            </div>
+
             <input className="input mb-3" placeholder="Rechercher un client..." value={search} onChange={e => setSearch(e.target.value)} />
 
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
               {loading ? (
                 <div className="text-center text-gray-400 py-6">Chargement...</div>
-              ) : filtered.map(c => {
+              ) : filtered.map((c, idx) => {
                 const s = c.solde || 0
+                const displayBalance = reportPeriodActive ? (reportBalances[c.id] ?? s) : s
                 const isActive = selected?.id === c.id
+                const isChecked = selectedClientIds.has(c.id)
+                const balColor = displayBalance >= 100000 ? 'text-red-600' : displayBalance >= 30000 ? 'text-amber-600' : displayBalance > 0 ? 'text-blue-600' : 'text-green-600'
                 return (
-                  <div key={c.id} onClick={() => selectClient(c)} role="button" tabIndex={0}
-                    onKeyDown={e => e.key === 'Enter' && selectClient(c)}
-                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border select-none
-                      ${isActive ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-100 hover:bg-gray-100 active:bg-blue-50'}`}
+                  <div key={c.id}
+                    className={`flex items-center gap-2 p-3 rounded-xl transition-all border select-none
+                      ${isActive ? 'bg-brand-50 border-brand-200' : isChecked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}
                     style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
-                    <div className="flex-1 min-w-0">
-                      <div className={`font-semibold text-sm truncate ${isActive ? 'text-brand-700' : 'text-gray-900'}`}>{c.nom}</div>
-                      <div className="text-xs text-gray-400">{c.depot}</div>
+                    {/* Checkbox — click stops propagation so row click still opens detail */}
+                    <div
+                      onClick={ev => { ev.stopPropagation(); handleClientCheck(c.id, idx, ev) }}
+                      style={{flexShrink:0,cursor:'pointer',padding:'2px 0'}}>
+                      <input type="checkbox" checked={isChecked} readOnly
+                        style={{width:14,height:14,cursor:'pointer',accentColor:'#1e3a5f',pointerEvents:'none'}} />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`text-xs font-bold ${s >= 100000 ? 'text-red-600' : s >= 30000 ? 'text-amber-600' : s > 0 ? 'text-blue-600' : 'text-green-600'}`}>
-                        {fmt(s)} DHS
+                    {/* Main row — click opens detail */}
+                    <div className="flex-1 min-w-0 flex items-center justify-between cursor-pointer"
+                      onClick={() => selectClient(c)} role="button" tabIndex={0}
+                      onKeyDown={e => e.key === 'Enter' && selectClient(c)}>
+                      <div className="min-w-0">
+                        <div className={`font-semibold text-sm truncate ${isActive ? 'text-brand-700' : 'text-gray-900'}`}>{c.nom}</div>
+                        <div className="text-xs text-gray-400">{c.depot}</div>
                       </div>
-                      <span className="text-gray-300 lg:hidden">›</span>
+                      <div className="flex items-center gap-2 ml-2">
+                        <div className={`text-xs font-bold ${balColor}`}>
+                          {reportLoading ? '...' : `${fmt(displayBalance)} DHS`}
+                        </div>
+                        <span className="text-gray-300 lg:hidden">›</span>
+                      </div>
                     </div>
                   </div>
                 )
@@ -1324,8 +1520,10 @@ ${pEntries.length > 0 ? `<div class="totals-row">
             </div>
 
             <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between text-sm">
-              <span className="text-gray-500 font-medium">Total créances</span>
-              <span className="font-bold text-red-600">{fmt(totalCreances)} DHS</span>
+              <span className="text-gray-500 font-medium">
+                Total créances{reportPeriodActive ? <span className="text-blue-500 text-xs ml-1">(période)</span> : ''}
+              </span>
+              <span className="font-bold text-red-600">{reportLoading ? '...' : `${fmt(totalCreances)} DHS`}</span>
             </div>
           </div>
         </div>
@@ -1875,6 +2073,38 @@ ${pEntries.length > 0 ? `<div class="totals-row">
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* FLOATING MULTI-SELECTION TOOLBAR */}
+      {selectedClientIds.size > 0 && (
+        <div style={{position:'fixed',bottom:0,left:0,right:0,zIndex:200,background:'#1e3a5f',color:'#fff',
+          padding:'12px 24px',display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,
+          boxShadow:'0 -4px 24px rgba(30,58,95,0.45)'}}>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontWeight:700,fontSize:14,lineHeight:1.3}}>
+              {selectedClientIds.size} client{selectedClientIds.size > 1 ? 's' : ''} sélectionné{selectedClientIds.size > 1 ? 's' : ''}
+            </div>
+            <div style={{fontSize:12,opacity:0.85,marginTop:3}}>
+              Total créances : <strong>{fmt(selectedCreancesTotal)} DHS</strong>
+              {reportPeriodActive && reportTo && <span style={{opacity:0.7,marginLeft:6}}>· au {fmtDate(reportTo)}</span>}
+            </div>
+          </div>
+          <button onClick={printSelectedClients}
+            style={{padding:'6px 14px',borderRadius:6,border:'none',background:'#fff',color:'#1e3a5f',
+              fontWeight:700,fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>
+            🖨️ Imprimer
+          </button>
+          <button onClick={printSelectedClients}
+            style={{padding:'6px 14px',borderRadius:6,border:'none',background:'#c7d2fe',color:'#1e40af',
+              fontWeight:700,fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>
+            📄 Export PDF
+          </button>
+          <button onClick={() => { setSelectedClientIds(new Set()); setLastClickedClientIdx(null) }}
+            style={{padding:'6px 14px',borderRadius:6,border:'1px solid rgba(255,255,255,0.3)',background:'transparent',
+              color:'#fca5a5',fontWeight:700,fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>
+            ✕ Annuler
+          </button>
         </div>
       )}
 
