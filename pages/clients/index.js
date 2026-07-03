@@ -632,11 +632,11 @@ ${pEntries.length > 0 ? `<div class="totals-row">
   // ── COMPUTED VALUES ──
   const filtered = clients.filter(c => !search || (c.nom + c.depot).toLowerCase().includes(search.toLowerCase()))
   const totalCreances = reportPeriodActive
-    ? filtered.reduce((s, c) => s + (reportBalances[c.id] ?? c.solde || 0), 0)
+    ? filtered.reduce((s, c) => s + ((reportBalances[c.id] ?? c.solde) || 0), 0)
     : filtered.reduce((s, c) => s + (c.solde || 0), 0)
   const selectedCreancesTotal = filtered
     .filter(c => selectedClientIds.has(c.id))
-    .reduce((s, c) => s + (reportPeriodActive ? (reportBalances[c.id] ?? c.solde || 0) : (c.solde || 0)), 0)
+    .reduce((s, c) => s + (reportPeriodActive ? ((reportBalances[c.id] ?? c.solde) || 0) : (c.solde || 0)), 0)
   const totalVentesClient    = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
   const totalPaiementsClient = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
   const ledger = selected && !loadingDetail ? buildLedger() : { entries: [], startBalance: 0, finalBalance: 0 }
