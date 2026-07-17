@@ -1,10 +1,10 @@
 import { Fragment } from 'react'
 import { fmt, fmtD, fmtDate } from '../../lib/utils'
-import { FRAIS_LABELS } from '../../lib/voyage-constants'
 import Section from '../ui/Section'
 import Empty from '../ui/Empty'
 import DelBtn from '../ui/DelBtn'
 import EditBtn from '../ui/EditBtn'
+import FraisEditor from './FraisEditor'
 
 export default function LivraisonSection({
   livraisons,
@@ -20,20 +20,11 @@ export default function LivraisonSection({
   const totalRevenuLivs = livraisons.reduce((s, l) => s + (l.total_vente||0) + (l.frais_total||0), 0)
   const livFrais = livForm.frais || []
 
-  function addFrais() {
-    onFormChange({ ...livForm, frais: [...livFrais, { _id: Date.now(), label: FRAIS_LABELS[0], montant: '', note: '' }] })
-  }
-  function removeFrais(i) {
-    const arr = [...livFrais]; arr.splice(i, 1)
-    onFormChange({ ...livForm, frais: arr })
-  }
-  function changeFrais(i, field, value) {
-    const arr = livFrais.map((f, idx) => idx === i ? { ...f, [field]: value } : f)
-    onFormChange({ ...livForm, frais: arr })
-  }
-
   const productTotal = Math.max(0, (parseFloat(livForm.qte)||0)*(parseFloat(livForm.prix_vente)||0)-(parseFloat(livForm.remise)||0))
-  const fraisTotal   = livFrais.reduce((s, f) => s + (parseFloat(f.montant)||0), 0)
+  const fraisTotal   = livFrais.reduce((s, f) => {
+    const amt = parseFloat(f.montant) || 0
+    return s + (f.kind === 'deduction' ? -amt : amt)
+  }, 0)
   const combinedTotal = productTotal + fraisTotal
   const productAchat  = (parseFloat(livForm.qte)||0)*(parseFloat(livForm.prix_achat)||0)
   const marge         = combinedTotal - productAchat
@@ -85,35 +76,9 @@ export default function LivraisonSection({
             }
           </div>
 
-          {/* Frais supplémentaires */}
-          <div className="col-span-2 md:col-span-3 border-t border-slate-100 pt-3">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Frais supplémentaires</label>
-              <button type="button" onClick={addFrais}
-                className="text-[10px] font-semibold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-2 py-0.5 transition">
-                ＋ Ajouter frais
-              </button>
-            </div>
-            {livFrais.length === 0 && (
-              <div className="text-[10px] text-slate-300 italic">Aucun frais — optionnel (transport, déchargement, location…)</div>
-            )}
-            {livFrais.map((f, i) => (
-              <div key={f._id ?? f.id ?? i} className="flex gap-2 mb-1.5 items-center">
-                <select value={f.label} onChange={e=>changeFrais(i,'label',e.target.value)} className="input text-xs flex-1">
-                  {FRAIS_LABELS.map(l=><option key={l} value={l}>{l}</option>)}
-                  {!FRAIS_LABELS.includes(f.label) && <option value={f.label}>{f.label}</option>}
-                </select>
-                <input type="number" step="0.01" value={f.montant} onChange={e=>changeFrais(i,'montant',e.target.value)}
-                  className="input text-xs w-28" placeholder="Montant DHS"/>
-                <button type="button" onClick={()=>removeFrais(i)}
-                  className="text-red-400 hover:text-red-600 text-sm font-bold leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 transition flex-shrink-0">✕</button>
-              </div>
-            ))}
-            {livFrais.length > 0 && (
-              <div className="text-[10px] text-amber-600 font-semibold mt-1">
-                Total frais : {fmt(fraisTotal)} DHS
-              </div>
-            )}
+          {/* Frais supplémentaires + Déductions client */}
+          <div className="col-span-2 md:col-span-3">
+            <FraisEditor items={livFrais} onChange={arr => onFormChange({ ...livForm, frais: arr })} />
           </div>
 
           {/* Live preview */}
@@ -126,7 +91,11 @@ export default function LivraisonSection({
               <div className="text-center">
                 <div className="text-[10px] text-emerald-400 uppercase">Produits</div>
                 <div className="font-bold text-emerald-700">{fmt(productTotal)} DHS</div>
-                {fraisTotal > 0 && <div className="text-[9px] text-amber-500">+ {fmt(fraisTotal)} frais</div>}
+                {fraisTotal !== 0 && (
+                  <div className={`text-[9px] ${fraisTotal > 0 ? 'text-amber-500' : 'text-rose-500'}`}>
+                    {fraisTotal > 0 ? '+' : '−'} {fmt(Math.abs(fraisTotal))} {fraisTotal > 0 ? 'frais' : 'déduction'}
+                  </div>
+                )}
               </div>
               <div className="text-center">
                 <div className="text-[10px] text-emerald-400 uppercase">Total livraison</div>
@@ -172,6 +141,8 @@ export default function LivraisonSection({
               {livraisons.map(l => {
                 const deliveryTotal = (l.total_vente||0) + (l.frais_total||0)
                 const livFraisRows  = l.frais || []
+                const chargesSum    = livFraisRows.filter(f => (f.kind||'charge')==='charge').reduce((s,f)=>s+(f.montant||0),0)
+                const deductionsSum = livFraisRows.filter(f => f.kind==='deduction').reduce((s,f)=>s+(f.montant||0),0)
                 return (
                   <Fragment key={l.id}>
                     <tr className="border-b border-slate-50 hover:bg-slate-50">
@@ -185,9 +156,11 @@ export default function LivraisonSection({
                       </td>
                       <td className="py-2 pr-3 text-right font-bold text-emerald-600">
                         {fmt(deliveryTotal)} DHS
-                        {l.frais_total > 0 && (
+                        {(chargesSum > 0 || deductionsSum > 0) && (
                           <div className="text-[9px] text-slate-400 font-normal">
-                            dont {fmt(l.frais_total)} frais
+                            {chargesSum > 0 && <>dont +{fmt(chargesSum)} frais</>}
+                            {chargesSum > 0 && deductionsSum > 0 && ' · '}
+                            {deductionsSum > 0 && <>−{fmt(deductionsSum)} déd.</>}
                           </div>
                         )}
                       </td>
@@ -197,15 +170,22 @@ export default function LivraisonSection({
                         <DelBtn onDel={() => onDel(l)}/>
                       </td>
                     </tr>
-                    {livFraisRows.map((f, fi) => (
-                      <tr key={`${l.id}-frais-${fi}`} className="bg-amber-50/60">
-                        <td colSpan={4}></td>
-                        <td className="text-right py-1 pr-3 text-[10px] text-amber-600 italic">{f.label}</td>
-                        <td className="py-1 pr-3 text-right text-[10px] font-semibold text-amber-600">+ {fmt(f.montant)} DHS</td>
-                        <td className="py-1 pr-3 text-[10px] text-slate-400">{f.note || ''}</td>
-                        <td></td>
-                      </tr>
-                    ))}
+                    {livFraisRows.map((f, fi) => {
+                      const isDeduction = f.kind === 'deduction'
+                      return (
+                        <tr key={`${l.id}-frais-${fi}`} className={isDeduction ? 'bg-rose-50/60' : 'bg-amber-50/60'}>
+                          <td colSpan={4}></td>
+                          <td className={`text-right py-1 pr-3 text-[10px] italic ${isDeduction ? 'text-rose-600' : 'text-amber-600'}`}>
+                            ↳ {f.label}
+                          </td>
+                          <td className={`py-1 pr-3 text-right text-[10px] font-semibold ${isDeduction ? 'text-rose-600' : 'text-amber-600'}`}>
+                            {isDeduction ? '−' : '+'} {fmt(f.montant)} DHS
+                          </td>
+                          <td className="py-1 pr-3 text-[10px] text-slate-400">{f.note || ''}</td>
+                          <td></td>
+                        </tr>
+                      )
+                    })}
                   </Fragment>
                 )
               })}

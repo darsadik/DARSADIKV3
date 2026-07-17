@@ -6,7 +6,7 @@ import { useAuth } from '../_app'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
-import { CHARGE_CATS, COMMON_CHARGE_KEYS, FRAIS_LABELS } from '../../lib/voyage-constants'
+import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
 import { loadVoyageData } from '../../lib/services/voyage/loaders'
 import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm } from '../../lib/services/voyage/updates'
 import { saveAchat as dbSaveAchat, updateAchat as dbUpdateAchat, delAchat as dbDelAchat } from '../../lib/services/voyage/achats'
@@ -14,6 +14,7 @@ import { saveLiv as dbSaveLiv, updateLiv as dbUpdateLiv, delLiv as dbDelLiv } fr
 import { saveChargeGrid as dbSaveChargeGrid, updateCharge as dbUpdateCharge, delCharge as dbDelCharge } from '../../lib/services/voyage/charges'
 import AchatSection from '../../components/voyage/AchatSection'
 import LivraisonSection from '../../components/voyage/LivraisonSection'
+import FraisEditor from '../../components/voyage/FraisEditor'
 import ChargesSection from '../../components/voyage/ChargesSection'
 import RetourSection from '../../components/voyage/RetourSection'
 import GasoilSection from '../../components/voyage/GasoilSection'
@@ -650,36 +651,13 @@ export default function VoyageDetail() {
                   <div className="input w-full text-sm bg-slate-50 font-bold text-emerald-600">{fmt(Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0)))} DHS</div></div>
                 <div className="col-span-2"><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note livraison</label>
                   <input type="text" value={ef.note||''} onChange={e=>setEf({note:e.target.value})} className="input w-full text-sm" placeholder="ex: SAIDIA, Chantier A…"/></div>
-                <div className="col-span-2 border-t border-slate-100 pt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Frais supplémentaires</label>
-                    <button type="button"
-                      onClick={()=>setEf({frais:[...(ef.frais||[]),{_id:Date.now(),label:FRAIS_LABELS[0],montant:'',note:''}]})}
-                      className="text-[10px] font-semibold text-emerald-600 hover:text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
-                      ＋ Ajouter
-                    </button>
-                  </div>
-                  {(ef.frais||[]).map((f,i)=>(
-                    <div key={f._id??f.id??i} className="flex gap-2 mb-1.5 items-center">
-                      <select value={f.label||FRAIS_LABELS[0]}
-                        onChange={e=>{const arr=[...(ef.frais||[])];arr[i]={...arr[i],label:e.target.value};setEf({frais:arr})}}
-                        className="input text-xs flex-1">
-                        {FRAIS_LABELS.map(l=><option key={l} value={l}>{l}</option>)}
-                        {!FRAIS_LABELS.includes(f.label) && f.label && <option value={f.label}>{f.label}</option>}
-                      </select>
-                      <input type="number" step="0.01" value={f.montant||''}
-                        onChange={e=>{const arr=[...(ef.frais||[])];arr[i]={...arr[i],montant:e.target.value};setEf({frais:arr})}}
-                        className="input text-xs w-28" placeholder="Montant DHS"/>
-                      <button type="button"
-                        onClick={()=>{const arr=[...(ef.frais||[])];arr.splice(i,1);setEf({frais:arr})}}
-                        className="text-red-400 hover:text-red-600 text-sm font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 transition flex-shrink-0">✕</button>
-                    </div>
-                  ))}
+                <div className="col-span-2">
+                  <FraisEditor items={ef.frais||[]} onChange={arr=>setEf({frais:arr})} />
                   {(ef.frais||[]).length > 0 && (
-                    <div className="text-[10px] text-emerald-700 font-bold mt-1">
+                    <div className="text-[10px] text-emerald-700 font-bold mt-2 border-t border-slate-100 pt-2">
                       Total livraison : {fmt(
                         Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0))
-                        + (ef.frais||[]).reduce((s,f)=>s+(parseFloat(f.montant)||0),0)
+                        + (ef.frais||[]).reduce((s,f)=>{const amt=parseFloat(f.montant)||0; return s + (f.kind==='deduction' ? -amt : amt)},0)
                       )} DHS
                     </div>
                   )}

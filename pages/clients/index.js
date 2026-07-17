@@ -415,14 +415,13 @@ export default function Clients() {
       const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
       const mvColor = isPos ? '#1d4ed8' : '#16a34a'
       const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
-      const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
-      const noteDisplay = fraisItems.length > 0 ? (e.note || '—') : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
-      const typeTag = e.type === 'vente'
+      const noteDisplay = e.note || '—'
+      const typeTag = e.type === 'vente' || e.type === 'frais-charge'
         ? `<span class="tag">${e.label}</span>`
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
-        : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'?e.label:'Remise'}</span>`
-      const mainRow = `<tr>
+        : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
+      return `<tr>
         <td class="m" style="white-space:nowrap">${fmtDate(e.date)}</td>
         <td class="m">${e.detail||'—'}</td>
         <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
@@ -433,11 +432,6 @@ export default function Clients() {
         <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmt(e.solde):'− '+fmt(Math.abs(e.solde))}</td>
         <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?600:400};color:${e.note?'#374151':'#9ca3af'}">${noteDisplay}</td>
       </tr>`
-      const fraisRows = fraisItems.map(f => `<tr style="background:#fffbeb !important">
-        <td></td><td colspan="6" style="padding:3px 14px;font-size:11px;color:#92400e;font-style:italic">↳ <strong>${f.label}</strong>${f.note?` — ${f.note}`:''}</td>
-        <td class="r" style="padding:3px 12px;font-size:12px;font-weight:700;color:#92400e;white-space:nowrap">+ ${fmt(f.montant)}</td><td></td>
-      </tr>`).join('')
-      return mainRow + fraisRows
     }).join('')}
   </tbody>
 </table>
@@ -503,11 +497,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
       const dash = '<span style="color:#9ca3af">—</span>'
       const qteCell  = isVenteLine ? `<span style="font-weight:700;color:#374151">${fmt(v.qte)}</span>` : dash
       const prixCell = isVenteLine ? `<span style="font-weight:600;color:#374151">${parseFloat(v.prix_vente||0).toFixed(2)}</span>` : dash
-      const typeTag = e.type === 'vente'
+      const typeTag = e.type === 'vente' || e.type === 'frais-charge'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">${e.label}</span>`
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
-        : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'?e.label:'Remise'}</span>`
+        : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
       return `<tr>
         <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>
         <td class="m">${e.detail||'—'}</td>
@@ -657,6 +651,39 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     setSelected({ ...selected, solde: computedSolde })
   }
 
+  // ── EXPAND A VENTE ROW INTO ITS OWN LEDGER ENTRIES ──────────────────────────
+  // A livraison's attached frais/déductions are billed as part of the same
+  // ventes.total_vente — presentation-only: split that one accounting value
+  // back into a "Livraison" movement + one movement per frais/déduction item.
+  // The split deltas always sum back to v.total_vente exactly, so balances,
+  // totals and the running-balance reduce below are all untouched.
+  function expandVenteEntry(base) {
+    const v = base.raw
+    const fraisItems = base.type === 'vente' ? (clientFraisMap[v.id] || []) : []
+    if (fraisItems.length === 0) return [base]
+
+    const signedFraisTotal = fraisItems.reduce((s, f) => {
+      const amt = f.montant || 0
+      return s + (f.kind === 'deduction' ? -amt : amt)
+    }, 0)
+
+    const livraisonEntry = { ...base, delta: (base.delta || 0) - signedFraisTotal }
+
+    const fraisEntries = fraisItems.map(f => {
+      const isDed = f.kind === 'deduction'
+      return {
+        date: v.date, created_at: f.created_at || v.created_at || '',
+        type: isDed ? 'frais-deduction' : 'frais-charge',
+        label: isDed ? 'Déduction' : 'Frais',
+        detail: v.camion_plaque || '', note: f.note || '',
+        operation: f.label, delta: isDed ? -(f.montant || 0) : (f.montant || 0),
+        src: 'frais', raw: f,
+      }
+    })
+
+    return [livraisonEntry, ...fraisEntries]
+  }
+
   // ── BUILD LEDGER (chronological, accounting source of truth) ──
   function buildLedger() {
     const startBalance = carryOver !== null ? carryOver : (selected?.opening_balance || 0)
@@ -681,13 +708,13 @@ ${pEntries.length > 0 ? `<div class="totals-row">
       const isMdo = v.type_entree === 'mdo'
       const type = isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente'
       const deliveryNote = isRemiseVoyage ? (v.description_mdo || v.note || '') : isMdo ? (v.description_mdo || '') : (v.note || clientLivNoteMap[v.id] || '')
-      const fraisNote    = (!isRemiseVoyage && !isMdo) ? (v.frais_note || '') : ''
-      entries.push({
+      const baseEntry = {
         date: v.date, created_at: v.created_at || '', type,
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
-        detail: v.camion_plaque || '', note: deliveryNote, fraisNote,
+        detail: v.camion_plaque || '', note: deliveryNote,
         operation: opLabel(type, null), delta: v.total_vente || 0, src: 'vente', raw: v,
-      })
+      }
+      entries.push(...expandVenteEntry(baseEntry))
     })
 
     filteredPaiements.forEach(p => entries.push({
@@ -704,7 +731,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
 
     entries.sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1
-      return a.created_at < b.created_at ? -1 : 1
+      return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
     })
 
     let balance = startBalance
@@ -735,16 +762,17 @@ ${pEntries.length > 0 ? `<div class="totals-row">
       const isRemiseVoyage = v.type_entree === 'remise'
       const isMdo = v.type_entree === 'mdo'
       const type = isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente'
-      const entry = {
+      const baseEntry = {
         date: v.date, created_at: v.created_at || '', type,
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
         detail: v.camion_plaque || '', note: isRemiseVoyage ? (v.description_mdo||v.note||'') : isMdo ? (v.description_mdo||'') : (v.note||clientLivNoteMap[v.id]||''),
-        fraisNote: (!isRemiseVoyage && !isMdo) ? (v.frais_note || '') : '',
         operation: opLabel(type, null), delta: v.total_vente || 0, src: 'vente', raw: v,
       }
-      entry.effectivePeriod = getEffectivePeriod(entry)
-      entry.effectiveSeq    = getEffectiveSeq(entry)
-      allEntries.push(entry)
+      expandVenteEntry(baseEntry).forEach(entry => {
+        entry.effectivePeriod = getEffectivePeriod(entry)
+        entry.effectiveSeq    = getEffectiveSeq(entry)
+        allEntries.push(entry)
+      })
     })
 
     clientPaiements.forEach(p => {
@@ -1185,7 +1213,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                 const isDragging = presDragFrom === i
                 const isDropTarget = presDragOver === i && presDragFrom !== null && presDragFrom !== i
                 const isMoved    = !!presentationOrder[eKey(e)]
-                const typeRowBg  = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
+                const typeRowBg  = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement' || e.type === 'frais-deduction') ? '#f0fdf4'
                   : e.type === 'mdo' ? '#fefce8' : undefined
                 const rowBg = isSelected ? '#ede9fe' : typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
 
@@ -1274,12 +1302,12 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                     </td>
                     {/* TYPE BADGE */}
                     <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
-                      {e.type === 'vente'
+                      {e.type === 'vente' || e.type === 'frais-charge'
                         ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
                         : e.type === 'mdo'
                         ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
                         : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
-                            {e.type === 'paiement' ? e.label : 'Remise'}
+                            {e.type === 'paiement' || e.type === 'frais-deduction' ? e.label : 'Remise'}
                           </span>}
                     </td>
                     {/* QTÉ */}
@@ -1729,13 +1757,10 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                   const amtColor = isPos ? '#1d4ed8' : '#16a34a'
                                   const v = e.raw
                                   const isHighlighted = chronoHighlights.has(eKey(e))
-                                  const typeRowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement') ? '#f0fdf4'
+                                  const typeRowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement' || e.type === 'frais-deduction') ? '#f0fdf4'
                                     : e.type === 'mdo' ? '#fefce8' : undefined
                                   const rowBg = isHighlighted ? '#fef9c3' : (typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined))
-                                  const fraisItems = (e.type === 'vente' && v && !v.type_entree) ? (clientFraisMap[v.id] || []) : []
-                                  const noteDisplay = fraisItems.length > 0
-                                    ? (e.note || '—')
-                                    : ([e.note, e.fraisNote].filter(Boolean).join(' · ') || '—')
+                                  const noteDisplay = e.note || '—'
                                   return (
                                     <Fragment key={eKey(e)}>
                                       <tr style={{ background: rowBg, cursor: 'pointer', transition: 'background 0.1s' }}
@@ -1752,12 +1777,12 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                         </td>
                                         {/* TYPE BADGE */}
                                         <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
-                                          {e.type === 'vente'
+                                          {e.type === 'vente' || e.type === 'frais-charge'
                                             ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
                                             : e.type === 'mdo'
                                             ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
                                             : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
-                                                {e.type === 'paiement' ? e.label : 'Remise'}
+                                                {e.type === 'paiement' || e.type === 'frais-deduction' ? e.label : 'Remise'}
                                               </span>}
                                         </td>
                                         {/* QTÉ */}
@@ -1794,18 +1819,6 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                           )}
                                         </td>
                                       </tr>
-                                      {/* FRAIS SUB-ROWS */}
-                                      {fraisItems.map((f, fi) => (
-                                        <tr key={`frais-${fi}`} style={{background:'#fffbeb',borderBottom:'1px solid #fef3c7'}}>
-                                          <td colSpan={6} style={{...bdr,padding:'4px 14px',fontSize:11,color:'#92400e',fontStyle:'italic'}}>
-                                            ↳ <span style={{fontWeight:600}}>{f.label}</span>{f.note ? ` — ${f.note}` : ''}
-                                          </td>
-                                          <td style={{...bdr,padding:'4px 12px',fontSize:12,fontWeight:700,color:'#92400e',textAlign:'right',whiteSpace:'nowrap'}}>
-                                            + {fmt(f.montant)}
-                                          </td>
-                                          <td colSpan={3} style={{...bdr}}></td>
-                                        </tr>
-                                      ))}
                                     </Fragment>
                                   )
                                 })}

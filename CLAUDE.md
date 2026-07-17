@@ -78,18 +78,29 @@ Each voyage save writes to TWO tables:
 - Then insert into voyage_* table with `gasoil_id` / `retour_id` pointing back
 - These link ids are required for proper deletion (delGasoil, delRetour)
 
-## Frais supplémentaires par livraison (extra charges)
+## Frais supplémentaires & déductions par livraison
 
-Each livraison can carry optional extra charges (transport, déchargement, location, etc.).
+Each livraison can carry optional extra movements that adjust what's billed to the client:
 
-- Individual frais rows live in `voyage_livraison_frais` (FK → `voyage_livraisons.id`, CASCADE DELETE)
-- `voyage_livraisons.frais_total` stores the pre-summed total for fast aggregation
-- `ventes.frais_note` stores a text summary (e.g. "Transport 300 DHS · Déchargement 150 DHS")
-- `accounting_total = total_vente + frais_total` — this is what is billed to the client and stored in `ventes.total_vente` and used to update `clients.solde`
+- **Charges** (`kind='charge'`, labels in `FRAIS_LABELS`) — increase the client's balance. E.g. Frais Transport, Frais Gasoil, Frais Ouvriers.
+- **Deductions** (`kind='deduction'`, labels in `DEDUCTION_LABELS`) — decrease the client's balance. E.g. Transport payé, Transport + Ouvriers. These are **not** payments and are never written to `paiements`.
+
+Both kinds live in the same `voyage_livraison_frais` table (FK → `voyage_livraisons.id`, CASCADE DELETE), distinguished only by the `kind` column. `montant` is always stored as a positive magnitude — `kind` alone determines the sign used when summing.
+
+- `voyage_livraisons.frais_total` = Σ(charge montants) − Σ(deduction montants) — a **net signed** total, not a plain sum
+- `ventes.frais_note` stores a text summary with deductions prefixed `-` (e.g. "Frais Transport 300 DHS · Transport payé -4 000 DHS")
+- `accounting_total = total_vente + frais_total` — this is what is billed to the client and stored in `ventes.total_vente` and used to update `clients.solde` (unchanged formula — deductions simply make `frais_total` negative)
+- Shared UI editor: `components/voyage/FraisEditor.js`, used by both the create form (`LivraisonSection.js`) and the edit modal (`voyages/[id].js`)
+
+**Two different presentations of the same underlying rows:**
+
+- **Voyage detail** (`components/voyage/LivraisonSection.js`) shows them as indented (↳) child rows directly beneath their delivery — this is a per-voyage itemized view, not a ledger.
+- **Client Statement** (`pages/clients/index.js`, both chrono and presentation mode, screen + print/PDF) shows each one as its own full top-level movement, laid out exactly like a Livraison or Paiement row (same columns, typography, badge style) — not nested. This is done by `expandVenteEntry()`, called from both `buildLedger()` and `buildPresentationLedger()`: it takes one `ventes` row and splits its single `total_vente` into a "Livraison" entry (`total_vente − net frais`) plus one entry per attached frais/déduction item (`type: 'frais-charge'` or `'frais-deduction'`), all dated the same as the delivery. The split deltas always sum back to the original `v.total_vente` exactly, so this is presentation-only — no balance, total, or the `balance += e.delta` reduce itself is changed. Each split entry gets its own `eKey` (`frais:<voyage_livraison_frais.id>`), so in presentation mode it can be independently reordered/selected/printed just like any other movement.
+- `frais-charge` entries are styled identically to `vente`/Livraison rows (blue badge, `+` delta); `frais-deduction` entries are styled identically to `paiement` rows (green badge + row tint, `−` delta).
 
 Revenue formula on `voyage_livraisons`:
 ```
-REVENU LIVRAISON = total_vente + frais_total
+REVENU LIVRAISON = total_vente + frais_total   (frais_total may be negative when deductions outweigh charges)
 ```
 
 ## Profit formula per voyage
@@ -129,7 +140,7 @@ These values are computed in JS and explicitly saved (they are NOT PostgreSQL GE
 - `voyage_livraisons.total_vente` = `qte × prix_vente − remise`   ← product total only (no frais)
 - `voyage_livraisons.total_achat` = `qte × prix_achat`
 - `voyage_livraisons.marge` = `total_vente − total_achat`
-- `voyage_livraisons.frais_total` = sum of all extra charges on this livraison
+- `voyage_livraisons.frais_total` = Σ charges − Σ deductions on this livraison (net signed, see below)
 - `voyage_gasoil.total` = `qte_litres × prix_unitaire`
 - `ventes.total_vente` = `voyage_livraisons.total_vente + frais_total` (full amount billed to client)
 
@@ -186,7 +197,13 @@ CREATE TABLE IF NOT EXISTS voyage_livraison_frais (
   note         TEXT,
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Customer deductions on livraison (see sql/05_livraison_deductions.sql):
+-- kind='charge' (default, existing rows) increases balance; kind='deduction' decreases it.
+ALTER TABLE voyage_livraison_frais ADD COLUMN IF NOT EXISTS kind TEXT DEFAULT 'charge';  -- 'charge' | 'deduction'
 ```
+
+Newer migrations that aren't folded into the block above live as standalone numbered files in `sql/` (e.g. `sql/05_livraison_deductions.sql`) — check that folder for anything not reflected here.
 
 ## Formatting conventions
 
