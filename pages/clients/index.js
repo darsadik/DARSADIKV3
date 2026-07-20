@@ -167,7 +167,11 @@ export default function Clients() {
         const livIds = livs.map(l => l.id)
         const { data: fraisData, error: fraisErr } = await supabase
           .from('voyage_livraison_frais').select('*').in('livraison_id', livIds)
-        if (!fraisErr && fraisData?.length) {
+        if (fraisErr) {
+          // Don't hide this: if it fails, charges/déductions silently vanish from the
+          // statement while the balance (computed independently) still reflects them.
+          console.error('Erreur chargement frais/déductions (voyage_livraison_frais):', fraisErr)
+        } else if (fraisData?.length) {
           const map = {}
           livs.forEach(l => {
             const frs = fraisData.filter(f => f.livraison_id === l.id)
@@ -176,7 +180,9 @@ export default function Clients() {
           setClientFraisMap(map)
         }
       }
-    } catch (_) {}
+    } catch (err) {
+      console.error('Erreur chargement frais/déductions:', err)
+    }
 
     setLoadingDetail(false)
   }
