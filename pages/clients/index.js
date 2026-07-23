@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtDate, today, startOfMonth, openPrintWindow } from '../../lib/utils'
+import { fmt, fmtMoney, fmtDate, today, startOfMonth, openPrintWindow } from '../../lib/utils'
 
 const fmtMois = d => { if (!d) return ''; const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const [y,m] = d.split('-'); return `${months[parseInt(m)-1]} ${y}` }
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
@@ -332,7 +332,7 @@ export default function Clients() {
 
     function pMv(e) {
       const abs = Math.abs(e.delta); const isPos = e.delta >= 0
-      return `<span style="font-weight:800;color:${isPos?'#1d4ed8':'#16a34a'}">${isPos?'+ ':'− '}${fmt(abs)}</span>`
+      return `<span style="font-weight:800;color:${isPos?'#1d4ed8':'#16a34a'}">${isPos?'+ ':'− '}${fmtMoney(abs)}</span>`
     }
     function pDetail(e) {
       if (e.type === 'vente')         return [e.label !== '—' ? e.label : null, e.detail, e.raw?.frais_note].filter(Boolean).join(' · ') || '—'
@@ -415,7 +415,7 @@ export default function Clients() {
     <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th>
   </tr></thead>
   <tbody>
-    ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:12px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report' : 'Solde initial'}</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmt(ancienSoldeVal)}</td><td class="m">${carryOver !== null ? '' : (selected.opening_note||'Solde de départ')}</td></tr>` : ''}
+    ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:12px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report' : 'Solde initial'}</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmtMoney(ancienSoldeVal)}</td><td class="m">${carryOver !== null ? '' : (selected.opening_note||'Solde de départ')}</td></tr>` : ''}
     ${pDisplayEntries.map(e => {
       const isVente = e.src === 'vente'; const v = e.raw
       const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
@@ -433,9 +433,9 @@ export default function Clients() {
         <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
         <td>${typeTag}</td>
         <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?parseFloat(v.prix_vente||0).toFixed(2):'<span style="color:#9ca3af">—</span>'}</td>
-        <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmt(abs)}</span></td>
-        <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmt(e.solde):'− '+fmt(Math.abs(e.solde))}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmtMoney(v.prix_vente||0):'<span style="color:#9ca3af">—</span>'}</td>
+        <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
         <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?600:400};color:${e.note?'#374151':'#9ca3af'}">${noteDisplay}</td>
       </tr>`
     }).join('')}
@@ -443,11 +443,11 @@ export default function Clients() {
 </table>
 ${pDisplayEntries.length > 0 ? `<div class="totals-row">
   <span>Total — ${pDisplayEntries.length} opération${pDisplayEntries.length !== 1 ? 's' : ''}</span>
-  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pFinalBalance)} DHS</span>
+  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmtMoney(pFinalBalance)} DHS</span>
 </div>` : ''}
 <div class="solde-final">
   <div><div class="sf-lbl">Solde actuel à payer</div><div class="sf-sub">${periode}</div></div>
-  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmt(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
+  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
@@ -471,7 +471,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     }
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
-      const cfAmt = fmt(Math.abs(selectionCarryForward))
+      const cfAmt = fmtMoney(Math.abs(selectionCarryForward))
       return `<tr style="background:#fef3c7"><td class="m" style="white-space:nowrap;color:#92400e">—</td><td class="m">—</td><td style="font-size:12px;font-weight:700;color:#92400e">Report</td><td><span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Report</span></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${cfSign}${cfAmt}</td><td class="m"></td></tr>`
     })() : ''
 
@@ -481,7 +481,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     const rows = reportRowHtml + pEntries.map(e => {
       // ── Opening balance row ──
       if (e.type === 'opening') {
-        const soldeAmber = e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`
+        const soldeAmber = e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`
         return `<tr style="background:#fffbeb !important">
           <td class="m" style="color:#92400e;white-space:nowrap">${e.date ? fmtDate(e.date) : '—'}</td>
           <td class="m">—</td>
@@ -502,7 +502,7 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
       const isVenteLine = e.src === 'vente' && e.type !== 'remise-voyage' && e.type !== 'mdo'
       const dash = '<span style="color:#9ca3af">—</span>'
       const qteCell  = isVenteLine ? `<span style="font-weight:700;color:#374151">${fmt(v.qte)}</span>` : dash
-      const prixCell = isVenteLine ? `<span style="font-weight:600;color:#374151">${parseFloat(v.prix_vente||0).toFixed(2)}</span>` : dash
+      const prixCell = isVenteLine ? `<span style="font-weight:600;color:#374151">${fmtMoney(v.prix_vente||0)}</span>` : dash
       const typeTag = e.type === 'vente' || e.type === 'frais-charge'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">${e.label}</span>`
         : e.type === 'mdo'
@@ -515,8 +515,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
         <td>${typeTag}</td>
         <td class="r">${qteCell}</td>
         <td class="r">${prixCell}</td>
-        <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmt(abs)}</span></td>
-        <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmt(e.solde):'− '+fmt(Math.abs(e.solde))}</td>
+        <td class="r" style="font-size:14.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
         <td class="m" style="font-weight:${e.note?600:400};color:${e.note?'#374151':'#9ca3af'}">${e.note||'—'}</td>
       </tr>`
     }).join('')
@@ -595,11 +595,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
 </table>
 ${pEntries.length > 0 ? `<div class="totals-row">
   <span>Total — ${pEntries.length} opération${pEntries.length!==1?'s':''}</span>
-  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmt(pFinalBalance)} DHS</span>
+  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmtMoney(pFinalBalance)} DHS</span>
 </div>` : ''}
 <div class="solde-final">
   <div><div class="sf-lbl">Solde à payer</div><div class="sf-sub">${isSelectionPrint ? `${pEntries.length} opération${pEntries.length!==1?'s':''} sélectionnée${pEntries.length!==1?'s':''}` : 'Vue Présentation'}</div></div>
-  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmt(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
+  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
@@ -1119,8 +1119,8 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                 {presSelectedRows.size} opération{presSelectedRows.size > 1 ? 's' : ''} sélectionnée{presSelectedRows.size > 1 ? 's' : ''}
               </div>
               <div style={{fontSize:12,opacity:0.85,marginTop:3,display:'flex',gap:16}}>
-                <span>Total : <strong>{selectedTotal >= 0 ? '+' : '−'} {fmt(Math.abs(selectedTotal))} DHS</strong></span>
-                <span>Solde : <strong>{fmt(selectedSolde)} DHS</strong></span>
+                <span>Total : <strong>{selectedTotal >= 0 ? '+' : '−'} {fmtMoney(Math.abs(selectedTotal))} DHS</strong></span>
+                <span>Solde : <strong>{fmtMoney(selectedSolde)} DHS</strong></span>
               </div>
             </div>
             <button onClick={() => { printPresentationClient(); setPresSelectedRows(new Set()) }}
@@ -1201,7 +1201,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                       </td>
                       {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{ ...bdrA, padding:'10px 12px' }}>—</td>)}
                       <td className="td text-right font-black" style={{ ...bdrA, color:'#b45309', fontSize:15, whiteSpace:'nowrap', padding:'10px 14px', letterSpacing:'-0.2px' }}>
-                        {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
+                        {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                       </td>
                       <td className="td text-xs" style={{ ...bdrA, padding:'10px 12px', color:'#92400e', fontStyle:'italic' }}>
                         {e.note || 'Solde de départ'}
@@ -1322,16 +1322,16 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                     </td>
                     {/* PRIX/U */}
                     <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:12}}>
-                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-400">—</span>}
+                      {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmtMoney(v.prix_vente||0) : <span className="text-gray-400">—</span>}
                     </td>
                     {/* TOTAL */}
                     <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
-                      {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
+                      {isPos ? `+ ${fmtMoney(absAmt)}` : `− ${fmtMoney(absAmt)}`}
                     </td>
                     {/* SOLDE */}
                     <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
                       color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
-                      {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
+                      {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                     </td>
                     {/* NOTE */}
                     <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
@@ -1342,7 +1342,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                 )
                 if (i === firstSelIdx && carryForwardBalance !== null) {
                   const cfSign = carryForwardBalance >= 0 ? '+ ' : '− '
-                  const cfAmt = fmt(Math.abs(carryForwardBalance))
+                  const cfAmt = fmtMoney(Math.abs(carryForwardBalance))
                   return (
                     <Fragment key={`rf-${eKey(e)}`}>
                       <tr style={{background:'#fef3c7',cursor:'default'}}>
@@ -1374,7 +1374,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                     Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
                   </td>
                   <td style={{padding:'11px 14px',background:'#ede9fe',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #ddd6fe',letterSpacing:'-0.2px'}}>
-                    {fmt(presLedger.finalBalance)} <span style={{fontSize:12,fontWeight:600,color:'#a78bfa'}}>DHS</span>
+                    {fmtMoney(presLedger.finalBalance)} <span style={{fontSize:12,fontWeight:600,color:'#a78bfa'}}>DHS</span>
                   </td>
                   <td style={{background:'#ede9fe',borderTop:'2px solid #ddd6fe'}}></td>
                 </tr>
@@ -1740,7 +1740,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                   <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
                                   {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>)}
                                   <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
-                                    {fmt(ledger.startBalance)}
+                                    {fmtMoney(ledger.startBalance)}
                                   </td>
                                   <td className="td text-xs text-gray-400" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
                                     {carryOver !== null ? '' : (selected.opening_note || 'Solde de départ')}
@@ -1797,16 +1797,16 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                         </td>
                                         {/* PRIX */}
                                         <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:12}}>
-                                          {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? parseFloat(v.prix_vente||0).toFixed(2) : <span className="text-gray-400">—</span>}
+                                          {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmtMoney(v.prix_vente||0) : <span className="text-gray-400">—</span>}
                                         </td>
                                         {/* TOTAL */}
                                         <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
-                                          {isPos ? `+ ${fmt(absAmt)}` : `− ${fmt(absAmt)}`}
+                                          {isPos ? `+ ${fmtMoney(absAmt)}` : `− ${fmtMoney(absAmt)}`}
                                         </td>
                                         {/* SOLDE */}
                                         <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
                                           color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
-                                          {e.solde >= 0 ? `+ ${fmt(e.solde)}` : `− ${fmt(Math.abs(e.solde))}`}
+                                          {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                                         </td>
                                         {/* NOTE */}
                                         <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
@@ -1836,7 +1836,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                       Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
                                     </td>
                                     <td style={{padding:'11px 14px',background:'#eff6ff',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #bfdbfe',letterSpacing:'-0.2px'}}>
-                                      {fmt(finalEntry.solde)} <span style={{fontSize:12,fontWeight:600,color:'#94a3b8'}}>DHS</span>
+                                      {fmtMoney(finalEntry.solde)} <span style={{fontSize:12,fontWeight:600,color:'#94a3b8'}}>DHS</span>
                                     </td>
                                     <td colSpan={2} style={{background:'#eff6ff',borderTop:'2px solid #bfdbfe'}}></td>
                                   </tr>
@@ -1858,7 +1858,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                     </div>
                     <div style={{textAlign:'right'}}>
                       <div className="font-black" style={{fontSize:32,color:ledger.finalBalance>0?'#15803d':'#16a34a',lineHeight:1,letterSpacing:'-0.5px'}}>
-                        {fmt(ledger.finalBalance)}
+                        {fmtMoney(ledger.finalBalance)}
                       </div>
                       <div style={{fontSize:13,fontWeight:600,color:'#86efac',marginTop:3}}>DHS</div>
                     </div>
