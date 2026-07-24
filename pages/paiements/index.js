@@ -503,11 +503,8 @@ export default function Paiements() {
   .co-addr{font-size:11px;color:#475569;margin-top:5px}
   .co-r{text-align:right;flex-shrink:0}
   .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
-  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
-  .cli-card{display:flex;align-items:center;gap:18px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:5px solid #1e3a5f;border-radius:10px;padding:14px 22px}
-  .cli-avatar{width:58px;height:58px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-1px}
-  .cli-name{font-size:22px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
+  .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
+  .periode-bar strong{color:#1e3a5f;font-weight:800}
   .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
   thead th{background:#1e3a5f !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
@@ -548,15 +545,7 @@ export default function Paiements() {
     <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
   </div>
 </div>
-<div class="cli-section">
-  <div class="cli-card">
-    <div class="cli-avatar">💰</div>
-    <div>
-      <div class="cli-name">${pdfTitle}</div>
-      <div class="cli-meta"><strong>Période:</strong> ${periode} &nbsp;·&nbsp; <strong>Montant total encaissé:</strong> ${fmtMoney(total)} DHS</div>
-    </div>
-  </div>
-</div>
+<div class="periode-bar">Période : <strong>${periode}</strong></div>
 <div class="bdy">
 <table>
   <thead><tr>
