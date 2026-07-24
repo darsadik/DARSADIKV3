@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { fmt, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 
 const MODES = ['Espèce', 'Chèque', 'Virement', 'Paiement fournisseur']
 const CHEQUE_STATUSES = ['pending', 'validated', 'rejected']
@@ -486,97 +486,111 @@ export default function Paiements() {
   function printPaiements() {
     const _now = new Date()
     const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
-    const pendingCount = filtered.filter(p=>p.cheque_status==='pending').length
-    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
-<title>Paiements — DAR SADIK</title>
+    const tabTitles = { all: 'Paiements Clients', cheques: 'Paiements Chèques', fournisseurs: 'Paiements Fournisseurs', grignon: 'Paiements Grignon' }
+    const pdfTitle = tabTitles[activeTab] || 'Paiements Clients'
+    const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>${pdfTitle} — DAR SADIK</title>
 <style>
+  @page{margin:0mm}
+  @media print{.btn-p{display:none!important}}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
-  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
-  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
-  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
-  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
-  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
-  .co-r strong{color:#fff}
-  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
-  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:18px 24px}
-  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
-  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
-  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
-  .kpi{padding:10px 13px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
-  .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:3px}
-  .val{font-size:18px;font-weight:900;line-height:1}
-  .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
-  .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
-  .kpi.am{border-left-color:#b45309}.kpi.am .val{color:#b45309}
-  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
+  body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
+  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  .co-r{text-align:right;flex-shrink:0}
+  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
+  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
+  .cli-card{display:flex;align-items:center;gap:18px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:5px solid #1e3a5f;border-radius:10px;padding:14px 22px}
+  .cli-avatar{width:58px;height:58px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-1px}
+  .cli-name{font-size:22px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
+  .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
+  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
-  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  tbody td.r{text-align:right;font-family:monospace}
-  tbody td.m{color:#94a3b8;font-size:10px}
+  tbody tr{page-break-inside:avoid}
+  tbody td{padding:9.5px 12px;font-size:13px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
+  tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
+  tbody td.m{color:#374151;font-size:12px;font-weight:500}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   tbody tr.rej td{background:#fef2f2 !important}
-  .num{font-weight:700;font-size:11px}.gv{color:#16a34a;font-weight:700}
-  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
-  tfoot td.r{font-size:12px}
-  .badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
   .b-esp{background:#dcfce7;color:#166534}.b-chq{background:#fef9c3;color:#854d0e}
   .b-vir{background:#dbeafe;color:#1e40af}.b-fou{background:#f3e8ff;color:#6b21a8}
   .s-pending{color:#b45309}.s-validated{color:#16a34a}.s-rejected{color:#dc2626;font-weight:700}
-  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
-  @media print{.btn-p,.btn-d{display:none !important}}
-  @page{size:A4;margin:8mm 10mm}
-</style>
-</head><body>
+  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#eff6ff;border-top:3px solid #1e3a5f;border-bottom:2px solid #bfdbfe;font-weight:800;font-size:14px;color:#1e3a5f}
+  .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+  .sf-lbl{font-size:12px;font-weight:700;color:#166534;letter-spacing:0.01em}
+  .sf-amt{font-size:30px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
+  .sf-unit{font-size:12px;font-weight:600;color:#4ade80;margin-left:4px}
+  .sf-sub{font-size:10px;color:#86efac;margin-top:2px}
+  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+</style></head><body>
 <div class="hdr">
   <div>
-    <div class="co-n">DAR SADIK</div>
-    <div class="co-ar">دار صديق</div>
-    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
+    </div>
+    <div class="co-addr">Selouane, Nador</div>
   </div>
   <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
-    <div>Dar.sadik@hotmail.com</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${printDateTime}</div>
+    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Bureau</strong> 06 62 82 88 20<br>
+      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
+    </div>
+    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${printDateTime}</div>
+    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
+  </div>
+</div>
+<div class="cli-section">
+  <div class="cli-card">
+    <div class="cli-avatar">💰</div>
+    <div>
+      <div class="cli-name">${pdfTitle}</div>
+      <div class="cli-meta"><strong>Période:</strong> ${periode} &nbsp;·&nbsp; <strong>Montant total encaissé:</strong> ${fmtMoney(total)} DHS</div>
+    </div>
   </div>
 </div>
 <div class="bdy">
-<div class="ttl">Paiements Clients</div>
-<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${filtered.length} paiements</div>
-<div class="kpi-g">
-  <div class="kpi gn"><div class="lbl">Total encaissé</div><div class="val">${fmt(total)} DHS</div></div>
-  <div class="kpi bl"><div class="lbl">Nombre de paiements</div><div class="val">${filtered.length}</div></div>
-  <div class="kpi am"><div class="lbl">Chèques en attente</div><div class="val">${pendingCount}</div></div>
+<table>
+  <thead><tr>
+    <th>Date</th><th>Client</th><th>Société</th><th>Mode</th><th>N° Chèque</th><th>Banque</th><th>Statut</th><th>Fournisseur</th><th class="r">Montant DHS</th><th>Note</th>
+  </tr></thead>
+  <tbody>
+    ${filtered.map(p => {
+      const bc = p.mode==='Espèce'?'b-esp':p.mode==='Chèque'?'b-chq':p.mode==='Virement'?'b-vir':'b-fou'
+      const sl = p.cheque_status ? {pending:'En attente',validated:'Validé',rejected:'Rejeté'}[p.cheque_status] : '—'
+      const sc = p.cheque_status ? `s-${p.cheque_status}` : ''
+      return `<tr class="${p.cheque_status==='rejected'?'rej':''}">
+        <td class="m" style="white-space:nowrap">${fmtDate(p.date)}</td>
+        <td style="font-weight:700;color:#0f172a">${p.client_nom}</td>
+        <td class="m">${p.societe||'—'}</td>
+        <td><span class="badge ${bc}">${p.mode}</span></td>
+        <td class="m" style="font-family:'Courier New',monospace">${p.cheque_number||'—'}</td>
+        <td class="m">${p.cheque_bank||'—'}</td>
+        <td class="${sc}" style="font-weight:600;font-size:12px">${p.mode==='Chèque'?sl:'—'}</td>
+        <td class="m">${p.fournisseur_nom||'—'}</td>
+        <td class="r" style="font-weight:800;color:#16a34a">− ${fmtMoney(p.montant)}</td>
+        <td class="m" style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${p.note||'—'}</td>
+      </tr>`
+    }).join('')}
+  </tbody>
+</table>
+${filtered.length > 0 ? `<div class="totals-row">
+  <span>Total — ${filtered.length} paiement${filtered.length !== 1 ? 's' : ''}</span>
+  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmtMoney(total)} DHS</span>
+</div>` : ''}
+<div class="solde-final">
+  <div><div class="sf-lbl">Total général encaissé</div><div class="sf-sub">${periode}</div></div>
+  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(total)}</span><span class="sf-unit">DHS</span></div></div>
 </div>
-<div class="sec">Détail des paiements (${filtered.length})</div>
-<table><thead><tr>
-  <th>Date</th><th>Client</th><th>Société</th><th>Mode</th><th>N° Chèque</th><th>Banque</th><th>Statut</th><th>Fournisseur</th><th class="r">Montant DHS</th><th>Note</th>
-</tr></thead><tbody>
-${filtered.map(p => {
-  const bc = p.mode==='Espèce'?'b-esp':p.mode==='Chèque'?'b-chq':p.mode==='Virement'?'b-vir':'b-fou'
-  const sl = p.cheque_status ? {pending:'En attente',validated:'Validé',rejected:'Rejeté'}[p.cheque_status] : '—'
-  const sc = p.cheque_status ? `s-${p.cheque_status}` : ''
-  return `<tr class="${p.cheque_status==='rejected'?'rej':''}">
-    <td>${fmtDate(p.date)}</td><td><b>${p.client_nom}</b></td>
-    <td>${p.societe||'—'}</td>
-    <td><span class="badge ${bc}">${p.mode}</span></td>
-    <td style="font-family:monospace">${p.cheque_number||'—'}</td>
-    <td>${p.cheque_bank||'—'}</td>
-    <td class="${sc}">${p.mode==='Chèque'?sl:'—'}</td>
-    <td>${p.fournisseur_nom||'—'}</td>
-    <td class="r num gv">− ${fmt(p.montant)}</td>
-    <td class="m">${p.note||'—'}</td>
-  </tr>`
-}).join('')}
-</tbody><tfoot><tr>
-  <td colspan="8">TOTAL (${filtered.length})</td>
-  <td class="r">− ${fmt(total)} DHS</td><td></td>
-</tr></tfoot></table>
-<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
+<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
 </div></body></html>`)
   }
 
