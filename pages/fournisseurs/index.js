@@ -18,6 +18,7 @@ export default function FournisseursBriques() {
   const [ventesLegacy, setVentesLegacy] = useState([])
   const [paiements,    setPaiements]    = useState([])
   const [voyageLivraisons, setVoyageLivraisons] = useState([])
+  const [voyagesById,      setVoyagesById]      = useState({})
   const [loading,      setLoading]      = useState(true)
   const [loadingDetail,setLoadingDetail]= useState(false)
   const [search,       setSearch]       = useState('')
@@ -56,14 +57,20 @@ export default function FournisseursBriques() {
       ...(vl || []).map(v => v.voyage_id),
     ].filter(Boolean))]
     let vld = []
+    let vMap = {}
     if (voyageIds.length > 0) {
-      const { data } = await supabase.from('voyage_livraisons')
-        .select('voyage_id, type_brique, qte, client_nom, type_produit')
-        .in('voyage_id', voyageIds)
-        .eq('type_produit', 'brique')
-      vld = data || []
+      const [{ data: livData }, { data: voyData }] = await Promise.all([
+        supabase.from('voyage_livraisons')
+          .select('voyage_id, type_brique, qte, client_nom, type_produit')
+          .in('voyage_id', voyageIds)
+          .eq('type_produit', 'brique'),
+        supabase.from('voyages').select('id, camion_plaque, chauffeur').in('id', voyageIds),
+      ])
+      vld = livData || []
+      vMap = Object.fromEntries((voyData || []).map(v => [v.id, v]))
     }
     setVoyageLivraisons(vld)
+    setVoyagesById(vMap)
 
     setLoadingDetail(false)
   }
@@ -285,6 +292,7 @@ export default function FournisseursBriques() {
                       <table className="w-full">
                         <thead><tr>
                           <th className="th">Date</th><th className="th">Voyage</th>
+                          <th className="th">Camion</th>
                           <th className="th">Produit</th>
                           <th className="th text-right">Qté</th>
                           <th className="th text-right">Prix/u</th>
@@ -298,6 +306,7 @@ export default function FournisseursBriques() {
                           {achatsWithDistribution.map(a => {
                             const meta = DISTRIBUTION_STATUS_META[a.rowStatus]
                             const ecart = Math.round(((a.qte||0) - (a.totalDistribue||0)) * 1000) / 1000
+                            const camionPlaque = voyagesById[a.voyage_id]?.camion_plaque
                             return (
                               <tr key={a.id} className="hover:bg-blue-50">
                                 <td className="td text-gray-500">
@@ -307,6 +316,7 @@ export default function FournisseursBriques() {
                                 <td className="td text-xs text-blue-600">
                                   {a.voyage_id ? `#${a.voyage_id}` : '—'}
                                 </td>
+                                <td className="td text-xs font-semibold text-gray-600">{camionPlaque || '—'}</td>
                                 <td className="td text-xs font-semibold">{a.type_brique||'—'}</td>
                                 <td className="td text-right font-semibold">{fmt(a.qte)}</td>
                                 <td className="td text-right text-gray-500">{fmtD(a.prix_achat)}</td>
@@ -332,11 +342,11 @@ export default function FournisseursBriques() {
                               </tr>
                             )
                           })}
-                          {achatsWithDistribution.length === 0 && <tr><td colSpan={10} className="td text-center text-gray-400 py-6">Aucun achat</td></tr>}
+                          {achatsWithDistribution.length === 0 && <tr><td colSpan={11} className="td text-center text-gray-400 py-6">Aucun achat</td></tr>}
                         </tbody>
                         {achatsWithDistribution.length > 0 && (
                           <tfoot><tr>
-                            <td className="tfoot-td" colSpan={3}>TOTAL ({filteredAchats.length})</td>
+                            <td className="tfoot-td" colSpan={4}>TOTAL ({filteredAchats.length})</td>
                             <td className="tfoot-td text-right">{fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))}</td>
                             <td className="tfoot-td"></td>
                             <td className="tfoot-td text-right text-blue-700">{fmt(totalAchats)} DHS</td>
