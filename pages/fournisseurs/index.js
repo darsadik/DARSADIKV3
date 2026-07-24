@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { buildAchatTraceability, buildProductSummary, buildGrandTotal, TRACE_STATUS_META } from '../../lib/fournisseurTraceability'
 
 const ADMIN   = 'abdelhafidbaadi@gmail.com'
 
@@ -16,6 +17,9 @@ export default function FournisseursBriques() {
   const [achats,       setAchats]       = useState([])
   const [ventesLegacy, setVentesLegacy] = useState([])
   const [paiements,    setPaiements]    = useState([])
+  const [voyageAchats,     setVoyageAchats]     = useState([])
+  const [voyageLivraisons, setVoyageLivraisons] = useState([])
+  const [expandedAchatId,  setExpandedAchatId]  = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [loadingDetail,setLoadingDetail]= useState(false)
   const [search,       setSearch]       = useState('')
@@ -36,6 +40,7 @@ export default function FournisseursBriques() {
 
   async function selectFournisseur(f) {
     setSelected(f)
+    setExpandedAchatId(null)
     setLoadingDetail(true)
     const [{ data: ac }, { data: vl }, { data: pa }] = await Promise.all([
       supabase.from('achats').select('*').eq('fournisseur_id', f.id).order('date', { ascending: true }),
@@ -45,6 +50,26 @@ export default function FournisseursBriques() {
     setAchats(ac || [])
     setVentesLegacy(vl || [])
     setPaiements(pa || [])
+
+    // ── Traçabilité achats → livraisons (outil de contrôle, lecture seule) ──
+    const { data: va } = await supabase.from('voyage_achats')
+      .select('*, voyages(reference)')
+      .eq('fournisseur_id', f.id)
+      .eq('type_produit', 'brique')
+      .order('date_achat', { ascending: true })
+    setVoyageAchats(va || [])
+
+    const voyageIds = [...new Set((va || []).map(a => a.voyage_id).filter(Boolean))]
+    let vl2 = []
+    if (voyageIds.length > 0) {
+      const { data: vld } = await supabase.from('voyage_livraisons')
+        .select('voyage_id, type_brique, qte, client_nom, type_produit')
+        .in('voyage_id', voyageIds)
+        .eq('type_produit', 'brique')
+      vl2 = vld || []
+    }
+    setVoyageLivraisons(vl2)
+
     setLoadingDetail(false)
   }
 
@@ -96,6 +121,16 @@ export default function FournisseursBriques() {
 
   const totalAchats    = filteredAchats.reduce((s,a) => s+(a.total_achat||0), 0)
   const totalPaiements = filteredPai.reduce((s,p)    => s+(p.montant||0), 0)
+
+  // ── Traçabilité achats → livraisons (outil de contrôle, lecture seule) ──
+  const filteredVoyageAchats = voyageAchats.filter(a => {
+    if (from && a.date_achat < from) return false
+    if (to   && a.date_achat > to)   return false
+    return true
+  })
+  const achatTrace     = buildAchatTraceability(filteredVoyageAchats, voyageLivraisons)
+  const productSummary = buildProductSummary(filteredVoyageAchats, voyageLivraisons)
+  const grandTotal      = buildGrandTotal(productSummary)
 
   function printFournisseur() {
     if (!selected) return
@@ -325,6 +360,133 @@ export default function FournisseursBriques() {
                           </tr></tfoot>
                         )}
                       </table>
+                    </div>
+                  </div>
+
+                  {/* ── Traçabilité achats → livraisons (audit fournisseur) ── */}
+                  <div className="card">
+                    <h3 className="font-bold text-gray-900 mb-1">🔍 Traçabilité des achats ({achatTrace.length})</h3>
+                    <div className="text-xs text-gray-400 mb-3">Où chaque quantité achetée a été livrée — calculé automatiquement à partir des voyages</div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead><tr>
+                          <th className="th"></th>
+                          <th className="th">Date</th><th className="th">Voyage</th>
+                          <th className="th">Produit</th>
+                          <th className="th text-right">Qté achetée</th>
+                          <th className="th text-right">Qté distribuée</th>
+                          <th className="th">Statut</th>
+                        </tr></thead>
+                        <tbody>
+                          {achatTrace.map(a => {
+                            const meta = TRACE_STATUS_META[a.status]
+                            const isOpen = expandedAchatId === a.id
+                            return (
+                              <Fragment key={a.id}>
+                                <tr className="hover:bg-blue-50 cursor-pointer" onClick={()=>setExpandedAchatId(isOpen?null:a.id)}>
+                                  <td className="td text-gray-400">{isOpen?'▾':'▸'}</td>
+                                  <td className="td text-gray-500">{fmtDate(a.date_achat)}</td>
+                                  <td className="td text-xs text-blue-600">{a.voyages?.reference || (a.voyage_id?`#${a.voyage_id}`:'—')}</td>
+                                  <td className="td text-xs font-semibold">{a.type_brique||'—'}</td>
+                                  <td className="td text-right font-semibold">{fmt(a.qte)}</td>
+                                  <td className="td text-right">{fmt(a.totalDistribue)}</td>
+                                  <td className="td">
+                                    <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${meta.bg} ${meta.text}`}>{meta.emoji} {meta.label}</span>
+                                  </td>
+                                </tr>
+                                {isOpen && (
+                                  <tr>
+                                    <td></td>
+                                    <td colSpan={6} className="pb-4 pt-1 px-2">
+                                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                        <div className="text-xs font-semibold text-gray-500 mb-2">▼ Répartition par client</div>
+                                        {a.repartition.length === 0 ? (
+                                          <div className="text-xs text-gray-400 py-2">Aucune livraison trouvée pour ce voyage/produit</div>
+                                        ) : (
+                                          <table className="w-full text-xs">
+                                            <tbody>
+                                              {a.repartition.map((r,i) => (
+                                                <tr key={i} className="border-b border-slate-100 last:border-0">
+                                                  <td className="py-1 text-gray-700">{r.client_nom}</td>
+                                                  <td className="py-1 text-right font-semibold">{fmt(r.qte)}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        )}
+                                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 text-xs">
+                                          <span className="text-gray-500">Total distribué: <b>{fmt(a.totalDistribue)}</b></span>
+                                          {a.status==='ok' && <span className="text-emerald-600 font-semibold">✅ Complet</span>}
+                                          {a.status==='reste' && <span className="text-amber-600 font-semibold">⚠️ Reste à distribuer: {fmt(Math.abs(a.diff))}</span>}
+                                          {a.status==='depassement' && <span className="text-red-600 font-semibold">❌ Dépassement: {fmt(Math.abs(a.diff))}</span>}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            )
+                          })}
+                          {achatTrace.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucun achat à tracer</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* ── Contrôle par produit ── */}
+                  <div className="card">
+                    <h3 className="font-bold text-gray-900 mb-3">📊 Contrôle par produit</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead><tr>
+                          <th className="th">Produit</th>
+                          <th className="th text-right">Qté achetée</th>
+                          <th className="th text-right">Qté distribuée</th>
+                          <th className="th text-right">Écart</th>
+                          <th className="th">Statut</th>
+                        </tr></thead>
+                        <tbody>
+                          {productSummary.map((p,i) => {
+                            const meta = TRACE_STATUS_META[p.status]
+                            return (
+                              <tr key={i} className="hover:bg-gray-50">
+                                <td className="td font-semibold">{p.label}</td>
+                                <td className="td text-right">{fmt(p.achete)}</td>
+                                <td className="td text-right">{fmt(p.distribue)}</td>
+                                <td className={`td text-right font-bold ${p.ecart===0?'text-gray-500':p.ecart<0?'text-amber-600':'text-red-600'}`}>
+                                  {p.ecart>0?'+':''}{fmt(p.ecart)}
+                                </td>
+                                <td className="td">
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${meta.bg} ${meta.text}`}>{meta.emoji}</span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                          {productSummary.length === 0 && <tr><td colSpan={5} className="td text-center text-gray-400 py-6">Aucune donnée</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* ── Total général fournisseur ── */}
+                  <div className="card">
+                    <h3 className="font-bold text-gray-900 mb-3">🧮 Total Fournisseur</h3>
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div className="text-center p-3 rounded-xl bg-blue-50 border border-blue-100">
+                        <div className="text-xs text-blue-600 font-semibold">Total acheté</div>
+                        <div className="font-bold text-blue-700 text-lg">{fmt(grandTotal.totalAchete)}</div>
+                      </div>
+                      <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="text-xs text-slate-600 font-semibold">Total distribué</div>
+                        <div className="font-bold text-slate-700 text-lg">{fmt(grandTotal.totalDistribue)}</div>
+                      </div>
+                      <div className={`text-center p-3 rounded-xl ${TRACE_STATUS_META[grandTotal.status].bg} border ${TRACE_STATUS_META[grandTotal.status].ring}`}>
+                        <div className={`text-xs font-semibold ${TRACE_STATUS_META[grandTotal.status].text}`}>Écart global</div>
+                        <div className={`font-bold text-lg ${TRACE_STATUS_META[grandTotal.status].text}`}>{grandTotal.ecart>0?'+':''}{fmt(grandTotal.ecart)}</div>
+                      </div>
+                    </div>
+                    <div className={`text-center py-2 rounded-xl font-bold ${TRACE_STATUS_META[grandTotal.status].bg} ${TRACE_STATUS_META[grandTotal.status].text}`}>
+                      {TRACE_STATUS_META[grandTotal.status].emoji} {TRACE_STATUS_META[grandTotal.status].label}
                     </div>
                   </div>
                 </>
