@@ -429,7 +429,7 @@ export default function Paiements() {
     if (filterTo   && p.date > filterTo)   return false
     if (outTab !== 'all' && p.type_compte !== outTab) return false
     return true
-  }).sort((a,b) => b.date.localeCompare(a.date))
+  }).sort((a,b) => b.date.localeCompare(a.date) || (b.id||0) - (a.id||0))
   const totalOutgoing = outgoingPayments.reduce((s,p) => s+(p.montant||0), 0)
 
   // ── UPDATE CHEQUE STATUS (inline, no page reload needed) ──
@@ -454,7 +454,7 @@ export default function Paiements() {
       if (activeTab === 'grignon') return false // grignon has its own section
       return true
     })
-    .sort((a, b) => b.date.localeCompare(a.date))
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.id||0) - (a.id||0))
 
   const total = filtered.reduce((s, p) => s + (p.montant || 0), 0)
 
@@ -1012,7 +1012,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
               )}
               <div className="mobile-card-list">
                 {grignonPaiements.filter(p => (!filterFrom || p.date >= filterFrom) && (!filterTo || p.date <= filterTo))
-                  .sort((a,b) => b.date.localeCompare(a.date))
+                  .sort((a,b) => b.date.localeCompare(a.date) || (b.id||0) - (a.id||0))
                   .map(p => (
                   <div key={p.id} className="mobile-row-card"
                     onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyPmt(p.id) }}
@@ -1253,7 +1253,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                       <tbody>
                         {grignonPaiements
                           .filter(p => (!filterFrom||p.date>=filterFrom)&&(!filterTo||p.date<=filterTo))
-                          .sort((a,b) => b.date.localeCompare(a.date))
+                          .sort((a,b) => b.date.localeCompare(a.date) || (b.id||0) - (a.id||0))
                           .map(p => (
                           <tr key={p.id} className="hover:bg-gray-50"
                             onClick={e => { if (e.target.closest('button') || e.target.closest('select')) return; toggleVerifyPmt(p.id) }}
