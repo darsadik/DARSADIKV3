@@ -18,6 +18,7 @@ const nav = [
   { href: '/paiements',           icon: 'card',    label: 'Paiements' },
   { href: '/retours',     icon: 'undo',       label: 'Retours' },
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },
+  { href: '/camions',     icon: 'activity',   label: 'Performance Camions' },
   { href: '/charges',     icon: 'dollar',     label: 'Charges' },
   { href: '/grignon',     icon: 'leaf',       label: 'Grignon' },
   { href: '/loueurs',     icon: 'key',        label: 'Loueurs' },
@@ -94,6 +95,9 @@ function Icon({ name, size = 18 }) {
     ),
     droplet: (
       <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/>
+    ),
+    activity: (
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
     ),
     dollar: (
       <>
