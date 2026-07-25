@@ -9,12 +9,14 @@ import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
 import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
 import { loadVoyageData } from '../../lib/services/voyage/loaders'
 import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm, recalcOdometerChain, updateFuelMode as dbUpdateFuelMode } from '../../lib/services/voyage/updates'
-import { saveAchat as dbSaveAchat, updateAchat as dbUpdateAchat, delAchat as dbDelAchat } from '../../lib/services/voyage/achats'
-import { saveLiv as dbSaveLiv, updateLiv as dbUpdateLiv, delLiv as dbDelLiv } from '../../lib/services/voyage/livraisons'
-import { saveChargeGrid as dbSaveChargeGrid, updateCharge as dbUpdateCharge, delCharge as dbDelCharge } from '../../lib/services/voyage/charges'
+import { saveAchat as dbSaveAchat, delAchat as dbDelAchat } from '../../lib/services/voyage/achats'
+import { saveLiv as dbSaveLiv, delLiv as dbDelLiv } from '../../lib/services/voyage/livraisons'
+import { saveChargeGrid as dbSaveChargeGrid, delCharge as dbDelCharge } from '../../lib/services/voyage/charges'
+import { saveRetour as dbSaveRetour, delRetour as dbDelRetour } from '../../lib/services/voyage/retours'
+import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import AchatSection from '../../components/voyage/AchatSection'
 import LivraisonSection from '../../components/voyage/LivraisonSection'
-import FraisEditor from '../../components/voyage/FraisEditor'
+import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import ChargesSection from '../../components/voyage/ChargesSection'
 import RetourSection from '../../components/voyage/RetourSection'
 import GasoilSection from '../../components/voyage/GasoilSection'
@@ -117,11 +119,6 @@ export default function VoyageDetail() {
 
   const { toast, ToastContainer } = useToast()
 
-  // ── edit state ──
-  const [editRow,    setEditRow]    = useState(null) // { type, data }
-  const [editForm,   setEditForm]   = useState({})
-  const [editSaving, setEditSaving] = useState(false)
-
   // ── km tracking ──
   const [vehicleGasoil, setVehicleGasoil] = useState([])
   const [kmForm,        setKmForm]        = useState({ km_depart: '' })
@@ -164,6 +161,13 @@ export default function VoyageDetail() {
   }, [id])
 
   useEffect(() => { loadVoyage() }, [loadVoyage])
+
+  // ── EDIT (shared with every other page that displays voyage-derived data) ───
+  const {
+    editRow, editForm, setEditForm, editSaving, editError,
+    openEdit, closeEdit, save: saveEditRow,
+  } = useVoyageTransactionEdit({ onSaved: loadVoyage, camionId: voyage?.camion_id })
+  useEffect(() => { if (editError) toast(editError) }, [editError])
 
   // ── LOAD VEHICLE GASOIL FOR KM-BASED ALLOCATION ──────────────────────────────
   useEffect(() => {
@@ -296,59 +300,6 @@ export default function VoyageDetail() {
     touchStartX.current = null
   }
 
-  // ── EDIT HELPERS ─────────────────────────────────────────────────────────────
-  function openEdit(type, data) { setEditRow({ type, data }); setEditForm({ ...data }) }
-
-  async function updateAchat() {
-    setEditSaving(true)
-    try {
-      await dbUpdateAchat(editRow.data, editForm)
-      setEditRow(null); loadVoyage()
-    } catch (err) {
-      toast('Erreur modification achat: ' + err.message)
-    } finally { setEditSaving(false) }
-  }
-
-  async function updateLiv() {
-    setEditSaving(true)
-    try {
-      await dbUpdateLiv(editRow.data, editForm)
-      setEditRow(null); loadVoyage()
-    } catch (err) {
-      toast('Erreur modification livraison: ' + err.message)
-    } finally { setEditSaving(false) }
-  }
-
-  async function updateRetour() {
-    setEditSaving(true)
-    try {
-      const old = editRow.data
-      const montant = parseFloat(editForm.montant)||0, montant_paye = parseFloat(editForm.montant_paye)||0
-      const restant = Math.max(0, montant-montant_paye)
-      const { error } = await supabase.from('voyage_retours').update({
-        date_retour: editForm.date_retour, client_nom: editForm.client_nom,
-        destination: editForm.destination||null, montant, montant_paye, note: editForm.note||null
-      }).eq('id', old.id)
-      if (error) throw error
-      if (old.retour_id) {
-        await supabase.from('retours_transport').update({ montant, montant_paye, restant }).eq('id', old.retour_id)
-      }
-      setEditRow(null); loadVoyage()
-    } catch (err) {
-      toast('Erreur modification retour: ' + err.message)
-    } finally { setEditSaving(false) }
-  }
-
-  async function updateCharge() {
-    setEditSaving(true)
-    try {
-      await dbUpdateCharge(editRow.data, editForm, voyage?.camion_id)
-      setEditRow(null); loadVoyage()
-    } catch (err) {
-      toast('Erreur modification charge: ' + err.message)
-    } finally { setEditSaving(false) }
-  }
-
   // ── SAVE ACHAT ───────────────────────────────────────────────────────────────
   async function saveAchat(e) {
     e.preventDefault()
@@ -400,34 +351,7 @@ export default function VoyageDetail() {
     if (!retForm.client_nom || !retForm.montant) { showMsg('❌ Client et montant requis'); return }
     setSavingRetour(true)
     try {
-      const montant = parseFloat(retForm.montant)||0, montant_paye = parseFloat(retForm.montant_paye)||0
-      const restant = Math.max(0, montant-montant_paye)
-      let rtId = null
-      const { data: rtData } = await supabase.from('retours_transport').insert({
-        date: retForm.date_retour, client_nom: retForm.client_nom.trim(), destination: retForm.destination||null,
-        camion_id: voyage?.camion_id||null, camion_plaque: voyage?.camion_plaque||null, chauffeur: voyage?.chauffeur||null,
-        montant, montant_paye, restant, voyage_id: parseInt(id),
-      }).select().single()
-      rtId = rtData?.id || null
-
-      const { error } = await supabase.from('voyage_retours').insert({
-        voyage_id:    parseInt(id),
-        date_retour:  retForm.date_retour,
-        client_nom:   retForm.client_nom.trim(),
-        destination:  retForm.destination || null,
-        montant,
-        montant_paye,
-        retour_id:    rtId,
-        note:         retForm.note || null,
-      })
-      if (error) {
-        // fallback without retour_id if column not yet added
-        const { error: err2 } = await supabase.from('voyage_retours').insert({
-          voyage_id: parseInt(id), date_retour: retForm.date_retour, client_nom: retForm.client_nom.trim(),
-          destination: retForm.destination||null, montant, montant_paye, note: retForm.note||null,
-        })
-        if (err2) throw err2
-      }
+      await dbSaveRetour(id, retForm, { voyage })
       setShowRetour(false)
       setRetForm({ date_retour: today(), client_nom: '', destination: '', montant: '', montant_paye: '', note: '' })
       loadVoyage()
@@ -468,12 +392,7 @@ export default function VoyageDetail() {
 
   async function delRetour(row) {
     try {
-      const { error: rpcErr } = await supabase.rpc('delete_voyage_retour', { p_id: row.id })
-      if (rpcErr) {
-        // Fallback
-        await supabase.from('voyage_retours').delete().eq('id', row.id)
-        if (row.retour_id) await supabase.from('retours_transport').delete().eq('id', row.retour_id)
-      }
+      await dbDelRetour(row)
       loadVoyage()
     } catch (err) { toast('Erreur suppression retour: ' + err.message) }
   }
@@ -573,109 +492,16 @@ export default function VoyageDetail() {
 
   const isTermine = voyage.statut === 'termine'
 
-  // ── EDIT MODAL (inline render) ────────────────────────────────────────────────
-  const ef = editForm
-  const setEf = v => setEditForm(prev => ({ ...prev, ...v }))
-
   return (
     <Layout
       title={voyage.reference || `Voyage #${voyage.id}`}
       subtitle={`${voyage.camion_plaque}${voyage.chauffeur?' • '+voyage.chauffeur:''}${voyage.destination?' → '+voyage.destination:''}`}
     >
       <ToastContainer />
-      {/* ── EDIT MODAL OVERLAY ── */}
-      {editRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          onClick={e => { if (e.target===e.currentTarget) setEditRow(null) }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-800 text-sm">
-                {editRow.type==='achat'  && '✏️ Modifier Achat'}
-                {editRow.type==='liv'    && '✏️ Modifier Livraison'}
-                {editRow.type==='retour' && '✏️ Modifier Retour'}
-                {editRow.type==='charge' && '✏️ Modifier Charge'}
-              </h3>
-              <button onClick={() => setEditRow(null)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {editRow.type==='achat' && <>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>
-                  <input type="date" value={ef.date_achat||''} onChange={e=>setEf({date_achat:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Quantité</label>
-                  <input type="number" value={ef.qte||''} onChange={e=>setEf({qte:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Prix achat / u</label>
-                  <input type="number" step="0.01" value={ef.prix_achat||''} onChange={e=>setEf({prix_achat:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total achat</label>
-                  <div className="input w-full text-sm bg-slate-50 font-bold text-red-600">{fmt((parseFloat(ef.qte)||0)*(parseFloat(ef.prix_achat)||0))} DHS</div></div>
-              </>}
-              {editRow.type==='liv' && <>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date livraison</label>
-                  <input type="date" value={ef.date_livraison||''} onChange={e=>setEf({date_livraison:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Quantité</label>
-                  <input type="number" value={ef.qte||''} onChange={e=>setEf({qte:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Prix vente / u</label>
-                  <input type="number" step="0.01" value={ef.prix_vente||''} onChange={e=>setEf({prix_vente:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Prix achat / u</label>
-                  <input type="number" step="0.01" value={ef.prix_achat||''} onChange={e=>setEf({prix_achat:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Remise (DHS)</label>
-                  <input type="number" step="0.01" value={ef.remise||''} onChange={e=>setEf({remise:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total produits</label>
-                  <div className="input w-full text-sm bg-slate-50 font-bold text-emerald-600">{fmt(Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0)))} DHS</div></div>
-                <div className="col-span-2"><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note livraison</label>
-                  <input type="text" value={ef.note||''} onChange={e=>setEf({note:e.target.value})} className="input w-full text-sm" placeholder="ex: SAIDIA, Chantier A…"/></div>
-                <div className="col-span-2">
-                  <FraisEditor items={ef.frais||[]} onChange={arr=>setEf({frais:arr})} />
-                  {(ef.frais||[]).length > 0 && (
-                    <div className="text-[10px] text-emerald-700 font-bold mt-2 border-t border-slate-100 pt-2">
-                      Total livraison : {fmt(
-                        Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0))
-                        + (ef.frais||[]).reduce((s,f)=>{const amt=parseFloat(f.montant)||0; return s + (f.kind==='deduction' ? -amt : amt)},0)
-                      )} DHS
-                    </div>
-                  )}
-                </div>
-              </>}
-              {editRow.type==='retour' && <>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>
-                  <input type="date" value={ef.date_retour||''} onChange={e=>setEf({date_retour:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Client</label>
-                  <input type="text" value={ef.client_nom||''} onChange={e=>setEf({client_nom:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Destination</label>
-                  <input type="text" value={ef.destination||''} onChange={e=>setEf({destination:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant total</label>
-                  <input type="number" value={ef.montant||''} onChange={e=>setEf({montant:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant payé</label>
-                  <input type="number" value={ef.montant_paye||''} onChange={e=>setEf({montant_paye:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Restant</label>
-                  <div className="input w-full text-sm bg-slate-50 font-bold text-orange-600">{fmt(Math.max(0,(parseFloat(ef.montant)||0)-(parseFloat(ef.montant_paye)||0)))} DHS</div></div>
-              </>}
-              {editRow.type==='charge' && <>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>
-                  <input type="date" value={ef.date_charge||''} onChange={e=>setEf({date_charge:e.target.value})} className="input w-full text-sm"/></div>
-                <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant (DHS)</label>
-                  <input type="number" value={ef.montant||''} onChange={e=>setEf({montant:e.target.value})} className="input w-full text-sm"/></div>
-              </>}
-            </div>
-            <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-slate-100">
-              <button onClick={() => setEditRow(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">
-                Annuler
-              </button>
-              <button
-                onClick={() => {
-                  if (editRow.type==='achat')  updateAchat()
-                  if (editRow.type==='liv')    updateLiv()
-                  if (editRow.type==='retour') updateRetour()
-                  if (editRow.type==='charge') updateCharge()
-                }}
-                disabled={editSaving}
-                className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 transition disabled:opacity-60">
-                {editSaving ? '⌛ Sauvegarde...' : '✅ Enregistrer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EditTransactionModal
+        editRow={editRow} editForm={editForm} setEditForm={setEditForm}
+        onSave={saveEditRow} onCancel={closeEdit} saving={editSaving}
+      />
 
       {/* ── TWO-COLUMN LAYOUT ── */}
       <div className="flex gap-4 items-start" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>

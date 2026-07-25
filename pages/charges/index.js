@@ -4,6 +4,8 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
+import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 
 const CATEGORIES = [
   { key: 'ouvriers',          label: "Ouvriers / Main d'œuvre",  icon: '👷' },
@@ -52,6 +54,15 @@ export default function Charges() {
     setCamions(ca || [])
     setLoading(false)
   }
+
+  // ── EDIT (same modal as the voyage page) — rows here are already the true
+  // voyage_charges row, no mirror to resolve. ──
+  const {
+    editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
+    editSaving: voyEditSaving, editError: voyEditError,
+    openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
+  } = useVoyageTransactionEdit({ onSaved: loadAll })
+  useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
 
   // Filter voyage charges
   const filteredVoyage = voyageChg.filter(c => {
@@ -165,6 +176,10 @@ export default function Charges() {
 
   return (
     <Layout title="Charges" subtitle="Suivi des charges et dépenses par voyage">
+      <EditTransactionModal
+        editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
+        onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+      />
 
       {/* INFO BANNER */}
       <div className="card mb-4 flex items-center gap-3" style={{background:'#eff6ff',border:'1px solid #bfdbfe'}}>
@@ -277,9 +292,13 @@ export default function Charges() {
                             : <span className="text-xs text-gray-400">—</span>}
                         </td>
                         <td className="td text-right font-bold text-red-600">{fmt(c.montant)} DHS</td>
-                        <td className="td">
-                          <button onClick={()=>router.push(`/voyages/${c.voyage_id}`)}
-                            className="text-xs text-blue-500 hover:underline">→ Voyage</button>
+                        <td className="td whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button onClick={()=>openVoyEdit('charge', c, c.voyages?.camion_id)}
+                              className="text-xs text-blue-500 hover:underline">✎ Modifier</button>
+                            <button onClick={()=>router.push(`/voyages/${c.voyage_id}`)}
+                              className="text-xs text-blue-500 hover:underline">→ Voyage</button>
+                          </div>
                         </td>
                       </tr>
                     ))}

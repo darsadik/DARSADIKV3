@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
+import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
+import EditTransactionModal from '../../components/voyage/EditTransactionModal'
+import { resolveAchatByGrignonOpId } from '../../lib/services/voyage/resolveSource'
 
 const ADMIN   = 'abdelhafidbaadi@gmail.com'
 
@@ -49,6 +53,22 @@ export default function FournisseursGrignon() {
     setAchats(ac || [])
     setPaiements(pa || [])
     setLoadingDetail(false)
+  }
+
+  // ── EDIT VOYAGE-SOURCED ACHATS (same modal as the voyage page) ──
+  const {
+    editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
+    editSaving: voyEditSaving, editError: voyEditError,
+    openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
+  } = useVoyageTransactionEdit({
+    onSaved: async () => { await loadFournisseurs(); if (selected) await selectFournisseur(selected) },
+  })
+  useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
+
+  async function editAchat(a) {
+    const resolved = await resolveAchatByGrignonOpId(a.id)
+    if (!resolved) { alert("Cet achat ne peut pas être modifié depuis cette page — ouvrez le voyage."); return }
+    openVoyEdit('achat', resolved)
   }
 
   async function addFournisseur(e) {
@@ -153,6 +173,10 @@ export default function FournisseursGrignon() {
 
   return (
     <Layout title="Fournisseurs Grignon" subtitle="Achats et paiements fournisseurs grignon">
+      <EditTransactionModal
+        editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
+        onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+      />
       <div className={`${isMobile ? '' : 'grid grid-cols-3 gap-6'}`}>
 
         {/* LEFT */}
@@ -258,6 +282,7 @@ export default function FournisseursGrignon() {
                           <th className="th text-right">Prix/kg</th>
                           <th className="th text-right">Total DHS</th>
                           <th className="th">Note</th>
+                          <th className="th"></th>
                         </tr></thead>
                         <tbody>
                           {filteredAchats.map(a => (
@@ -268,9 +293,19 @@ export default function FournisseursGrignon() {
                               <td className="td text-right text-gray-500">{fmtD(a.prix_achat)}</td>
                               <td className="td text-right font-bold text-green-700">{fmt(a.total_achat)} DHS</td>
                               <td className="td text-gray-400 text-xs">{a.note||'—'}</td>
+                              <td className="td whitespace-nowrap">
+                                {a.voyage_id && (
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => editAchat(a)} title="Modifier (voyage)"
+                                      className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
+                                    <Link href={`/voyages/${a.voyage_id}`} title="Ouvrir le voyage"
+                                      className="btn-secondary" style={{fontSize:10,padding:'2px 5px',textDecoration:'none'}}>↗</Link>
+                                  </div>
+                                )}
+                              </td>
                             </tr>
                           ))}
-                          {filteredAchats.length === 0 && <tr><td colSpan={6} className="td text-center text-gray-400 py-6">Aucun achat</td></tr>}
+                          {filteredAchats.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucun achat</td></tr>}
                         </tbody>
                         {filteredAchats.length > 0 && (
                           <tfoot><tr>
@@ -278,6 +313,7 @@ export default function FournisseursGrignon() {
                             <td className="tfoot-td text-right">{fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td>
                             <td className="tfoot-td"></td>
                             <td className="tfoot-td text-right text-green-700">{fmt(totalAchats)} DHS</td>
+                            <td className="tfoot-td"></td>
                             <td className="tfoot-td"></td>
                           </tr></tfoot>
                         )}

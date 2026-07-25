@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
+import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 import { ADMIN_EMAIL } from '../../lib/config'
+import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
+import EditTransactionModal from '../../components/voyage/EditTransactionModal'
+import { resolveLivraisonGrignonHeuristic } from '../../lib/services/voyage/resolveSource'
 
 const ADMIN = ADMIN_EMAIL
 
@@ -46,6 +50,22 @@ export default function ClientsGrignon() {
     setOperations((ops || []).map(op => ({...op, client_nom: gMap(op.client_nom)})))
     setPaiements(pa || [])
     setLoadingDetail(false)
+  }
+
+  // ── EDIT VOYAGE-SOURCED OPERATIONS (same modal as the voyage page) ──
+  const {
+    editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
+    editSaving: voyEditSaving, editError: voyEditError,
+    openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
+  } = useVoyageTransactionEdit({
+    onSaved: async () => { await loadClients(); if (selected) await selectClient(selected) },
+  })
+  useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
+
+  async function editOperation(op) {
+    const resolved = await resolveLivraisonGrignonHeuristic({ voyage_id: op.voyage_id, client_id: op.client_id, date: op.date })
+    if (!resolved) { alert("Cette opération ne peut pas être modifiée depuis cette page — ouvrez le voyage."); return }
+    openVoyEdit('liv', resolved)
   }
 
   async function addClient(e) {
@@ -137,6 +157,10 @@ export default function ClientsGrignon() {
 
   return (
     <Layout title="Clients Grignon" subtitle="Comptabilité et suivi des clients grignon">
+      <EditTransactionModal
+        editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
+        onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+      />
       <div className={`${isMobile ? '' : 'grid grid-cols-3 gap-6'}`}>
 
         {/* LEFT: client list */}
@@ -248,6 +272,7 @@ export default function ClientsGrignon() {
                           <th className="th text-right">Prix/kg</th>
                           <th className="th text-right">Total DHS</th>
                           <th className="th">Note</th>
+                          <th className="th"></th>
                         </tr></thead>
                         <tbody>
                           {filteredOps.map(op => (
@@ -258,9 +283,19 @@ export default function ClientsGrignon() {
                               <td className="td text-right text-gray-500">{fmtD(op.prix_vente)}</td>
                               <td className="td text-right font-bold text-amber-700">{fmt(op.total_vente)} DHS</td>
                               <td className="td text-gray-400 text-xs">{op.note||'—'}</td>
+                              <td className="td whitespace-nowrap">
+                                {op.voyage_id && (
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => editOperation(op)} title="Modifier (voyage)"
+                                      className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
+                                    <Link href={`/voyages/${op.voyage_id}`} title="Ouvrir le voyage"
+                                      className="btn-secondary" style={{fontSize:10,padding:'2px 5px',textDecoration:'none'}}>↗</Link>
+                                  </div>
+                                )}
+                              </td>
                             </tr>
                           ))}
-                          {filteredOps.length === 0 && <tr><td colSpan={6} className="td text-center text-gray-400 py-6">Aucune opération</td></tr>}
+                          {filteredOps.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucune opération</td></tr>}
                         </tbody>
                         {filteredOps.length > 0 && (
                           <tfoot><tr>
@@ -268,6 +303,7 @@ export default function ClientsGrignon() {
                             <td className="tfoot-td text-right">{fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td>
                             <td className="tfoot-td"></td>
                             <td className="tfoot-td text-right text-amber-700">{fmt(totalVentes)} DHS</td>
+                            <td className="tfoot-td"></td>
                             <td className="tfoot-td"></td>
                           </tr></tfoot>
                         )}

@@ -4,6 +4,9 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
+import EditTransactionModal from '../../components/voyage/EditTransactionModal'
+import { resolveRetourByMirrorId } from '../../lib/services/voyage/resolveSource'
 
 export default function Retours() {
   const { user } = useAuth()
@@ -18,9 +21,6 @@ export default function Retours() {
   const [filterTo,     setFilterTo]     = useState(today())
   const [filterCamion, setFilterCamion] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
-  const [editRow,      setEditRow]      = useState(null)
-  const [editPaye,     setEditPaye]     = useState('')
-  const [editSaving,   setEditSaving]   = useState(false)
 
   useEffect(() => { loadAll() }, [])
 
@@ -35,14 +35,21 @@ export default function Retours() {
     setLoading(false)
   }
 
-  async function updatePaiement(r) {
-    setEditSaving(true)
-    const paye    = parseFloat(editPaye) || 0
-    const restant = Math.max(0, (r.montant || 0) - paye)
-    await supabase.from('retours_transport').update({ montant_paye: paye, restant }).eq('id', r.id)
-    setEditRow(null)
-    setEditSaving(false)
-    loadAll()
+  // ── EDIT VOYAGE-SOURCED RETOUR (same modal as the voyage page) ──
+  // retours_transport is the mirror; voyage_retours.retour_id points at it
+  // forward, so resolve it in reverse before editing — replaces the old
+  // montant_paye-only inline edit that wrote to retours_transport directly.
+  const {
+    editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
+    editSaving: voyEditSaving, editError: voyEditError,
+    openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
+  } = useVoyageTransactionEdit({ onSaved: loadAll })
+  useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
+
+  async function editRetour(r) {
+    const resolved = await resolveRetourByMirrorId(r.id)
+    if (!resolved) { alert("Ce retour ne peut pas être modifié depuis cette page — ouvrez le voyage."); return }
+    openVoyEdit('retour', resolved)
   }
 
   async function deleteRetour(r) {
@@ -136,6 +143,10 @@ export default function Retours() {
 
   return (
     <Layout title="Retours Transport" subtitle="Suivi et encaissement des retours">
+      <EditTransactionModal
+        editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
+        onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+      />
 
       {/* INFO BANNER */}
       <div className="card mb-4 flex items-center gap-3" style={{background:'#eff6ff',border:'1px solid #bfdbfe'}}>
@@ -246,22 +257,12 @@ export default function Retours() {
                       → Voyage #{r.voyage_id}
                     </button>
                   )}
-                  {admin && (r.restant||0) > 0 && (
+                  {admin && (
                     <div className="mt-2">
-                      {editRow?.id === r.id ? (
-                        <div className="flex gap-2">
-                          <input type="text" inputMode="decimal" className="input text-xs flex-1"
-                            value={editPaye} onChange={e=>setEditPaye(e.target.value)} placeholder="Amount paid"/>
-                          <button onClick={()=>updatePaiement(r)} disabled={editSaving}
-                            className="text-xs px-3 py-1 rounded-lg font-bold" style={{background:'#16a34a',color:'#fff'}}>✓</button>
-                          <button onClick={()=>setEditRow(null)} className="btn-secondary text-xs px-2">✕</button>
-                        </div>
-                      ) : (
-                        <button onClick={()=>{setEditRow(r);setEditPaye(String(r.montant_paye||0))}}
-                          className="btn-secondary text-xs w-full justify-center" style={{color:'#16a34a',borderColor:'#16a34a'}}>
-                          💰 Record payment
-                        </button>
-                      )}
+                      <button onClick={()=>editRetour(r)}
+                        className="btn-secondary text-xs w-full justify-center" style={{color:'#16a34a',borderColor:'#16a34a'}}>
+                        ✎ Modifier
+                      </button>
                     </div>
                   )}
                   {admin && <div className="mt-2">
@@ -314,24 +315,11 @@ export default function Retours() {
                       {admin && (
                         <td className="td">
                           <div className="flex gap-1 items-center">
-                            {(r.restant||0) > 0 && (
-                              editRow?.id === r.id ? (
-                                <div className="flex gap-1">
-                                  <input type="text" inputMode="decimal" className="input text-xs" style={{width:80}}
-                                    value={editPaye} onChange={e=>setEditPaye(e.target.value)}/>
-                                  <button onClick={()=>updatePaiement(r)} disabled={editSaving}
-                                    className="text-xs px-2 py-1 rounded-lg font-bold"
-                                    style={{background:'#16a34a',color:'#fff'}}>✓</button>
-                                  <button onClick={()=>setEditRow(null)} className="btn-secondary text-xs px-1">✕</button>
-                                </div>
-                              ) : (
-                                <button onClick={()=>{setEditRow(r);setEditPaye(String(r.montant_paye||0))}}
-                                  className="text-xs px-2 py-1 rounded-lg font-semibold"
-                                  style={{background:'#dcfce7',color:'#16a34a',border:'1px solid #bbf7d0'}}>
-                                  💰 Pay
-                                </button>
-                              )
-                            )}
+                            <button onClick={()=>editRetour(r)}
+                              className="text-xs px-2 py-1 rounded-lg font-semibold"
+                              style={{background:'#dcfce7',color:'#16a34a',border:'1px solid #bbf7d0'}}>
+                              ✎ Modifier
+                            </button>
                             <button onClick={()=>deleteRetour(r)} className="btn-danger text-xs">✕</button>
                           </div>
                         </td>

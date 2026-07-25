@@ -5,6 +5,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from './_app'
 import { computeVoyageProfit } from '../lib/services/profitability'
 import Link from 'next/link'
+import { useVoyageTransactionEdit } from '../lib/hooks/useVoyageTransactionEdit'
+import EditTransactionModal from '../components/voyage/EditTransactionModal'
+import { resolveLivraisonById } from '../lib/services/voyage/resolveSource'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtDate = d => { if (!d) return '—'; const [y, m, j] = d.split('-'); return `${j}/${m}/${y}` }
@@ -53,6 +56,22 @@ export default function Dashboard() {
   const [filterTo,   setFilterTo]   = useState(today())
 
   useEffect(() => { loadAll() }, [])
+
+  // ── EDIT VOYAGE-SOURCED LIVRAISONS (same modal as the voyage page) ──
+  // The dashboard's `livraisons` select is trimmed for the KPI cards, so on
+  // Edit we lazy-fetch the full voyage_livraisons row + its frais items.
+  const {
+    editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
+    editSaving: voyEditSaving, editError: voyEditError,
+    openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
+  } = useVoyageTransactionEdit({ onSaved: loadAll })
+  useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
+
+  async function editLivraison(l) {
+    const resolved = await resolveLivraisonById(l.id)
+    if (!resolved) { alert("Cette livraison ne peut pas être modifiée depuis cette page — ouvrez le voyage."); return }
+    openVoyEdit('liv', resolved)
+  }
 
   async function loadAll() {
     setLoading(true)
@@ -195,6 +214,10 @@ export default function Dashboard() {
 
   return (
     <Layout title="Dashboard" subtitle="Cockpit opérationnel">
+      <EditTransactionModal
+        editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
+        onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+      />
       <div className="max-w-6xl mx-auto space-y-4">
 
         {/* ── URGENT ALERT BANNER ── */}
@@ -428,6 +451,7 @@ export default function Dashboard() {
                         <th style={{...thStyle, textAlign:'left'}}>Client</th>
                         <th style={{...thStyle, textAlign:'left'}} className="hidden md:table-cell">Note</th>
                         <th style={{...thStyle, textAlign:'right'}}>Total</th>
+                        <th style={thStyle}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -452,6 +476,9 @@ export default function Dashboard() {
                             </td>
                             <td style={{padding:'8px 20px', textAlign:'right', fontWeight:700, color:'#16a34a', fontSize:13, whiteSpace:'nowrap'}}>
                               {deliveryTotal > 0 ? `${fmt(deliveryTotal)} DHS` : <span style={{color:'#cbd5e1'}}>—</span>}
+                            </td>
+                            <td style={{padding:'8px 12px', whiteSpace:'nowrap'}} onClick={e => e.stopPropagation()}>
+                              <button onClick={() => editLivraison(l)} style={{fontSize:11, color: BLUE, fontWeight:700}}>✎</button>
                             </td>
                           </tr>
                         )

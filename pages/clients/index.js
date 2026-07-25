@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import Layout from '../../components/Layout'
+import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtMoney, fmtDate, today, startOfMonth, openPrintWindow } from '../../lib/utils'
+import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
+import EditTransactionModal from '../../components/voyage/EditTransactionModal'
+import { resolveLivraisonByVenteId, resolveLivraisonByFraisRow, resolveChargeByVenteId } from '../../lib/services/voyage/resolveSource'
 
 const fmtMois = d => { if (!d) return ''; const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const [y,m] = d.split('-'); return `${months[parseInt(m)-1]} ${y}` }
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
@@ -194,6 +198,29 @@ export default function Clients() {
     }
 
     setLoadingDetail(false)
+  }
+
+  // ── EDIT VOYAGE-SOURCED LEDGER ROWS (Livraison / Frais / M.O.) ──
+  // Same modal + same lib/services/voyage/* update functions the voyage page
+  // uses — resolves the mirror row (ventes / voyage_livraison_frais) shown
+  // here back to its true voyage_livraisons / voyage_charges source row.
+  const {
+    editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
+    editSaving: voyEditSaving, editError: voyEditError,
+    openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
+  } = useVoyageTransactionEdit({
+    onSaved: async () => { await loadClients(); if (selected) await selectClient(selected) },
+  })
+  useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
+
+  async function editLedgerEntry(e) {
+    let resolved = null
+    if (e.type === 'vente') resolved = await resolveLivraisonByVenteId(e.raw.id)
+    else if (e.type === 'frais-charge' || e.type === 'frais-deduction') resolved = await resolveLivraisonByFraisRow(e.raw)
+    else if (e.type === 'mdo') resolved = await resolveChargeByVenteId(e.raw.id)
+    if (!resolved) { alert("Cette opération ne peut pas être modifiée depuis cette page — ouvrez le voyage."); return }
+    if (e.type === 'mdo') openVoyEdit('charge', resolved, resolved.voyages?.camion_id)
+    else openVoyEdit('liv', resolved)
   }
 
   async function addClient(e) {
@@ -820,7 +847,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         label: isDed ? 'Déduction' : 'Frais',
         detail: v.camion_plaque || '', note: f.note || '',
         operation: f.label, delta: isDed ? -(f.montant || 0) : (f.montant || 0),
-        src: 'frais', raw: f,
+        src: 'frais', raw: f, voyage_id: v.voyage_id || null,
       }
     })
 
@@ -856,6 +883,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
         detail: v.camion_plaque || '', note: deliveryNote,
         operation: opLabel(type, null), delta: v.total_vente || 0, src: 'vente', raw: v,
+        voyage_id: v.voyage_id || null,
       }
       entries.push(...expandVenteEntry(baseEntry))
     })
@@ -910,6 +938,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
         detail: v.camion_plaque || '', note: isRemiseVoyage ? (v.description_mdo||v.note||'') : isMdo ? (v.description_mdo||'') : (v.note||clientLivNoteMap[v.id]||''),
         operation: opLabel(type, null), delta: v.total_vente || 0, src: 'vente', raw: v,
+        voyage_id: v.voyage_id || null,
       }
       expandVenteEntry(baseEntry).forEach(entry => {
         entry.effectivePeriod = getEffectivePeriod(entry)
@@ -1298,6 +1327,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 ].map((col,ci) => (
                   <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
                 ))}
+                <th style={{...thS,width:70}}></th>
               </tr>
             </thead>
             <tbody>
@@ -1343,6 +1373,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       <td className="td text-xs" style={{ ...bdrA, padding:'10px 12px', color:'#92400e', fontStyle:'italic' }}>
                         {e.note || 'Solde de départ'}
                       </td>
+                      <td style={{ ...bdrA, padding:'10px 12px' }}></td>
                     </tr>
                   )
                 }
@@ -1475,6 +1506,19 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
                       {e.note || '—'}
                     </td>
+                    {/* ACTIONS — edit/open-voyage for voyage-sourced rows (same as chrono mode) */}
+                    <td className="td" style={{...bdr,padding:'6px 8px',whiteSpace:'nowrap'}} onClick={ev => ev.stopPropagation()} onMouseDown={ev => ev.stopPropagation()}>
+                      {(e.type === 'vente' || e.type === 'frais-charge' || e.type === 'frais-deduction' || e.type === 'mdo') && (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => editLedgerEntry(e)} title="Modifier (voyage)"
+                            className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
+                          {e.voyage_id && (
+                            <Link href={`/voyages/${e.voyage_id}`} title="Ouvrir le voyage"
+                              className="btn-secondary" style={{fontSize:10,padding:'2px 5px',textDecoration:'none'}}>↗</Link>
+                          )}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 )
                 if (i === firstSelIdx && carryForwardBalance !== null) {
@@ -1496,6 +1540,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                           {cfSign}{cfAmt}
                         </td>
                         <td className="td text-xs" style={{border:'1px solid #fde68a',padding:'10px 12px'}}></td>
+                        <td style={{border:'1px solid #fde68a',padding:'10px 12px'}}></td>
                       </tr>
                       {rowEl}
                     </Fragment>
@@ -1513,6 +1558,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                   <td style={{padding:'11px 14px',background:'#ede9fe',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #ddd6fe',letterSpacing:'-0.2px'}}>
                     {fmtMoney(presLedger.finalBalance)} <span style={{fontSize:12,fontWeight:600,color:'#a78bfa'}}>DHS</span>
                   </td>
+                  <td style={{background:'#ede9fe',borderTop:'2px solid #ddd6fe'}}></td>
                   <td style={{background:'#ede9fe',borderTop:'2px solid #ddd6fe'}}></td>
                 </tr>
               </tfoot>
@@ -1666,6 +1712,10 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   // ═══════════════════════════════════════════════════════
   return (
     <Layout title="Clients Briques" subtitle="Gestion des clients et suivi des comptes">
+      <EditTransactionModal
+        editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
+        onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* CLIENT LIST */}
@@ -2097,7 +2147,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                           color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
                                           {noteDisplay}
                                         </td>
-                                        {/* ACTIONS — remise edit/delete only */}
+                                        {/* ACTIONS — remise edit/delete, or edit/open-voyage for voyage-sourced rows */}
                                         <td className="td" style={{...bdr,padding:'6px 8px',whiteSpace:'nowrap'}} onClick={ev => ev.stopPropagation()}>
                                           {e.src === 'remise' && (
                                             <div className="flex items-center gap-1">
@@ -2105,6 +2155,16 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                                 className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
                                               <button onClick={() => deleteRemise(v)}
                                                 className="btn-danger" style={{fontSize:10,padding:'2px 5px'}}>✕</button>
+                                            </div>
+                                          )}
+                                          {(e.type === 'vente' || e.type === 'frais-charge' || e.type === 'frais-deduction' || e.type === 'mdo') && (
+                                            <div className="flex items-center gap-1">
+                                              <button onClick={() => editLedgerEntry(e)} title="Modifier (voyage)"
+                                                className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
+                                              {e.voyage_id && (
+                                                <Link href={`/voyages/${e.voyage_id}`} title="Ouvrir le voyage"
+                                                  className="btn-secondary" style={{fontSize:10,padding:'2px 5px',textDecoration:'none'}}>↗</Link>
+                                              )}
                                             </div>
                                           )}
                                         </td>

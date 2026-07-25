@@ -4,6 +4,10 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import * as XLSX from 'xlsx'
 import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
+import EditTransactionModal from '../../components/voyage/EditTransactionModal'
+import { resolveLivraisonByVenteId } from '../../lib/services/voyage/resolveSource'
+import { delLiv as dbDelLiv } from '../../lib/services/voyage/livraisons'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 
@@ -206,6 +210,45 @@ export default function Ventes() {
     } catch (err) {
       alert('Erreur suppression vente: ' + err.message)
     }
+  }
+
+  // ── VOYAGE-LINKED VENTES: edit/delete through the voyage, not this table ──
+  // Voyage is the single source of truth (see CLAUDE.md) — a `ventes` row with
+  // voyage_id set is a mirror of a voyage_livraisons row. Editing/deleting it
+  // directly here (the old openEdit/saveEdit/deleteVente path above) would
+  // desync it from the voyage. When resolvable, route through the same shared
+  // modal + updateLiv/delLiv used everywhere else; only fall back to the local
+  // editor for rows that aren't voyage-linked (voyage_id === null, e.g. the
+  // manual "Nouvelle vente" form below) or that predate this link (rare).
+  const {
+    editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
+    editSaving: voyEditSaving, editError: voyEditError,
+    openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
+  } = useVoyageTransactionEdit({ onSaved: loadAll })
+  useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
+
+  async function editVente(v) {
+    if (v.voyage_id) {
+      const resolved = await resolveLivraisonByVenteId(v.id)
+      if (resolved) { openVoyEdit('liv', resolved); return }
+    }
+    openEdit(v)
+  }
+
+  async function deleteVenteSmart(v) {
+    if (v.voyage_id) {
+      const resolved = await resolveLivraisonByVenteId(v.id)
+      if (resolved) {
+        if (!admin) return
+        if (!confirm('Supprimer cette livraison (et sa vente associée) ?')) return
+        try {
+          await dbDelLiv(resolved)
+          loadAll()
+        } catch (err) { alert('Erreur suppression livraison: ' + err.message) }
+        return
+      }
+    }
+    deleteVente(v)
   }
 
   async function saveRemise(e) {
@@ -508,8 +551,8 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
         </div>
         {admin && (
           <div className="card-actions">
-            <button onClick={() => openEdit(v)} className="btn-secondary text-xs" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️ Modifier</button>
-            <button onClick={() => deleteVente(v)} className="btn-danger">✕ Supprimer</button>
+            <button onClick={() => editVente(v)} className="btn-secondary text-xs" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️ Modifier</button>
+            <button onClick={() => deleteVenteSmart(v)} className="btn-danger">✕ Supprimer</button>
           </div>
         )}
         {v.retour_client && (
@@ -638,8 +681,8 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
                     )}
                     {admin && <td className="td">
                       <div className="flex gap-1">
-                        <button onClick={() => openEdit(v)} className="btn-secondary text-xs px-2" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️</button>
-                        <button onClick={() => deleteVente(v)} className="btn-danger text-xs">✕</button>
+                        <button onClick={() => editVente(v)} className="btn-secondary text-xs px-2" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️</button>
+                        <button onClick={() => deleteVenteSmart(v)} className="btn-danger text-xs">✕</button>
                       </div>
                     </td>}
                   </tr>
@@ -2113,7 +2156,13 @@ ${remisesFiltered.length > 0 ? `<tfoot><tr>
         </>
       )}
 
-      {/* ── EDIT MODAL ── */}
+      {/* ── EDIT MODAL (voyage-linked ventes — same editor as the voyage page) ── */}
+      <EditTransactionModal
+        editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
+        onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+      />
+
+      {/* ── EDIT MODAL (manual, non-voyage ventes only) ── */}
       {editRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{background:'rgba(0,0,0,0.5)'}}>

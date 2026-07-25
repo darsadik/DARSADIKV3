@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
+import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 import { buildAchatTraceability, buildProductSummary, buildGrandTotal, TRACE_STATUS_META, DISTRIBUTION_STATUS_META } from '../../lib/fournisseurTraceability'
+import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
+import EditTransactionModal from '../../components/voyage/EditTransactionModal'
+import { resolveAchatByVenteId } from '../../lib/services/voyage/resolveSource'
 
 const ADMIN   = 'abdelhafidbaadi@gmail.com'
 
@@ -75,6 +79,25 @@ export default function FournisseursBriques() {
     setLoadingDetail(false)
   }
 
+  // ── EDIT VOYAGE-SOURCED ACHATS (same modal as the voyage page) ──
+  // Only rows mirrored from a voyage (_source==='legacy', i.e. ventes with
+  // type_entree='achat') are editable here — the separate manual `achats`
+  // table (_source==='new') isn't voyage data.
+  const {
+    editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
+    editSaving: voyEditSaving, editError: voyEditError,
+    openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
+  } = useVoyageTransactionEdit({
+    onSaved: async () => { await loadFournisseurs(); if (selected) await selectFournisseur(selected) },
+  })
+  useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
+
+  async function editAchat(a) {
+    const resolved = await resolveAchatByVenteId(a._venteId)
+    if (!resolved) { alert("Cet achat ne peut pas être modifié depuis cette page — ouvrez le voyage."); return }
+    openVoyEdit('achat', resolved)
+  }
+
   async function addFournisseur(e) {
     e.preventDefault()
     if (!newNom.trim()) return
@@ -106,7 +129,7 @@ export default function FournisseursBriques() {
       id: `leg_${v.id}`, date: v.date_fournisseur || v.date,
       voyage_id: v.voyage_id || null, type_brique: v.type_brique,
       qte: v.qte, prix_achat: v.prix_achat,
-      total_achat: v.total_achat || 0, note: v.note, _source: 'legacy',
+      total_achat: v.total_achat || 0, note: v.note, _source: 'legacy', _venteId: v.id,
     })),
   ].sort((a,b) => (a.date||'').localeCompare(b.date||''))
 
@@ -192,6 +215,10 @@ export default function FournisseursBriques() {
 
   return (
     <Layout title="Fournisseurs Briques" subtitle="Achats et paiements fournisseurs briques">
+      <EditTransactionModal
+        editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
+        onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+      />
       <div className={`${isMobile ? '' : 'grid grid-cols-3 gap-6'}`}>
 
         {/* LEFT */}
@@ -301,6 +328,7 @@ export default function FournisseursBriques() {
                           <th className="th text-right">Qté distribuée</th>
                           <th className="th text-right">Écart</th>
                           <th className="th">Statut</th>
+                          <th className="th"></th>
                         </tr></thead>
                         <tbody>
                           {achatsWithDistribution.map(a => {
@@ -339,10 +367,20 @@ export default function FournisseursBriques() {
                                 <td className="td">
                                   <span className={`text-xs font-semibold px-2 py-1 rounded-lg whitespace-nowrap ${meta.bg} ${meta.text}`}>{meta.emoji} {meta.label}</span>
                                 </td>
+                                <td className="td whitespace-nowrap">
+                                  {a._source === 'legacy' && a.voyage_id && (
+                                    <div className="flex items-center gap-1">
+                                      <button onClick={() => editAchat(a)} title="Modifier (voyage)"
+                                        className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
+                                      <Link href={`/voyages/${a.voyage_id}`} title="Ouvrir le voyage"
+                                        className="btn-secondary" style={{fontSize:10,padding:'2px 5px',textDecoration:'none'}}>↗</Link>
+                                    </div>
+                                  )}
+                                </td>
                               </tr>
                             )
                           })}
-                          {achatsWithDistribution.length === 0 && <tr><td colSpan={11} className="td text-center text-gray-400 py-6">Aucun achat</td></tr>}
+                          {achatsWithDistribution.length === 0 && <tr><td colSpan={12} className="td text-center text-gray-400 py-6">Aucun achat</td></tr>}
                         </tbody>
                         {achatsWithDistribution.length > 0 && (
                           <tfoot><tr>
@@ -350,7 +388,7 @@ export default function FournisseursBriques() {
                             <td className="tfoot-td text-right">{fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))}</td>
                             <td className="tfoot-td"></td>
                             <td className="tfoot-td text-right text-blue-700">{fmt(totalAchats)} DHS</td>
-                            <td className="tfoot-td" colSpan={4}></td>
+                            <td className="tfoot-td" colSpan={5}></td>
                           </tr></tfoot>
                         )}
                       </table>
