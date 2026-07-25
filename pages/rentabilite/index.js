@@ -188,7 +188,7 @@ export default function Rentabilite() {
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
       supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
       supabase.from('camions').select('*').order('plaque'),
-      supabase.from('gasoil').select('camion_id,km,total,date').not('km', 'is', null).order('km', { ascending: true }),
+      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total').not('km', 'is', null).order('km', { ascending: true }),
       supabase.from('voyage_locations').select('voyage_id,montant_location'),
     ])
     const vIds = (v || []).map(x => x.id)

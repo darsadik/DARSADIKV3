@@ -63,12 +63,17 @@ export default function Gasoil() {
   const [filterTo, setFilterTo] = useState(today())
   const [form, setForm] = useState({
     date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom',
-    qte: '', prix_unitaire: '12.40', bon: '', km: '', note: ''
+    qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '',
+    adblue_qte: '', adblue_prix_unitaire: ''
   })
+  const [showAdblue, setShowAdblue] = useState(false)
 
   const qte = parseFloat(form.qte) || 0
   const pu = parseFloat(form.prix_unitaire) || 0
   const total = Math.round(qte * pu * 100) / 100
+  const adblueQte = parseFloat(form.adblue_qte) || 0
+  const adbluePu = parseFloat(form.adblue_prix_unitaire) || 0
+  const adblueTotal = Math.round(adblueQte * adbluePu * 100) / 100
 
   // ── CONSUMPTION MONTH FILTER ──
   const currentMonth = () => {
@@ -110,6 +115,9 @@ export default function Gasoil() {
       bon: form.bon,
       km: parseFloat(form.km) || null,
       note: form.note,
+      adblue_qte: adblueQte,
+      adblue_prix_unitaire: adbluePu,
+      adblue_total: adblueTotal,
     })
     if (camion) {
       await supabase.from('camions').update({
@@ -119,7 +127,8 @@ export default function Gasoil() {
       }).eq('id', camion.id)
     }
     setSaving(false)
-    setForm({ date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '' })
+    setForm({ date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', adblue_qte: '', adblue_prix_unitaire: '' })
+    setShowAdblue(false)
     loadAll()
   }
 
@@ -155,6 +164,8 @@ export default function Gasoil() {
       bon: g.bon || '',
       station: g.station || '',
       note: g.note || '',
+      adblue_qte: g.adblue_qte || '',
+      adblue_prix_unitaire: g.adblue_prix_unitaire || '',
     })
     setEditMsg('')
   }
@@ -166,6 +177,9 @@ export default function Gasoil() {
     const qte = parseFloat(editForm.qte) || 0
     const pu  = parseFloat(editForm.prix_unitaire) || 0
     const total = Math.round(qte * pu * 100) / 100
+    const adblueQte = parseFloat(editForm.adblue_qte) || 0
+    const adbluePu  = parseFloat(editForm.adblue_prix_unitaire) || 0
+    const adblueTotal = Math.round(adblueQte * adbluePu * 100) / 100
 
     const { error } = await supabase.from('gasoil').update({
       date: editForm.date,
@@ -174,6 +188,9 @@ export default function Gasoil() {
       bon: editForm.bon || null,
       station: editForm.station || null,
       note: editForm.note || null,
+      adblue_qte: adblueQte,
+      adblue_prix_unitaire: adbluePu,
+      adblue_total: adblueTotal,
     }).eq('id', editRow.id)
 
     // Adjust camion totals
@@ -228,6 +245,7 @@ export default function Gasoil() {
 
   const totLitres = filtered.reduce((s, g) => s + (g.qte || 0), 0)
   const totDHS = filtered.reduce((s, g) => s + (g.total || 0), 0)
+  const totAdblue = filtered.reduce((s, g) => s + (g.adblue_total || 0), 0)
 
   // Payment totals
   const totalGasoilAll = gasoil.reduce((s, g) => s + (g.total || 0), 0)
@@ -291,7 +309,10 @@ export default function Gasoil() {
         const kmEnd     = parseFloat(g2.km)
         const cycleKm   = kmEnd - kmStart
         if (cycleKm <= 0) continue
-        const costPerKm = (g1.total || 0) / cycleKm
+        const dieselCost = g1.total || 0
+        const adblueCost = g1.adblue_total || 0
+        const fuelCost  = dieselCost + adblueCost
+        const costPerKm = fuelCost / cycleKm
         const cycleVoyages = voyages.filter(v =>
           v.camion_id === parseInt(camionId) &&
           v.km_depart !== null && v.km_arrivee !== null &&
@@ -307,7 +328,7 @@ export default function Gasoil() {
           camionPlaque: g1.camion_plaque,
           g1, g2,
           kmStart, kmEnd, cycleKm,
-          fuelCost: g1.total || 0,
+          fuelCost, dieselCost, adblueCost,
           costPerKm,
           voyages: cycleVoyages,
           allocatedTotal: cycleVoyages.reduce((s, v) => s + v.alloc, 0),
@@ -340,6 +361,7 @@ export default function Gasoil() {
         <td class="r">${fmtD(g.qte)} L</td>
         <td class="r">${fmtD(g.prix_unitaire)}</td>
         <td class="r bold">${fmt(g.total)}</td>
+        <td class="r muted">${g.adblue_total ? fmt(g.adblue_total) : '—'}</td>
         <td class="r muted">${g.km ? fmt(g.km) : '—'}</td>
         <td class="muted">${g.bon||'—'}</td>
       </tr>`
@@ -466,11 +488,11 @@ export default function Gasoil() {
     <tr>
       <th>DATE</th><th>CAMION</th><th>CHAUFFEUR</th><th>STATION</th>
       <th class="r">LITRES</th><th class="r">PRIX/L</th>
-      <th class="r">TOTAL DHS</th><th class="r">KM</th><th>BON</th>
+      <th class="r">TOTAL DHS</th><th class="r">ADBLUE DHS</th><th class="r">KM</th><th>BON</th>
     </tr>
   </thead>
   <tbody>
-    ${gasoilRows || '<tr class="empty-row"><td colspan="9">Aucune entrée pour cette période</td></tr>'}
+    ${gasoilRows || '<tr class="empty-row"><td colspan="10">Aucune entrée pour cette période</td></tr>'}
   </tbody>
   ${filtered.length > 0 ? `
   <tfoot>
@@ -479,6 +501,7 @@ export default function Gasoil() {
       <td class="r"><b>${fmtD(totLitres)} L</b></td>
       <td></td>
       <td class="r"><b>${fmt(totDHS)} DHS</b></td>
+      <td class="r"><b>${totAdblue ? fmt(totAdblue) + ' DHS' : '—'}</b></td>
       <td colspan="2"></td>
     </tr>
   </tfoot>` : ''}
@@ -539,8 +562,8 @@ export default function Gasoil() {
   }
 
   function exportCSV() {
-    let csv = `Date,Camion,Chauffeur,Station,Litres,Prix/L,Total DHS,KM,BON\n`
-    filtered.forEach(g => { csv += `${g.date},${g.camion_plaque},${g.chauffeur||''},${g.station},${g.qte||0},${g.prix_unitaire||0},${g.total||0},${g.km||''},${g.bon||''}\n` })
+    let csv = `Date,Camion,Chauffeur,Station,Litres,Prix/L,Total DHS,AdBlue DHS,KM,BON\n`
+    filtered.forEach(g => { csv += `${g.date},${g.camion_plaque},${g.chauffeur||''},${g.station},${g.qte||0},${g.prix_unitaire||0},${g.total||0},${g.adblue_total||0},${g.km||''},${g.bon||''}\n` })
     const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
     a.download = `Gasoil-${filterFrom}-${filterTo}.csv`; a.click()
@@ -565,6 +588,11 @@ export default function Gasoil() {
           <div className="stat-label">Nb. pleins</div>
           <div className="stat-value text-gray-700">{gasoil.length}</div>
           <div className="stat-sub">Enregistrés</div>
+        </div>
+        <div className="stat-card border border-cyan-100 bg-cyan-50">
+          <div className="stat-label text-cyan-600">Total AdBlue</div>
+          <div className="stat-value text-cyan-700">{fmt(gasoil.reduce((s,g)=>s+(g.adblue_total||0),0))} DHS</div>
+          <div className="stat-sub">Toutes périodes</div>
         </div>
         <div className="stat-card border border-green-100 bg-green-50">
           <div className="stat-label text-green-600">Prix moyen/L</div>
@@ -637,6 +665,36 @@ export default function Gasoil() {
                   <div className="text-xs text-amber-500">{fmtD(qte)} L × {fmtD(pu)} DHS/L</div>
                 </div>
               )}
+
+              {/* ── ADBLUE (optional, same plein / same station) ── */}
+              {showAdblue ? (
+                <div className="border border-cyan-100 bg-cyan-50/40 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-cyan-700">🧴 AdBlue (même plein)</span>
+                    <button type="button" onClick={() => { setShowAdblue(false); setForm({...form, adblue_qte: '', adblue_prix_unitaire: ''}) }} className="text-xs text-gray-400 hover:text-gray-600">✕ Retirer</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Litres AdBlue</label>
+                      <input className="input" type="number" placeholder="10" value={form.adblue_qte} onChange={e => setForm({...form, adblue_qte: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="label">Prix/L AdBlue (DHS)</label>
+                      <input className="input" type="number" step="0.01" placeholder="ex: 8.50" value={form.adblue_prix_unitaire} onChange={e => setForm({...form, adblue_prix_unitaire: e.target.value})} />
+                    </div>
+                  </div>
+                  {adblueQte > 0 && adbluePu > 0 && (
+                    <div className="text-center text-xs text-cyan-700">
+                      Total AdBlue : <span className="font-bold">{fmtD(adblueTotal)} DHS</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button type="button" onClick={() => setShowAdblue(true)} className="btn-secondary w-full justify-center text-xs">
+                  🧴 + Ajouter AdBlue à ce plein
+                </button>
+              )}
+
               <button type="submit" disabled={saving} className="btn-primary w-full justify-center">
                 {saving ? 'Enregistrement...' : '✓ Enregistrer le plein'}
               </button>
@@ -766,6 +824,22 @@ export default function Gasoil() {
                         <div className="text-xs font-bold text-orange-700">{fmt(c.allocatedTotal)} DHS</div>
                       </div>
                     </div>
+                    {c.adblueCost > 0 && (
+                      <div className="grid grid-cols-3 gap-2 text-center mb-2">
+                        <div className="bg-red-50 rounded-lg p-1.5">
+                          <div className="text-[10px] text-red-400">Diesel</div>
+                          <div className="text-xs font-bold text-red-700">{fmt(c.dieselCost)} DHS</div>
+                        </div>
+                        <div className="bg-cyan-50 rounded-lg p-1.5">
+                          <div className="text-[10px] text-cyan-400">AdBlue</div>
+                          <div className="text-xs font-bold text-cyan-700">{fmt(c.adblueCost)} DHS</div>
+                        </div>
+                        <div className="bg-slate-100 rounded-lg p-1.5">
+                          <div className="text-[10px] text-slate-500">Cycle Total</div>
+                          <div className="text-xs font-bold text-slate-800">{fmt(c.fuelCost)} DHS</div>
+                        </div>
+                      </div>
+                    )}
                     {c.voyages.length > 0 ? (
                       <div className="space-y-1">
                         <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">
@@ -922,6 +996,7 @@ export default function Gasoil() {
                       <th className="th text-right">Litres</th>
                       <th className="th text-right">Prix/L</th>
                       <th className="th text-right">Total DHS</th>
+                      <th className="th text-right">AdBlue DHS</th>
                       <th className="th text-right">KM</th>
                       <th className="th">BON</th>
                       <th className="th"></th>
@@ -937,6 +1012,7 @@ export default function Gasoil() {
                         <td className="td text-right font-medium">{fmtD(g.qte)}</td>
                         <td className="td text-right text-gray-500">{fmtD(g.prix_unitaire)}</td>
                         <td className="td text-right font-bold text-amber-600">{fmtD(g.total)}</td>
+                        <td className="td text-right text-cyan-600 text-xs">{g.adblue_total ? fmtD(g.adblue_total) : '—'}</td>
                         <td className="td text-right text-gray-400 text-xs">{g.km ? fmt(g.km) : '—'}</td>
                         <td className="td text-gray-400 text-xs">{g.bon || '—'}</td>
                         <td className="td">
@@ -948,7 +1024,7 @@ export default function Gasoil() {
                       </tr>
                     ))}
                     {filtered.length === 0 && (
-                      <tr><td colSpan={10} className="td text-center text-gray-400 py-10">Aucune entrée trouvée</td></tr>
+                      <tr><td colSpan={11} className="td text-center text-gray-400 py-10">Aucune entrée trouvée</td></tr>
                     )}
                   </tbody>
                   {filtered.length > 0 && (
@@ -958,6 +1034,7 @@ export default function Gasoil() {
                         <td className="tfoot-td text-right">{fmtD(totLitres)} L</td>
                         <td className="tfoot-td"></td>
                         <td className="tfoot-td text-right text-amber-700">{fmt(totDHS)} DHS</td>
+                        <td className="tfoot-td text-right text-cyan-700">{totAdblue ? fmt(totAdblue) + ' DHS' : '—'}</td>
                         <td className="tfoot-td" colSpan={3}></td>
                       </tr>
                     </tfoot>
@@ -1030,6 +1107,28 @@ export default function Gasoil() {
                   </div>
                 </div>
               )}
+              <div className="border border-cyan-100 bg-cyan-50/40 rounded-xl p-3 space-y-2">
+                <div className="text-xs font-semibold text-cyan-700">🧴 AdBlue (même plein)</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Litres AdBlue</label>
+                    <input type="number" className="input"
+                      value={editForm.adblue_qte}
+                      onChange={e => setEditForm({...editForm, adblue_qte: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="label">Prix/L AdBlue (DHS)</label>
+                    <input type="number" step="0.01" className="input"
+                      value={editForm.adblue_prix_unitaire}
+                      onChange={e => setEditForm({...editForm, adblue_prix_unitaire: e.target.value})} />
+                  </div>
+                </div>
+                {editForm.adblue_qte && editForm.adblue_prix_unitaire && (
+                  <div className="text-center text-xs text-cyan-700">
+                    Total AdBlue : <span className="font-bold">{fmtD((parseFloat(editForm.adblue_qte)||0) * (parseFloat(editForm.adblue_prix_unitaire)||0))} DHS</span>
+                  </div>
+                )}
+              </div>
               {editMsg && (
                 <div className={`text-sm font-semibold text-center p-2 rounded-lg ${editMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                   {editMsg}

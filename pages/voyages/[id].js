@@ -169,7 +169,7 @@ export default function VoyageDetail() {
   useEffect(() => {
     if (!voyage?.camion_id) return
     supabase.from('gasoil')
-      .select('id,km,total,date,qte')
+      .select('id,km,total,date,qte,adblue_total')
       .eq('camion_id', voyage.camion_id)
       .not('km', 'is', null)
       .order('km', { ascending: true })
