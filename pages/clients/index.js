@@ -44,7 +44,7 @@ export default function Clients() {
   const [showDetail, setShowDetail] = useState(false)
 
   // ── STATEMENT MODE ──
-  const [stmtMode, setStmtMode] = useState('chrono') // 'chrono' | 'presentation'
+  const [stmtMode, setStmtMode] = useState('chrono') // 'chrono' | 'presentation' | 'billing'
 
   // ── PRESENTATION ORDER (stored in clients.presentation_order JSONB) ──
   // Structure: { "vente:123": { p: "2026-05", s: 1748736000000 }, ... }
@@ -62,6 +62,13 @@ export default function Clients() {
 
   // ── CHRONO HIGHLIGHT (localStorage, never touches accounting) ──
   const [chronoHighlights, setChronoHighlights] = useState(new Set())
+
+  // ── BILLING STATEMENT / "Factures à Encaisser" — optional commercial document.
+  // Selection-only, purely presentational: never writes to any table, never
+  // touches balance/accounting/payments. Just picks which ventes rows to show.
+  const [billingSelectedRows, setBillingSelectedRows] = useState(new Set())
+  // Optional info-only display of the old balance, excluded from the collected total. Default OFF.
+  const [billingIncludePrevSolde, setBillingIncludePrevSolde] = useState(false)
 
   // ── PRESENTATION SAVES (localStorage) ──
   const [presentations, setPresentations] = useState([])
@@ -96,6 +103,8 @@ export default function Clients() {
     setPresHistory([])
     setPresSelectedRows(new Set())
     setPresLastClickedIdx(null)
+    setBillingSelectedRows(new Set())
+    setBillingIncludePrevSolde(false)
     setStmtMode('chrono')
     try {
       const hl = localStorage.getItem(`chrono_hl_${selected.id}`)
@@ -323,6 +332,10 @@ export default function Clients() {
   // ── PRINT: CHRONOLOGICAL ──
   function printClient() {
     if (stmtMode === 'presentation') { printPresentationClient(); return }
+    if (stmtMode === 'billing') {
+      if (billingSelectedRows.size === 0) { alert('Sélectionnez au moins une livraison à facturer.'); return }
+      printBillingStatement(); return
+    }
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     const periode = getFilterLabel()
@@ -601,6 +614,129 @@ ${pEntries.length > 0 ? `<div class="totals-row">
   <div><div class="sf-lbl">Solde à payer</div><div class="sf-sub">${isSelectionPrint ? `${pEntries.length} opération${pEntries.length!==1?'s':''} sélectionnée${pEntries.length!==1?'s':''}` : 'Vue Présentation'}</div></div>
   <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
 </div>
+<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
+</div></body></html>`)
+  }
+
+  // ── BILLING STATEMENT: candidate rows (pure livraisons only — no mdo, no remise) ──
+  // Optional commercial document. Shows ONLY selected deliveries + their total.
+  // Never reads/writes balance, payments, or accounting history.
+  function getBillingCandidates() {
+    if (!selected) return []
+    return clientVentes
+      .filter(v => v.type_entree !== 'remise' && v.type_entree !== 'mdo')
+      .slice()
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1
+        const ca = a.created_at || '', cb = b.created_at || ''
+        return ca < cb ? -1 : ca > cb ? 1 : 0
+      })
+  }
+
+  // ── PRINT: BILLING STATEMENT (Factures à Encaisser) ──
+  function printBillingStatement() {
+    const rowsSel = getBillingCandidates().filter(v => billingSelectedRows.has(v.id))
+    if (rowsSel.length === 0) return
+    const total = rowsSel.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const ancienSolde = (selected.solde || 0) - total
+    const _now = new Date()
+    const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Relevé de Facturation — ${selected.nom}</title>
+<style>
+  @page{margin:0mm}
+  @media print{.btn-p{display:none!important}}
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #0f766e}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
+  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  .co-r{text-align:right;flex-shrink:0}
+  .mode-badge{display:inline-block;background:#ccfbf1;color:#0f766e;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #99f6e4;margin-bottom:6px}
+  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
+  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
+  .cli-card{display:flex;align-items:center;gap:18px;background:#f0fdfa;border:1.5px solid #99f6e4;border-left:5px solid #0f766e;border-radius:10px;padding:14px 22px}
+  .cli-avatar{width:58px;height:58px;border-radius:50%;background:#0f766e;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cli-name{font-size:26px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
+  .bdy{padding:10px 24px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#0f766e !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
+  thead th.r{text-align:right}
+  tbody tr{page-break-inside:avoid}
+  tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
+  tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
+  tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#f0fdfa;color:#0f766e;border:1px solid #99f6e4;letter-spacing:0.03em;white-space:nowrap}
+  .total-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+  .sf-lbl{font-size:12px;font-weight:700;color:#166534;letter-spacing:0.01em}
+  .sf-amt{font-size:30px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
+  .sf-unit{font-size:12px;font-weight:600;color:#4ade80;margin-left:4px}
+  .sf-sub{font-size:10px;color:#86efac;margin-top:2px}
+  .prev-solde{background:#fef2f2;border:2px dashed #fca5a5;border-radius:10px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+  .ps-lbl{font-size:11px;font-weight:800;color:#b91c1c;letter-spacing:0.04em;text-transform:uppercase}
+  .ps-warn{font-size:9.5px;color:#dc2626;margin-top:2px}
+  .ps-amt{font-size:22px;font-weight:900;color:#dc2626;line-height:1;letter-spacing:-0.5px}
+  .ps-unit{font-size:11px;font-weight:600;color:#f87171;margin-left:4px}
+  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
+    </div>
+    <div class="co-addr">Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Bureau</strong> 06 62 82 88 20<br>
+      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
+    </div>
+    <div style="margin-top:5px"><div class="mode-badge">🧾 Relevé de Facturation</div></div>
+    <div style="font-size:9.5px;color:#94a3b8">Généré le ${date}</div>
+    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
+  </div>
+</div>
+<div class="cli-section">
+  <div class="cli-card">
+    <div class="cli-avatar">${selected.nom.charAt(0).toUpperCase()}</div>
+    <div>
+      <div class="cli-name">${selected.nom}</div>
+      <div class="cli-meta"><strong>Dépôt:</strong> ${selected.depot||'—'}${selected.tel?' &nbsp;·&nbsp; <strong>Tél:</strong> '+selected.tel:''}</div>
+    </div>
+  </div>
+</div>
+<div class="bdy">
+<table>
+  <thead><tr>
+    <th>Date</th><th>Camion</th><th>Produit</th>
+    <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th>Note</th>
+  </tr></thead>
+  <tbody>
+    ${rowsSel.map(v => `<tr>
+        <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td>
+        <td class="m">${v.camion_plaque || '—'}</td>
+        <td><span class="tag">${v.type_brique || '—'}</span></td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${fmt(v.qte)}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${fmtMoney(v.prix_vente||0)}</td>
+        <td class="r" style="font-size:14.5px;font-weight:800;color:#0f766e;white-space:nowrap">${fmtMoney(v.total_vente||0)}</td>
+        <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${v.note?600:400};color:${v.note?'#374151':'#9ca3af'}">${v.note || '—'}</td>
+      </tr>`).join('')}
+  </tbody>
+</table>
+<div class="total-final">
+  <div><div class="sf-lbl">TOTAL À ENCAISSER</div><div class="sf-sub">${rowsSel.length} livraison${rowsSel.length !== 1 ? 's' : ''} sélectionnée${rowsSel.length !== 1 ? 's' : ''}</div></div>
+  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(total)}</span><span class="sf-unit">DHS</span></div></div>
+</div>
+${billingIncludePrevSolde ? `<div class="prev-solde">
+  <div><div class="ps-lbl">⚠ Ancien Solde</div><div class="ps-warn">Non inclus dans le total ci-dessus — indiqué à titre informatif uniquement</div></div>
+  <div style="text-align:right"><div style="line-height:1"><span class="ps-amt">− ${fmtMoney(Math.abs(ancienSolde))}</span><span class="ps-unit">DHS</span></div></div>
+</div>` : ''}
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
@@ -1386,6 +1522,147 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     )
   }
 
+  // ── RENDER: BILLING STATEMENT TABLE (Factures à Encaisser) ──
+  // Optional commercial document: pick deliveries, show only their own fields
+  // + a total. No balance, no payments, no accounting history in this view.
+  function renderBillingTable() {
+    const candidates = getBillingCandidates()
+    const thS = { background:'#f0fdfa', color:'#0f766e', borderBottom:'2px solid #99f6e4', whiteSpace:'nowrap', padding:'9px 12px', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
+    const bdr = { border:'1px solid #f1f5f9' }
+
+    const selectedRows = candidates.filter(v => billingSelectedRows.has(v.id))
+    const selectedTotal = selectedRows.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const ancienSolde = (selected?.solde || 0) - selectedTotal
+
+    function toggleRow(id) {
+      const ns = new Set(billingSelectedRows)
+      ns.has(id) ? ns.delete(id) : ns.add(id)
+      setBillingSelectedRows(ns)
+    }
+
+    if (candidates.length === 0) {
+      return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune livraison</div>
+    }
+
+    return (
+      <div>
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',borderBottom:'1px solid #f1f5f9',background:'#f0fdfa',flexWrap:'wrap'}}>
+          <span style={{fontSize:11,color:'#0f766e',flex:1,minWidth:0}}>
+            🧾 Cochez les livraisons à facturer — seules les lignes sélectionnées apparaissent sur le document
+          </span>
+          <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,color:'#334155',cursor:'pointer',whiteSpace:'nowrap'}}>
+            <input type="checkbox" checked={billingIncludePrevSolde}
+              onChange={ev => setBillingIncludePrevSolde(ev.target.checked)}
+              style={{width:13,height:13,cursor:'pointer',accentColor:'#dc2626'}} />
+            Inclure l'ancien solde (info)
+          </label>
+        </div>
+
+        {selectedRows.length > 0 && (
+          <div style={{background:'#0f766e',color:'#fff',padding:'10px 16px',display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,boxShadow:'0 4px 16px rgba(15,118,110,0.35)'}}>
+            <div style={{flex:1,minWidth:180}}>
+              <div style={{fontWeight:700,fontSize:13,lineHeight:1.3}}>
+                {selectedRows.length} livraison{selectedRows.length > 1 ? 's' : ''} sélectionnée{selectedRows.length > 1 ? 's' : ''}
+              </div>
+              <div style={{fontSize:12,opacity:0.85,marginTop:3}}>
+                TOTAL À ENCAISSER : <strong>{fmtMoney(selectedTotal)} DHS</strong>
+                {billingIncludePrevSolde && (
+                  <span style={{marginLeft:12,color:'#fecaca'}}>· Ancien solde (info) : <strong>{fmtMoney(Math.abs(ancienSolde))} DHS</strong></span>
+                )}
+              </div>
+            </div>
+            <button onClick={() => printBillingStatement()}
+              style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#fff',color:'#0f766e',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              🖨️ Imprimer
+            </button>
+            <button onClick={() => printBillingStatement()}
+              style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#99f6e4',color:'#0f766e',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              📄 PDF
+            </button>
+            <button onClick={() => setBillingSelectedRows(new Set())}
+              style={{padding:'5px 12px',borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'transparent',color:'#fecaca',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              ✕ Annuler
+            </button>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th style={{...thS,width:36,padding:'9px 6px',textAlign:'center'}}>
+                  <input type="checkbox"
+                    checked={candidates.length > 0 && candidates.every(v => billingSelectedRows.has(v.id))}
+                    onChange={ev => setBillingSelectedRows(ev.target.checked ? new Set(candidates.map(v => v.id)) : new Set())}
+                    style={{width:13,height:13,cursor:'pointer',accentColor:'#0f766e'}} />
+                </th>
+                {[
+                  {l:'Date',r:false},{l:'Camion',r:false},{l:'Produit',r:false},
+                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Note',r:false}
+                ].map((col,ci) => (
+                  <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {candidates.map(v => {
+                const isSelected = billingSelectedRows.has(v.id)
+                return (
+                  <tr key={v.id} onClick={() => toggleRow(v.id)}
+                    style={{ background: isSelected ? '#f0fdfa' : undefined, cursor:'pointer',
+                      borderLeft: isSelected ? '3px solid #0f766e' : undefined }}>
+                    <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}} onClick={ev => ev.stopPropagation()}>
+                      <input type="checkbox" checked={isSelected} onChange={() => toggleRow(v.id)}
+                        style={{width:13,height:13,cursor:'pointer',accentColor:'#0f766e'}} />
+                    </td>
+                    <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',color:'#374151'}}>{fmtDate(v.date)}</td>
+                    <td className="td text-xs" style={{...bdr,padding:'10px 12px',color:'#374151'}}>{v.camion_plaque || '—'}</td>
+                    <td style={{...bdr,padding:'10px 12px'}}>
+                      <span style={{background:'#f0fdfa',color:'#0f766e',fontWeight:700,fontSize:10,padding:'2px 8px',borderRadius:3,border:'1px solid #99f6e4',whiteSpace:'nowrap'}}>{v.type_brique || '—'}</span>
+                    </td>
+                    <td className="td text-right" style={{...bdr,padding:'10px 12px',fontWeight:700,color:'#0f172a'}}>{fmt(v.qte)}</td>
+                    <td className="td text-right" style={{...bdr,padding:'10px 12px',fontWeight:700,color:'#0f172a'}}>{fmtMoney(v.prix_vente||0)}</td>
+                    <td className="td text-right" style={{...bdr,padding:'10px 14px',fontSize:15,fontWeight:900,color:'#0f766e',whiteSpace:'nowrap',letterSpacing:'-0.2px'}}>
+                      {fmtMoney(v.total_vente||0)}
+                    </td>
+                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',color:v.note?'#374151':'#9ca3af',fontStyle:v.note?'normal':'italic',fontWeight:v.note?600:400}}>
+                      {v.note || '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {selectedRows.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={6} style={{padding:'11px 12px',background:'#f0fdfa',color:'#0f766e',fontWeight:700,fontSize:13,borderTop:'2px solid #99f6e4'}}>
+                    TOTAL À ENCAISSER — {selectedRows.length} livraison{selectedRows.length !== 1 ? 's' : ''}
+                  </td>
+                  <td style={{padding:'11px 14px',background:'#f0fdfa',fontSize:15,fontWeight:900,color:'#0f766e',textAlign:'right',borderTop:'2px solid #99f6e4',letterSpacing:'-0.2px'}}>
+                    {fmtMoney(selectedTotal)} <span style={{fontSize:12,fontWeight:600,color:'#5eead4'}}>DHS</span>
+                  </td>
+                  <td style={{background:'#f0fdfa',borderTop:'2px solid #99f6e4'}}></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {billingIncludePrevSolde && selectedRows.length > 0 && (
+          <div style={{margin:'0 16px 16px',padding:'12px 16px',background:'#fef2f2',border:'2px dashed #fca5a5',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:800,color:'#b91c1c',textTransform:'uppercase',letterSpacing:'0.04em'}}>⚠ Ancien Solde</div>
+              <div style={{fontSize:10.5,color:'#dc2626',marginTop:2}}>Non inclus dans le total à encaisser — indiqué à titre informatif uniquement</div>
+            </div>
+            <div style={{fontSize:20,fontWeight:900,color:'#dc2626',letterSpacing:'-0.3px'}}>
+              − {fmtMoney(Math.abs(ancienSolde))} <span style={{fontSize:11,fontWeight:600,color:'#f87171'}}>DHS</span>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // ═══════════════════════════════════════════════════════
   // JSX
   // ═══════════════════════════════════════════════════════
@@ -1667,11 +1944,11 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                         <div className="flex items-center justify-between flex-wrap gap-2" style={{padding:'10px 16px',borderBottom:'1px solid #f1f5f9'}}>
                           <div className="flex items-center gap-3 flex-wrap">
                             <h3 className="font-semibold text-gray-900" style={{fontSize:14}}>
-                              Historique du compte
+                              {stmtMode === 'billing' ? 'Factures à Encaisser' : 'Historique du compte'}
                               <span className="text-gray-400 font-normal text-sm ml-2">
-                                ({stmtMode === 'presentation'
-                                  ? buildPresentationLedger().entries.length
-                                  : displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''})
+                                {stmtMode === 'billing'
+                                  ? `(${getBillingCandidates().length} livraison${getBillingCandidates().length !== 1 ? 's' : ''})`
+                                  : `(${stmtMode === 'presentation' ? buildPresentationLedger().entries.length : displayEntries.length} opération${displayEntries.length !== 1 ? 's' : ''})`}
                               </span>
                             </h3>
                             {/* MODE TOGGLE */}
@@ -1690,6 +1967,13 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                                   color: stmtMode === 'presentation' ? '#fff' : '#64748b', transition:'all 0.15s'}}>
                                 ↕ Présentation
                               </button>
+                              <button
+                                onClick={ev => { ev.stopPropagation(); setStmtMode('billing') }}
+                                style={{padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer',border:'none',borderLeft:'1px solid #e2e8f0',
+                                  background: stmtMode === 'billing' ? '#0f766e' : '#f8fafc',
+                                  color: stmtMode === 'billing' ? '#fff' : '#64748b', transition:'all 0.15s'}}>
+                                🧾 Factures à Encaisser
+                              </button>
                             </div>
                             {/* Legend (chrono only) */}
                             {stmtMode === 'chrono' && (
@@ -1705,15 +1989,17 @@ ${pEntries.length > 0 ? `<div class="totals-row">
                               </div>
                             )}
                           </div>
-                          <button
-                            onClick={() => { setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseError(''); setRemiseModal('new') }}
-                            className="btn-primary text-xs px-3 py-1.5 flex-shrink-0" style={{background:'#7c3aed'}}>
-                            + Remise
-                          </button>
+                          {stmtMode !== 'billing' && (
+                            <button
+                              onClick={() => { setRemiseForm({ date: today(), montant: '', type_remise: 'Commerciale', motif: '' }); setRemiseError(''); setRemiseModal('new') }}
+                              className="btn-primary text-xs px-3 py-1.5 flex-shrink-0" style={{background:'#7c3aed'}}>
+                              + Remise
+                            </button>
+                          )}
                         </div>
 
                         {/* TABLE BODY — switch between modes */}
-                        {stmtMode === 'presentation' ? renderPresentationTable() : (
+                        {stmtMode === 'presentation' ? renderPresentationTable() : stmtMode === 'billing' ? renderBillingTable() : (
                           <div className="overflow-x-auto">
                             <table className="w-full border-collapse">
                               <thead>
