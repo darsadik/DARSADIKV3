@@ -671,15 +671,15 @@ ${pEntries.length > 0 ? `<div class="totals-row">
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#f0fdfa;color:#0f766e;border:1px solid #99f6e4;letter-spacing:0.03em;white-space:nowrap}
-  .total-final{background:#ffffff;border:3px solid #15803d;border-radius:10px;padding:18px 26px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
-  .sf-lbl{font-size:13px;font-weight:900;color:#14532d;letter-spacing:0.04em;text-transform:uppercase}
-  .sf-amt{font-size:46px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-1px}
-  .sf-unit{font-size:14px;font-weight:700;color:#16a34a;margin-left:5px}
-  .sf-sub{font-size:10.5px;color:#64748b;margin-top:3px}
-  .prev-solde{background:#fef2f2;border:3px solid #dc2626;border-radius:10px;padding:18px 26px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-  .ps-lbl{font-size:13px;font-weight:900;color:#7f1d1d;letter-spacing:0.04em;text-transform:uppercase}
-  .ps-amt{font-size:46px;font-weight:900;color:#dc2626;line-height:1;letter-spacing:-1px}
-  .ps-unit{font-size:14px;font-weight:700;color:#dc2626;margin-left:5px}
+  .total-final{background:#ffffff;border:4px solid #166534;border-radius:10px;padding:18px 26px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+  .sf-lbl{font-size:14px;font-weight:900;color:#052e16;letter-spacing:0.04em;text-transform:uppercase}
+  .sf-amt{font-size:48px;font-weight:900;color:#166534;line-height:1;letter-spacing:-1px}
+  .sf-unit{font-size:15px;font-weight:800;color:#166534;margin-left:5px}
+  .sf-sub{font-size:10.5px;color:#475569;margin-top:3px}
+  .prev-solde{background:#fef2f2;border:4px solid #b91c1c;border-radius:10px;padding:18px 26px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .ps-lbl{font-size:14px;font-weight:900;color:#450a0a;letter-spacing:0.04em;text-transform:uppercase}
+  .ps-amt{font-size:48px;font-weight:900;color:#b91c1c;line-height:1;letter-spacing:-1px}
+  .ps-unit{font-size:15px;font-weight:800;color:#b91c1c;margin-left:5px}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
 <div class="hdr">
@@ -1560,10 +1560,10 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         </div>
 
         {billingIncludePrevSolde && (
-          <div style={{margin:'10px 16px 0',padding:'16px 20px',background:'#fef2f2',border:'3px solid #dc2626',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
-            <div style={{fontSize:13,fontWeight:900,color:'#7f1d1d',textTransform:'uppercase',letterSpacing:'0.04em'}}>Ancien Solde</div>
-            <div style={{fontSize:32,fontWeight:900,color:'#dc2626',letterSpacing:'-0.5px'}}>
-              {fmtMoney(Math.abs(ancienSolde))} <span style={{fontSize:13,fontWeight:700,color:'#dc2626'}}>DHS</span>
+          <div style={{margin:'10px 16px 0',padding:'16px 20px',background:'#fef2f2',border:'4px solid #b91c1c',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+            <div style={{fontSize:14,fontWeight:900,color:'#450a0a',textTransform:'uppercase',letterSpacing:'0.04em'}}>Ancien Solde</div>
+            <div style={{fontSize:34,fontWeight:900,color:'#b91c1c',letterSpacing:'-0.5px'}}>
+              {fmtMoney(Math.abs(ancienSolde))} <span style={{fontSize:14,fontWeight:800,color:'#b91c1c'}}>DHS</span>
             </div>
           </div>
         )}
@@ -1574,8 +1574,8 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
               <div style={{fontWeight:700,fontSize:13,lineHeight:1.3}}>
                 {selectedRows.length} livraison{selectedRows.length > 1 ? 's' : ''} sélectionnée{selectedRows.length > 1 ? 's' : ''}
               </div>
-              <div style={{fontSize:12,opacity:0.85,marginTop:3}}>
-                TOTAL À ENCAISSER : <strong>{fmtMoney(selectedTotal)} DHS</strong>
+              <div style={{fontSize:13,marginTop:3}}>
+                TOTAL À ENCAISSER : <strong style={{fontSize:15}}>{fmtMoney(selectedTotal)} DHS</strong>
                 {billingIncludePrevSolde && (
                   <span style={{marginLeft:12,color:'#fecaca'}}>· Ancien solde (info) : <strong>{fmtMoney(Math.abs(ancienSolde))} DHS</strong></span>
                 )}
@@ -1645,13 +1645,13 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
             {selectedRows.length > 0 && (
               <tfoot>
                 <tr>
-                  <td colSpan={6} style={{padding:'11px 12px',background:'#f0fdfa',color:'#0f766e',fontWeight:700,fontSize:13,borderTop:'2px solid #99f6e4'}}>
+                  <td colSpan={6} style={{padding:'14px 12px',background:'#f0fdf4',color:'#052e16',fontWeight:900,fontSize:14,borderTop:'3px solid #166534',textTransform:'uppercase',letterSpacing:'0.03em'}}>
                     TOTAL À ENCAISSER — {selectedRows.length} livraison{selectedRows.length !== 1 ? 's' : ''}
                   </td>
-                  <td style={{padding:'11px 14px',background:'#f0fdfa',fontSize:15,fontWeight:900,color:'#0f766e',textAlign:'right',borderTop:'2px solid #99f6e4',letterSpacing:'-0.2px'}}>
-                    {fmtMoney(selectedTotal)} <span style={{fontSize:12,fontWeight:600,color:'#5eead4'}}>DHS</span>
+                  <td style={{padding:'14px',background:'#f0fdf4',fontSize:24,fontWeight:900,color:'#166534',textAlign:'right',borderTop:'3px solid #166534',letterSpacing:'-0.3px'}}>
+                    {fmtMoney(selectedTotal)} <span style={{fontSize:13,fontWeight:800,color:'#166534'}}>DHS</span>
                   </td>
-                  <td style={{background:'#f0fdfa',borderTop:'2px solid #99f6e4'}}></td>
+                  <td style={{background:'#f0fdf4',borderTop:'3px solid #166534'}}></td>
                 </tr>
               </tfoot>
             )}
