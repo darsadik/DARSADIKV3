@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { fmt, fmtDate, today, startOfMonth } from '../../lib/utils'
 import { computeVoyageProfit, aggregateVoyageProfits, aggregateClientProfits } from '../../lib/services/profitability'
+import { recalcOdometerChain } from '../../lib/services/voyage/updates'
 
 const startOfWeek  = () => {
   const d = new Date()
@@ -246,7 +247,7 @@ export default function Voyages() {
 
   // ── FORM ──
   const [form, setForm] = useState({
-    date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '', km_arrivee: '',
+    date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '',
   })
 
   useEffect(() => { loadAll() }, [])
@@ -324,10 +325,13 @@ export default function Voyages() {
       note:          editVoyageForm.note || null,
       statut:        editVoyageForm.statut,
       km_depart:     editVoyageForm.km_depart  ? parseFloat(editVoyageForm.km_depart)  : null,
-      km_arrivee:    editVoyageForm.km_arrivee ? parseFloat(editVoyageForm.km_arrivee) : null,
     }).eq('id', editingVoyage.id)
     setSavingEditVoyage(false)
     setEditingVoyage(null)
+    await recalcOdometerChain(parseInt(editVoyageForm.camion_id))
+    if (editingVoyage.camion_id && editingVoyage.camion_id !== parseInt(editVoyageForm.camion_id)) {
+      await recalcOdometerChain(editingVoyage.camion_id)
+    }
     loadAll()
   }
 
@@ -362,6 +366,8 @@ export default function Voyages() {
       alert('Erreur archivage: ' + error.message)
       return
     }
+    const camionIds = [...new Set(deletePreviewFor.map(v => v.camion_id).filter(Boolean))]
+    await Promise.all(camionIds.map(recalcOdometerChain))
     setDeletePreviewFor(null)
     setSelectedIds([])
     loadAll()
@@ -382,12 +388,12 @@ export default function Voyages() {
       note:          form.note || null,
       statut:        'en_cours',
       km_depart:     form.km_depart  ? parseFloat(form.km_depart)  : null,
-      km_arrivee:    form.km_arrivee ? parseFloat(form.km_arrivee) : null,
     }).select().single()
     setSaving(false)
     if (error) { setMsg('❌ ' + error.message); return }
     setShowForm(false)
-    setForm({ date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '', km_arrivee: '' })
+    setForm({ date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '' })
+    await recalcOdometerChain(parseInt(form.camion_id))
     router.push(`/voyages/${data.id}`)
   }
 
@@ -545,6 +551,8 @@ export default function Voyages() {
                 </select></div>
               <div className="col-span-2"><label className="text-xs font-semibold text-slate-500 block mb-1">Note</label>
                 <input type="text" value={editVoyageForm.note||''} onChange={e=>setEditVoyageForm({...editVoyageForm,note:e.target.value})} className="input w-full" placeholder="Optionnel..."/></div>
+              <div className="col-span-2"><label className="text-xs font-semibold text-slate-500 block mb-1">Odomètre au chargement</label>
+                <input type="number" value={editVoyageForm.km_depart||''} onChange={e=>setEditVoyageForm({...editVoyageForm,km_depart:e.target.value})} className="input w-full" placeholder="Ex: 125000"/></div>
             </div>
             <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-slate-100">
               <button onClick={() => setEditingVoyage(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">Annuler</button>
@@ -626,15 +634,10 @@ export default function Voyages() {
                 <input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})}
                   className="input w-full" placeholder="Optionnel..." />
               </div>
-              <div>
-                <label className="text-xs text-slate-500 font-semibold mb-1 block">KM Départ (optionnel)</label>
+              <div className="col-span-2">
+                <label className="text-xs text-slate-500 font-semibold mb-1 block">Odomètre au chargement (optionnel)</label>
                 <input type="number" value={form.km_depart} onChange={e => setForm({...form, km_depart: e.target.value})}
-                  className="input w-full" placeholder="Ex: 85000" />
-              </div>
-              <div>
-                <label className="text-xs text-slate-500 font-semibold mb-1 block">KM Arrivée (optionnel)</label>
-                <input type="number" value={form.km_arrivee} onChange={e => setForm({...form, km_arrivee: e.target.value})}
-                  className="input w-full" placeholder="Ex: 87500" />
+                  className="input w-full" placeholder="Ex: 125000" />
               </div>
               {msg && <div className="col-span-2 text-sm text-red-500 font-semibold">{msg}</div>}
               <div className="col-span-2 flex justify-end gap-3">
@@ -818,7 +821,7 @@ export default function Voyages() {
                                 className="text-blue-500 hover:text-blue-700 font-semibold text-[10px]">
                                 Voir →
                               </Link>
-                              <button onClick={() => { setEditingVoyage(v); setEditVoyageForm({ date_depart: v.date_depart, camion_id: v.camion_id, camion_plaque: v.camion_plaque, chauffeur: v.chauffeur, destination: v.destination, note: v.note, statut: v.statut }) }}
+                              <button onClick={() => { setEditingVoyage(v); setEditVoyageForm({ date_depart: v.date_depart, camion_id: v.camion_id, camion_plaque: v.camion_plaque, chauffeur: v.chauffeur, destination: v.destination, note: v.note, statut: v.statut, km_depart: v.km_depart }) }}
                                 className="text-slate-300 hover:text-blue-500 transition text-xs px-0.5" title="Modifier">✏️</button>
                               <button
                                 onClick={() => openDeletePreview([v])}

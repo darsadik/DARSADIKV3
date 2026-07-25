@@ -70,9 +70,13 @@ export default function GasoilSection({
 
       {gasoil.length === 0 ? (
         <div className="text-center py-3 space-y-1">
-          {fuelSource === 'km' ? (
+          {fuelSource === 'automatic' ? (
             <div className="text-sm font-semibold text-emerald-600">
               ⚡ Alloué automatiquement — {fmt(fuelCost)} DHS ({fmt(voyageKm)} km)
+            </div>
+          ) : (fuelSource === 'manual_rate' || fuelSource === 'manual_amount') ? (
+            <div className="text-sm font-semibold text-purple-600">
+              📝 Carburant en mode manuel — {fmt(fuelCost)} DHS (voir section Carburant ci-dessus)
             </div>
           ) : (
             <div className="text-sm text-slate-500">
@@ -111,9 +115,14 @@ export default function GasoilSection({
               </tr>
             </tbody>
           </table>
-          {fuelSource === 'km' && (
+          {fuelSource === 'automatic' && (
             <div className="mt-2 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
               ⚡ Ce voyage utilise l'allocation km automatique ({fmt(fuelCost)} DHS) — les entrées ci-dessus sont conservées à titre d'historique.
+            </div>
+          )}
+          {(fuelSource === 'manual_rate' || fuelSource === 'manual_amount') && (
+            <div className="mt-2 text-[10px] text-purple-700 bg-purple-50 border border-purple-100 rounded-lg px-3 py-2">
+              📝 Ce voyage utilise un carburant saisi manuellement ({fmt(fuelCost)} DHS) — les entrées ci-dessus sont conservées à titre d'historique.
             </div>
           )}
         </div>

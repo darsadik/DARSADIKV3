@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
 import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
 import { loadVoyageData } from '../../lib/services/voyage/loaders'
-import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm } from '../../lib/services/voyage/updates'
+import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm, recalcOdometerChain, updateFuelMode as dbUpdateFuelMode } from '../../lib/services/voyage/updates'
 import { saveAchat as dbSaveAchat, updateAchat as dbUpdateAchat, delAchat as dbDelAchat } from '../../lib/services/voyage/achats'
 import { saveLiv as dbSaveLiv, updateLiv as dbUpdateLiv, delLiv as dbDelLiv } from '../../lib/services/voyage/livraisons'
 import { saveChargeGrid as dbSaveChargeGrid, updateCharge as dbUpdateCharge, delCharge as dbDelCharge } from '../../lib/services/voyage/charges'
@@ -18,6 +18,7 @@ import FraisEditor from '../../components/voyage/FraisEditor'
 import ChargesSection from '../../components/voyage/ChargesSection'
 import RetourSection from '../../components/voyage/RetourSection'
 import GasoilSection from '../../components/voyage/GasoilSection'
+import FuelModeSection from '../../components/voyage/FuelModeSection'
 import LocationSection from '../../components/voyage/LocationSection'
 import { computeVoyageProfit } from '../../lib/services/profitability'
 
@@ -123,7 +124,7 @@ export default function VoyageDetail() {
 
   // ── km tracking ──
   const [vehicleGasoil, setVehicleGasoil] = useState([])
-  const [kmForm,        setKmForm]        = useState({ km_depart: '', km_arrivee: '' })
+  const [kmForm,        setKmForm]        = useState({ km_depart: '' })
   const [editingKm,     setEditingKm]     = useState(false)
   const [savingKm,      setSavingKm]      = useState(false)
 
@@ -511,9 +512,15 @@ export default function VoyageDetail() {
 
   async function updateKm() {
     setSavingKm(true)
-    await dbUpdateKm(id, kmForm.km_depart, kmForm.km_arrivee)
+    await dbUpdateKm(id, kmForm.km_depart)
+    if (voyage?.camion_id) await recalcOdometerChain(voyage.camion_id)
     setSavingKm(false)
     setEditingKm(false)
+    loadVoyage()
+  }
+
+  async function saveFuelMode(fields) {
+    await dbUpdateFuelMode(id, fields)
     loadVoyage()
   }
 
@@ -775,16 +782,16 @@ export default function VoyageDetail() {
             </div>
           </div>
 
-          {/* ── KM TRACKING BAR ── */}
+          {/* ── ODOMETER BAR ── */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-4 flex-wrap">
                 <div>
-                  <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">KM Départ</div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Odomètre au chargement</div>
                   {editingKm ? (
                     <input type="number" value={kmForm.km_depart}
                       onChange={e => setKmForm({ ...kmForm, km_depart: e.target.value })}
-                      className="input text-sm w-28" placeholder="85000" />
+                      className="input text-sm w-28" placeholder="125000" />
                   ) : (
                     <div className="text-sm font-bold text-slate-700">
                       {voyage.km_depart ? fmt(voyage.km_depart) : <span className="text-slate-300 font-normal">—</span>}
@@ -793,33 +800,15 @@ export default function VoyageDetail() {
                 </div>
                 <div className="text-slate-300 text-lg mt-3">→</div>
                 <div>
-                  <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">KM Arrivée</div>
-                  {editingKm ? (
-                    <input type="number" value={kmForm.km_arrivee}
-                      onChange={e => setKmForm({ ...kmForm, km_arrivee: e.target.value })}
-                      className="input text-sm w-28" placeholder="87500" />
-                  ) : (
-                    <div className="text-sm font-bold text-slate-700">
-                      {voyage.km_arrivee ? fmt(voyage.km_arrivee) : <span className="text-slate-300 font-normal">—</span>}
-                    </div>
-                  )}
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Odomètre voyage suivant</div>
+                  <div className="text-sm font-bold text-slate-700">
+                    {voyage.km_arrivee ? fmt(voyage.km_arrivee) : <span className="text-slate-300 font-normal">— (pas encore de voyage suivant)</span>}
+                  </div>
                 </div>
                 {voyageKm !== null && voyageKm > 0 && (
                   <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5">
                     <div className="text-[10px] text-blue-400 uppercase tracking-wide">Distance</div>
                     <div className="text-sm font-black text-blue-700">{fmt(voyageKm)} km</div>
-                  </div>
-                )}
-                {fuelSource === 'km' && (
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5">
-                    <div className="text-[10px] text-emerald-500 uppercase tracking-wide">⚡ Carburant auto</div>
-                    <div className="text-sm font-black text-emerald-700">{fmt(fuelCost)} DHS</div>
-                  </div>
-                )}
-                {fuelSource === 'none' && voyageKm && (
-                  <div className="bg-red-50 border border-red-100 rounded-xl px-3 py-1.5">
-                    <div className="text-[10px] text-red-400 uppercase tracking-wide">⚠ Carburant</div>
-                    <div className="text-xs text-red-500 font-semibold">Données km insuffisantes</div>
                   </div>
                 )}
               </div>
@@ -836,9 +825,9 @@ export default function VoyageDetail() {
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => { setKmForm({ km_depart: voyage.km_depart || '', km_arrivee: voyage.km_arrivee || '' }); setEditingKm(true) }}
+                  <button onClick={() => { setKmForm({ km_depart: voyage.km_depart || '' }); setEditingKm(true) }}
                     className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 transition">
-                    ✏️ Saisir KM
+                    ✏️ Saisir odomètre
                   </button>
                 )}
               </div>
@@ -904,12 +893,14 @@ export default function VoyageDetail() {
               <div>
                 <div className="text-[10px] text-slate-400 mb-1 flex items-center gap-1 flex-wrap">
                   Carburant + Charges
-                  {fuelSource === 'km'     && <span className="text-[9px] bg-emerald-900/60 text-emerald-300 px-1.5 py-0.5 rounded font-bold">⚡ km</span>}
-                  {fuelSource === 'manuel' && <span className="text-[9px] bg-amber-900/60 text-amber-300 px-1.5 py-0.5 rounded font-bold">📝 manuel</span>}
+                  {fuelSource === 'automatic'     && <span className="text-[9px] bg-emerald-900/60 text-emerald-300 px-1.5 py-0.5 rounded font-bold">⚡ auto</span>}
+                  {fuelSource === 'manuel'        && <span className="text-[9px] bg-amber-900/60 text-amber-300 px-1.5 py-0.5 rounded font-bold">📝 manuel</span>}
+                  {fuelSource === 'manual_rate'   && <span className="text-[9px] bg-blue-900/60 text-blue-300 px-1.5 py-0.5 rounded font-bold">📏 estim. km</span>}
+                  {fuelSource === 'manual_amount' && <span className="text-[9px] bg-purple-900/60 text-purple-300 px-1.5 py-0.5 rounded font-bold">💰 montant</span>}
                   {fuelSource === 'none' && !isLoue && <span className="text-[9px] bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded font-bold">⚠ manquant</span>}
                 </div>
                 <div className="text-lg font-black text-orange-400">{fmt(fuelCost + totalChargesFixed)} DHS</div>
-                {fuelSource === 'km' && voyageKm > 0 && (
+                {fuelSource === 'automatic' && voyageKm > 0 && (
                   <div className="text-[10px] text-emerald-300 mt-0.5">{fmt(voyageKm)} km · {fmtD(fuelCost / voyageKm)} DHS/km</div>
                 )}
               </div>
@@ -1007,7 +998,14 @@ export default function VoyageDetail() {
 
           {/* ── SECTION: GASOIL ── */}
           </div>
-          <div ref={sectionRefs.gasoil}>
+          <div ref={sectionRefs.gasoil} className="space-y-4">
+          <FuelModeSection
+            voyage={voyage}
+            fuelCost={fuelCost}
+            fuelSource={fuelSource}
+            voyageKm={voyageKm}
+            onSave={saveFuelMode}
+          />
           <GasoilSection
             gasoil={gasoil}
             showGasoilPicker={showGasoilPicker} onClosePicker={() => setShowGasoilPicker(false)}
