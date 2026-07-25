@@ -19,6 +19,7 @@ import ChargesSection from '../../components/voyage/ChargesSection'
 import RetourSection from '../../components/voyage/RetourSection'
 import GasoilSection from '../../components/voyage/GasoilSection'
 import LocationSection from '../../components/voyage/LocationSection'
+import { computeVoyageProfit } from '../../lib/services/profitability'
 
 export default function VoyageDetail() {
   const router   = useRouter()
@@ -174,29 +175,32 @@ export default function VoyageDetail() {
       .then(({ data }) => setVehicleGasoil(data || []))
   }, [voyage?.camion_id])
 
-  // ── LOAD SIDEBAR ─────────────────────────────────────────────────────────────
+  // ── LOAD SIDEBAR (shared engine — lighter-weight: no km-based fuel here) ─────
   useEffect(() => {
     async function loadSidebar() {
       const [{ data: vs }, { data: ac }, { data: li }, { data: ga }, { data: ch }, { data: re }, { data: sl }] = await Promise.all([
         supabase.from('voyages').select('id,date_depart,camion_plaque,destination,statut,reference').order('date_depart', { ascending: false }),
-        supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
-        supabase.from('voyage_livraisons').select('voyage_id,total_vente,frais_total'),
+        supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
+        supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,qte,total_vente,frais_total'),
         supabase.from('voyage_gasoil').select('voyage_id,total'),
         supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
-        supabase.from('voyage_retours').select('voyage_id,montant_paye'),
+        supabase.from('voyage_retours').select('voyage_id,montant'),
         supabase.from('voyage_locations').select('voyage_id,montant_location'),
       ])
       setSidebarVoyages(vs || [])
       const profits = {}
       ;(vs || []).forEach(v => {
-        const revLivs = (li||[]).filter(l=>l.voyage_id===v.id).reduce((s,l)=>s+(l.total_vente||0)+(l.frais_total||0),0)
-        const revRets = (re||[]).filter(r=>r.voyage_id===v.id).reduce((s,r)=>s+(r.montant_paye||0),0)
-        const revChg  = (ch||[]).filter(c=>c.voyage_id===v.id&&c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
-        const coutAc  = (ac||[]).filter(a=>a.voyage_id===v.id).reduce((s,a)=>s+(a.total_achat||(a.qte||0)*(a.prix_achat||0)),0)
-        const coutGas = (ga||[]).filter(g=>g.voyage_id===v.id).reduce((s,g)=>s+(g.total||0),0)
-        const coutChg = (ch||[]).filter(c=>c.voyage_id===v.id&&!c.facture_client).reduce((s,c)=>s+(c.montant||0),0)
-        const coutLoc = (sl||[]).filter(l=>l.voyage_id===v.id).reduce((s,l)=>s+(l.montant_location||0),0)
-        profits[v.id] = (revLivs+revRets+revChg)-(coutAc+coutGas+coutChg+coutLoc)
+        const p = computeVoyageProfit({
+          voyage: v,
+          achats: (ac||[]).filter(a=>a.voyage_id===v.id),
+          livraisons: (li||[]).filter(l=>l.voyage_id===v.id),
+          charges: (ch||[]).filter(c=>c.voyage_id===v.id),
+          retours: (re||[]).filter(r=>r.voyage_id===v.id),
+          locations: (sl||[]).filter(l=>l.voyage_id===v.id),
+          camionRefills: [],
+          voyageGasoilRows: (ga||[]).filter(g=>g.voyage_id===v.id),
+        })
+        profits[v.id] = p.profit
       })
       setSidebarProfits(profits)
     }
@@ -237,73 +241,34 @@ export default function VoyageDetail() {
     setLinkingGasoil(false)
   }
 
-  // ── PROFIT CALCULATIONS ──────────────────────────────────────────────────────
+  // ── PROFIT CALCULATIONS (shared engine — lib/services/profitability.js) ─────
 
-  // km-based fuel allocation — find last fill-up at/before km_depart, apply its cost/km rate
+  // Distance readout only (independent of the fuel formula's own internal km check)
   const voyageKm = (voyage?.km_arrivee && voyage?.km_depart)
     ? Math.max(0, parseFloat(voyage.km_arrivee) - parseFloat(voyage.km_depart))
     : null
 
-  const kmBasedFuelCost = (() => {
-    if (!voyageKm || voyageKm <= 0 || vehicleGasoil.length < 2) return null
-    const vStart = parseFloat(voyage.km_depart)
-    const sorted = [...vehicleGasoil].sort((a, b) => parseFloat(a.km) - parseFloat(b.km))
-    let fillIdx = -1
-    for (let i = 0; i < sorted.length; i++) {
-      if (parseFloat(sorted[i].km) <= vStart) fillIdx = i
-    }
-    if (fillIdx < 0 || fillIdx >= sorted.length - 1) return null
-    const g1 = sorted[fillIdx], g2 = sorted[fillIdx + 1]
-    const cycleKm = parseFloat(g2.km) - parseFloat(g1.km)
-    if (cycleKm <= 0) return null
-    return Math.round(voyageKm * (g1.total || 0) / cycleKm * 100) / 100
-  })()
+  const totalGasoilManuel = gasoil.reduce((s,g) => s+(g.total||0), 0)
 
-  const totalGasoilManuel  = gasoil.reduce((s,g) => s+(g.total||0), 0)
-  const totalChargesFixed  = charges.filter(c=>!c.facture_client).reduce((s,c) => s+(c.montant||0), 0)
-  const totalChargesClient = charges.filter(c=>c.facture_client).reduce((s,c) => s+(c.montant||0), 0)
-  const totalRevenuLivs    = livraisons.reduce((s,l) => s+(l.total_vente||0)+(l.frais_total||0), 0)
-  const totalAchats        = achats.reduce((s,a) => s+(a.total_achat||(a.qte||0)*(a.prix_achat||0)), 0)
-  const totalRetours       = retours.reduce((s,r) => s+(r.montant_paye||0), 0)
-  const totalLocation      = locations.reduce((s,l) => s+(l.montant_location||0), 0)
-  const revenuBrut         = totalRevenuLivs + totalRetours + totalChargesClient
+  const result = computeVoyageProfit({
+    voyage, achats, livraisons, charges, retours, locations,
+    camionRefills: vehicleGasoil,
+    voyageGasoilRows: gasoil,
+  })
 
-  // Fuel: prefer km-based auto-allocation, fallback to historical manual voyage_gasoil entries
-  const fuelCost   = kmBasedFuelCost !== null ? kmBasedFuelCost : totalGasoilManuel
-  const fuelSource = kmBasedFuelCost !== null ? 'km' : (totalGasoilManuel > 0 ? 'manuel' : 'none')
+  const revenuBrut        = result.revenue.total
+  const totalAchats       = result.cost.achatTotal
+  const totalChargesFixed = result.cost.chargesOperationnelles
+  const totalLocation     = result.cost.rental
+  const fuelCost          = result.cost.fuel
+  const fuelSource        = result.cost.fuelSource
+  const profitNet         = result.profit
+  const margePercent      = result.marge
 
   // Truck type: loué trucks add location cost to total
-  const isLoue      = camions.find(c => c.id === voyage?.camion_id)?.type_camion === 'loue'
-  const coutTotal   = totalAchats + fuelCost + totalLocation + totalChargesFixed
-  const profitNet   = revenuBrut - coutTotal
-  const margePercent = revenuBrut > 0 ? Math.round(profitNet/revenuBrut*100) : 0
+  const isLoue = camions.find(c => c.id === voyage?.camion_id)?.type_camion === 'loue'
 
-  // Per-client distribution: fuel proportional to briques only; location+charges by total qte
-  const clientsUniques    = [...new Set(livraisons.map(l=>l.client_id).filter(Boolean))]
-  const nbClients         = Math.max(clientsUniques.length, 1)
-  const totalQteVoyage    = livraisons.reduce((s,l) => s+(l.qte||0), 0)
-  const brikeLivsVoyage   = livraisons.filter(l => l.type_produit !== 'grignon')
-  const totalBrikesVoyage = brikeLivsVoyage.reduce((s,l) => s+(l.qte||0), 0)
-  const brikeCidsVoyage   = [...new Set(brikeLivsVoyage.map(l=>l.client_id).filter(Boolean))]
-
-  const clientProfits = clientsUniques.map(cid => {
-    const myLivs      = livraisons.filter(l=>l.client_id===cid)
-    const isGrignon   = myLivs[0]?.type_produit === 'grignon'
-    const cl          = isGrignon
-      ? grignonClients.find(c=>c.id===cid)
-      : clients.find(c=>c.id===cid)
-    const myCharges   = charges.filter(c=>c.facture_client&&c.client_id===cid)
-    const myQte       = myLivs.reduce((s,l) => s+(l.qte||0), 0)
-    const myBrikesQte = brikeLivsVoyage.filter(l=>l.client_id===cid).reduce((s,l)=>s+(l.qte||0), 0)
-    const fuelShare   = totalBrikesVoyage > 0 ? myBrikesQte / totalBrikesVoyage
-                      : (brikeCidsVoyage.includes(cid) ? 1 / brikeCidsVoyage.length : 0)
-    const qteShare    = totalQteVoyage > 0 ? myQte / totalQteVoyage : 1 / nbClients
-    const rev         = myLivs.reduce((s,l)=>s+(l.total_vente||0)+(l.frais_total||0),0) + myCharges.reduce((s,c)=>s+(c.montant||0),0)
-    const cout        = myLivs.reduce((s,l)=>s+(l.total_achat||(l.qte||0)*(l.prix_achat||0)),0)
-                      + fuelCost * fuelShare + totalLocation * qteShare
-                      + totalChargesFixed * qteShare
-    return { id: cid, nom: cl?.nom || myLivs[0]?.client_nom || '—', isGrignon, rev, cout, profit: rev-cout, qte: myQte, qteShare }
-  })
+  const clientProfits = result.clients
 
   // ── SIDEBAR NAVIGATION ───────────────────────────────────────────────────────
   const sidebarFiltered = sidebarSearch
@@ -976,15 +941,18 @@ export default function VoyageDetail() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {clientProfits.map(cp => (
-                    <div key={cp.id} className="bg-slate-700/50 rounded-xl p-3">
-                      <div className="font-bold text-sm text-white">{cp.nom}</div>
+                    <div key={cp.key} className="bg-slate-700/50 rounded-xl p-3">
+                      <div className="font-bold text-sm text-white">
+                        {cp.client_nom}
+                        {cp.hasUndeterminedCost && <span className="text-amber-400 ml-1" title="⚠ Coût d'achat indéterminé pour au moins une livraison">⚠</span>}
+                      </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">
-                        ID {cp.id} · {cp.isGrignon ? <span className="text-amber-400">Grignon</span> : <span className="text-blue-400">Brique</span>}
+                        ID {cp.client_id} · {cp.type_produit === 'grignon' ? <span className="text-amber-400">Grignon</span> : <span className="text-blue-400">Brique</span>}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">
-                        {fmt(cp.qte)} u · {Math.round(cp.qteShare * 100)}% du voyage
+                        {fmt(cp.qte)} u · {Math.round(cp.briqueShare * 100)}% du carburant/location/charges du voyage
                       </div>
-                      <div className="text-[10px] text-slate-400">Rev: {fmt(cp.rev)} · Coût: {fmt(cp.cout)}</div>
+                      <div className="text-[10px] text-slate-400">Rev: {fmt(cp.revenue.total)} · Coût: {fmt(cp.cost.total)}</div>
                       <div className={`text-base font-black mt-1 ${cp.profit>=0?'text-emerald-400':'text-red-400'}`}>
                         {cp.profit>=0?'+':''}{fmt(cp.profit)} DHS
                       </div>

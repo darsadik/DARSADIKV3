@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './_app'
+import { computeVoyageProfit } from '../lib/services/profitability'
 import Link from 'next/link'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [livraisons,   setLivraisons]   = useState([])
   const [achatsVoy,    setAchatsVoy]    = useState([])
   const [gasoilVoy,    setGasoilVoy]    = useState([])
+  const [allGasoil,    setAllGasoil]    = useState([])
   const [chargesVoy,   setChargesVoy]   = useState([])
   const [retoursVoy,   setRetoursVoy]   = useState([])
   const [clients,      setClients]      = useState([])
@@ -59,6 +61,7 @@ export default function Dashboard() {
       { data: li },
       { data: av },
       { data: gv },
+      { data: ag },
       { data: cv },
       { data: rv },
       { data: cl },
@@ -66,9 +69,10 @@ export default function Dashboard() {
       { data: lv },
     ] = await Promise.all([
       supabase.from('voyages').select('*').order('date_depart', { ascending: false }).limit(300),
-      supabase.from('voyage_livraisons').select('id,voyage_id,date_livraison,total_vente,frais_total,client_id,client_nom,type_produit,note'),
-      supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
+      supabase.from('voyage_livraisons').select('id,voyage_id,date_livraison,type_produit,type_brique,qte,total_vente,frais_total,client_id,client_nom,note'),
+      supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
       supabase.from('voyage_gasoil').select('voyage_id,total'),
+      supabase.from('gasoil').select('camion_id,km,total,date').not('km', 'is', null).order('km', { ascending: true }),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
       supabase.from('voyage_retours').select('voyage_id,montant'),
       supabase.from('clients').select('id,nom,solde').order('solde', { ascending: false }),
@@ -79,6 +83,7 @@ export default function Dashboard() {
     setLivraisons(li || [])
     setAchatsVoy(av || [])
     setGasoilVoy(gv || [])
+    setAllGasoil(ag || [])
     setChargesVoy(cv || [])
     setRetoursVoy(rv || [])
     setClients(cl || [])
@@ -87,21 +92,28 @@ export default function Dashboard() {
     setLoading(false)
   }
 
+  // Same km-based fuel allocation used everywhere else (Rentabilité, Voyage
+  // List/Detail) — without this, Dashboard's fuel figure would silently
+  // diverge from the other pages for the same voyage.
+  const gasoilByCamion = allGasoil.reduce((acc, g) => {
+    if (!acc[g.camion_id]) acc[g.camion_id] = []
+    acc[g.camion_id].push(g)
+    return acc
+  }, {})
+
   function voyageProfit(vid) {
-    const li = livraisons.filter(l => l.voyage_id === vid)
-    const ac = achatsVoy.filter(a => a.voyage_id === vid)
-    const ga = gasoilVoy.filter(g => g.voyage_id === vid)
-    const ch = chargesVoy.filter(c => c.voyage_id === vid)
-    const re = retoursVoy.filter(r => r.voyage_id === vid)
-    const lo = locationsVoy.filter(l => l.voyage_id === vid)
-    const revenu = li.reduce((s, l) => s + (l.total_vente || 0) + (l.frais_total || 0), 0)
-      + re.reduce((s, r) => s + (r.montant || 0), 0)
-      + ch.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    const cout = ac.reduce((s, a) => s + (a.total_achat || (a.qte || 0) * (a.prix_achat || 0)), 0)
-      + ga.reduce((s, g) => s + (g.total || 0), 0)
-      + ch.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-      + lo.reduce((s, l) => s + (l.montant_location || 0), 0)
-    return { revenu, cout, profit: revenu - cout }
+    const voyage = voyages.find(v => v.id === vid)
+    const result = computeVoyageProfit({
+      voyage,
+      achats: achatsVoy.filter(a => a.voyage_id === vid),
+      livraisons: livraisons.filter(l => l.voyage_id === vid),
+      charges: chargesVoy.filter(c => c.voyage_id === vid),
+      retours: retoursVoy.filter(r => r.voyage_id === vid),
+      locations: locationsVoy.filter(l => l.voyage_id === vid),
+      camionRefills: gasoilByCamion[voyage?.camion_id] || [],
+      voyageGasoilRows: gasoilVoy.filter(g => g.voyage_id === vid),
+    })
+    return { revenu: result.revenue.total, cout: result.cost.total, profit: result.profit }
   }
 
   function voyageClient(vid) {

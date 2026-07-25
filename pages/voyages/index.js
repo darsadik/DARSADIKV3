@@ -5,6 +5,7 @@ import { useAuth } from '../_app'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { fmt, fmtDate, today, startOfMonth } from '../../lib/utils'
+import { computeVoyageProfit, aggregateVoyageProfits, aggregateClientProfits } from '../../lib/services/profitability'
 
 const startOfWeek  = () => {
   const d = new Date()
@@ -213,7 +214,6 @@ export default function Voyages() {
   const [gasoilData, setGasoilData] = useState([])
   const [allGasoil,  setAllGasoil]  = useState([])
   const [charges,          setCharges]          = useState([])
-  const [standaloneCharges, setStandaloneCharges] = useState([])
   const [camions,          setCamions]          = useState([])
   const [clients,    setClients]    = useState([])
   const [locationsData, setLocationsData] = useState([])
@@ -262,19 +262,17 @@ export default function Voyages() {
       { data: ch },
       { data: ca },
       { data: cl },
-      { data: sc },
       { data: ag },
       { data: loc },
     ] = await Promise.all([
       supabase.from('voyages').select('*').is('deleted_at', null).order('date_depart', { ascending: false }),
-      supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
-      supabase.from('voyage_livraisons').select('voyage_id,type_produit,client_id,client_nom,qte,total_vente,total_achat,prix_achat'),
+      supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
+      supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,total_achat,frais_total'),
       supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
       supabase.from('voyage_gasoil').select('voyage_id,total'),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('clients').select('id,nom').order('nom'),
-      supabase.from('charges').select('camion_plaque,date,total').is('source', null),
       supabase.from('gasoil').select('camion_id,km,total,date').not('km', 'is', null).order('km', { ascending: true }),
       supabase.from('voyage_locations').select('voyage_id,montant_location'),
     ])
@@ -287,12 +285,11 @@ export default function Voyages() {
     setCharges(ch || [])
     setCamions(ca || [])
     setClients(cl || [])
-    setStandaloneCharges(sc || [])
     setLocationsData(loc || [])
     setLoading(false)
   }
 
-  // ── PROFIT FORMULA ────────────────────────────────────────────────────────
+  // ── PROFIT FORMULA (shared engine — lib/services/profitability.js) ─────────
 
   const gasoilByCamion = allGasoil.reduce((acc, g) => {
     if (!acc[g.camion_id]) acc[g.camion_id] = []
@@ -300,61 +297,19 @@ export default function Voyages() {
     return acc
   }, {})
 
-  function kmFuelCost(voyage) {
-    if (!voyage.km_depart || !voyage.km_arrivee) return null
-    const vKm = parseFloat(voyage.km_arrivee) - parseFloat(voyage.km_depart)
-    if (vKm <= 0) return null
-    const refills = (gasoilByCamion[voyage.camion_id] || [])
-    if (refills.length < 2) return null
-    const vStart = parseFloat(voyage.km_depart)
-    let fillIdx = -1
-    for (let i = 0; i < refills.length; i++) {
-      if (parseFloat(refills[i].km) <= vStart) fillIdx = i
-    }
-    if (fillIdx < 0 || fillIdx >= refills.length - 1) return null
-    const g1 = refills[fillIdx], g2 = refills[fillIdx + 1]
-    const cycleKm = parseFloat(g2.km) - parseFloat(g1.km)
-    if (cycleKm <= 0) return null
-    return Math.round(vKm * (g1.total || 0) / cycleKm * 100) / 100
+  function resultsFor(vIds) {
+    return voyages.filter(v => vIds.includes(v.id)).map(v => computeVoyageProfit({
+      voyage: v,
+      achats: achats.filter(a => a.voyage_id === v.id),
+      livraisons: livraisons.filter(l => l.voyage_id === v.id),
+      charges: charges.filter(c => c.voyage_id === v.id),
+      retours: retours.filter(r => r.voyage_id === v.id),
+      locations: locationsData.filter(l => l.voyage_id === v.id),
+      camionRefills: gasoilByCamion[v.camion_id] || [],
+      voyageGasoilRows: gasoilData.filter(g => g.voyage_id === v.id),
+    }))
   }
-
-  function calc(vIds) {
-    const myVoyages  = voyages.filter(v => vIds.includes(v.id))
-    const myAcs      = achats.filter(a => vIds.includes(a.voyage_id))
-    const myLivs     = livraisons.filter(l => vIds.includes(l.voyage_id))
-    const myGas      = gasoilData.filter(g => vIds.includes(g.voyage_id))
-    const myChgs     = charges.filter(c => vIds.includes(c.voyage_id))
-    const myRets     = retours.filter(r => vIds.includes(r.voyage_id))
-    const myLocs     = locationsData.filter(l => vIds.includes(l.voyage_id))
-
-    const revenuLivs  = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0)
-    const revenuRets  = myRets.reduce((s, r) => s + (r.montant || 0), 0)
-    const chgCli      = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    const revenuBrut  = revenuLivs + revenuRets + chgCli
-
-    const coutAchat   = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte||0)*(a.prix_achat||0)), 0)
-    const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    const coutLocation = myLocs.reduce((s, l) => s + (l.montant_location || 0), 0)
-    const coutGasoil  = myVoyages.reduce((s, v) => {
-      const km = kmFuelCost(v)
-      if (km !== null) return s + km
-      return s + myGas.filter(g => g.voyage_id === v.id).reduce((ss, g) => ss + (g.total||0), 0)
-    }, 0)
-
-    const coutStandalone = vIds.reduce((total, vid) => {
-      const v = voyages.find(x => x.id === vid)
-      if (!v) return total
-      return total + standaloneCharges
-        .filter(c => c.camion_plaque === v.camion_plaque && c.date === v.date_depart)
-        .reduce((s, c) => s + (c.total || 0), 0)
-    }, 0)
-
-    const coutTotal = coutAchat + coutGasoil + coutLocation + coutCharges + coutStandalone
-    const profit    = revenuBrut - coutTotal
-    const marge     = revenuBrut > 0 ? Math.round(profit / revenuBrut * 100) : 0
-
-    return { revenuBrut, coutAchat, coutGasoil, coutLocation, coutCharges, coutStandalone, coutTotal, profit, marge }
-  }
+  function calc(vIds) { return aggregateVoyageProfits(resultsFor(vIds)) }
 
   // ── UPDATE VOYAGE ─────────────────────────────────────────────────────────
   async function updateVoyage() {
@@ -454,8 +409,23 @@ export default function Voyages() {
   const global = calc(filteredIds)
 
   // ── PER VOYAGE ────────────────────────────────────────────────────────────
+  const SORT_ACCESSORS = {
+    revenuBrut: v => v.revenue.total,
+    coutTotal:  v => v.cost.total,
+  }
+  const sortValue = (row, key) => SORT_ACCESSORS[key] ? SORT_ACCESSORS[key](row) : row[key]
+
   const voyageStats = filteredVoyages.map(v => {
-    const p      = calc([v.id])
+    const p = computeVoyageProfit({
+      voyage: v,
+      achats: achats.filter(a => a.voyage_id === v.id),
+      livraisons: livraisons.filter(l => l.voyage_id === v.id),
+      charges: charges.filter(c => c.voyage_id === v.id),
+      retours: retours.filter(r => r.voyage_id === v.id),
+      locations: locationsData.filter(l => l.voyage_id === v.id),
+      camionRefills: gasoilByCamion[v.camion_id] || [],
+      voyageGasoilRows: gasoilData.filter(g => g.voyage_id === v.id),
+    })
     const myLivs = livraisons.filter(l => l.voyage_id === v.id)
     return {
       ...v, ...p,
@@ -466,7 +436,7 @@ export default function Voyages() {
 
   function toggleSort(k) { setSortKey(k); setSortAsc(s => sortKey === k ? !s : false) }
   const sortedVoyages = [...voyageStats].sort((a, b) => {
-    const av = a[sortKey], bv = b[sortKey]
+    const av = sortValue(a, sortKey), bv = sortValue(b, sortKey)
     if (typeof av === 'string') return sortAsc ? av.localeCompare(bv||'') : (bv||'').localeCompare(av)
     return sortAsc ? (av||0)-(bv||0) : (bv||0)-(av||0)
   })
@@ -505,47 +475,10 @@ export default function Voyages() {
   }).filter(Boolean).sort((a, b) => b.profit - a.profit)
 
   // ── PER CLIENT ────────────────────────────────────────────────────────────
-  const cliMap = {}
-  filteredVoyages.forEach(v => {
-    const myLivs      = livraisons.filter(l => l.voyage_id === v.id)
-    const brikeLivs   = myLivs.filter(l => l.type_produit !== 'grignon')
-    const totalBrikesQteV = brikeLivs.reduce((s, l) => s + (l.qte||0), 0)
-    const brikeCidsV  = [...new Set(brikeLivs.map(l => l.client_id).filter(Boolean))]
-    const cids   = [...new Set(myLivs.map(l => l.client_id).filter(Boolean))]
-    const nb     = cids.length || 1
-    const kmCost    = kmFuelCost(v)
-    const totalGas  = kmCost !== null ? kmCost : gasoilData.filter(g => g.voyage_id === v.id).reduce((s, g) => s + (g.total||0), 0)
-    const totalChgC = charges.filter(c => c.voyage_id === v.id && !c.facture_client).reduce((s, c) => s + (c.montant||0), 0)
-    cids.forEach(cid => {
-      const myCliLivs   = myLivs.filter(l => l.client_id === cid)
-      const myBrikeLivs = brikeLivs.filter(l => l.client_id === cid)
-      const myBrikesQte = myBrikeLivs.reduce((s, l) => s + (l.qte||0), 0)
-      const rev        = myCliLivs.reduce((s, l) => s + (l.total_vente||0), 0)
-      const coutAchat  = myCliLivs.reduce((s, l) => s + (l.total_achat||(l.qte||0)*(l.prix_achat||0)), 0)
-      const gasShare   = totalBrikesQteV > 0
-        ? (myBrikesQte / totalBrikesQteV) * totalGas
-        : (brikeCidsV.includes(cid) ? totalGas / brikeCidsV.length : 0)
-      const chgShare   = totalChgC / nb
-      const chgDirect  = charges
-        .filter(c => c.voyage_id === v.id && c.facture_client && c.client_id === cid)
-        .reduce((s, c) => s + (c.montant||0), 0)
-      const qte        = myCliLivs.reduce((s, l) => s + (l.qte||0), 0)
-      const nom        = myCliLivs[0]?.client_nom || ''
-      if (!cliMap[cid]) cliMap[cid] = { id: cid, nom, nbLivs: 0, qte: 0, rev: 0, coutAchat: 0, gasShare: 0, chgShare: 0, chgDirect: 0 }
-      cliMap[cid].nbLivs   += myCliLivs.length
-      cliMap[cid].qte      += qte
-      cliMap[cid].rev      += rev
-      cliMap[cid].coutAchat+= coutAchat
-      cliMap[cid].gasShare += gasShare
-      cliMap[cid].chgShare += chgShare
-      cliMap[cid].chgDirect+= chgDirect
-    })
-  })
-  const clientStats = Object.values(cliMap).map(c => ({
+  const clientStats = aggregateClientProfits(resultsFor(filteredIds)).map(c => ({
     ...c,
-    profit: c.rev - c.coutAchat - c.gasShare - c.chgShare - c.chgDirect,
-    marge:  c.rev > 0 ? Math.round((c.rev - c.coutAchat - c.gasShare - c.chgShare - c.chgDirect) / c.rev * 100) : 0,
-  })).sort((a, b) => b.profit - a.profit)
+    nbLivs: livraisons.filter(l => filteredIds.includes(l.voyage_id) && l.client_id === c.client_id && (l.type_produit || 'brique') === c.type_produit).length,
+  }))
 
   // ── QUICK DATE BUTTONS ────────────────────────────────────────────────────
   const quickDates = [
@@ -772,12 +705,12 @@ export default function Voyages() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Revenu brut</div>
-              <div className="text-2xl font-black text-slate-800">{fmt(global.revenuBrut)}</div>
+              <div className="text-2xl font-black text-slate-800">{fmt(global.revenue.total)}</div>
               <div className="text-[10px] text-slate-400 mt-1">DHS · {filteredVoyages.length} voyages</div>
             </div>
             <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-4">
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Coût total</div>
-              <div className="text-2xl font-black text-red-500">{fmt(global.coutTotal)}</div>
+              <div className="text-2xl font-black text-red-500">{fmt(global.cost.total)}</div>
               <div className="text-[10px] text-slate-400 mt-1">DHS</div>
             </div>
             <div className={`bg-white rounded-2xl border shadow-sm p-4 ${global.profit >= 0 ? 'border-emerald-100' : 'border-red-100'}`}>
@@ -875,8 +808,8 @@ export default function Voyages() {
                           <td className="py-2.5 px-3 text-center">
                             <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{v.nbLivs}</span>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(v.revenuBrut)}</td>
-                          <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.coutTotal)}</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(v.revenue.total)}</td>
+                          <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.cost.total)}</td>
                           <td className="py-2.5 px-3 text-right whitespace-nowrap"><ProfitCell v={v.profit} /></td>
                           <td className="py-2.5 px-3 text-right"><MargeBadge m={v.marge} /></td>
                           <td className="py-2.5 px-3">
@@ -905,8 +838,8 @@ export default function Voyages() {
                       { value: `Total (${sortedVoyages.length})`, cls: 'text-sm' },
                       { value: '' }, { value: '' },
                       { value: sortedVoyages.reduce((s,v)=>s+v.nbLivs,0), center: true, cls: 'text-blue-300' },
-                      { value: fmt(global.revenuBrut), right: true, cls: 'text-emerald-400' },
-                      { value: '−'+fmt(global.coutTotal), right: true, cls: 'text-red-300' },
+                      { value: fmt(global.revenue.total), right: true, cls: 'text-emerald-400' },
+                      { value: '−'+fmt(global.cost.total), right: true, cls: 'text-red-300' },
                       { value: (global.profit>=0?'+':'')+fmt(global.profit), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
                       { value: global.marge+'%', right: true, cls: 'text-blue-300' },
                       { value: '' },
@@ -948,8 +881,8 @@ export default function Voyages() {
                         <td className="py-3 px-3 text-center">
                           <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{d.nbV}</span>
                         </td>
-                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(d.revenuBrut)}</td>
-                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.coutTotal)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(d.revenue.total)}</td>
+                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.cost.total)}</td>
                         <td className="py-3 px-3 text-right"><ProfitCell v={d.profit} /></td>
                         <td className="py-3 px-3 text-right"><MargeBadge m={d.marge} /></td>
                       </tr>
@@ -959,8 +892,8 @@ export default function Voyages() {
                     <TotalRow cols={[
                       { value: 'TOTAL' },
                       { value: filteredVoyages.length, center: true, cls: 'text-blue-300' },
-                      { value: fmt(global.revenuBrut), right: true, cls: 'text-emerald-400' },
-                      { value: '−'+fmt(global.coutTotal), right: true, cls: 'text-red-300' },
+                      { value: fmt(global.revenue.total), right: true, cls: 'text-emerald-400' },
+                      { value: '−'+fmt(global.cost.total), right: true, cls: 'text-red-300' },
                       { value: (global.profit>=0?'+':'')+fmt(global.profit), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
                       { value: global.marge+'%', right: true, cls: 'text-blue-300' },
                     ]} />
@@ -1008,21 +941,21 @@ export default function Voyages() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="bg-emerald-50 rounded-xl p-3">
                     <div className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide">Revenu brut</div>
-                    <div className="font-black text-emerald-700 mt-0.5 text-sm">{fmt(ca.revenuBrut)} DHS</div>
+                    <div className="font-black text-emerald-700 mt-0.5 text-sm">{fmt(ca.revenue.total)} DHS</div>
                   </div>
                   <div className="bg-red-50 rounded-xl p-3">
                     <div className="text-[10px] text-red-500 font-semibold uppercase tracking-wide">Coût total</div>
-                    <div className="font-black text-red-600 mt-0.5 text-sm">{fmt(ca.coutTotal)} DHS</div>
+                    <div className="font-black text-red-600 mt-0.5 text-sm">{fmt(ca.cost.total)} DHS</div>
                   </div>
                   {ca.type_camion === 'loue' ? (
                     <div className="bg-amber-50 rounded-xl p-3">
                       <div className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide">Location</div>
-                      <div className="font-black text-amber-700 mt-0.5 text-sm">{fmt(ca.coutLocation || 0)} DHS</div>
+                      <div className="font-black text-amber-700 mt-0.5 text-sm">{fmt(ca.cost.rental || 0)} DHS</div>
                     </div>
                   ) : (
                     <div className="bg-orange-50 rounded-xl p-3">
                       <div className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Gasoil</div>
-                      <div className="font-black text-orange-600 mt-0.5 text-sm">{fmt(ca.coutGasoil)} DHS</div>
+                      <div className="font-black text-orange-600 mt-0.5 text-sm">{fmt(ca.cost.fuel)} DHS</div>
                     </div>
                   )}
                   <div className="bg-blue-50 rounded-xl p-3">
@@ -1059,7 +992,7 @@ export default function Voyages() {
               <h3 className="font-bold text-slate-700 text-sm">
                 Résultat par client
                 <span className="font-normal text-slate-400 text-xs ml-2">
-                  — gasoil divisé proportionnellement aux briques, charges fixes divisées équitablement
+                  — gasoil, location et charges divisés proportionnellement à la quantité de briques (grignon exclu)
                 </span>
               </h3>
             </div>
@@ -1078,8 +1011,9 @@ export default function Voyages() {
                       <ColH label="Livr." center />
                       <ColH label="Qté" right />
                       <ColH label="Revenu DHS" right />
-                      <ColH label="Achat" right />
+                      <ColH label="Achat (WAC)" right />
                       <ColH label="Gasoil ÷" right />
+                      <ColH label="Location ÷" right />
                       <ColH label="Charges ÷" right />
                       <ColH label="= Profit" right />
                       <ColH label="Marge" right />
@@ -1087,17 +1021,22 @@ export default function Voyages() {
                   </thead>
                   <tbody>
                     {clientStats.map((c, i) => (
-                      <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition">
+                      <tr key={c.key} className="border-b border-slate-50 hover:bg-slate-50 transition">
                         <td className="py-2.5 px-3 text-slate-400 font-semibold">{i + 1}</td>
-                        <td className="py-2.5 px-3 font-bold text-slate-800">{c.nom}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-800">
+                          {c.client_nom}
+                          {c.type_produit === 'grignon' && <span className="ml-1.5 text-[9px] bg-lime-100 text-lime-700 px-1.5 py-0.5 rounded font-semibold">GRIGNON</span>}
+                          {c.hasUndeterminedCost && <span className="text-amber-500 ml-1.5" title="⚠ Coût d'achat indéterminé pour au moins une livraison">⚠</span>}
+                        </td>
                         <td className="py-2.5 px-3 text-center">
                           <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{c.nbLivs}</span>
                         </td>
                         <td className="py-2.5 px-3 text-right text-slate-500">{fmt(c.qte)}</td>
-                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{fmt(c.rev)}</td>
-                        <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.coutAchat)}</td>
-                        <td className="py-2.5 px-3 text-right text-orange-400">−{fmt(c.gasShare)}</td>
-                        <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.chgShare + c.chgDirect)}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{fmt(c.revenue.total)}</td>
+                        <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.cost.achatWAC)}</td>
+                        <td className="py-2.5 px-3 text-right text-orange-400">−{fmt(c.cost.fuelAllocated)}</td>
+                        <td className="py-2.5 px-3 text-right text-amber-500">{c.cost.rentalAllocated > 0 ? `−${fmt(c.cost.rentalAllocated)}` : '—'}</td>
+                        <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.cost.chargesAllocated)}</td>
                         <td className="py-2.5 px-3 text-right"><ProfitCell v={c.profit} /></td>
                         <td className="py-2.5 px-3 text-right"><MargeBadge m={c.marge} /></td>
                       </tr>
@@ -1109,11 +1048,12 @@ export default function Voyages() {
                       { value: '' },
                       { value: clientStats.reduce((s,c)=>s+c.nbLivs,0), center: true, cls: 'text-blue-300' },
                       { value: fmt(clientStats.reduce((s,c)=>s+c.qte,0)), right: true, cls: 'text-slate-300' },
-                      { value: fmt(clientStats.reduce((s,c)=>s+c.rev,0)), right: true, cls: 'text-emerald-400' },
-                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.coutAchat,0)), right: true, cls: 'text-red-300' },
-                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.gasShare,0)), right: true, cls: 'text-orange-300' },
-                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.chgShare+c.chgDirect,0)), right: true, cls: 'text-red-300' },
-                      { value: (global.profit>=0?'+':'')+fmt(global.profit), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
+                      { value: fmt(clientStats.reduce((s,c)=>s+c.revenue.total,0)), right: true, cls: 'text-emerald-400' },
+                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.cost.achatWAC,0)), right: true, cls: 'text-red-300' },
+                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.cost.fuelAllocated,0)), right: true, cls: 'text-orange-300' },
+                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.cost.rentalAllocated,0)), right: true, cls: 'text-amber-300' },
+                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.cost.chargesAllocated,0)), right: true, cls: 'text-red-300' },
+                      { value: (global.profit>=0?'+':'')+fmt(clientStats.reduce((s,c)=>s+c.profit,0)), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
                       { value: global.marge+'%', right: true, cls: 'text-blue-300' },
                     ]} />
                   </tfoot>

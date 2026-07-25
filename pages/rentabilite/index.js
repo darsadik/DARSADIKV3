@@ -3,6 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
+import { computeVoyageProfit, aggregateVoyageProfits, aggregateClientProfits } from '../../lib/services/profitability'
 
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
@@ -104,19 +105,19 @@ function BarViz({ data }) {
 
 function MonthBars({ data }) {
   if (!data.length) return <div className="text-slate-300 text-xs text-center py-8">Aucune donnée</div>
-  const maxR = Math.max(...data.map(d => d.revenuBrut), 1)
+  const maxR = Math.max(...data.map(d => d.revenue.total), 1)
   const maxP = Math.max(...data.map(d => Math.abs(d.profit)), 1)
   return (
     <div className="overflow-x-auto">
       <div style={{ minWidth: data.length * 72 + 'px' }} className="flex items-end gap-2 h-40 px-1">
         {data.map((d, i) => {
-          const hR = Math.max(4, Math.round(d.revenuBrut / maxR * 100))
+          const hR = Math.max(4, Math.round(d.revenue.total / maxR * 100))
           const hP = Math.max(4, Math.round(Math.abs(d.profit) / maxP * 100))
           return (
             <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative min-w-[60px]">
               <div className="absolute bottom-full mb-1 bg-slate-800 text-white text-[9px] px-2 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10 pointer-events-none text-center">
                 <div className="font-bold">{d.label}</div>
-                <div>Rev: {fmt(d.revenuBrut)} DHS</div>
+                <div>Rev: {fmt(d.revenue.total)} DHS</div>
                 <div className={d.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}>Profit: {fmt(d.profit)} DHS</div>
               </div>
               <div className="w-full flex items-end gap-0.5 h-32">
@@ -140,11 +141,11 @@ function TotalsFooter({ global, colSpanFirst = 3 }) {
   return (
     <tr className="border-t-2 border-slate-300 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
       <td colSpan={colSpanFirst} className="py-3 px-3 font-black text-sm uppercase tracking-wide">Total période</td>
-      <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(global.revenuBrut)}</td>
-      <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.coutAchat)}</td>
-      <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(global.coutGasoil)}</td>
-      <td className="py-3 px-3 text-right font-bold text-amber-300">−{fmt(global.coutLocation)}</td>
-      <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.coutCharges)}</td>
+      <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(global.revenue.total)}</td>
+      <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.cost.achatTotal)}</td>
+      <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(global.cost.fuel)}</td>
+      <td className="py-3 px-3 text-right font-bold text-amber-300">−{fmt(global.cost.rental)}</td>
+      <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.cost.chargesOperationnelles)}</td>
       <td className={`py-3 px-3 text-right font-black text-lg ${global.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
         {global.profit >= 0 ? '+' : ''}{fmt(global.profit)}
       </td>
@@ -181,8 +182,8 @@ export default function Rentabilite() {
     setLoading(true)
     const [{ data: v }, { data: li }, { data: ac }, { data: ga }, { data: ch }, { data: re }, { data: ca }, { data: ag }, { data: loc }] = await Promise.all([
       supabase.from('voyages').select('*').gte('date_depart', filterFrom).lte('date_depart', filterTo).order('date_depart', { ascending: false }),
-      supabase.from('voyage_livraisons').select('voyage_id,type_produit,client_id,client_nom,qte,prix_achat,total_vente,total_achat,frais_total'),
-      supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
+      supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,total_achat,frais_total'),
+      supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
       supabase.from('voyage_gasoil').select('voyage_id,total,qte_litres'),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
       supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
@@ -203,63 +204,28 @@ export default function Rentabilite() {
     setLoading(false)
   }
 
-  // ── PROFIT CALCULATOR ───────────────────────────────────────────────────────
+  // ── PROFIT CALCULATOR (shared engine — lib/services/profitability.js) ───────
 
-  // Build map: camion_id → sorted gasoil refills with km (used for km-based fuel allocation)
+  // Build map: camion_id → gasoil refills with km (used for km-based fuel allocation)
   const gasoilByCamion = allGasoil.reduce((acc, g) => {
     if (!acc[g.camion_id]) acc[g.camion_id] = []
     acc[g.camion_id].push(g)
     return acc
   }, {})
 
-  function kmFuelCost(voyage) {
-    if (!voyage.km_depart || !voyage.km_arrivee) return null
-    const vKm = parseFloat(voyage.km_arrivee) - parseFloat(voyage.km_depart)
-    if (vKm <= 0) return null
-    const refills = (gasoilByCamion[voyage.camion_id] || [])
-    if (refills.length < 2) return null
-    const vStart = parseFloat(voyage.km_depart)
-    let fillIdx = -1
-    for (let i = 0; i < refills.length; i++) {
-      if (parseFloat(refills[i].km) <= vStart) fillIdx = i
-    }
-    if (fillIdx < 0 || fillIdx >= refills.length - 1) return null
-    const g1 = refills[fillIdx], g2 = refills[fillIdx + 1]
-    const cycleKm = parseFloat(g2.km) - parseFloat(g1.km)
-    if (cycleKm <= 0) return null
-    return Math.round(vKm * (g1.total || 0) / cycleKm * 100) / 100
+  function resultsFor(vIds) {
+    return voyages.filter(v => vIds.includes(v.id)).map(v => computeVoyageProfit({
+      voyage: v,
+      achats: achats.filter(a => a.voyage_id === v.id),
+      livraisons: livraisons.filter(l => l.voyage_id === v.id),
+      charges: charges.filter(c => c.voyage_id === v.id),
+      retours: retours.filter(r => r.voyage_id === v.id),
+      locations: locationsRnt.filter(l => l.voyage_id === v.id),
+      camionRefills: gasoilByCamion[v.camion_id] || [],
+      voyageGasoilRows: gasoil.filter(g => g.voyage_id === v.id),
+    }))
   }
-
-  function calc(vIds) {
-    const myVoyages = voyages.filter(v => vIds.includes(v.id))
-    const myAcs     = achats.filter(a => vIds.includes(a.voyage_id))
-    const myLivs    = livraisons.filter(l => vIds.includes(l.voyage_id))
-    const myGas     = gasoil.filter(g => vIds.includes(g.voyage_id))
-    const myChgs    = charges.filter(c => vIds.includes(c.voyage_id))
-    const myRets    = retours.filter(r => vIds.includes(r.voyage_id))
-    const myLocs    = locationsRnt.filter(l => vIds.includes(l.voyage_id))
-
-    const revenuLivs  = myLivs.reduce((s, l) => s + (l.total_vente || 0) + (l.frais_total || 0), 0)
-    const revenuRets  = myRets.reduce((s, r) => s + (r.montant || 0), 0)
-    const chgCli      = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    const revenuBrut  = revenuLivs + revenuRets + chgCli
-
-    const coutAchat    = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte||0)*(a.prix_achat||0)), 0)
-    const coutCharges  = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-    const coutLocation = myLocs.reduce((s, l) => s + (l.montant_location || 0), 0)
-    // Fuel: km-based per voyage, fallback to historical voyage_gasoil entry
-    const coutGasoil  = myVoyages.reduce((s, v) => {
-      const km = kmFuelCost(v)
-      if (km !== null) return s + km
-      return s + myGas.filter(g => g.voyage_id === v.id).reduce((ss, g) => ss + (g.total||0), 0)
-    }, 0)
-
-    const coutTotal   = coutAchat + coutGasoil + coutLocation + coutCharges
-    const profit      = revenuBrut - coutTotal
-    const marge       = revenuBrut > 0 ? Math.round(profit / revenuBrut * 100) : 0
-
-    return { revenuBrut, coutAchat, coutGasoil, coutLocation, coutCharges, coutTotal, profit, marge }
-  }
+  function calc(vIds) { return aggregateVoyageProfits(resultsFor(vIds)) }
 
   // ── AGGREGATIONS ────────────────────────────────────────────────────────────
   // Apply truck type filter
@@ -273,13 +239,31 @@ export default function Rentabilite() {
   const nbTermin  = filteredVoyages.filter(v => v.statut === 'termine').length
 
   // Per voyage
+  const SORT_ACCESSORS = {
+    revenuBrut:   v => v.revenue.total,
+    coutAchat:    v => v.cost.achatTotal,
+    coutGasoil:   v => v.cost.fuel,
+    coutLocation: v => v.cost.rental,
+    coutCharges:  v => v.cost.chargesOperationnelles,
+  }
+  const sortValue = (row, key) => SORT_ACCESSORS[key] ? SORT_ACCESSORS[key](row) : row[key]
+
   const voyageStats = filteredVoyages.map(v => {
-    const p = calc([v.id])
+    const p = computeVoyageProfit({
+      voyage: v,
+      achats: achats.filter(a => a.voyage_id === v.id),
+      livraisons: livraisons.filter(l => l.voyage_id === v.id),
+      charges: charges.filter(c => c.voyage_id === v.id),
+      retours: retours.filter(r => r.voyage_id === v.id),
+      locations: locationsRnt.filter(l => l.voyage_id === v.id),
+      camionRefills: gasoilByCamion[v.camion_id] || [],
+      voyageGasoilRows: gasoil.filter(g => g.voyage_id === v.id),
+    })
     const nbCli = new Set(livraisons.filter(l => l.voyage_id === v.id).map(l => l.client_id).filter(Boolean)).size
     return { ...v, ...p, nbCli }
   })
   const sortedVoyages = [...voyageStats].sort((a, b) => {
-    const av = a[sortKey], bv = b[sortKey]
+    const av = sortValue(a, sortKey), bv = sortValue(b, sortKey)
     if (typeof av === 'string') return sortAsc ? av.localeCompare(bv||'') : (bv||'').localeCompare(av)
     return sortAsc ? (av||0)-(bv||0) : (bv||0)-(av||0)
   })
@@ -298,43 +282,9 @@ export default function Rentabilite() {
     return { ...ca, ...p, nbV: myVoyages.length }
   }).filter(c => c.nbV > 0).sort((a, b) => b.profit - a.profit)
 
-  // Per client
-  const cliMap = {}
-  livraisons.forEach(l => {
-    if (!l.client_id) return
-    if (!cliMap[l.client_id]) cliMap[l.client_id] = { id: l.client_id, nom: l.client_nom, revenu: 0, achat: 0, gas: 0, chg: 0, qte: 0 }
-    cliMap[l.client_id].revenu += (l.total_vente || 0)
-    cliMap[l.client_id].achat  += (l.total_achat || (l.qte||0)*(l.prix_achat||0))
-    cliMap[l.client_id].qte    += (l.qte || 0)
-  })
-  voyages.forEach(v => {
-    const myLivs          = livraisons.filter(l => l.voyage_id === v.id)
-    const brikeLivs       = myLivs.filter(l => l.type_produit !== 'grignon')
-    const cids            = [...new Set(myLivs.map(l => l.client_id).filter(Boolean))]
-    const brikeCids       = [...new Set(brikeLivs.map(l => l.client_id).filter(Boolean))]
-    const totalQteV       = myLivs.reduce((s, l) => s + (l.qte||0), 0)
-    const totalBrikesQteV = brikeLivs.reduce((s, l) => s + (l.qte||0), 0)
-    const vFuelCost       = kmFuelCost(v) ?? gasoil.filter(g => g.voyage_id === v.id).reduce((s, g) => s + (g.total||0), 0)
-    const totalC          = charges.filter(c => c.voyage_id === v.id && !c.facture_client).reduce((s, c) => s + (c.montant||0), 0)
-    cids.forEach(cid => {
-      if (!cliMap[cid]) return
-      const cQte      = myLivs.filter(l => l.client_id === cid).reduce((s, l) => s + (l.qte||0), 0)
-      const cBrikesQte = brikeLivs.filter(l => l.client_id === cid).reduce((s, l) => s + (l.qte||0), 0)
-      const chgShare   = totalQteV > 0 ? cQte / totalQteV : 1 / (cids.length || 1)
-      const fuelShare  = totalBrikesQteV > 0 ? cBrikesQte / totalBrikesQteV
-                       : (brikeCids.includes(cid) ? 1 / (brikeCids.length || 1) : 0)
-      cliMap[cid].gas += vFuelCost * fuelShare
-      cliMap[cid].chg += totalC * chgShare
-    })
-  })
-  charges.filter(c => c.facture_client && c.client_id).forEach(c => {
-    if (!cliMap[c.client_id]) cliMap[c.client_id] = { id: c.client_id, nom: c.client_nom, revenu: 0, achat: 0, gas: 0, chg: 0, qte: 0 }
-    cliMap[c.client_id].revenu += (c.montant || 0)
-  })
-  const clientStats = Object.values(cliMap).map(c => ({
-    ...c, profit: c.revenu - c.achat - c.gas - c.chg,
-    marge: c.revenu > 0 ? Math.round((c.revenu-c.achat-c.gas-c.chg)/c.revenu*100) : 0,
-  })).sort((a, b) => b.profit - a.profit)
+  // Per client — respects the date filter (voyages is already date-scoped from
+  // loadAll's query) but, like before, ignores the Tous/Propres/Loués toggle.
+  const clientStats = aggregateClientProfits(resultsFor(voyages.map(v => v.id)))
 
   // Per month
   const mMap = {}
@@ -392,12 +342,12 @@ export default function Rentabilite() {
         {/* ── KPI BAR ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
           <KPI label="Revenu brut"  icon="💰" color="slate"
-            value={fmt(global.revenuBrut) + ' DHS'}
+            value={fmt(global.revenue.total) + ' DHS'}
             sub={`${filteredVoyages.length} voyages · ${nbTermin} terminés`} />
-          <KPI label="Achats"       icon="📦" color="red"    value={fmt(global.coutAchat)   + ' DHS'} sub="Briques + grignon" />
-          <KPI label="Gasoil"       icon="⛽" color="orange" value={fmt(global.coutGasoil)  + ' DHS'} />
-          <KPI label="Location"     icon="🔑" color="orange" value={fmt(global.coutLocation) + ' DHS'} sub="Camions loués" />
-          <KPI label="Charges"      icon="💸" color="red"    value={fmt(global.coutCharges) + ' DHS'} sub="Fixes entreprise" />
+          <KPI label="Achats"       icon="📦" color="red"    value={fmt(global.cost.achatTotal)   + ' DHS'} sub="Briques + grignon" />
+          <KPI label="Gasoil"       icon="⛽" color="orange" value={fmt(global.cost.fuel)  + ' DHS'} />
+          <KPI label="Location"     icon="🔑" color="orange" value={fmt(global.cost.rental) + ' DHS'} sub="Camions loués" />
+          <KPI label="Charges"      icon="💸" color="red"    value={fmt(global.cost.chargesOperationnelles) + ' DHS'} sub="Fixes entreprise" />
           <KPI label="Profit net"   icon={global.profit >= 0 ? '✅' : '❌'}
             color={global.profit >= 0 ? 'green' : 'red'} large
             value={fmt(global.profit) + ' DHS'}
@@ -427,9 +377,9 @@ export default function Rentabilite() {
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <h3 className="font-bold text-slate-700 text-sm mb-4">Répartition des coûts</h3>
                 <MiniDonut parts={[
-                  { label: 'Achats briques/grignon', value: global.coutAchat,   color: '#6366f1' },
-                  { label: 'Gasoil',                 value: global.coutGasoil,  color: '#f97316' },
-                  { label: 'Charges voyage',          value: global.coutCharges, color: '#ef4444' },
+                  { label: 'Achats briques/grignon', value: global.cost.achatTotal,   color: '#6366f1' },
+                  { label: 'Gasoil',                 value: global.cost.fuel,  color: '#f97316' },
+                  { label: 'Charges voyage',          value: global.cost.chargesOperationnelles, color: '#ef4444' },
                 ]} />
               </div>
 
@@ -470,14 +420,14 @@ export default function Rentabilite() {
                 ))}
                 <div className="flex justify-between py-2.5 bg-slate-50 rounded-xl px-3 text-sm">
                   <span className="font-black text-slate-800">= REVENU BRUT</span>
-                  <span className="font-black text-slate-800">{fmt(global.revenuBrut)} DHS</span>
+                  <span className="font-black text-slate-800">{fmt(global.revenue.total)} DHS</span>
                 </div>
                 {/* Cost lines */}
                 {[
-                  { label: '− Achats (briques + grignon)', value: global.coutAchat,    color:'text-red-500' },
-                  { label: '− Gasoil',                     value: global.coutGasoil,   color:'text-orange-500' },
-                  { label: '− Location camions loués',     value: global.coutLocation, color:'text-amber-500' },
-                  { label: '− Charges voyage',             value: global.coutCharges,  color:'text-red-400' },
+                  { label: '− Achats (briques + grignon)', value: global.cost.achatTotal,    color:'text-red-500' },
+                  { label: '− Gasoil',                     value: global.cost.fuel,   color:'text-orange-500' },
+                  { label: '− Location camions loués',     value: global.cost.rental, color:'text-amber-500' },
+                  { label: '− Charges voyage',             value: global.cost.chargesOperationnelles,  color:'text-red-400' },
                 ].map((r, i) => (
                   <div key={i} className="flex justify-between py-2 border-b border-slate-50 text-sm">
                     <span className="text-slate-500">{r.label}</span>
@@ -512,7 +462,7 @@ export default function Rentabilite() {
                       </div>
                       <div className="text-right">
                         <ProfitCell v={v.profit} />
-                        <div className="text-[10px] text-slate-400">Rev: {fmt(v.revenuBrut)} DHS</div>
+                        <div className="text-[10px] text-slate-400">Rev: {fmt(v.revenue.total)} DHS</div>
                       </div>
                     </Link>
                   ))}
@@ -561,11 +511,11 @@ export default function Rentabilite() {
                       <td className="py-2.5 px-3 text-center">
                         <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{v.nbCli || 0}</span>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(v.revenuBrut)}</td>
-                      <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.coutAchat)}</td>
-                      <td className="py-2.5 px-3 text-right text-orange-400 whitespace-nowrap">−{fmt(v.coutGasoil)}</td>
-                      <td className="py-2.5 px-3 text-right text-amber-500 whitespace-nowrap">{v.coutLocation > 0 ? `−${fmt(v.coutLocation)}` : '—'}</td>
-                      <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.coutCharges)}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(v.revenue.total)}</td>
+                      <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.cost.achatTotal)}</td>
+                      <td className="py-2.5 px-3 text-right text-orange-400 whitespace-nowrap">−{fmt(v.cost.fuel)}</td>
+                      <td className="py-2.5 px-3 text-right text-amber-500 whitespace-nowrap">{v.cost.rental > 0 ? `−${fmt(v.cost.rental)}` : '—'}</td>
+                      <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.cost.chargesOperationnelles)}</td>
                       <td className="py-2.5 px-3 text-right whitespace-nowrap"><ProfitCell v={v.profit} /></td>
                       <td className="py-2.5 px-3 text-right"><MargeBadge marge={v.marge} /></td>
                       <td className="py-2.5 px-3">
@@ -574,6 +524,9 @@ export default function Rentabilite() {
                         </span>
                       </td>
                       <td className="py-2.5 px-3">
+                        {v.warnings?.length > 0 && (
+                          <span className="text-amber-500 mr-1.5" title={`⚠ Coût d'achat indéterminé pour ${v.warnings.length} ligne(s) — aucun achat correspondant sur ce voyage`}>⚠</span>
+                        )}
                         <Link href={`/voyages/${v.id}`} className="text-blue-500 hover:text-blue-700 font-semibold text-[10px] whitespace-nowrap">Détails →</Link>
                       </td>
                     </tr>
@@ -621,10 +574,10 @@ export default function Rentabilite() {
                       <tr key={d.key} className="border-b border-slate-50 hover:bg-slate-50 transition">
                         <td className="py-3 px-3 font-bold text-slate-800">{d.label}</td>
                         <td className="py-3 px-3 text-center"><span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{d.nbV}</span></td>
-                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(d.revenuBrut)}</td>
-                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.coutAchat)}</td>
-                        <td className="py-3 px-3 text-right text-orange-400">−{fmt(d.coutGasoil)}</td>
-                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.coutCharges)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(d.revenue.total)}</td>
+                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.cost.achatTotal)}</td>
+                        <td className="py-3 px-3 text-right text-orange-400">−{fmt(d.cost.fuel)}</td>
+                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.cost.chargesOperationnelles)}</td>
                         <td className="py-3 px-3 text-right"><ProfitCell v={d.profit} /></td>
                         <td className="py-3 px-3 text-right"><MargeBadge marge={d.marge} /></td>
                       </tr>
@@ -635,10 +588,10 @@ export default function Rentabilite() {
                       <tr className="border-t-2 border-slate-200 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
                         <td className="py-3 px-3 font-black text-sm">TOTAL</td>
                         <td className="py-3 px-3 text-center font-black">{voyages.length}</td>
-                        <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(global.revenuBrut)}</td>
-                        <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.coutAchat)}</td>
-                        <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(global.coutGasoil)}</td>
-                        <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.coutCharges)}</td>
+                        <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(global.revenue.total)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.cost.achatTotal)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(global.cost.fuel)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(global.cost.chargesOperationnelles)}</td>
                         <td className={`py-3 px-3 text-right font-black text-lg ${global.profit>=0?'text-emerald-400':'text-red-400'}`}>
                           {global.profit>=0?'+':''}{fmt(global.profit)}
                         </td>
@@ -665,7 +618,7 @@ export default function Rentabilite() {
                   <h3 className="font-bold text-slate-700 text-sm mb-4">Performance par camion</h3>
                   <BarViz data={camionStats.map(c => ({
                     label: c.plaque + (c.type_camion === 'loue' ? ' 🔑' : '') + (c.chauffeur ? ` · ${c.chauffeur}` : ''),
-                    revenu: c.revenuBrut, profit: c.profit,
+                    revenu: c.revenue.total, profit: c.profit,
                   }))} />
                 </div>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -694,11 +647,11 @@ export default function Rentabilite() {
                             </td>
                             <td className="py-3 px-3 text-slate-500">{c.chauffeur || '—'}</td>
                             <td className="py-3 px-3 text-center"><span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{c.nbV}</span></td>
-                            <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(c.revenuBrut)}</td>
-                            <td className="py-3 px-3 text-right text-red-400">−{fmt(c.coutAchat)}</td>
-                            <td className="py-3 px-3 text-right text-orange-400">−{fmt(c.coutGasoil)}</td>
-                            <td className="py-3 px-3 text-right text-amber-500">{c.coutLocation > 0 ? `−${fmt(c.coutLocation)}` : '—'}</td>
-                            <td className="py-3 px-3 text-right text-red-400">−{fmt(c.coutCharges)}</td>
+                            <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(c.revenue.total)}</td>
+                            <td className="py-3 px-3 text-right text-red-400">−{fmt(c.cost.achatTotal)}</td>
+                            <td className="py-3 px-3 text-right text-orange-400">−{fmt(c.cost.fuel)}</td>
+                            <td className="py-3 px-3 text-right text-amber-500">{c.cost.rental > 0 ? `−${fmt(c.cost.rental)}` : '—'}</td>
+                            <td className="py-3 px-3 text-right text-red-400">−{fmt(c.cost.chargesOperationnelles)}</td>
                             <td className="py-3 px-3 text-right"><ProfitCell v={c.profit} /></td>
                             <td className="py-3 px-3 text-right"><MargeBadge marge={c.marge} /></td>
                           </tr>
@@ -724,13 +677,13 @@ export default function Rentabilite() {
               <>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                   <h3 className="font-bold text-slate-700 text-sm mb-4">Performance par client</h3>
-                  <BarViz data={clientStats.map(c => ({ label: c.nom, revenu: c.revenu, profit: c.profit }))} />
+                  <BarViz data={clientStats.map(c => ({ label: c.client_nom, revenu: c.revenue.total, profit: c.profit }))} />
                 </div>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                   <div className="px-5 py-4 border-b border-slate-100">
                     <h3 className="font-bold text-slate-700 text-sm">
                       Détail par client
-                      <span className="font-normal text-slate-400 ml-2 text-xs">— gasoil divisé proportionnellement aux briques, charges fixes divisées équitablement</span>
+                      <span className="font-normal text-slate-400 ml-2 text-xs">— gasoil, location et charges divisés proportionnellement à la quantité de briques (grignon exclu)</span>
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
@@ -741,8 +694,9 @@ export default function Rentabilite() {
                           <ColHeader label="Client" />
                           <ColHeader label="Qté" right />
                           <ColHeader label="Revenu DHS" right />
-                          <ColHeader label="Achats" right />
+                          <ColHeader label="Achats (WAC)" right />
                           <ColHeader label="Gasoil ÷" right />
+                          <ColHeader label="Location ÷" right />
                           <ColHeader label="Charges ÷" right />
                           <ColHeader label="= Profit" right />
                           <ColHeader label="Marge" right />
@@ -750,14 +704,21 @@ export default function Rentabilite() {
                       </thead>
                       <tbody>
                         {clientStats.map((c, i) => (
-                          <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition">
+                          <tr key={c.key} className="border-b border-slate-50 hover:bg-slate-50 transition">
                             <td className="py-2.5 px-3 text-slate-400 font-semibold">{i+1}</td>
-                            <td className="py-2.5 px-3 font-bold text-slate-800">{c.nom}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-800">
+                              {c.client_nom}
+                              {c.type_produit === 'grignon' && <span className="ml-1.5 text-[9px] bg-lime-100 text-lime-700 px-1.5 py-0.5 rounded font-semibold">GRIGNON</span>}
+                              {c.hasUndeterminedCost && (
+                                <span className="text-amber-500 ml-1.5" title="⚠ Coût d'achat indéterminé pour au moins une livraison — aucun achat correspondant sur le voyage">⚠</span>
+                              )}
+                            </td>
                             <td className="py-2.5 px-3 text-right text-slate-500">{fmt(c.qte)}</td>
-                            <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{fmt(c.revenu)}</td>
-                            <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.achat)}</td>
-                            <td className="py-2.5 px-3 text-right text-orange-400">−{fmt(c.gas)}</td>
-                            <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.chg)}</td>
+                            <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{fmt(c.revenue.total)}</td>
+                            <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.cost.achatWAC)}</td>
+                            <td className="py-2.5 px-3 text-right text-orange-400">−{fmt(c.cost.fuelAllocated)}</td>
+                            <td className="py-2.5 px-3 text-right text-amber-500">{c.cost.rentalAllocated > 0 ? `−${fmt(c.cost.rentalAllocated)}` : '—'}</td>
+                            <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.cost.chargesAllocated)}</td>
                             <td className="py-2.5 px-3 text-right"><ProfitCell v={c.profit} /></td>
                             <td className="py-2.5 px-3 text-right"><MargeBadge marge={c.marge} /></td>
                           </tr>
@@ -766,12 +727,13 @@ export default function Rentabilite() {
                       <tfoot>
                         <tr className="border-t-2 border-slate-200 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
                           <td colSpan={3} className="py-3 px-3 font-black text-sm">TOTAL</td>
-                          <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(clientStats.reduce((s,c)=>s+c.revenu,0))}</td>
-                          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(clientStats.reduce((s,c)=>s+c.achat,0))}</td>
-                          <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(clientStats.reduce((s,c)=>s+c.gas,0))}</td>
-                          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(clientStats.reduce((s,c)=>s+c.chg,0))}</td>
+                          <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(clientStats.reduce((s,c)=>s+c.revenue.total,0))}</td>
+                          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(clientStats.reduce((s,c)=>s+c.cost.achatWAC,0))}</td>
+                          <td className="py-3 px-3 text-right font-bold text-orange-300">−{fmt(clientStats.reduce((s,c)=>s+c.cost.fuelAllocated,0))}</td>
+                          <td className="py-3 px-3 text-right font-bold text-amber-300">−{fmt(clientStats.reduce((s,c)=>s+c.cost.rentalAllocated,0))}</td>
+                          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(clientStats.reduce((s,c)=>s+c.cost.chargesAllocated,0))}</td>
                           <td className={`py-3 px-3 text-right font-black text-lg ${global.profit>=0?'text-emerald-400':'text-red-400'}`}>
-                            {global.profit>=0?'+':''}{fmt(global.profit)}
+                            {global.profit>=0?'+':''}{fmt(clientStats.reduce((s,c)=>s+c.profit,0))}
                           </td>
                           <td className="py-3 px-3 text-right font-black text-blue-300">{global.marge}%</td>
                         </tr>
