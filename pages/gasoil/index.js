@@ -67,6 +67,7 @@ export default function Gasoil() {
     adblue_qte: '', adblue_prix_unitaire: ''
   })
   const [showAdblue, setShowAdblue] = useState(false)
+  const [formError, setFormError] = useState('')
 
   const qte = parseFloat(form.qte) || 0
   const pu = parseFloat(form.prix_unitaire) || 0
@@ -74,6 +75,8 @@ export default function Gasoil() {
   const adblueQte = parseFloat(form.adblue_qte) || 0
   const adbluePu = parseFloat(form.adblue_prix_unitaire) || 0
   const adblueTotal = Math.round(adblueQte * adbluePu * 100) / 100
+  const hasDiesel = qte > 0 && pu > 0
+  const hasAdblue = adblueQte > 0 && adbluePu > 0
 
   // ── CONSUMPTION MONTH FILTER ──
   const currentMonth = () => {
@@ -102,7 +105,11 @@ export default function Gasoil() {
 
   async function saveGasoil(e) {
     e.preventDefault()
-    if (!form.camion_id || !qte || !pu) return
+    setFormError('')
+    if (!form.camion_id) { setFormError('Sélectionnez un camion.'); return }
+    // Diesel and AdBlue are independent — a plein can be diesel only, AdBlue
+    // only (bought without fuel that day), or both.
+    if (!hasDiesel && !hasAdblue) { setFormError('Renseignez au moins le gasoil ou l\'AdBlue.'); return }
     setSaving(true)
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
     await supabase.from('gasoil').insert({
@@ -122,7 +129,7 @@ export default function Gasoil() {
     if (camion) {
       await supabase.from('camions').update({
         gasoil_dhs: (camion.gasoil_dhs || 0) + total,
-        pleins: (camion.pleins || 0) + 1,
+        pleins: (camion.pleins || 0) + (hasDiesel ? 1 : 0),
         litres: (camion.litres || 0) + qte,
       }).eq('id', camion.id)
     }
@@ -173,13 +180,17 @@ export default function Gasoil() {
   async function saveEditGasoil(e) {
     e.preventDefault()
     if (!editRow) return
-    setEditSaving(true)
     const qte = parseFloat(editForm.qte) || 0
     const pu  = parseFloat(editForm.prix_unitaire) || 0
     const total = Math.round(qte * pu * 100) / 100
     const adblueQte = parseFloat(editForm.adblue_qte) || 0
     const adbluePu  = parseFloat(editForm.adblue_prix_unitaire) || 0
     const adblueTotal = Math.round(adblueQte * adbluePu * 100) / 100
+    if (!(qte > 0 && pu > 0) && !(adblueQte > 0 && adbluePu > 0)) {
+      setEditMsg('❌ Renseignez au moins le gasoil ou l\'AdBlue.')
+      return
+    }
+    setEditSaving(true)
 
     const { error } = await supabase.from('gasoil').update({
       date: editForm.date,
@@ -225,7 +236,7 @@ export default function Gasoil() {
     if (camion) {
       await supabase.from('camions').update({
         gasoil_dhs: Math.max(0, (camion.gasoil_dhs || 0) - total),
-        pleins: Math.max(0, (camion.pleins || 0) - 1),
+        pleins: Math.max(0, (camion.pleins || 0) - (qte > 0 ? 1 : 0)),
         litres: Math.max(0, (camion.litres || 0) - qte),
       }).eq('id', camion.id)
     }
@@ -641,13 +652,14 @@ export default function Gasoil() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Litres</label>
-                  <input className="input" type="number" placeholder="300" value={form.qte} onChange={e => setForm({...form, qte: e.target.value})} required />
+                  <input className="input" type="number" placeholder="300" value={form.qte} onChange={e => setForm({...form, qte: e.target.value})} />
                 </div>
                 <div>
                   <label className="label">Prix/L (DHS)</label>
-                  <input className="input" type="number" step="0.01" value={form.prix_unitaire} onChange={e => setForm({...form, prix_unitaire: e.target.value})} required />
+                  <input className="input" type="number" step="0.01" value={form.prix_unitaire} onChange={e => setForm({...form, prix_unitaire: e.target.value})} />
                 </div>
               </div>
+              <div className="text-[11px] text-gray-400 -mt-2">Laissez vide si vous ajoutez uniquement de l'AdBlue, sans gasoil.</div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">BON N°</label>
@@ -666,11 +678,11 @@ export default function Gasoil() {
                 </div>
               )}
 
-              {/* ── ADBLUE (optional, same plein / same station) ── */}
+              {/* ── ADBLUE (independent — avec ou sans gasoil) ── */}
               {showAdblue ? (
                 <div className="border border-cyan-100 bg-cyan-50/40 rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-cyan-700">🧴 AdBlue (même plein)</span>
+                    <span className="text-xs font-semibold text-cyan-700">🧴 AdBlue</span>
                     <button type="button" onClick={() => { setShowAdblue(false); setForm({...form, adblue_qte: '', adblue_prix_unitaire: ''}) }} className="text-xs text-gray-400 hover:text-gray-600">✕ Retirer</button>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -691,8 +703,14 @@ export default function Gasoil() {
                 </div>
               ) : (
                 <button type="button" onClick={() => setShowAdblue(true)} className="btn-secondary w-full justify-center text-xs">
-                  🧴 + Ajouter AdBlue à ce plein
+                  🧴 + AdBlue {hasDiesel ? '(à ce plein)' : '(seul, sans gasoil)'}
                 </button>
+              )}
+
+              {formError && (
+                <div className="text-xs font-semibold text-center p-2 rounded-lg bg-red-50 text-red-700">
+                  {formError}
+                </div>
               )}
 
               <button type="submit" disabled={saving} className="btn-primary w-full justify-center">
@@ -1009,9 +1027,9 @@ export default function Gasoil() {
                         <td className="td font-semibold text-gray-900">{g.camion_plaque}</td>
                         <td className="td text-gray-500">{g.chauffeur || '—'}</td>
                         <td className="td text-xs text-gray-500">{g.station}</td>
-                        <td className="td text-right font-medium">{fmtD(g.qte)}</td>
-                        <td className="td text-right text-gray-500">{fmtD(g.prix_unitaire)}</td>
-                        <td className="td text-right font-bold text-amber-600">{fmtD(g.total)}</td>
+                        <td className="td text-right font-medium">{g.qte ? fmtD(g.qte) : '—'}</td>
+                        <td className="td text-right text-gray-500">{g.qte ? fmtD(g.prix_unitaire) : '—'}</td>
+                        <td className="td text-right font-bold text-amber-600">{g.qte ? fmtD(g.total) : '—'}</td>
                         <td className="td text-right text-cyan-600 text-xs">{g.adblue_total ? fmtD(g.adblue_total) : '—'}</td>
                         <td className="td text-right text-gray-400 text-xs">{g.km ? fmt(g.km) : '—'}</td>
                         <td className="td text-gray-400 text-xs">{g.bon || '—'}</td>
@@ -1074,13 +1092,13 @@ export default function Gasoil() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Litres</label>
-                  <input type="number" step="0.01" className="input" required
+                  <input type="number" step="0.01" className="input"
                     value={editForm.qte}
                     onChange={e => setEditForm({...editForm, qte: e.target.value})} />
                 </div>
                 <div>
                   <label className="label">Prix / L (DHS)</label>
-                  <input type="number" step="0.01" className="input" required
+                  <input type="number" step="0.01" className="input"
                     value={editForm.prix_unitaire}
                     onChange={e => setEditForm({...editForm, prix_unitaire: e.target.value})} />
                 </div>
