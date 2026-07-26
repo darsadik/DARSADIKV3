@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../lib/toast'
 import { useRouter } from 'next/router'
@@ -30,7 +30,7 @@ import { computeVoyageProfit } from '../../lib/services/profitability'
 // output to before. `embedded=true` (Review Mode) suppresses the sidebar
 // voyage-nav rail, mobile swipe-nav bar, and "← Voyages" link, since the host
 // page owns its own queue/prev-next navigation instead.
-export default function VoyageDetailPanel({ voyageId, embedded = false, onSaved, onVoyageLoaded }) {
+const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embedded = false, onSaved, onVoyageLoaded }, ref) {
   const router   = useRouter()
   const id       = voyageId
   const touchStartX = useRef(null)
@@ -494,6 +494,23 @@ export default function VoyageDetailPanel({ voyageId, embedded = false, onSaved,
     loadVoyage()
   }
 
+  // Exposes the currently-open add-form's own save handler to the host page
+  // (Review Mode's Ctrl+S) — calls the exact same save*/validation logic a
+  // click on that form's own "Enregistrer" button would, nothing new. No
+  // deps array: always closes over the latest state, correctness over a
+  // premature optimization here.
+  useImperativeHandle(ref, () => ({
+    saveActive() {
+      const fakeEvent = { preventDefault() {} }
+      if (showAchat)    { saveAchat(fakeEvent);      return true }
+      if (showLiv)      { saveLiv(fakeEvent);        return true }
+      if (showRetour)   { saveRetour(fakeEvent);     return true }
+      if (showCharge)   { saveChargeGrid(fakeEvent); return true }
+      if (showLocation) { saveLocation(fakeEvent);   return true }
+      return false
+    },
+  }))
+
   function showMsg(m) { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
   if (loading) return <div className="text-center py-20 text-slate-400">Chargement...</div>
@@ -919,4 +936,6 @@ export default function VoyageDetailPanel({ voyageId, embedded = false, onSaved,
       </div>
     </>
   )
-}
+})
+
+export default VoyageDetailPanel
