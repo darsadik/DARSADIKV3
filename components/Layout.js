@@ -8,6 +8,7 @@ const SUPER_ADMIN = 'abdelhafidbaadi@gmail.com'
 const nav = [
   { href: '/',                    icon: 'grid',    label: 'Dashboard' },
   { href: '/voyages',             icon: 'truck',   label: 'Voyages',          highlight: true },
+  { href: '/review',              icon: 'check-square', label: 'Mode Révision', highlight: true },
   { href: '/rentabilite',         icon: 'trending',label: 'Rentabilité',      highlight: true },
   { href: '/achats',              icon: 'box',     label: 'Achats' },
   { href: '/livraisons',          icon: 'truck',   label: 'Livraisons' },
@@ -146,6 +147,12 @@ function Icon({ name, size = 18 }) {
         <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
         <polyline points="16 17 21 12 16 7"/>
         <line x1="21" y1="12" x2="9" y2="12"/>
+      </>
+    ),
+    'check-square': (
+      <>
+        <polyline points="9 11 12 14 22 4"/>
+        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
       </>
     ),
   }
