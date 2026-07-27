@@ -406,36 +406,60 @@ export default function Gasoil() {
     const pRemise         = Math.round(pTotalLitres * remiseRate * 100) / 100
     const pTotalPaid      = periodPaiements.reduce((s,p) => s + (p.montant||0), 0)
 
-    // ── chronological entries — purchase (débit), paiement (crédit),
-    // remise (crédit, booked once at period end) — all in ONE ledger ──
+    // ── chronological entries — opening balance, purchase (débit, split
+    // Gasoil/AdBlue into their own rows so "Produit" always names exactly
+    // one item), paiement (crédit), remise (crédit, booked once at period
+    // end) — all in ONE ledger. Splitting a purchase into two rows is
+    // presentation-only: both rows' débits still sum to (g.total + g.adblue_total),
+    // so no total or balance changes — same pattern as expandVenteEntry() on
+    // the client statement.
     const entries = []
+    entries.push({
+      date: filterFrom, seq: `${filterFrom}_-1_0000000000`,
+      camion: '—', bon: '—', produit: "Solde d'ouverture", quantite: null, prixUnitaire: null, km: null,
+      debit: 0, credit: 0,
+    })
     periodGasoil.forEach(g => {
-      const parts = []
-      if (g.qte)       parts.push(`${fmtD(g.qte)} L Gasoil`)
-      if (g.adblue_qte) parts.push(`${fmtD(g.adblue_qte)} L AdBlue`)
-      entries.push({
-        date: g.date, seq: `${g.date}_0_${String(g.id).padStart(10,'0')}`,
-        camion: g.camion_plaque || '—', bon: g.bon || '—',
-        litresGasoil: g.qte || null, prixUnitaire: g.prix_unitaire || null,
-        adblue: g.adblue_total || null, km: g.km || null,
-        desc: parts.join(' + ') || 'Achat Carburant',
-        note: g.note || '',
-        debit: (g.total||0) + (g.adblue_total||0), credit: 0,
-      })
+      const hasGasoil = !!g.qte
+      const hasAdblue = !!g.adblue_qte
+      if (hasGasoil) {
+        entries.push({
+          date: g.date, seq: `${g.date}_0_${String(g.id).padStart(10,'0')}_0`,
+          camion: g.camion_plaque || '—', bon: g.bon || '—',
+          produit: 'Gasoil', quantite: g.qte, prixUnitaire: g.prix_unitaire || null,
+          km: g.km || null,
+          debit: g.total || 0, credit: 0,
+        })
+      }
+      if (hasAdblue) {
+        entries.push({
+          date: g.date, seq: `${g.date}_0_${String(g.id).padStart(10,'0')}_1`,
+          camion: g.camion_plaque || '—', bon: g.bon || '—',
+          produit: 'AdBlue', quantite: g.adblue_qte, prixUnitaire: g.adblue_prix_unitaire || null,
+          km: hasGasoil ? null : (g.km || null),
+          debit: g.adblue_total || 0, credit: 0,
+        })
+      }
+      if (!hasGasoil && !hasAdblue) {
+        entries.push({
+          date: g.date, seq: `${g.date}_0_${String(g.id).padStart(10,'0')}_0`,
+          camion: g.camion_plaque || '—', bon: g.bon || '—',
+          produit: '—', quantite: null, prixUnitaire: null, km: g.km || null,
+          debit: (g.total||0) + (g.adblue_total||0), credit: 0,
+        })
+      }
     })
     periodPaiements.forEach(p => {
       entries.push({
         date: p.date, seq: `${p.date}_1_${String(p.id).padStart(10,'0')}`,
-        camion: '—', bon: '—', litresGasoil: null, prixUnitaire: null, adblue: null, km: null,
-        desc: 'Paiement Fournisseur', note: p.note || '',
+        camion: '—', bon: '—', produit: 'Paiement Fournisseur', quantite: null, prixUnitaire: null, km: null,
         debit: 0, credit: p.montant || 0,
       })
     })
     if (pTotalLitres > 0) {
       entries.push({
         date: filterTo, seq: `${filterTo}_2_9999999999`,
-        camion: '—', bon: '—', litresGasoil: pTotalLitres, prixUnitaire: remiseRate, adblue: null, km: null,
-        desc: 'Remise carburant', note: `${fmtD(pTotalLitres)} L × ${fmtD(remiseRate)} DHS/L`,
+        camion: '—', bon: '—', produit: 'Remise Carburant', quantite: pTotalLitres, prixUnitaire: remiseRate, km: null,
         debit: 0, credit: pRemise,
       })
     }
@@ -444,17 +468,16 @@ export default function Gasoil() {
     let running = openingBalance
     entries.forEach(e => { running += e.debit - e.credit; e.solde = running })
     const closingBalance = running
-    const totalDebit  = entries.reduce((s,e) => s + e.debit, 0)
-    const totalCredit = entries.reduce((s,e) => s + e.credit, 0)
 
     // ── consommation par camion (period-scoped, sorted by litres desc) ──
     const camionStats = {}
     periodGasoil.forEach(g => {
       const k = g.camion_plaque || '—'
-      if (!camionStats[k]) camionStats[k] = { pleins: 0, litres: 0, montant: 0 }
-      camionStats[k].pleins  += 1
-      camionStats[k].litres  += g.qte || 0
-      camionStats[k].montant += (g.total||0) + (g.adblue_total||0)
+      if (!camionStats[k]) camionStats[k] = { pleins: 0, litres: 0, litresAdblue: 0, montant: 0 }
+      camionStats[k].pleins       += 1
+      camionStats[k].litres       += g.qte || 0
+      camionStats[k].litresAdblue += g.adblue_qte || 0
+      camionStats[k].montant      += (g.total||0) + (g.adblue_total||0)
     })
     const camionStatsRows = Object.entries(camionStats).sort((a,b) => b[1].litres - a[1].litres)
 
@@ -465,11 +488,10 @@ export default function Gasoil() {
       <td class="m nowrap">${fmtDate(e.date)}</td>
       <td class="m">${e.camion}</td>
       <td class="m">${e.bon}</td>
-      <td class="r">${e.litresGasoil !== null ? fmtD(e.litresGasoil) : '—'}</td>
+      <td class="m">${e.produit}</td>
+      <td class="r">${e.quantite !== null ? fmtD(e.quantite) : '—'}</td>
       <td class="r">${e.prixUnitaire !== null ? fmtD(e.prixUnitaire) : '—'}</td>
-      <td class="r">${e.adblue !== null ? fmt(e.adblue) : '—'}</td>
       <td class="r">${e.km !== null ? fmt(e.km) : '—'}</td>
-      <td class="desc">${e.desc}${e.note ? `<div class="note">${e.note}</div>` : ''}</td>
       <td class="r">${e.debit ? `<span class="debit">+ ${fmtMoney(e.debit)}</span>` : '<span class="dash">—</span>'}</td>
       <td class="r">${e.credit ? `<span class="credit">− ${fmtMoney(e.credit)}</span>` : '<span class="dash">—</span>'}</td>
       <td class="r solde" style="color:${soldeColor(e.solde)}">${soldeSign(e.solde)}${fmtMoney(Math.abs(e.solde))}</td>
@@ -479,6 +501,7 @@ export default function Gasoil() {
       <td class="m"><b>${plaque}</b></td>
       <td class="r">${d.pleins}</td>
       <td class="r">${fmtD(d.litres)} L</td>
+      <td class="r">${d.litresAdblue ? fmtD(d.litresAdblue) + ' L' : '—'}</td>
       <td class="r"><b>${fmtMoney(d.montant)} DHS</b></td>
     </tr>`).join('')
 
@@ -490,34 +513,30 @@ export default function Gasoil() {
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#1e293b;background:#fff}
 
-  /* ── document header ── */
-  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 22px 10px;border-bottom:2px solid #1e3a5f}
-  .co-n{font-size:16px;font-weight:900;color:#1e3a5f;letter-spacing:0.3px;line-height:1}
-  .co-doc{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-top:3px}
-  .co-r{text-align:right;flex-shrink:0;font-size:10px;color:#64748b}
-  .btn-p{padding:4px 12px;border:none;border-radius:3px;font-size:10px;font-weight:700;cursor:pointer;background:#1e3a5f;color:#fff;margin-top:4px}
+  /* ── document header — logo left, coordonnées right, one separator ── */
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:16px 26px 14px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:18px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:10.5px;color:#2563eb;font-weight:700;margin-top:2px}
+  .co-addr{font-size:10.5px;color:#64748b;margin-top:6px}
+  .co-r{text-align:right;flex-shrink:0}
+  .btn-p{padding:4px 12px;border:none;border-radius:3px;font-size:10px;font-weight:700;cursor:pointer;background:#1e3a5f;color:#fff;margin-top:6px}
 
-  /* ── compact info bar: Fournisseur / Période / Solde d'ouverture ── */
-  .info-bar{display:flex;padding:0 22px;border-bottom:1px solid #cbd5e1}
-  .info-cell{flex:1;padding:10px 16px 10px 0;border-right:1px solid #e2e8f0}
-  .info-cell:last-child{border-right:none;text-align:right}
-  .info-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:3px}
-  .info-val{font-size:13.5px;font-weight:800;color:#0f172a}
-  .info-val.money{font-family:'Courier New',monospace}
+  /* ── supplier block — plain text, no box ── */
+  .supplier-block{padding:20px 26px 4px}
+  .supplier-name{font-size:21px;font-weight:900;color:#1e3a5f;letter-spacing:0.2px}
+  .supplier-period{font-size:11.5px;color:#64748b;margin-top:5px}
 
-  .bdy{padding:12px 22px 4px}
-  .sec-title{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;color:#1e3a5f;border-bottom:1.5px solid #1e3a5f;padding-bottom:4px;margin:18px 0 6px}
+  .bdy{padding:16px 26px 4px}
+  .sec-title{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;color:#1e3a5f;border-bottom:1.5px solid #1e3a5f;padding-bottom:4px;margin:20px 0 8px}
 
   table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#fff !important;padding:6px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;text-align:left;white-space:nowrap}
+  thead th{background:#1e3a5f !important;color:#fff !important;padding:7px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:5px 8px;font-size:11px;color:#1e293b;border-bottom:1px solid #eef1f4;vertical-align:middle}
+  tbody td{padding:6px 8px;font-size:11px;color:#1e293b;border-bottom:1px solid #eef1f4;vertical-align:middle}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
   tbody td.m{color:#374151;font-weight:500;white-space:nowrap}
   tbody td.nowrap{white-space:nowrap}
-  tbody td.desc{font-weight:600;color:#1e293b}
-  tbody td .note{font-size:9px;color:#94a3b8;font-weight:400}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   .debit{font-weight:700;color:#1e3a5f}
   .credit{font-weight:700;color:#374151}
@@ -525,80 +544,63 @@ export default function Gasoil() {
   .dash{color:#cbd5e1}
   .empty-row td{text-align:center;color:#94a3b8;padding:18px;font-style:italic}
 
-  tfoot td{background:#eef2f6 !important;font-weight:800;font-size:11px;border-top:2px solid #1e3a5f !important;color:#1e293b !important}
-  tfoot td.r{font-family:'Courier New',monospace}
-
-  /* ── résumé comptable ── */
-  .summary-table td{padding:6px 10px;font-size:11.5px;border-bottom:1px solid #e2e8f0}
+  /* ── résumé comptable (single summary, printed once at the end) ── */
+  .summary-table td{padding:7px 10px;font-size:11.5px;border-bottom:1px solid #e2e8f0}
   .summary-table tr:last-child td{border-bottom:none}
   .summary-table td.sl{color:#374151;font-weight:600}
   .summary-table td.sv{text-align:right;font-family:'Courier New',monospace;font-weight:700}
-  .summary-table tr.final td{background:#f8fafc !important;border-top:2px solid #1e3a5f;padding-top:9px;padding-bottom:9px}
+  .summary-table tr.final td{background:#f8fafc !important;border-top:2px solid #1e3a5f;padding-top:10px;padding-bottom:10px}
   .summary-table tr.final td.sl{font-weight:800;font-size:12px}
   .summary-table tr.final td.sv{font-weight:900;font-size:15px}
 
-  .doc-footer{left:0;right:0;bottom:0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;padding:6px 22px;border-top:1px solid #e2e8f0;background:#fff}
+  .doc-footer{left:0;right:0;bottom:0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;padding:6px 26px;border-top:1px solid #e2e8f0;background:#fff}
   .foot-spacer{height:34px}
 </style></head><body>
 
 <div class="hdr">
   <div>
-    <div class="co-n">DAR SADIK</div>
-    <div class="co-doc">Grand Livre Fournisseur — Carburant</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="40" height="40" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Grand Livre Fournisseur — Carburant</div></div>
+    </div>
+    <div class="co-addr">Selouane, Nador</div>
   </div>
   <div class="co-r">
-    <div>Généré le ${printDate}</div>
-    <div><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
+    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Bureau</strong> 06 62 82 88 20<br>
+      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
+    </div>
+    <div style="font-size:9.5px;color:#94a3b8;margin-top:4px">Généré le ${printDate}</div>
+    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
   </div>
 </div>
 
-<div class="info-bar">
-  <div class="info-cell">
-    <div class="info-lbl">Fournisseur</div>
-    <div class="info-val">${supplierName}</div>
-  </div>
-  <div class="info-cell">
-    <div class="info-lbl">Période</div>
-    <div class="info-val">${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
-  </div>
-  <div class="info-cell">
-    <div class="info-lbl">Solde d'ouverture</div>
-    <div class="info-val money" style="color:${soldeColor(openingBalance)}">${soldeSign(openingBalance)}${fmtMoney(Math.abs(openingBalance))} DHS</div>
-  </div>
+<div class="supplier-block">
+  <div class="supplier-name">${supplierName}</div>
+  <div class="supplier-period">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
 </div>
 
 <div class="bdy">
 <table>
   <thead><tr>
-    <th>Date</th><th>Camion</th><th>Bon</th>
-    <th class="r">Litres Gasoil</th><th class="r">Prix unitaire</th><th class="r">AdBlue</th><th class="r">KM</th>
-    <th>Description</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th>
+    <th>Date</th><th>Camion</th><th>Bon</th><th>Produit</th>
+    <th class="r">Quantité</th><th class="r">Prix unitaire</th><th class="r">KM</th>
+    <th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th>
   </tr></thead>
   <tbody>
-    ${rows || '<tr class="empty-row"><td colspan="11">Aucune opération pour cette période</td></tr>'}
+    ${rows || '<tr class="empty-row"><td colspan="10">Aucune opération pour cette période</td></tr>'}
   </tbody>
-  ${entries.length > 0 ? `
-  <tfoot>
-    <tr>
-      <td colspan="3">TOTAL (${entries.length} opération${entries.length !== 1 ? 's' : ''})</td>
-      <td class="r">${fmtD(pTotalLitres)} L</td>
-      <td colspan="3"></td>
-      <td></td>
-      <td class="r">${fmtMoney(totalDebit)}</td>
-      <td class="r">${fmtMoney(totalCredit)}</td>
-      <td class="r" style="color:${soldeColor(closingBalance)}">${soldeSign(closingBalance)}${fmtMoney(Math.abs(closingBalance))}</td>
-    </tr>
-  </tfoot>` : ''}
 </table>
 
 <div class="sec-title">Résumé Comptable</div>
 <table class="summary-table">
   <tbody>
-    <tr><td class="sl">Total Diesel</td><td class="sv">${fmtMoney(pTotalDiesel)} DHS</td></tr>
+    <tr><td class="sl">Total Gasoil</td><td class="sv">${fmtMoney(pTotalDiesel)} DHS</td></tr>
     <tr><td class="sl">Total AdBlue</td><td class="sv">${fmtMoney(pTotalAdblue)} DHS</td></tr>
     <tr><td class="sl">Total Achats</td><td class="sv">${fmtMoney(pTotalPurchases)} DHS</td></tr>
+    <tr><td class="sl">Remise Carburant</td><td class="sv">− ${fmtMoney(pRemise)} DHS</td></tr>
     <tr><td class="sl">Total Paiements</td><td class="sv">− ${fmtMoney(pTotalPaid)} DHS</td></tr>
-    <tr><td class="sl">Total Remises</td><td class="sv">− ${fmtMoney(pRemise)} DHS</td></tr>
     <tr class="final"><td class="sl">Solde Final</td><td class="sv" style="color:${soldeColor(closingBalance)}">${soldeSign(closingBalance)}${fmtMoney(Math.abs(closingBalance))} DHS</td></tr>
   </tbody>
 </table>
@@ -606,10 +608,10 @@ export default function Gasoil() {
 <div class="sec-title">Consommation par Camion</div>
 <table>
   <thead><tr>
-    <th>Camion</th><th class="r">Nombre de pleins</th><th class="r">Litres</th><th class="r">Montant</th>
+    <th>Camion</th><th class="r">Nombre de pleins</th><th class="r">Litres Gasoil</th><th class="r">Litres AdBlue</th><th class="r">Montant total</th>
   </tr></thead>
   <tbody>
-    ${camionRows || '<tr class="empty-row"><td colspan="4">Aucune donnée</td></tr>'}
+    ${camionRows || '<tr class="empty-row"><td colspan="5">Aucune donnée</td></tr>'}
   </tbody>
 </table>
 
