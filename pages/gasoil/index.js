@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtD, fmtDate, today, startOfMonth } from '../../lib/utils'
+import { fmt, fmtD, fmtDate, fmtMoney, today, startOfMonth, openPrintWindow } from '../../lib/utils'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 
@@ -364,228 +364,173 @@ export default function Gasoil() {
     byCamion[g.camion_plaque].pleins += 1
   })
 
+  // ── SUPPLIER LEDGER — same accounting philosophy as the Client Statement:
+  // chronological entries, running balance, opening balance carried from
+  // everything before the period, ONE accounting summary at the very end
+  // (no repeated totals). Every figure below reuses the exact same formulas
+  // already used on-screen (total/adblue_total/qte × remiseRate) — only the
+  // period scope and presentation are new.
   function printGasoil() {
     const _now = new Date()
     const printDate = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
-    const solde = totalGasoilAll - totalPaiements
 
-    const gasoilRows = filtered.map(g =>
-      `<tr>
-        <td>${g.date}</td>
-        <td><b>${g.camion_plaque}</b></td>
-        <td>${g.chauffeur||'—'}</td>
-        <td>${g.station}</td>
-        <td class="r">${fmtD(g.qte)} L</td>
-        <td class="r">${fmtD(g.prix_unitaire)}</td>
-        <td class="r bold">${fmt(g.total)}</td>
-        <td class="r muted">${g.adblue_total ? fmt(g.adblue_total) : '—'}</td>
-        <td class="r muted">${g.km ? fmt(g.km) : '—'}</td>
-        <td class="muted">${g.bon||'—'}</td>
-      </tr>`
-    ).join('')
+    // Opening balance = everything before the period start, full account
+    // (never scoped by the on-screen camion/search filters — there is only
+    // one supplier account, payments aren't per-truck).
+    const openingPurchases = gasoil.filter(g => g.date < filterFrom).reduce((s,g) => s + (g.total||0) + (g.adblue_total||0), 0)
+    const openingPaiements = gasoilPaiements.filter(p => p.date < filterFrom).reduce((s,p) => s + (p.montant||0), 0)
+    const openingBalance = openingPurchases - openingPaiements
 
-    const paiRows = [...gasoilPaiements]
-      .sort((a,b) => a.date.localeCompare(b.date))
-      .map(p => `<tr>
-        <td>${fmtDate(p.date)}</td>
-        <td class="r green bold">− ${fmt(p.montant)} DHS</td>
-        <td class="muted">${p.note||'—'}</td>
-      </tr>`).join('')
+    const periodGasoil    = gasoil.filter(g => g.date >= filterFrom && g.date <= filterTo)
+    const periodPaiements = gasoilPaiements.filter(p => p.date >= filterFrom && p.date <= filterTo)
 
-    const camionRows = Object.entries(byCamion).sort((a,b)=>b[1].total-a[1].total).map(([plaque, d]) =>
-      `<tr>
-        <td><b>${plaque}</b></td>
-        <td class="r">${fmt(d.litres)} L</td>
-        <td class="r bold">${fmt(d.total)} DHS</td>
-        <td class="r muted">${d.pleins}</td>
-      </tr>`
-    ).join('')
+    const entries = []
+    periodGasoil.forEach(g => {
+      const debit = (g.total||0) + (g.adblue_total||0)
+      const parts = []
+      if (g.qte) parts.push(`${fmtD(g.qte)} L Gasoil`)
+      if (g.adblue_qte) parts.push(`${fmtD(g.adblue_qte)} L AdBlue`)
+      entries.push({
+        date: g.date, seq: `${g.date}_0_${g.id}`,
+        camion: g.camion_plaque || '—', station: g.station || '—',
+        desc: parts.join(' + ') || 'Achat Carburant',
+        note: [g.bon ? `Bon n° ${g.bon}` : null, g.note].filter(Boolean).join(' · '),
+        debit, credit: 0,
+      })
+    })
+    periodPaiements.forEach(p => {
+      entries.push({
+        date: p.date, seq: `${p.date}_1_${p.id}`,
+        camion: '—', station: '—',
+        desc: 'Paiement Fournisseur',
+        note: p.note || '',
+        debit: 0, credit: p.montant || 0,
+      })
+    })
+    entries.sort((a,b) => a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0)
 
-    const win = window.open('', '_blank')
-    win.document.write(`<!DOCTYPE html><html lang="fr"><head>
-<meta charset="UTF-8">
-<title>Gasoil — DAR SADIK</title>
+    let running = openingBalance
+    entries.forEach(e => { running += e.debit - e.credit; e.solde = running })
+    const closingBalance = running
+
+    // ── Final-page accounting summary (identical formulas to the on-screen footer) ──
+    const pTotalDiesel    = periodGasoil.reduce((s,g) => s + (g.total||0), 0)
+    const pTotalAdblue    = periodGasoil.reduce((s,g) => s + (g.adblue_total||0), 0)
+    const pTotalPurchases = pTotalDiesel + pTotalAdblue
+    const pTotalLitres    = periodGasoil.reduce((s,g) => s + (g.qte||0), 0)
+    const pRemise         = Math.round(pTotalLitres * remiseRate * 100) / 100
+    const pNetTotal        = Math.round((pTotalPurchases - pRemise) * 100) / 100
+    const pTotalPaid       = periodPaiements.reduce((s,p) => s + (p.montant||0), 0)
+
+    const rows = entries.map(e => `<tr>
+      <td class="m" style="white-space:nowrap">${fmtDate(e.date)}</td>
+      <td class="m">${e.camion}</td>
+      <td class="m">${e.station}</td>
+      <td style="font-size:12px;font-weight:600;color:#1e293b">${e.desc}${e.note ? `<div style="font-size:10px;color:#94a3b8;font-weight:400">${e.note}</div>` : ''}</td>
+      <td class="r">${e.debit ? `<span style="font-weight:800;color:#1d4ed8">+ ${fmtMoney(e.debit)}</span>` : '<span style="color:#cbd5e1">—</span>'}</td>
+      <td class="r">${e.credit ? `<span style="font-weight:800;color:#16a34a">− ${fmtMoney(e.credit)}</span>` : '<span style="color:#cbd5e1">—</span>'}</td>
+      <td class="r" style="font-weight:900;font-size:14px;color:${e.solde >= 0 ? '#1e3a5f' : '#16a34a'};white-space:nowrap">${e.solde >= 0 ? '+ ' : '− '}${fmtMoney(Math.abs(e.solde))}</td>
+    </tr>`).join('')
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Relevé Fournisseur Carburant — DAR SADIK</title>
 <style>
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; padding: 30px 36px; font-size: 12px; color: #1e293b; background: #fff; }
-
-  .logo-bar { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; margin-bottom: 4px; }
-  .logo-name { font-size: 26px; font-weight: 900; color: #1a3a6b; letter-spacing: -0.5px; line-height: 1.1; }
-  .logo-name-ar { font-size: 15px; font-weight: 700; color: #1a5fa8; direction: rtl; }
-  .logo-tagline { font-size: 11px; color: #475569; margin-top: 2px; direction: rtl; }
-  .logo-sep { height: 3px; background: linear-gradient(90deg,#1a5fa8,#3b82f6); border-radius: 2px; margin-bottom: 20px; }
-  .print-date { font-size: 10px; color: #94a3b8; margin-top: 6px; }
-  .btn-print { padding: 7px 14px; background: #475569; color: #fff; border: none; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; margin-right: 6px; }
-  .btn-pdf   { padding: 7px 14px; background: #16a34a; color: #fff; border: none; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; }
-
-  .periode { display: inline-flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 700; color: #475569; margin-bottom: 16px; }
-
-  /* SUMMARY 3 BOXES — like client page */
-  .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
-  .sum-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; }
-  .sum-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 5px; }
-  .sum-val { font-size: 20px; font-weight: 900; line-height: 1; }
-  .c-total  { color: #d97706; }
-  .c-paye   { color: #16a34a; }
-  .c-solde  { color: #7c3aed; }
-  .c-solde-ok { color: #16a34a; }
-
-  .section-title { font-size: 12px; font-weight: 700; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin: 20px 0 0; }
-
-  table { width: 100%; border-collapse: collapse; }
-  th { background: #475569 !important; color: #ffffff !important; padding: 8px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; border: 1px solid #334155; }
-  th.r { text-align: right; }
-  td { padding: 8px 10px; font-size: 11px; color: #1e293b; border: 1px solid #e2e8f0; vertical-align: middle; }
-  td.r { text-align: right; font-family: monospace; }
-  td.muted { color: #94a3b8; font-size: 10px; }
-  td.bold { font-weight: 700; }
-  td.green { color: #16a34a; font-weight: 700; }
-  tr:nth-child(even) td { background: #f8fafc !important; }
-
-  tfoot td { background: #f1f5f9 !important; font-weight: 800; font-size: 12px; border: 1px solid #cbd5e1; border-top: 2px solid #475569 !important; color: #1e293b !important; }
-  tfoot td.r { font-size: 13px; }
-
-  /* SOLDE RESULT ROW */
-  .solde-row td { background: #f5f3ff !important; color: #7c3aed !important; font-weight: 900; font-size: 13px; border: 2px solid #7c3aed !important; }
-  .solde-row-ok td { background: #f0fdf4 !important; color: #16a34a !important; font-weight: 900; font-size: 13px; border: 2px solid #16a34a !important; }
-
-  .empty-row td { text-align: center; color: #94a3b8; padding: 16px; font-style: italic; }
-  .doc-footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
-
-  @media print {
-    .btn-print, .btn-pdf { display: none !important; }
-    body { padding: 12px 18px; }
-  }
-  @page { size: A4; margin: 10mm 12mm; }
-</style>
-</head><body>
-
-<!-- HEADER -->
-<div class="logo-bar">
+  @page{margin:0mm}
+  @media print{.btn-p{display:none!important}}
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
+  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  .co-r{text-align:right;flex-shrink:0}
+  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
+  .sup-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
+  .sup-card{display:flex;align-items:center;gap:18px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:5px solid #1e3a5f;border-radius:10px;padding:14px 22px}
+  .sup-avatar{width:58px;height:58px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .sup-name{font-size:24px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .sup-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
+  .sup-opening{text-align:right;flex-shrink:0}
+  .op-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b}
+  .op-val{font-size:20px;font-weight:900;color:#1e3a5f;margin-top:2px}
+  .bdy{padding:10px 24px}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
+  thead th.r{text-align:right}
+  tbody tr{page-break-inside:avoid}
+  tbody td{padding:9px 12px;font-size:13px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.4}
+  tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
+  tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
+  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  .empty-row td{text-align:center;color:#94a3b8;padding:20px;font-style:italic}
+  .summary-block{margin-top:18px;border:2px solid #1e3a5f;border-radius:10px;overflow:hidden;page-break-inside:avoid}
+  .summary-hdr{background:#1e3a5f;color:#fff;padding:10px 20px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em}
+  .summary-row{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #e2e8f0;font-size:13px}
+  .summary-row:last-child{border-bottom:none}
+  .summary-row.discount .sv{color:#16a34a;font-weight:800}
+  .summary-row.net .sl,.summary-row.net .sv{font-weight:800;color:#1e3a5f}
+  .summary-row.final{background:#f0fdf4;padding:14px 20px}
+  .summary-row.final .sl{font-weight:800;color:#166534;font-size:13px}
+  .summary-row.final .sv{font-weight:900;color:#15803d;font-size:22px}
+  .sl{color:#374151;font-weight:600}
+  .sv{font-family:'Courier New',monospace;font-weight:700}
+  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+</style></head><body>
+<div class="hdr">
   <div>
-    <div class="logo-name">DAR SADIK</div>
-    <div class="logo-name-ar">دار صديق</div>
-    <div class="logo-tagline">بائع جميع مواد البناء</div>
-  </div>
-  <div style="text-align:right;padding-top:4px">
-    <div style="font-size:11px;color:#334155;margin-bottom:4px;font-weight:600">📞 Mohamed: 06 61 32 56 65 &nbsp;·&nbsp; Sadik: 06 61 97 87 47 &nbsp;·&nbsp; Bureau: 06 62 82 88 20</div>
-    <div style="font-size:11px;color:#334155;margin-bottom:4px">✉️ Dar.sadik@hotmail.com</div>
-    <div style="font-size:11px;color:#64748b;margin-bottom:8px">📍 Selouane - Nador</div>
-    <div>
-      <button class="btn-print" onclick="window.print()">🖨️ Imprimer</button>
-      <button class="btn-pdf" onclick="window.print()">📥 PDF</button>
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
     </div>
-    <div class="print-date">Généré le ${printDate}</div>
+    <div class="co-addr">Selouane, Nador</div>
+  </div>
+  <div class="co-r">
+    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
+      <strong>Bureau</strong> 06 62 82 88 20<br>
+      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
+    </div>
+    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${printDate}</div>
+    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
   </div>
 </div>
-<div class="logo-sep"></div>
-
-<div class="periode">📅 Période : ${filterFrom} → ${filterTo}</div>
-
-<!-- SUMMARY: TOTAL GASOIL / TOTAL PAYÉ / SOLDE -->
-<div class="summary">
-  <div class="sum-box">
-    <div class="sum-lbl">TOTAL GASOIL</div>
-    <div class="sum-val c-total">${fmt(totalGasoilAll)} DHS</div>
-  </div>
-  <div class="sum-box">
-    <div class="sum-lbl">TOTAL PAYÉ</div>
-    <div class="sum-val c-paye">${fmt(totalPaiements)} DHS</div>
-  </div>
-  <div class="sum-box">
-    <div class="sum-lbl">SOLDE RESTANT</div>
-    <div class="sum-val ${solde > 0 ? 'c-solde' : 'c-solde-ok'}">${fmt(solde)} DHS</div>
+<div class="sup-section">
+  <div class="sup-card">
+    <div class="sup-avatar">⛽</div>
+    <div style="flex:1">
+      <div class="sup-name">Fournisseur Carburant</div>
+      <div class="sup-meta"><strong>Période:</strong> ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
+    </div>
+    <div class="sup-opening">
+      <div class="op-lbl">Solde d'ouverture</div>
+      <div class="op-val">${openingBalance >= 0 ? '+ ' : '− '}${fmtMoney(Math.abs(openingBalance))} DHS</div>
+    </div>
   </div>
 </div>
-
-<!-- GASOIL TABLE -->
-<div class="section-title">📋 Historique des pleins (${filtered.length})</div>
+<div class="bdy">
 <table>
-  <thead>
-    <tr>
-      <th>DATE</th><th>CAMION</th><th>CHAUFFEUR</th><th>STATION</th>
-      <th class="r">LITRES</th><th class="r">PRIX/L</th>
-      <th class="r">TOTAL DHS</th><th class="r">ADBLUE DHS</th><th class="r">KM</th><th>BON</th>
-    </tr>
-  </thead>
+  <thead><tr>
+    <th>Date</th><th>Camion</th><th>Station</th><th>Description</th>
+    <th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th>
+  </tr></thead>
   <tbody>
-    ${gasoilRows || '<tr class="empty-row"><td colspan="10">Aucune entrée pour cette période</td></tr>'}
-  </tbody>
-  ${filtered.length > 0 ? `
-  <tfoot>
-    <tr>
-      <td colspan="4"><b>TOTAL (${filtered.length} pleins)</b></td>
-      <td class="r"><b>${fmtD(totLitres)} L</b></td>
-      <td></td>
-      <td class="r"><b>${fmt(totDHS)} DHS</b></td>
-      <td class="r"><b>${totAdblue ? fmt(totAdblue) + ' DHS' : '—'}</b></td>
-      <td colspan="2"></td>
-    </tr>
-    <tr>
-      <td colspan="6">Remise Carburant</td>
-      <td class="r green" colspan="2">− ${fmt(remiseCarburant)} DHS</td>
-      <td colspan="2"></td>
-    </tr>
-    <tr>
-      <td colspan="6"><b>Net Supplier Total</b></td>
-      <td class="r bold" colspan="2">${fmt(netSupplierTotal)} DHS</td>
-      <td colspan="2"></td>
-    </tr>
-  </tfoot>` : ''}
-</table>
-
-<!-- PAYMENTS TABLE -->
-<div class="section-title" style="margin-top:22px">💳 Paiements fournisseur (${gasoilPaiements.length})</div>
-<table>
-  <thead>
-    <tr>
-      <th>DATE</th>
-      <th class="r">MONTANT DHS</th>
-      <th>NOTE</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${paiRows || '<tr class="empty-row"><td colspan="3">Aucun paiement enregistré</td></tr>'}
-  </tbody>
-  ${gasoilPaiements.length > 0 ? `
-  <tfoot>
-    <tr>
-      <td><b>TOTAL PAYÉ</b></td>
-      <td class="r"><b>− ${fmt(totalPaiements)} DHS</b></td>
-      <td></td>
-    </tr>
-  </tfoot>` : ''}
-</table>
-
-<!-- SOLDE RESULT — the key row like client page -->
-<table style="margin-top:10px">
-  <tbody>
-    <tr class="${solde > 0 ? 'solde-row' : 'solde-row-ok'}">
-      <td><b>${solde > 0 ? '⚠️ SOLDE RESTANT À PAYER' : '✅ COMPTE SOLDÉ'}</b></td>
-      <td class="r"><b>${fmt(solde)} DHS</b></td>
-    </tr>
+    ${rows || '<tr class="empty-row"><td colspan="7">Aucune opération pour cette période</td></tr>'}
   </tbody>
 </table>
 
-<!-- CAMION RECAP -->
-<div class="section-title" style="margin-top:22px">🚛 Récapitulatif par camion</div>
-<table>
-  <thead>
-    <tr>
-      <th>CAMION</th>
-      <th class="r">LITRES</th>
-      <th class="r">TOTAL DHS</th>
-      <th class="r">NB PLEINS</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${camionRows || '<tr class="empty-row"><td colspan="4">Aucune donnée</td></tr>'}
-  </tbody>
-</table>
+<div class="summary-block">
+  <div class="summary-hdr">🧮 Résumé Comptable — ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
+  <div class="summary-row"><span class="sl">Total Diesel</span><span class="sv">${fmtMoney(pTotalDiesel)} DHS</span></div>
+  <div class="summary-row"><span class="sl">Total AdBlue</span><span class="sv">${fmtMoney(pTotalAdblue)} DHS</span></div>
+  <div class="summary-row"><span class="sl">Total Achats</span><span class="sv">${fmtMoney(pTotalPurchases)} DHS</span></div>
+  <div class="summary-row discount"><span class="sl">Remise Carburant</span><span class="sv">− ${fmtMoney(pRemise)} DHS</span></div>
+  <div class="summary-row net"><span class="sl">Net Supplier Total</span><span class="sv">${fmtMoney(pNetTotal)} DHS</span></div>
+  <div class="summary-row"><span class="sl">Total Payé</span><span class="sv">− ${fmtMoney(pTotalPaid)} DHS</span></div>
+  <div class="summary-row final"><span class="sl">Solde Restant</span><span class="sv">${closingBalance >= 0 ? '+ ' : '− '}${fmtMoney(Math.abs(closingBalance))} DHS</span></div>
+</div>
 
-<div class="doc-footer"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDate}</span></div>
-</body></html>`)
-    win.document.close()
+<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${printDate}</span></div>
+</div></body></html>`)
   }
 
   function exportCSV() {
