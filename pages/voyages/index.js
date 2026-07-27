@@ -5,7 +5,8 @@ import { useAuth } from '../_app'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { fmt, fmtDate, today, startOfMonth } from '../../lib/utils'
-import { computeVoyageProfit, aggregateVoyageProfits, aggregateClientProfits } from '../../lib/services/profitability'
+import { computeVoyageProfit, aggregateVoyageProfits, aggregateClientProfits, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { recalcOdometerChain } from '../../lib/services/voyage/updates'
 import { StatusBadge, ProfitCell, MargeBadge } from '../../components/voyage/StatusBadges'
 
@@ -196,6 +197,7 @@ export default function Voyages() {
   const [camions,          setCamions]          = useState([])
   const [clients,    setClients]    = useState([])
   const [locationsData, setLocationsData] = useState([])
+  const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
   // ── UI ──
   const [loading,   setLoading]   = useState(true)
@@ -228,7 +230,7 @@ export default function Voyages() {
     date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '',
   })
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
   async function loadAll() {
     setLoading(true)
@@ -252,7 +254,7 @@ export default function Voyages() {
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('clients').select('id,nom').order('nom'),
-      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total').not('km', 'is', null).order('km', { ascending: true }),
+      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').not('km', 'is', null).order('km', { ascending: true }),
       supabase.from('voyage_locations').select('voyage_id,montant_location'),
     ])
     setVoyages(v || [])
@@ -286,6 +288,7 @@ export default function Voyages() {
       locations: locationsData.filter(l => l.voyage_id === v.id),
       camionRefills: gasoilByCamion[v.camion_id] || [],
       voyageGasoilRows: gasoilData.filter(g => g.voyage_id === v.id),
+      remiseRate,
     }))
   }
   function calc(vIds) { return aggregateVoyageProfits(resultsFor(vIds)) }
@@ -409,6 +412,7 @@ export default function Voyages() {
       locations: locationsData.filter(l => l.voyage_id === v.id),
       camionRefills: gasoilByCamion[v.camion_id] || [],
       voyageGasoilRows: gasoilData.filter(g => g.voyage_id === v.id),
+      remiseRate,
     })
     const myLivs = livraisons.filter(l => l.voyage_id === v.id)
     return {

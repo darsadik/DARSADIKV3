@@ -3,6 +3,8 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, today, startOfMonth } from '../../lib/utils'
+import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 
@@ -68,6 +70,7 @@ export default function Gasoil() {
   })
   const [showAdblue, setShowAdblue] = useState(false)
   const [formError, setFormError] = useState('')
+  const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
   const qte = parseFloat(form.qte) || 0
   const pu = parseFloat(form.prix_unitaire) || 0
@@ -85,7 +88,7 @@ export default function Gasoil() {
   }
   const [consoMonth, setConsoMonth] = useState(currentMonth())
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
   async function loadAll() {
     setLoading(true)
@@ -257,6 +260,9 @@ export default function Gasoil() {
   const totLitres = filtered.reduce((s, g) => s + (g.qte || 0), 0)
   const totDHS = filtered.reduce((s, g) => s + (g.total || 0), 0)
   const totAdblue = filtered.reduce((s, g) => s + (g.adblue_total || 0), 0)
+  // Remise Carburant — supplier volume discount on GASOIL litres only, never AdBlue.
+  const remiseCarburant = Math.round(totLitres * remiseRate * 100) / 100
+  const netSupplierTotal = Math.round((totDHS + totAdblue - remiseCarburant) * 100) / 100
 
   // Payment totals
   const totalGasoilAll = gasoil.reduce((s, g) => s + (g.total || 0), 0)
@@ -513,6 +519,16 @@ export default function Gasoil() {
       <td></td>
       <td class="r"><b>${fmt(totDHS)} DHS</b></td>
       <td class="r"><b>${totAdblue ? fmt(totAdblue) + ' DHS' : '—'}</b></td>
+      <td colspan="2"></td>
+    </tr>
+    <tr>
+      <td colspan="6">Remise Carburant</td>
+      <td class="r green" colspan="2">− ${fmt(remiseCarburant)} DHS</td>
+      <td colspan="2"></td>
+    </tr>
+    <tr>
+      <td colspan="6"><b>Net Supplier Total</b></td>
+      <td class="r bold" colspan="2">${fmt(netSupplierTotal)} DHS</td>
       <td colspan="2"></td>
     </tr>
   </tfoot>` : ''}
@@ -1053,6 +1069,16 @@ export default function Gasoil() {
                         <td className="tfoot-td"></td>
                         <td className="tfoot-td text-right text-amber-700">{fmt(totDHS)} DHS</td>
                         <td className="tfoot-td text-right text-cyan-700">{totAdblue ? fmt(totAdblue) + ' DHS' : '—'}</td>
+                        <td className="tfoot-td" colSpan={3}></td>
+                      </tr>
+                      <tr>
+                        <td className="tfoot-td" colSpan={6}>Remise Carburant</td>
+                        <td className="tfoot-td text-right text-green-600" colSpan={2}>− {fmt(remiseCarburant)} DHS</td>
+                        <td className="tfoot-td" colSpan={3}></td>
+                      </tr>
+                      <tr>
+                        <td className="tfoot-td font-black" colSpan={6}>Net Supplier Total</td>
+                        <td className="tfoot-td text-right font-black" colSpan={2}>{fmt(netSupplierTotal)} DHS</td>
                         <td className="tfoot-td" colSpan={3}></td>
                       </tr>
                     </tfoot>

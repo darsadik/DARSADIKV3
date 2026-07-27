@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
+import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { fetchRemiseCarburantRate, saveRemiseCarburantRate } from '../../lib/services/settings'
 
 const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
 
@@ -36,7 +38,23 @@ export default function Parametres() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => { loadAll() }, [])
+  const [remiseRateInput, setRemiseRateInput] = useState(String(DEFAULT_REMISE_CARBURANT_RATE))
+  const [savingRemise, setSavingRemise] = useState(false)
+  const [remiseMsg, setRemiseMsg] = useState('')
+
+  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(r => setRemiseRateInput(String(r))) }, [])
+
+  async function saveRemiseRate(e) {
+    e.preventDefault()
+    const rate = parseFloat(remiseRateInput)
+    if (!Number.isFinite(rate) || rate < 0) { setRemiseMsg('❌ Taux invalide'); return }
+    setSavingRemise(true)
+    setRemiseMsg('')
+    const { error: err } = await saveRemiseCarburantRate(rate)
+    setSavingRemise(false)
+    setRemiseMsg(err ? '❌ ' + err.message : '✅ Enregistré !')
+    if (!err) setTimeout(() => setRemiseMsg(''), 2000)
+  }
 
   async function loadAll() {
     setLoading(true)
@@ -135,6 +153,7 @@ export default function Parametres() {
     { id: 'loueurs',    label: 'Loueurs',            icon: '🔑', count: loueurs.length },
     { id: 'fournisseurs', label: 'Fournisseurs',     icon: '🏭', count: fournisseurs.length },
     { id: 'briques',    label: 'Types de briques',   icon: '🧱', count: typeBriques.length },
+    { id: 'carburant',  label: 'Carburant',           icon: '⛽' },
   ]
 
   return (
@@ -148,7 +167,9 @@ export default function Parametres() {
               ${tab === t.id ? 'bg-brand-500 text-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
             <span>{t.icon}</span>
             {t.label}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{t.count}</span>
+            {t.count !== undefined && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{t.count}</span>
+            )}
           </button>
         ))}
       </div>
@@ -431,6 +452,37 @@ export default function Parametres() {
                   )}
                 </div>
               )}
+            </Section>
+          </div>
+        </div>
+      )}
+
+      {/* CARBURANT */}
+      {tab === 'carburant' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Section title="Remise Carburant" icon="⛽">
+              <p className="text-sm text-gray-500 mb-4">
+                Remise accordée par le fournisseur de carburant, en DH par litre de <b>gasoil uniquement</b> (jamais l'AdBlue).
+                Elle est calculée automatiquement : <span className="font-mono text-xs bg-gray-50 px-1.5 py-0.5 rounded">Remise = Litres gasoil × Taux</span>.
+              </p>
+              <form onSubmit={saveRemiseRate} className="flex items-end gap-3 max-w-sm">
+                <div className="flex-1">
+                  <label className="label">Taux (DH / litre)</label>
+                  <input className="input" type="number" step="0.01" min="0"
+                    value={remiseRateInput}
+                    onChange={e => setRemiseRateInput(e.target.value)} required />
+                </div>
+                <button type="submit" disabled={savingRemise} className="btn-primary">
+                  {savingRemise ? '...' : '✓ Enregistrer'}
+                </button>
+              </form>
+              {remiseMsg && (
+                <div className={`mt-3 text-sm font-semibold ${remiseMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                  {remiseMsg}
+                </div>
+              )}
+              <div className="text-xs text-gray-400 mt-4">Taux par défaut : {DEFAULT_REMISE_CARBURANT_RATE} DH/L</div>
             </Section>
           </div>
         </div>

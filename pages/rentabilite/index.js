@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { computeVoyageProfit } from '../../lib/services/profitability'
+import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import FilterBar, { DEFAULT_FILTERS } from '../../components/profitability/FilterBar'
 import Overview from '../../components/profitability/Overview'
 import ByVoyageSection from '../../components/profitability/ByVoyageSection'
@@ -73,8 +74,9 @@ export default function ProfitabiliteCenter() {
   const [fournisseurs,        setFournisseurs]        = useState([])
   const [grignonFournisseurs, setGrignonFournisseurs] = useState([])
   const [typeBriques,         setTypeBriques]         = useState([])
+  const [remiseRate,          setRemiseRate]          = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
-  useEffect(() => { loadOptions() }, [])
+  useEffect(() => { loadOptions(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
   useEffect(() => { loadVoyageData() }, [filters.from, filters.to])
 
   async function loadOptions() {
@@ -85,7 +87,7 @@ export default function ProfitabiliteCenter() {
       supabase.from('fournisseurs').select('id,nom').order('nom'),
       supabase.from('grignon_fournisseurs').select('id,nom').order('nom'),
       supabase.from('type_briques').select('id,nom').order('nom'),
-      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total').not('km', 'is', null).order('km', { ascending: true }),
+      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').not('km', 'is', null).order('km', { ascending: true }),
     ])
     setCamions(ca || []); setClients(cl || []); setGrignonClients(gc || [])
     setFournisseurs(fo || []); setGrignonFournisseurs(gf || []); setTypeBriques(tb || [])
@@ -167,8 +169,9 @@ export default function ProfitabiliteCenter() {
       locations: locations.filter(l => l.voyage_id === v.id),
       camionRefills: gasoilByCamion[v.camion_id] || [],
       voyageGasoilRows: voyageGasoil.filter(g => g.voyage_id === v.id),
+      remiseRate,
     }),
-  })), [visibleVoyages, achats, livraisons, charges, retours, locations, gasoilByCamion, voyageGasoil])
+  })), [visibleVoyages, achats, livraisons, charges, retours, locations, gasoilByCamion, voyageGasoil, remiseRate])
 
   const resultById = useMemo(() => Object.fromEntries(results.map(r => [r.id, r])), [results])
   const drawerVoyage = drawerVoyageId ? resultById[drawerVoyageId] : null

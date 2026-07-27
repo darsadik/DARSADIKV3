@@ -3,7 +3,8 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtDate, today, startOfMonth } from '../../lib/utils'
-import { computeVoyageProfit } from '../../lib/services/profitability'
+import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { computeVoyageValidation, voyageValidationStatus } from '../../lib/services/voyage/validation'
 import { detectAnomalies, voyageReviewStatus } from '../../lib/services/review/anomalies'
 import { setReviewed as dbSetReviewed } from '../../lib/services/voyage/review'
@@ -32,6 +33,7 @@ export default function ReviewMode() {
   const [camions,     setCamions]     = useState([])
   const [clients,     setClients]     = useState([])
   const [allGasoil,   setAllGasoil]   = useState([])
+  const [remiseRate,  setRemiseRate]  = useState(DEFAULT_REMISE_CARBURANT_RATE)
   const [loading,     setLoading]     = useState(true)
 
   // ── filters ──
@@ -46,7 +48,7 @@ export default function ReviewMode() {
   const [selectedId, setSelectedId] = useState(null)
   const panelRef = useRef(null)
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
   async function loadAll() {
     setLoading(true)
@@ -63,7 +65,7 @@ export default function ReviewMode() {
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('clients').select('id,nom').order('nom'),
       supabase.from('voyage_locations').select('voyage_id,montant_location'),
-      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total').not('km', 'is', null).order('km', { ascending: true }),
+      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').not('km', 'is', null).order('km', { ascending: true }),
     ])
     setVoyages(v || [])
     setAchats(ac || [])
@@ -98,13 +100,14 @@ export default function ReviewMode() {
       locations: locationsData.filter(l => l.voyage_id === v.id),
       camionRefills: gasoilByCamion[v.camion_id] || [],
       voyageGasoilRows: myGasoil,
+      remiseRate,
     })
     const anomalies = detectAnomalies({ voyage: v, achats: myAchats, livraisons: myLivraisons, gasoil: myGasoil, result })
     const status = voyageReviewStatus({ reviewed_at: v.reviewed_at, anomalies })
     const validationStatus = voyageValidationStatus(computeVoyageValidation(myAchats, myLivraisons))
     const clientNoms = [...new Set(myLivraisons.map(l => l.client_nom).filter(Boolean))]
     return { voyage: v, result, anomalies, status, validationStatus, clientNoms }
-  }), [voyages, achats, livraisons, charges, retours, locationsData, gasoilData, gasoilByCamion])
+  }), [voyages, achats, livraisons, charges, retours, locationsData, gasoilData, gasoilByCamion, remiseRate])
 
   // ── patch a single row after VoyageDetailPanel saves — no list refetch ──
   const patchRow = useCallback((voyage, result, sections = {}) => {

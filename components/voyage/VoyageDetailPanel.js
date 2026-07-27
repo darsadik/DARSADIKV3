@@ -21,7 +21,8 @@ import GasoilSection from './GasoilSection'
 import FuelModeSection from './FuelModeSection'
 import LocationSection from './LocationSection'
 import ValidationPanel from './ValidationPanel'
-import { computeVoyageProfit } from '../../lib/services/profitability'
+import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 
 // Extracted verbatim from pages/voyages/[id].js so the exact same editable
 // voyage workspace (state, save/delete handlers, section wiring) can be
@@ -44,6 +45,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   const [grignonClients,     setGrignonClients]     = useState([])
   const [typeBriques,        setTypeBriques]        = useState([])
   const [loading,            setLoading]            = useState(true)
+  const [remiseRate,         setRemiseRate]         = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
   // ── section data ──
   const [achats,     setAchats]     = useState([])
@@ -167,6 +169,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   }, [id])
 
   useEffect(() => { loadVoyage() }, [loadVoyage])
+  useEffect(() => { fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
   // ── EDIT (shared with every other page that displays voyage-derived data) ───
   const {
@@ -212,6 +215,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
           locations: (sl||[]).filter(l=>l.voyage_id===v.id),
           camionRefills: [],
           voyageGasoilRows: (ga||[]).filter(g=>g.voyage_id===v.id),
+          remiseRate,
         })
         profits[v.id] = p.profit
       })
@@ -270,7 +274,8 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
     voyage, achats, livraisons, charges, retours, locations,
     camionRefills: vehicleGasoil,
     voyageGasoilRows: gasoil,
-  }), [voyage, achats, livraisons, charges, retours, locations, vehicleGasoil, gasoil])
+    remiseRate,
+  }), [voyage, achats, livraisons, charges, retours, locations, vehicleGasoil, gasoil, remiseRate])
 
   // Let the host page (Review Mode) patch just this one voyage's row after
   // any load/save completes, instead of refetching its whole list. The third

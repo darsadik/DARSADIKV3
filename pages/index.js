@@ -3,7 +3,8 @@ import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './_app'
-import { computeVoyageProfit } from '../lib/services/profitability'
+import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../lib/services/profitability'
+import { fetchRemiseCarburantRate } from '../lib/services/settings'
 import Link from 'next/link'
 import { useVoyageTransactionEdit } from '../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../components/voyage/EditTransactionModal'
@@ -49,13 +50,14 @@ export default function Dashboard() {
   const [clients,      setClients]      = useState([])
   const [camionsData,  setCamionsData]  = useState([])
   const [locationsVoy, setLocationsVoy] = useState([])
+  const [remiseRate,   setRemiseRate]   = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
   // ── DATE FILTER ──
   const [filterType, setFilterType] = useState('month') // 'month' | 'week' | 'custom'
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo,   setFilterTo]   = useState(today())
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
   // ── EDIT VOYAGE-SOURCED LIVRAISONS (same modal as the voyage page) ──
   // The dashboard's `livraisons` select is trimmed for the KPI cards, so on
@@ -91,7 +93,7 @@ export default function Dashboard() {
       supabase.from('voyage_livraisons').select('id,voyage_id,date_livraison,type_produit,type_brique,qte,total_vente,frais_total,client_id,client_nom,note'),
       supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
       supabase.from('voyage_gasoil').select('voyage_id,total'),
-      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total').not('km', 'is', null).order('km', { ascending: true }),
+      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').not('km', 'is', null).order('km', { ascending: true }),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
       supabase.from('voyage_retours').select('voyage_id,montant'),
       supabase.from('clients').select('id,nom,solde').order('solde', { ascending: false }),
@@ -131,6 +133,7 @@ export default function Dashboard() {
       locations: locationsVoy.filter(l => l.voyage_id === vid),
       camionRefills: gasoilByCamion[voyage?.camion_id] || [],
       voyageGasoilRows: gasoilVoy.filter(g => g.voyage_id === vid),
+      remiseRate,
     })
     return { revenu: result.revenue.total, cout: result.cost.total, profit: result.profit }
   }
