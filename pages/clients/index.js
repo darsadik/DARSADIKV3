@@ -98,6 +98,10 @@ export default function Clients() {
   const [selectedClientIds, setSelectedClientIds] = useState(new Set())
   const [lastClickedClientIdx, setLastClickedClientIdx] = useState(null)
 
+  // ── CLIENT LIST DISPLAY MODE (grouping is presentation-only — no data/accounting change) ──
+  const [listMode, setListMode] = useState('classique') // 'classique' | 'depot'
+  const [collapsedDepots, setCollapsedDepots] = useState(new Set())
+
   useEffect(() => { loadClients() }, [])
 
   // Reset presentation state when client changes
@@ -801,6 +805,26 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   const selectedCreancesTotal = filtered
     .filter(c => selectedClientIds.has(c.id))
     .reduce((s, c) => s + (reportPeriodActive ? ((reportBalances[c.id] ?? c.solde) || 0) : (c.solde || 0)), 0)
+
+  // ── DEPOT GROUPING (display mode only — same `filtered` data, no accounting change) ──
+  function getClientBalance(c) {
+    return reportPeriodActive ? ((reportBalances[c.id] ?? c.solde) || 0) : (c.solde || 0)
+  }
+  const groupedByDepot = listMode === 'depot' ? (() => {
+    const map = new Map()
+    filtered.forEach(c => {
+      const key = c.depot || 'Sans dépôt'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(c)
+    })
+    return [...map.entries()]
+      .map(([depot, list]) => {
+        const sorted = list.slice().sort((a, b) => getClientBalance(b) - getClientBalance(a))
+        return { depot, clients: sorted, count: sorted.length, total: sorted.reduce((s, c) => s + getClientBalance(c), 0) }
+      })
+      .sort((a, b) => a.depot.localeCompare(b.depot))
+  })() : []
+
   const totalVentesClient    = filteredVentes.reduce((s, v) => s + (v.total_vente || 0), 0)
   const totalPaiementsClient = filteredPaiements.reduce((s, p) => s + (p.montant || 0), 0)
   const ledger = selected && !loadingDetail ? buildLedger() : { entries: [], startBalance: 0, finalBalance: 0 }
@@ -1155,6 +1179,96 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
     }
     setSelectedClientIds(ns)
     setLastClickedClientIdx(idx)
+  }
+
+  function toggleDepotSelection(depot, groupIds, checked) {
+    const ns = new Set(selectedClientIds)
+    if (checked) groupIds.forEach(id => ns.add(id))
+    else groupIds.forEach(id => ns.delete(id))
+    setSelectedClientIds(ns)
+  }
+
+  function toggleDepotCollapsed(depot) {
+    const ns = new Set(collapsedDepots)
+    ns.has(depot) ? ns.delete(depot) : ns.add(depot)
+    setCollapsedDepots(ns)
+  }
+
+  // ── SHARED CLIENT ROW (used by both "Liste classique" and "Dépôt" display modes) ──
+  function renderClientRow(c) {
+    const idx = filtered.findIndex(x => x.id === c.id)
+    const s = c.solde || 0
+    const displayBalance = reportPeriodActive ? (reportBalances[c.id] ?? s) : s
+    const isActive = selected?.id === c.id
+    const isChecked = selectedClientIds.has(c.id)
+    const balColor = displayBalance >= 100000 ? 'text-red-600' : displayBalance >= 30000 ? 'text-amber-600' : displayBalance > 0 ? 'text-blue-600' : 'text-green-600'
+    return (
+      <div key={c.id}
+        className={`flex items-center gap-2 p-3 rounded-xl transition-all border select-none
+          ${isActive ? 'bg-brand-50 border-brand-200' : isChecked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}
+        style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
+        {/* Checkbox — click stops propagation so row click still opens detail */}
+        <div
+          onClick={ev => { ev.stopPropagation(); handleClientCheck(c.id, idx, ev) }}
+          style={{flexShrink:0,cursor:'pointer',padding:'2px 0'}}>
+          <input type="checkbox" checked={isChecked} readOnly
+            style={{width:14,height:14,cursor:'pointer',accentColor:'#1e3a5f',pointerEvents:'none'}} />
+        </div>
+        {/* Main row — click opens detail */}
+        <div className="flex-1 min-w-0 flex items-center justify-between cursor-pointer"
+          onClick={() => selectClient(c)} role="button" tabIndex={0}
+          onKeyDown={e => e.key === 'Enter' && selectClient(c)}>
+          <div className="min-w-0">
+            <div className={`font-semibold text-sm truncate ${isActive ? 'text-brand-700' : 'text-gray-900'}`}>{c.nom}</div>
+            <div className="text-xs text-gray-400">{c.depot}</div>
+          </div>
+          <div className="flex items-center gap-2 ml-2">
+            <div className={`text-xs font-bold ${balColor}`}>
+              {reportLoading ? '...' : `${fmt(displayBalance)} DHS`}
+            </div>
+            <span className="text-gray-300 lg:hidden">›</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── DEPOT GROUP HEADER (collapsible, selects/deselects every client inside) ──
+  function renderDepotGroup(g) {
+    const isCollapsed = collapsedDepots.has(g.depot)
+    const groupIds = g.clients.map(c => c.id)
+    const selectedInGroup = groupIds.filter(id => selectedClientIds.has(id)).length
+    const allSelected = groupIds.length > 0 && selectedInGroup === groupIds.length
+    const someSelected = selectedInGroup > 0 && !allSelected
+    return (
+      <div key={g.depot} className="rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center gap-2 p-3 bg-gray-100 cursor-pointer select-none hover:bg-gray-200 transition-colors"
+          onClick={() => toggleDepotCollapsed(g.depot)}>
+          <div onClick={ev => ev.stopPropagation()} style={{flexShrink:0,cursor:'pointer',padding:'2px 0'}}>
+            <input type="checkbox" checked={allSelected}
+              ref={el => { if (el) el.indeterminate = someSelected }}
+              onChange={ev => toggleDepotSelection(g.depot, groupIds, ev.target.checked)}
+              style={{width:14,height:14,cursor:'pointer',accentColor:'#1e3a5f'}} />
+          </div>
+          <span className="text-gray-400 text-xs flex-shrink-0">{isCollapsed ? '▶' : '▼'}</span>
+          <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-bold text-sm text-gray-900 truncate">
+                📁 {g.depot} <span className="text-gray-400 font-medium">({g.count} client{g.count > 1 ? 's' : ''})</span>
+              </div>
+            </div>
+            <div className="text-xs font-bold text-red-600 flex-shrink-0">
+              {reportLoading ? '...' : `${fmt(g.total)} DHS`}
+            </div>
+          </div>
+        </div>
+        {!isCollapsed && (
+          <div className="p-2 space-y-2 bg-white">
+            {g.clients.map(c => renderClientRow(c))}
+          </div>
+        )}
+      </div>
+    )
   }
 
   function printSelectedClients() {
@@ -1812,45 +1926,29 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
 
             <input className="input mb-3" placeholder="Rechercher un client..." value={search} onChange={e => setSearch(e.target.value)} />
 
+            {/* DISPLAY MODE — presentation only, does not affect search/selection/PDF/calculations */}
+            <div className="flex items-center gap-4 mb-3">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Afficher par:</span>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 cursor-pointer">
+                <input type="radio" name="clientListMode" checked={listMode === 'classique'}
+                  onChange={() => setListMode('classique')} style={{accentColor:'#1e3a5f',cursor:'pointer'}} />
+                Liste classique
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 cursor-pointer">
+                <input type="radio" name="clientListMode" checked={listMode === 'depot'}
+                  onChange={() => setListMode('depot')} style={{accentColor:'#1e3a5f',cursor:'pointer'}} />
+                Dépôt
+              </label>
+            </div>
+
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
               {loading ? (
                 <div className="text-center text-gray-400 py-6">Chargement...</div>
-              ) : filtered.map((c, idx) => {
-                const s = c.solde || 0
-                const displayBalance = reportPeriodActive ? (reportBalances[c.id] ?? s) : s
-                const isActive = selected?.id === c.id
-                const isChecked = selectedClientIds.has(c.id)
-                const balColor = displayBalance >= 100000 ? 'text-red-600' : displayBalance >= 30000 ? 'text-amber-600' : displayBalance > 0 ? 'text-blue-600' : 'text-green-600'
-                return (
-                  <div key={c.id}
-                    className={`flex items-center gap-2 p-3 rounded-xl transition-all border select-none
-                      ${isActive ? 'bg-brand-50 border-brand-200' : isChecked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100 hover:bg-gray-100'}`}
-                    style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
-                    {/* Checkbox — click stops propagation so row click still opens detail */}
-                    <div
-                      onClick={ev => { ev.stopPropagation(); handleClientCheck(c.id, idx, ev) }}
-                      style={{flexShrink:0,cursor:'pointer',padding:'2px 0'}}>
-                      <input type="checkbox" checked={isChecked} readOnly
-                        style={{width:14,height:14,cursor:'pointer',accentColor:'#1e3a5f',pointerEvents:'none'}} />
-                    </div>
-                    {/* Main row — click opens detail */}
-                    <div className="flex-1 min-w-0 flex items-center justify-between cursor-pointer"
-                      onClick={() => selectClient(c)} role="button" tabIndex={0}
-                      onKeyDown={e => e.key === 'Enter' && selectClient(c)}>
-                      <div className="min-w-0">
-                        <div className={`font-semibold text-sm truncate ${isActive ? 'text-brand-700' : 'text-gray-900'}`}>{c.nom}</div>
-                        <div className="text-xs text-gray-400">{c.depot}</div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        <div className={`text-xs font-bold ${balColor}`}>
-                          {reportLoading ? '...' : `${fmt(displayBalance)} DHS`}
-                        </div>
-                        <span className="text-gray-300 lg:hidden">›</span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+              ) : listMode === 'depot' ? (
+                groupedByDepot.map(g => renderDepotGroup(g))
+              ) : (
+                filtered.map(c => renderClientRow(c))
+              )}
               {filtered.length === 0 && <div className="text-center text-gray-400 py-6">Aucun client</div>}
             </div>
 
