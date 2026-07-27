@@ -701,16 +701,16 @@ ${pEntries.length > 0 ? `<div class="totals-row">
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#f0fdfa;color:#0f766e;border:1px solid #99f6e4;letter-spacing:0.03em;white-space:nowrap}
-  .total-final{background:#ffffff;border:4px solid #166534;border-radius:10px;padding:18px 26px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
-  .sf-lbl{font-size:14px;font-weight:900;color:#052e16;letter-spacing:0.04em;text-transform:uppercase}
-  .sf-amt{font-size:48px;font-weight:900;color:#166534;line-height:1;letter-spacing:-1px}
-  .sf-unit{font-size:15px;font-weight:800;color:#166534;margin-left:5px}
-  .sf-sub{font-size:10.5px;color:#475569;margin-top:3px}
-  .prev-solde{background:#fef2f2;border:4px solid #b91c1c;border-radius:10px;padding:18px 26px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-  .ps-lbl{font-size:14px;font-weight:900;color:#450a0a;letter-spacing:0.04em;text-transform:uppercase}
-  .ps-amt{font-size:48px;font-weight:900;color:#b91c1c;line-height:1;letter-spacing:-1px}
-  .ps-unit{font-size:15px;font-weight:800;color:#b91c1c;margin-left:5px}
+  .total-final{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+  .sf-lbl{font-size:11px;font-weight:800;color:#166534;letter-spacing:0.06em;text-transform:uppercase}
+  .sf-amt{font-size:24px;font-weight:900;color:#166534;line-height:1.2;letter-spacing:-0.3px}
+  .sf-unit{font-size:12px;font-weight:700;color:#166534;margin-left:4px}
+  .sf-sub{font-size:10px;color:#4b5563;margin-top:2px}
+  .prev-solde{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .ps-lbl{font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.06em;text-transform:uppercase}
+  .ps-amt{font-size:20px;font-weight:800;color:#334155;line-height:1.2}
+  .ps-unit{font-size:12px;font-weight:600;color:#64748b;margin-left:4px}
+  .ps-sub{font-size:10px;color:#94a3b8;margin-top:2px}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
 <div class="hdr">
@@ -743,7 +743,7 @@ ${pEntries.length > 0 ? `<div class="totals-row">
 </div>
 ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
 <div class="prev-solde">
-  <div class="ps-lbl">Ancien Solde</div>
+  <div><div class="ps-lbl">Ancien Solde</div><div class="ps-sub">Compte précédent non inclus dans ce relevé</div></div>
   <div style="text-align:right"><div style="line-height:1"><span class="ps-amt">${fmtMoney(Math.abs(ancienSolde))}</span><span class="ps-unit">DHS</span></div></div>
 </div>
 </div>` : ''}
@@ -757,7 +757,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
     ${rowsSel.map(v => `<tr>
         <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td>
         <td class="m">${v.camion_plaque || '—'}</td>
-        <td><span class="tag">${v.type_brique || '—'}</span></td>
+        <td style="color:#0f172a;font-weight:600">${v.type_brique || '—'}</td>
         <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${fmt(v.qte)}</td>
         <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${fmtMoney(v.prix_vente||0)}</td>
         <td class="r" style="font-size:14.5px;font-weight:800;color:#0f766e;white-space:nowrap">${fmtMoney(v.total_vente||0)}</td>
@@ -766,7 +766,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   </tbody>
 </table>
 <div class="total-final">
-  <div><div class="sf-lbl">TOTAL À ENCAISSER</div><div class="sf-sub">${rowsSel.length} livraison${rowsSel.length !== 1 ? 's' : ''} sélectionnée${rowsSel.length !== 1 ? 's' : ''}</div></div>
+  <div><div class="sf-lbl">À encaisser (Nouvelles livraisons)</div><div class="sf-sub">${rowsSel.length} livraison${rowsSel.length !== 1 ? 's' : ''}</div></div>
   <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(total)}</span><span class="sf-unit">DHS</span></div></div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
