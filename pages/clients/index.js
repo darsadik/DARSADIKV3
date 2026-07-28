@@ -69,10 +69,18 @@ export default function Clients() {
 
   // ── BILLING STATEMENT / "Factures à Encaisser" — optional commercial document.
   // Selection-only, purely presentational: never writes to any table, never
-  // touches balance/accounting/payments. Just picks which ventes rows to show.
+  // touches balance/accounting history. Picks which livraison/paiement rows to show.
+  // billingSelectedRows holds composite keys ("liv:<id>" / "pai:<id>") since a
+  // livraison id and a paiement id can collide numerically.
   const [billingSelectedRows, setBillingSelectedRows] = useState(new Set())
   // Optional info-only display of the old balance, excluded from the collected total. Default OFF.
   const [billingIncludePrevSolde, setBillingIncludePrevSolde] = useState(false)
+  // Display-only custom print order for the selected billing rows (drag & drop
+  // reorder). Never persisted, never affects any total — purely presentational.
+  const [billingOrder, setBillingOrder] = useState([])
+  const [billingPresentationMode, setBillingPresentationMode] = useState(false)
+  const [billingDragFrom, setBillingDragFrom] = useState(null)
+  const [billingDragOver, setBillingDragOver] = useState(null)
 
   // ── PRESENTATION SAVES (localStorage) ──
   const [presentations, setPresentations] = useState([])
@@ -113,6 +121,8 @@ export default function Clients() {
     setPresLastClickedIdx(null)
     setBillingSelectedRows(new Set())
     setBillingIncludePrevSolde(false)
+    setBillingOrder([])
+    setBillingPresentationMode(false)
     setStmtMode('chrono')
     try {
       const hl = localStorage.getItem(`chrono_hl_${selected.id}`)
@@ -364,7 +374,7 @@ export default function Clients() {
   function printClient() {
     if (stmtMode === 'presentation') { printPresentationClient(); return }
     if (stmtMode === 'billing') {
-      if (billingSelectedRows.size === 0) { alert('Sélectionnez au moins une livraison à facturer.'); return }
+      if (billingSelectedRows.size === 0) { alert('Sélectionnez au moins une ligne à facturer.'); return }
       printBillingStatement(); return
     }
     const _now = new Date()
@@ -649,26 +659,41 @@ ${pEntries.length > 0 ? `<div class="totals-row">
 </div></body></html>`)
   }
 
-  // ── BILLING STATEMENT: candidate rows (pure livraisons only — no mdo, no remise) ──
-  // Optional commercial document. Shows ONLY selected deliveries + their total.
-  // Never reads/writes balance, payments, or accounting history.
+  // ── BILLING STATEMENT: candidate rows (livraisons — no mdo, no remise — PLUS
+  // client payments). Optional commercial document. Shows ONLY selected rows
+  // + their net total. Never reads/writes balance or accounting history —
+  // every figure here is recomputed from the same ventes/paiements rows
+  // already loaded for the account, nothing new is fetched or written.
+  // Each row carries a composite `key` ("liv:<id>" / "pai:<id>") because a
+  // livraison id and a paiement id can collide numerically.
   function getBillingCandidates() {
     if (!selected) return []
-    return clientVentes
+    const livs = clientVentes
       .filter(v => v.type_entree !== 'remise' && v.type_entree !== 'mdo')
-      .slice()
-      .sort((a, b) => {
-        if (a.date !== b.date) return a.date < b.date ? -1 : 1
-        const ca = a.created_at || '', cb = b.created_at || ''
-        return ca < cb ? -1 : ca > cb ? 1 : 0
-      })
+      .map(v => ({ key: `liv:${v.id}`, kind: 'livraison', date: v.date, created_at: v.created_at || '', raw: v }))
+    const pais = clientPaiements
+      .map(p => ({ key: `pai:${p.id}`, kind: 'paiement', date: p.date, created_at: p.created_at || '', raw: p }))
+    return [...livs, ...pais].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1
+      return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
+    })
   }
 
   // ── PRINT: BILLING STATEMENT (Factures à Encaisser) ──
   function printBillingStatement() {
-    const rowsSel = getBillingCandidates().filter(v => billingSelectedRows.has(v.id))
+    const candidates = getBillingCandidates()
+    const byKey = new Map(candidates.map(c => [c.key, c]))
+    // Custom drag order (Mode Présentation) wins when set; otherwise fall back
+    // to the natural chronological order — purely which rows are shown and in
+    // what sequence, never a calculation.
+    const orderKeys = billingOrder.length > 0 ? billingOrder : candidates.map(c => c.key)
+    const rowsSel = orderKeys.filter(k => billingSelectedRows.has(k)).map(k => byKey.get(k)).filter(Boolean)
     if (rowsSel.length === 0) return
-    const total = rowsSel.reduce((s, v) => s + (v.total_vente || 0), 0)
+    const totalDebit  = rowsSel.filter(r => r.kind === 'livraison').reduce((s, r) => s + (r.raw.total_vente || 0), 0)
+    const totalCredit = rowsSel.filter(r => r.kind === 'paiement').reduce((s, r) => s + (r.raw.montant || 0), 0)
+    const total = totalDebit - totalCredit
+    const nLiv = rowsSel.filter(r => r.kind === 'livraison').length
+    const nPai = rowsSel.filter(r => r.kind === 'paiement').length
     const ancienSolde = (selected.solde || 0) - total
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
@@ -754,19 +779,35 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
     <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th>Note</th>
   </tr></thead>
   <tbody>
-    ${rowsSel.map(v => `<tr>
+    ${rowsSel.map(r => {
+      if (r.kind === 'paiement') {
+        const p = r.raw
+        const noteTxt = [p.mode, p.note].filter(Boolean).join(' · ')
+        return `<tr>
+        <td class="m" style="white-space:nowrap">${fmtDate(p.date)}</td>
+        <td class="m">${p.camion_plaque || '—'}</td>
+        <td style="color:#0f1115;font-weight:700">Paiement</td>
+        <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">—</td>
+        <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">—</td>
+        <td class="r" style="font-size:14.5px;font-weight:800;color:#1e3a5f;white-space:nowrap">− ${fmtMoney(p.montant||0)}</td>
+        <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${noteTxt?600:400};color:${noteTxt?'#1f2937':'#6b7280'}">${noteTxt || '—'}</td>
+      </tr>`
+      }
+      const v = r.raw
+      return `<tr>
         <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td>
         <td class="m">${v.camion_plaque || '—'}</td>
         <td style="color:#0f1115;font-weight:700">${v.type_brique || '—'}</td>
         <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">${fmt(v.qte)}</td>
         <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">${fmtMoney(v.prix_vente||0)}</td>
-        <td class="r" style="font-size:14.5px;font-weight:800;color:#1e3a5f;white-space:nowrap">${fmtMoney(v.total_vente||0)}</td>
+        <td class="r" style="font-size:14.5px;font-weight:800;color:#1e3a5f;white-space:nowrap">+ ${fmtMoney(v.total_vente||0)}</td>
         <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${v.note?600:400};color:${v.note?'#1f2937':'#6b7280'}">${v.note || '—'}</td>
-      </tr>`).join('')}
+      </tr>`
+    }).join('')}
   </tbody>
 </table>
 <div class="total-final">
-  <div><div class="sf-lbl">À encaisser (Nouvelles livraisons)</div><div class="sf-sub">${rowsSel.length} livraison${rowsSel.length !== 1 ? 's' : ''}</div></div>
+  <div><div class="sf-lbl">À encaisser (Nouvelles livraisons)</div><div class="sf-sub">${nLiv} livraison${nLiv !== 1 ? 's' : ''}${nPai > 0 ? ` · ${nPai} paiement${nPai !== 1 ? 's' : ''}` : ''}</div></div>
   <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(total)}</span><span class="sf-unit">DHS</span></div></div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
@@ -1684,33 +1725,63 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   }
 
   // ── RENDER: BILLING STATEMENT TABLE (Factures à Encaisser) ──
-  // Optional commercial document: pick deliveries, show only their own fields
-  // + a total. No balance, no payments, no accounting history in this view.
+  // Optional commercial document: pick deliveries (débit) and payments (crédit),
+  // show only their own fields + a net total. No accounting history in this view.
   function renderBillingTable() {
     const candidates = getBillingCandidates()
+    const byKey = new Map(candidates.map(c => [c.key, c]))
     const thS = { background:'#f0fdfa', color:'#0f766e', borderBottom:'2px solid #99f6e4', whiteSpace:'nowrap', padding:'9px 12px', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
     const bdr = { border:'1px solid #f1f5f9' }
 
-    const selectedRows = candidates.filter(v => billingSelectedRows.has(v.id))
-    const selectedTotal = selectedRows.reduce((s, v) => s + (v.total_vente || 0), 0)
+    // Display/print order: custom drag order (Mode Présentation) when set,
+    // otherwise natural chronological order — presentation-only, never a calculation.
+    const orderKeys = billingOrder.length > 0 ? billingOrder : candidates.map(c => c.key)
+    const selectedRows = orderKeys.filter(k => billingSelectedRows.has(k)).map(k => byKey.get(k)).filter(Boolean)
+    const selectedTotal = selectedRows.reduce((s, r) => s + (r.kind === 'paiement' ? -(r.raw.montant || 0) : (r.raw.total_vente || 0)), 0)
     const ancienSolde = (selected?.solde || 0) - selectedTotal
 
-    function toggleRow(id) {
+    function toggleRow(key) {
       const ns = new Set(billingSelectedRows)
-      ns.has(id) ? ns.delete(id) : ns.add(id)
+      if (ns.has(key)) {
+        ns.delete(key)
+        setBillingOrder(prev => prev.filter(k => k !== key))
+      } else {
+        ns.add(key)
+        setBillingOrder(prev => [...prev, key])
+      }
       setBillingSelectedRows(ns)
     }
 
+    function moveSelectedRow(fromIdx, toIdx) {
+      if (fromIdx === toIdx) return
+      const base = billingOrder.length > 0 ? billingOrder : candidates.map(c => c.key)
+      const selKeys = base.filter(k => billingSelectedRows.has(k))
+      const arr = [...selKeys]
+      const [moved] = arr.splice(fromIdx, 1)
+      arr.splice(toIdx, 0, moved)
+      // Keep unselected rows in their natural relative order, only the
+      // selected subset follows the new drag order.
+      let cursor = 0
+      const merged = base.map(k => billingSelectedRows.has(k) ? arr[cursor++] : k)
+      setBillingOrder(merged)
+    }
+
     if (candidates.length === 0) {
-      return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune livraison</div>
+      return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune opération</div>
     }
 
     return (
       <div>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',borderBottom:'1px solid #f1f5f9',background:'#f0fdfa',flexWrap:'wrap'}}>
           <span style={{fontSize:11,color:'#0f766e',flex:1,minWidth:0}}>
-            🧾 Cochez les livraisons à facturer — seules les lignes sélectionnées apparaissent sur le document
+            🧾 Cochez les livraisons et paiements à inclure — seules les lignes sélectionnées apparaissent sur le document
           </span>
+          <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,color:'#334155',cursor:'pointer',whiteSpace:'nowrap'}}>
+            <input type="checkbox" checked={billingPresentationMode}
+              onChange={ev => setBillingPresentationMode(ev.target.checked)}
+              style={{width:13,height:13,cursor:'pointer',accentColor:'#0f766e'}} />
+            🔀 Mode Présentation (réorganiser)
+          </label>
           <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,color:'#334155',cursor:'pointer',whiteSpace:'nowrap'}}>
             <input type="checkbox" checked={billingIncludePrevSolde}
               onChange={ev => setBillingIncludePrevSolde(ev.target.checked)}
@@ -1728,11 +1799,43 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
           </div>
         )}
 
+        {billingPresentationMode && selectedRows.length > 0 && (
+          <div style={{margin:'10px 16px 0',border:'1px solid #99f6e4',borderRadius:8,overflow:'hidden'}}>
+            <div style={{background:'#f0fdfa',color:'#0f766e',fontSize:10.5,fontWeight:700,padding:'6px 12px',textTransform:'uppercase',letterSpacing:'0.05em'}}>
+              Glissez ⠿ pour réordonner l'ordre d'impression
+            </div>
+            {selectedRows.map((r, i) => {
+              const isPai = r.kind === 'paiement'
+              const label = isPai ? 'Paiement' : (r.raw.type_brique || '—')
+              const montant = isPai ? -(r.raw.montant||0) : (r.raw.total_vente||0)
+              const isDragging = billingDragFrom === i
+              const isDropTarget = billingDragOver === i && billingDragFrom !== null && billingDragFrom !== i
+              return (
+                <div key={r.key}
+                  onDragOver={ev => { ev.preventDefault(); setBillingDragOver(i) }}
+                  onDrop={ev => { ev.preventDefault(); moveSelectedRow(billingDragFrom, i); setBillingDragFrom(null); setBillingDragOver(null) }}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'7px 12px',borderTop:'1px solid #f1f5f9',
+                    background: isDropTarget ? '#f0fdfa' : '#fff', opacity: isDragging ? 0.4 : 1}}>
+                  <span draggable
+                    onDragStart={ev => { ev.dataTransfer.effectAllowed='move'; setBillingDragFrom(i) }}
+                    onDragEnd={() => { setBillingDragFrom(null); setBillingDragOver(null) }}
+                    style={{cursor:'grab',color:'#94a3b8',fontSize:14,userSelect:'none'}}>⠿</span>
+                  <span style={{fontSize:11,color:'#374151',minWidth:70}}>{fmtDate(r.date)}</span>
+                  <span style={{fontSize:12,fontWeight:600,color:'#0f172a',flex:1}}>{label}</span>
+                  <span style={{fontSize:12,fontWeight:700,color: isPai ? '#374151' : '#0f766e'}}>
+                    {isPai ? '− ' : '+ '}{fmtMoney(Math.abs(montant))} DHS
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         {selectedRows.length > 0 && (
           <div style={{background:'#0f766e',color:'#fff',padding:'10px 16px',display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,boxShadow:'0 4px 16px rgba(15,118,110,0.35)'}}>
             <div style={{flex:1,minWidth:180}}>
               <div style={{fontWeight:700,fontSize:13,lineHeight:1.3}}>
-                {selectedRows.length} livraison{selectedRows.length > 1 ? 's' : ''} sélectionnée{selectedRows.length > 1 ? 's' : ''}
+                {selectedRows.length} ligne{selectedRows.length > 1 ? 's' : ''} sélectionnée{selectedRows.length > 1 ? 's' : ''}
               </div>
               <div style={{fontSize:13,marginTop:3}}>
                 TOTAL À ENCAISSER : <strong style={{fontSize:15}}>{fmtMoney(selectedTotal)} DHS</strong>
@@ -1749,7 +1852,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
               style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#99f6e4',color:'#0f766e',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
               📄 PDF
             </button>
-            <button onClick={() => setBillingSelectedRows(new Set())}
+            <button onClick={() => { setBillingSelectedRows(new Set()); setBillingOrder([]) }}
               style={{padding:'5px 12px',borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'transparent',color:'#fecaca',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
               ✕ Annuler
             </button>
@@ -1762,8 +1865,17 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
               <tr>
                 <th style={{...thS,width:36,padding:'9px 6px',textAlign:'center'}}>
                   <input type="checkbox"
-                    checked={candidates.length > 0 && candidates.every(v => billingSelectedRows.has(v.id))}
-                    onChange={ev => setBillingSelectedRows(ev.target.checked ? new Set(candidates.map(v => v.id)) : new Set())}
+                    checked={candidates.length > 0 && candidates.every(c => billingSelectedRows.has(c.key))}
+                    onChange={ev => {
+                      if (ev.target.checked) {
+                        const keys = candidates.map(c => c.key)
+                        setBillingSelectedRows(new Set(keys))
+                        setBillingOrder(keys)
+                      } else {
+                        setBillingSelectedRows(new Set())
+                        setBillingOrder([])
+                      }
+                    }}
                     style={{width:13,height:13,cursor:'pointer',accentColor:'#0f766e'}} />
                 </th>
                 {[
@@ -1775,28 +1887,32 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
               </tr>
             </thead>
             <tbody>
-              {candidates.map(v => {
-                const isSelected = billingSelectedRows.has(v.id)
+              {candidates.map(c => {
+                const isSelected = billingSelectedRows.has(c.key)
+                const isPai = c.kind === 'paiement'
+                const v = c.raw
                 return (
-                  <tr key={v.id} onClick={() => toggleRow(v.id)}
-                    style={{ background: isSelected ? '#f0fdfa' : undefined, cursor:'pointer',
-                      borderLeft: isSelected ? '3px solid #0f766e' : undefined }}>
+                  <tr key={c.key} onClick={() => toggleRow(c.key)}
+                    style={{ background: isSelected ? (isPai ? '#f8fafc' : '#f0fdfa') : undefined, cursor:'pointer',
+                      borderLeft: isSelected ? `3px solid ${isPai ? '#64748b' : '#0f766e'}` : undefined }}>
                     <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}} onClick={ev => ev.stopPropagation()}>
-                      <input type="checkbox" checked={isSelected} onChange={() => toggleRow(v.id)}
+                      <input type="checkbox" checked={isSelected} onChange={() => toggleRow(c.key)}
                         style={{width:13,height:13,cursor:'pointer',accentColor:'#0f766e'}} />
                     </td>
                     <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',color:'#374151'}}>{fmtDate(v.date)}</td>
                     <td className="td text-xs" style={{...bdr,padding:'10px 12px',color:'#374151'}}>{v.camion_plaque || '—'}</td>
                     <td style={{...bdr,padding:'10px 12px'}}>
-                      <span style={{background:'#f0fdfa',color:'#0f766e',fontWeight:700,fontSize:10,padding:'2px 8px',borderRadius:3,border:'1px solid #99f6e4',whiteSpace:'nowrap'}}>{v.type_brique || '—'}</span>
+                      {isPai
+                        ? <span style={{background:'#f1f5f9',color:'#334155',fontWeight:700,fontSize:10,padding:'2px 8px',borderRadius:3,border:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>Paiement</span>
+                        : <span style={{background:'#f0fdfa',color:'#0f766e',fontWeight:700,fontSize:10,padding:'2px 8px',borderRadius:3,border:'1px solid #99f6e4',whiteSpace:'nowrap'}}>{v.type_brique || '—'}</span>}
                     </td>
-                    <td className="td text-right" style={{...bdr,padding:'10px 12px',fontWeight:700,color:'#0f172a'}}>{fmt(v.qte)}</td>
-                    <td className="td text-right" style={{...bdr,padding:'10px 12px',fontWeight:700,color:'#0f172a'}}>{fmtMoney(v.prix_vente||0)}</td>
-                    <td className="td text-right" style={{...bdr,padding:'10px 14px',fontSize:15,fontWeight:900,color:'#0f766e',whiteSpace:'nowrap',letterSpacing:'-0.2px'}}>
-                      {fmtMoney(v.total_vente||0)}
+                    <td className="td text-right" style={{...bdr,padding:'10px 12px',fontWeight:700,color:'#0f172a'}}>{isPai ? '—' : fmt(v.qte)}</td>
+                    <td className="td text-right" style={{...bdr,padding:'10px 12px',fontWeight:700,color:'#0f172a'}}>{isPai ? '—' : fmtMoney(v.prix_vente||0)}</td>
+                    <td className="td text-right" style={{...bdr,padding:'10px 14px',fontSize:15,fontWeight:900,color: isPai ? '#334155' : '#0f766e',whiteSpace:'nowrap',letterSpacing:'-0.2px'}}>
+                      {isPai ? `− ${fmtMoney(v.montant||0)}` : `+ ${fmtMoney(v.total_vente||0)}`}
                     </td>
-                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',color:v.note?'#374151':'#9ca3af',fontStyle:v.note?'normal':'italic',fontWeight:v.note?600:400}}>
-                      {v.note || '—'}
+                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',color:(isPai ? [v.mode,v.note].filter(Boolean).join(' · ') : v.note)?'#374151':'#9ca3af',fontStyle:(isPai ? v.mode||v.note : v.note)?'normal':'italic',fontWeight:(isPai ? v.mode||v.note : v.note)?600:400}}>
+                      {isPai ? ([v.mode, v.note].filter(Boolean).join(' · ') || '—') : (v.note || '—')}
                     </td>
                   </tr>
                 )
@@ -1806,7 +1922,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
               <tfoot>
                 <tr>
                   <td colSpan={6} style={{padding:'14px 12px',background:'#f0fdf4',color:'#052e16',fontWeight:900,fontSize:14,borderTop:'3px solid #166534',textTransform:'uppercase',letterSpacing:'0.03em'}}>
-                    TOTAL À ENCAISSER — {selectedRows.length} livraison{selectedRows.length !== 1 ? 's' : ''}
+                    TOTAL À ENCAISSER — {selectedRows.length} ligne{selectedRows.length !== 1 ? 's' : ''}
                   </td>
                   <td style={{padding:'14px',background:'#f0fdf4',fontSize:24,fontWeight:900,color:'#166534',textAlign:'right',borderTop:'3px solid #166534',letterSpacing:'-0.3px'}}>
                     {fmtMoney(selectedTotal)} <span style={{fontSize:13,fontWeight:800,color:'#166534'}}>DHS</span>
@@ -2093,7 +2209,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                               {stmtMode === 'billing' ? 'Factures à Encaisser' : 'Historique du compte'}
                               <span className="text-gray-400 font-normal text-sm ml-2">
                                 {stmtMode === 'billing'
-                                  ? `(${getBillingCandidates().length} livraison${getBillingCandidates().length !== 1 ? 's' : ''})`
+                                  ? `(${getBillingCandidates().length} ligne${getBillingCandidates().length !== 1 ? 's' : ''})`
                                   : `(${stmtMode === 'presentation' ? buildPresentationLedger().entries.length : displayEntries.length} opération${displayEntries.length !== 1 ? 's' : ''})`}
                               </span>
                             </h3>
