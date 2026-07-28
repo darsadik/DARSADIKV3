@@ -695,11 +695,12 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     const nLiv = rowsSel.filter(r => r.kind === 'livraison').length
     const nPai = rowsSel.filter(r => r.kind === 'paiement').length
     const ancienSolde = (selected.solde || 0) - total
-    // ── running Solde column, same convention as the other statements
-    // (chrono/présentation): starts at Ancien Solde when included, else 0,
-    // then +débit/−crédit through the rows in their displayed order. Purely
-    // a derived display value — never written anywhere, never changes total.
-    let runningSolde = billingIncludePrevSolde ? ancienSolde : 0
+    // ── running Solde column: always starts at 0 for THIS document, never
+    // chained to Ancien Solde — that card is only a reminder of the old
+    // account and stays fully separate from this batch's own running total.
+    // Purely a derived display value — never written anywhere, never changes
+    // the "À encaisser" total.
+    let runningSolde = 0
     rowsSel.forEach(r => {
       runningSolde += r.kind === 'paiement' ? -(r.raw.montant || 0) : (r.raw.total_vente || 0)
       r.solde = runningSolde
@@ -1752,9 +1753,9 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
     const selectedRows = orderKeys.filter(k => billingSelectedRows.has(k)).map(k => byKey.get(k)).filter(Boolean)
     const selectedTotal = selectedRows.reduce((s, r) => s + (r.kind === 'paiement' ? -(r.raw.montant || 0) : (r.raw.total_vente || 0)), 0)
     const ancienSolde = (selected?.solde || 0) - selectedTotal
-    // Running Solde column, same convention as the other statements — starts
-    // at Ancien Solde when included, else 0, then +débit/−crédit in display order.
-    let runningSolde = billingIncludePrevSolde ? ancienSolde : 0
+    // Running Solde column: always starts at 0 for this document — Ancien
+    // Solde is only a reminder card, never chained into this batch's running total.
+    let runningSolde = 0
     const soldeByKey = new Map()
     selectedRows.forEach(r => {
       runningSolde += r.kind === 'paiement' ? -(r.raw.montant || 0) : (r.raw.total_vente || 0)
