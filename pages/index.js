@@ -90,7 +90,7 @@ export default function Dashboard() {
       supabase.from('grignon_clients').select('id,nom,solde'),
       supabase.from('fournisseurs').select('id,nom,solde'),
       supabase.from('grignon_fournisseurs').select('id,nom,solde'),
-      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,date,adblue_total,qte,total').not('km', 'is', null).order('km', { ascending: true }),
+      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,date,heure,adblue_total,adblue_qte,qte,total,merge_with_previous').not('km', 'is', null).order('km', { ascending: true }),
       supabase.from('paiements').select('id,date,client_nom,montant').eq('date', today()),
       supabase.from('grignon_paiements').select('id,date,client_nom,montant').eq('date', today()),
     ])
@@ -223,7 +223,7 @@ export default function Dashboard() {
             {/* ── SECTION 5 — Operational Alerts ── */}
             <OperationalAlerts
               results={periodResults} achats={achats} livraisons={livraisons} voyageGasoil={voyageGasoil}
-              allGasoil={allGasoil} camions={camions}
+              allGasoil={allGasoil} camions={camions} voyages={voyages}
               clients={clients} grignonClients={grignonClients}
               fournisseurs={fournisseurs} grignonFournisseurs={grignonFournisseurs}
               rangeFrom={rangeFrom} rangeTo={rangeTo}

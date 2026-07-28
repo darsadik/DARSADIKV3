@@ -23,6 +23,7 @@ import LocationSection from './LocationSection'
 import ValidationPanel from './ValidationPanel'
 import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
+import { buildFuelCycles } from '../../lib/services/fuelCycles'
 
 // Extracted verbatim from pages/voyages/[id].js so the exact same editable
 // voyage workspace (state, save/delete handlers, section wiring) can be
@@ -132,6 +133,10 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   const [editingKm,     setEditingKm]     = useState(false)
   const [savingKm,      setSavingKm]      = useState(false)
 
+  // ── fuel cycle context (display only — see §8, never feeds fuelCost) ──
+  const [camionVoyagesForCycle, setCamionVoyagesForCycle] = useState([])
+  const [cycleGasoil,           setCycleGasoil]           = useState([])
+
   // ── UX additions ──
   const addAnotherLivRef               = useRef(false)
   const addAnotherAchatRef             = useRef(false)
@@ -187,6 +192,18 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
       .not('km', 'is', null)
       .order('km', { ascending: true })
       .then(({ data }) => setVehicleGasoil(data || []))
+  }, [voyage?.camion_id])
+
+  // ── LOAD CYCLE CONTEXT (display only, §8 — fuelCycles.js never feeds fuelCost) ──
+  useEffect(() => {
+    if (!voyage?.camion_id) return
+    Promise.all([
+      supabase.from('gasoil').select('id,camion_id,km,total,adblue_total,date,heure,qte,adblue_qte,merge_with_previous').eq('camion_id', voyage.camion_id),
+      supabase.from('voyages').select('id,camion_id,date_depart,km_depart,km_arrivee,deleted_at').eq('camion_id', voyage.camion_id),
+    ]).then(([{ data: g }, { data: v }]) => {
+      setCycleGasoil(g || [])
+      setCamionVoyagesForCycle(v || [])
+    })
   }, [voyage?.camion_id])
 
   // ── LOAD SIDEBAR (shared engine — lighter-weight: no km-based fuel here) ─────
@@ -264,6 +281,19 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   const voyageKm = (voyage?.km_arrivee && voyage?.km_depart)
     ? Math.max(0, parseFloat(voyage.km_arrivee) - parseFloat(voyage.km_depart))
     : null
+
+  // Cycle context (§8) — display-only dates/labels from lib/services/fuelCycles.js.
+  // The cost figure shown to the user is always `fuelCost` above (computeFuelCost),
+  // never anything derived from this — this only answers "which cycle is this
+  // voyage part of" for context.
+  const voyageCycle = useMemo(() => {
+    if (!voyage?.camion_id || !voyage?.km_depart) return null
+    const byCamion = buildFuelCycles({ gasoil: cycleGasoil, voyages: camionVoyagesForCycle, camions })
+    const truck = byCamion.find(b => b.camionId === voyage.camion_id)
+    if (!truck) return null
+    const vKm = parseFloat(voyage.km_depart)
+    return truck.cycles.find(c => vKm >= c.kmDebut && (c.kmFin === null || vKm < c.kmFin)) || null
+  }, [voyage?.camion_id, voyage?.km_depart, cycleGasoil, camionVoyagesForCycle, camions])
 
   const totalGasoilManuel = gasoil.reduce((s,g) => s+(g.total||0), 0)
 
@@ -682,6 +712,14 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
                     <div className="text-[10px] text-blue-400 uppercase tracking-wide">Distance</div>
                     <div className="text-sm font-black text-blue-700">{fmt(voyageKm)} km</div>
                   </div>
+                )}
+                {voyageCycle && (
+                  <Link href="/carburant" className="bg-purple-50 border border-purple-100 rounded-xl px-3 py-1.5 hover:bg-purple-100 transition-colors">
+                    <div className="text-[10px] text-purple-400 uppercase tracking-wide">Cycle carburant</div>
+                    <div className="text-sm font-black text-purple-700">
+                      {fmtDate(voyageCycle.dateDebut)} → {voyageCycle.dateFin ? fmtDate(voyageCycle.dateFin) : 'en cours'}
+                    </div>
+                  </Link>
                 )}
               </div>
               <div className="flex gap-2">

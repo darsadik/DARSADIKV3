@@ -4,6 +4,7 @@ import { fmt, fmtDate } from '../../lib/utils'
 import { detectAnomalies } from '../../lib/services/review/anomalies'
 import { computeVoyageValidation, voyageValidationStatus } from '../../lib/services/voyage/validation'
 import { buildFuelCycles, historicalAverages, statusForCycle } from '../../lib/camionPerformance'
+import { buildFuelCycles as buildNewFuelCycles, detectAlerts as detectNewFuelAlerts } from '../../lib/services/fuelCycles'
 import Section from './Section'
 
 // Presentation-only thresholds — not accounting rules. Mirrors the 100 000 DHS
@@ -41,7 +42,7 @@ function AlertCard({ icon, label, count, tone, sub, onClick }) {
 // already merged with computeVoyageProfit output (see pages/index.js), so
 // `result: v` below reuses that computation instead of redoing it.
 export default function OperationalAlerts({
-  results, achats, livraisons, voyageGasoil, allGasoil, camions,
+  results, achats, livraisons, voyageGasoil, allGasoil, camions, voyages,
   clients, grignonClients, fournisseurs, grignonFournisseurs,
   rangeFrom, rangeTo,
 }) {
@@ -77,6 +78,15 @@ export default function OperationalAlerts({
       .filter(c => c.status === 'anormale')
   }, [allGasoil, rangeFrom, rangeTo])
 
+  // ── Cycles Carburant alerts (§9) — additive, from lib/services/fuelCycles.js.
+  // Distinct from `fuelIssues` above (which only flags anomalous cost/consumption
+  // vs. history): this adds KM-coherence, missing-data, and stale-cycle checks
+  // that the older camionPerformance-based detector doesn't cover.
+  const newFuelAlerts = useMemo(() => {
+    const byCamion = buildNewFuelCycles({ gasoil: allGasoil, voyages: voyages || [], camions })
+    return detectNewFuelAlerts({ byCamion, thresholdPct: FUEL_ANOMALY_THRESHOLD_PCT }).filter(a => a.severity !== 'info')
+  }, [allGasoil, voyages, camions])
+
   const unpaidSuppliers = useMemo(() => (
     [...(fournisseurs || []), ...(grignonFournisseurs || [])].filter(f => (f.solde || 0) >= SUPPLIER_UNPAID_THRESHOLD)
   ), [fournisseurs, grignonFournisseurs])
@@ -96,6 +106,7 @@ export default function OperationalAlerts({
 
   const totalAlerts = missingFuel.length + noAchats.length + noLivraisons.length + negativeProfit.length
     + missingOdometer.length + exceedsPurchase.length + fuelIssues.length + unpaidSuppliers.length + overLimitClients.length
+    + newFuelAlerts.length
 
   return (
     <Section
@@ -128,6 +139,12 @@ export default function OperationalAlerts({
                 label: `${camions.find(c => c.id === cycle.camionId)?.plaque || cycle.camionPlaque || '—'} — ${fmtDate(cycle.dateDebut)} → ${fmtDate(cycle.dateFin)}`,
                 onClick: () => router.push('/camions'),
               })),
+            })} />
+          <AlertCard icon="🧭" label="Cycles carburant" count={newFuelAlerts.length} tone={newFuelAlerts.some(a => a.severity === 'error') ? 'red' : 'amber'}
+            sub="KM, cycles, données manquantes"
+            onClick={() => setDrill({
+              title: '🧭 Cycles carburant',
+              items: newFuelAlerts.map(a => ({ label: a.message, onClick: () => router.push('/carburant') })),
             })} />
           <AlertCard icon="🏭" label="Fournisseur impayé" count={unpaidSuppliers.length} tone="amber"
             sub={`≥ ${fmt(SUPPLIER_UNPAID_THRESHOLD)} DHS`}

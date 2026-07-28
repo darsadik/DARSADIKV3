@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, fmtMoney, today, startOfMonth, openPrintWindow } from '../../lib/utils'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
+import { previewCycleForNewPlein } from '../../lib/services/fuelCycles'
+import Link from 'next/link'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 
@@ -65,12 +67,14 @@ export default function Gasoil() {
   const [filterTo, setFilterTo] = useState(today())
   const [form, setForm] = useState({
     date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom',
-    qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '',
+    qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', heure: '',
     adblue_qte: '', adblue_prix_unitaire: ''
   })
   const [showAdblue, setShowAdblue] = useState(false)
   const [formError, setFormError] = useState('')
   const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
+  // null = auto-detect fusion (default), true = fusionner avec le précédent, false = nouveau cycle forcé
+  const [mergeChoice, setMergeChoice] = useState(null)
 
   const qte = parseFloat(form.qte) || 0
   const pu = parseFloat(form.prix_unitaire) || 0
@@ -80,6 +84,16 @@ export default function Gasoil() {
   const adblueTotal = Math.round(adblueQte * adbluePu * 100) / 100
   const hasDiesel = qte > 0 && pu > 0
   const hasAdblue = adblueQte > 0 && adbluePu > 0
+
+  // ── PRE-SAVE PREVIEW (§13) — purely additive, saveGasoil() is unaffected ──
+  const cyclePreview = useMemo(() => {
+    if (!form.camion_id || !form.km) return null
+    return previewCycleForNewPlein({
+      camionId: form.camion_id, date: form.date, heure: form.heure || null, km: form.km,
+      qte: form.qte, prixUnitaire: form.prix_unitaire, adblueQte: form.adblue_qte, adblueTotal,
+      gasoil, voyages, camions, mergeOverride: mergeChoice,
+    })
+  }, [form.camion_id, form.date, form.heure, form.km, form.qte, form.prix_unitaire, form.adblue_qte, adblueTotal, gasoil, voyages, camions, mergeChoice])
 
   // ── CONSUMPTION MONTH FILTER ──
   const currentMonth = () => {
@@ -124,10 +138,12 @@ export default function Gasoil() {
       qte, prix_unitaire: pu, total,
       bon: form.bon,
       km: parseFloat(form.km) || null,
+      heure: form.heure || null,
       note: form.note,
       adblue_qte: adblueQte,
       adblue_prix_unitaire: adbluePu,
       adblue_total: adblueTotal,
+      merge_with_previous: mergeChoice,
     })
     if (camion) {
       await supabase.from('camions').update({
@@ -137,7 +153,8 @@ export default function Gasoil() {
       }).eq('id', camion.id)
     }
     setSaving(false)
-    setForm({ date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', adblue_qte: '', adblue_prix_unitaire: '' })
+    setForm({ date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', heure: '', adblue_qte: '', adblue_prix_unitaire: '' })
+    setMergeChoice(null)
     setShowAdblue(false)
     loadAll()
   }
@@ -174,6 +191,7 @@ export default function Gasoil() {
       bon: g.bon || '',
       station: g.station || '',
       note: g.note || '',
+      heure: g.heure || '',
       adblue_qte: g.adblue_qte || '',
       adblue_prix_unitaire: g.adblue_prix_unitaire || '',
     })
@@ -202,6 +220,7 @@ export default function Gasoil() {
       bon: editForm.bon || null,
       station: editForm.station || null,
       note: editForm.note || null,
+      heure: editForm.heure || null,
       adblue_qte: adblueQte,
       adblue_prix_unitaire: adbluePu,
       adblue_total: adblueTotal,
@@ -720,6 +739,11 @@ export default function Gasoil() {
                   <input className="input" type="number" placeholder="ex: 85000" value={form.km} onChange={e => setForm({...form, km: e.target.value})} />
                 </div>
               </div>
+              <div>
+                <label className="label">Heure (optionnel)</label>
+                <input className="input" type="time" value={form.heure} onChange={e => setForm({...form, heure: e.target.value})} />
+                <div className="text-[10px] text-gray-400 mt-1">Utile pour départager deux pleins le même jour sur le même camion.</div>
+              </div>
               {qte > 0 && pu > 0 && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
                   <div className="text-xs text-amber-600 mb-1">Total à payer</div>
@@ -755,6 +779,43 @@ export default function Gasoil() {
                 <button type="button" onClick={() => setShowAdblue(true)} className="btn-secondary w-full justify-center text-xs">
                   🧴 + AdBlue {hasDiesel ? '(à ce plein)' : '(seul, sans gasoil)'}
                 </button>
+              )}
+
+              {/* ── APERÇU CYCLE AVANT ENREGISTREMENT (§13) ── */}
+              {cyclePreview?.ready && (
+                <div className="border border-purple-100 bg-purple-50/40 rounded-xl p-3 space-y-2">
+                  <div className="text-xs font-semibold text-purple-700">🔮 Aperçu du cycle</div>
+                  {cyclePreview.cycleClosing ? (
+                    <div className="text-xs text-purple-800">
+                      Ce plein clôture le cycle du <b>{fmtDate(cyclePreview.cycleClosing.dateDebut)}</b> :
+                      {' '}<b>{fmt(cyclePreview.cycleClosing.distance)} km</b>
+                      {cyclePreview.cycleClosing.coutKm !== null && <> · <b>{cyclePreview.cycleClosing.coutKm.toFixed(2)} DHS/km</b></>}
+                      {' '}({cyclePreview.cycleClosing.nbVoyages} voyage{cyclePreview.cycleClosing.nbVoyages > 1 ? 's' : ''} concerné{cyclePreview.cycleClosing.nbVoyages > 1 ? 's' : ''})
+                    </div>
+                  ) : cyclePreview.extendsOpenCycle ? (
+                    <div className="text-xs text-purple-800">
+                      Ce plein sera <b>fusionné</b> avec le cycle en cours depuis le <b>{fmtDate(cyclePreview.thisCycle.dateDebut)}</b> (aucun voyage entre les deux).
+                    </div>
+                  ) : (
+                    <div className="text-xs text-purple-800">Ouvre un nouveau cycle pour ce camion.</div>
+                  )}
+                  {cyclePreview.alerts.length > 0 && (
+                    <div className="space-y-1 pt-1 border-t border-purple-100">
+                      {cyclePreview.alerts.map((a, i) => (
+                        <div key={i} className="text-[10px] text-amber-700">⚠ {a.message}</div>
+                      ))}
+                    </div>
+                  )}
+                  {cyclePreview.extendsOpenCycle && !cyclePreview.cycleClosing && (
+                    <div className="flex gap-2 pt-1">
+                      <button type="button"
+                        onClick={() => setMergeChoice(mergeChoice === false ? null : false)}
+                        className={`text-[10px] font-semibold px-2 py-1 rounded ${mergeChoice === false ? 'bg-purple-600 text-white' : 'bg-white border border-purple-200 text-purple-700'}`}>
+                        ✂️ Forcer un nouveau cycle
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
 
               {formError && (
@@ -850,7 +911,10 @@ export default function Gasoil() {
 
           {/* ── FUEL CYCLES ── */}
           <div className="card mt-4">
-            <h3 className="font-semibold text-gray-900 mb-3">⛽ Cycles carburant (coût/km)</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">⛽ Cycles carburant (coût/km)</h3>
+              <Link href="/carburant" className="text-xs font-semibold text-brand-600 hover:underline">Voir les cycles détaillés →</Link>
+            </div>
             {fuelCycles.length === 0 ? (
               <div className="text-center text-gray-400 text-xs py-4">
                 Aucun cycle détectable — enregistrez les KM compteur sur les pleins et les KM départ/arrivée sur les voyages
@@ -1176,6 +1240,12 @@ export default function Gasoil() {
                     value={editForm.bon}
                     onChange={e => setEditForm({...editForm, bon: e.target.value})} />
                 </div>
+              </div>
+              <div>
+                <label className="label">Heure (optionnel)</label>
+                <input type="time" className="input"
+                  value={editForm.heure}
+                  onChange={e => setEditForm({...editForm, heure: e.target.value})} />
               </div>
               {editForm.qte && editForm.prix_unitaire && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">

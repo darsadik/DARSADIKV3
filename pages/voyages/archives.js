@@ -3,6 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
+import { recalcOdometerChain } from '../../lib/services/voyage/updates'
 
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
@@ -88,6 +89,10 @@ export default function VoyagesArchives() {
       .eq('id', v.id)
     setRestoring(null)
     if (error) { alert('Erreur restauration: ' + error.message); return }
+    // Restoring re-inserts this voyage into its truck's chronological
+    // odometer chain — must recalc, same as every other create/edit/delete
+    // path that can change which voyages exist for a camion_id.
+    if (v.camion_id) await recalcOdometerChain(v.camion_id)
     loadAll()
   }
 
