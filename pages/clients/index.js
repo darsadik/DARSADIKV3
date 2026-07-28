@@ -697,20 +697,20 @@ ${pEntries.length > 0 ? `<div class="totals-row">
   thead th{background:#0f766e !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
+  tbody td{padding:9.5px 12px;font-size:13.5px;color:#0f1115;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
+  tbody td.m{color:#1f2937;font-size:12.5px;font-weight:600;white-space:nowrap}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   .total-final{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
-  .sf-lbl{font-size:11px;font-weight:800;color:#166534;letter-spacing:0.06em;text-transform:uppercase}
-  .sf-amt{font-size:24px;font-weight:900;color:#166534;line-height:1.2;letter-spacing:-0.3px}
-  .sf-unit{font-size:12px;font-weight:700;color:#166534;margin-left:4px}
-  .sf-sub{font-size:10px;color:#4b5563;margin-top:2px}
-  .prev-solde{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-  .ps-lbl{font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.06em;text-transform:uppercase}
-  .ps-amt{font-size:20px;font-weight:800;color:#334155;line-height:1.2}
-  .ps-unit{font-size:12px;font-weight:600;color:#64748b;margin-left:4px}
-  .ps-sub{font-size:10px;color:#94a3b8;margin-top:2px}
+  .sf-lbl{font-size:11px;font-weight:800;color:#14532d;letter-spacing:0.06em;text-transform:uppercase}
+  .sf-amt{font-size:24px;font-weight:900;color:#14532d;line-height:1.2;letter-spacing:-0.3px}
+  .sf-unit{font-size:12px;font-weight:700;color:#14532d;margin-left:4px}
+  .sf-sub{font-size:10px;color:#374151;margin-top:2px}
+  .prev-solde{background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .ps-lbl{font-size:11px;font-weight:800;color:#171717;letter-spacing:0.06em;text-transform:uppercase}
+  .ps-amt{font-size:20px;font-weight:800;color:#7f1d1d;line-height:1.2}
+  .ps-unit{font-size:12px;font-weight:700;color:#7f1d1d;margin-left:4px}
+  .ps-sub{font-size:10px;color:#4b5563;margin-top:2px}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
 <div class="hdr">
@@ -757,11 +757,11 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
     ${rowsSel.map(v => `<tr>
         <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td>
         <td class="m">${v.camion_plaque || '—'}</td>
-        <td style="color:#0f172a;font-weight:600">${v.type_brique || '—'}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${fmt(v.qte)}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${fmtMoney(v.prix_vente||0)}</td>
-        <td class="r" style="font-size:14.5px;font-weight:800;color:#0f766e;white-space:nowrap">${fmtMoney(v.total_vente||0)}</td>
-        <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${v.note?600:400};color:${v.note?'#374151':'#9ca3af'}">${v.note || '—'}</td>
+        <td style="color:#0f1115;font-weight:700">${v.type_brique || '—'}</td>
+        <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">${fmt(v.qte)}</td>
+        <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">${fmtMoney(v.prix_vente||0)}</td>
+        <td class="r" style="font-size:14.5px;font-weight:800;color:#1e3a5f;white-space:nowrap">${fmtMoney(v.total_vente||0)}</td>
+        <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${v.note?600:400};color:${v.note?'#1f2937':'#6b7280'}">${v.note || '—'}</td>
       </tr>`).join('')}
   </tbody>
 </table>
