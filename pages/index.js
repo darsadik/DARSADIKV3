@@ -11,6 +11,7 @@ import FleetPerformance from '../components/dashboard/FleetPerformance'
 import TopClients from '../components/dashboard/TopClients'
 import LatestVoyages from '../components/dashboard/LatestVoyages'
 import OperationalAlerts from '../components/dashboard/OperationalAlerts'
+import FleetFuelIntelligence from '../components/dashboard/FleetFuelIntelligence'
 import DashboardCharts from '../components/dashboard/DashboardCharts'
 import TodaysActivity from '../components/dashboard/TodaysActivity'
 import QuickActions from '../components/dashboard/QuickActions'
@@ -213,6 +214,9 @@ export default function Dashboard() {
           <>
             {/* ── SECTION 2 — Fleet Performance ── */}
             <FleetPerformance results={periodResults} camions={camions} periodLabel={periodLabel} onOpenVoyage={openVoyage} />
+
+            {/* ── SECTION 2.5 — Fleet Fuel Intelligence ── */}
+            <FleetFuelIntelligence allGasoil={allGasoil} voyages={voyages} camions={camions} />
 
             {/* ── SECTION 3 — Top / Worst Clients ── */}
             <TopClients results={periodResults} periodLabel={periodLabel} />

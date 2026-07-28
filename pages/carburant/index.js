@@ -1,11 +1,15 @@
-import { useState, useEffect, useMemo, Fragment } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
-import { fmt, fmtD, fmtDate } from '../../lib/utils'
+import { fmt } from '../../lib/utils'
 import {
-  buildFuelCycles, buildFleetFuelStats, detectAlerts, STATUS_META,
+  buildFuelCycles, buildFleetFuelStats, enrichByCamion, buildFleetIntelligenceSummary, detectAlerts,
 } from '../../lib/services/fuelCycles'
+import CycleCard from '../../components/carburant/CycleCard'
+import CycleAnalysisModal from '../../components/carburant/CycleAnalysisModal'
+import TruckHealthPanel from '../../components/carburant/TruckHealthPanel'
+import Timeline from '../../components/carburant/Timeline'
 
 const SEVERITY_META = {
   error:   { emoji: '🔴', label: 'Critique',    bg: 'bg-red-50',   text: 'text-red-700',   ring: 'ring-red-100' },
@@ -23,103 +27,12 @@ function AlertRow({ a }) {
   )
 }
 
-function CycleCard({ cycle, onMergeChoice }) {
-  const [expanded, setExpanded] = useState(false)
-  const isOpen = cycle.statut === 'en_cours'
+function IntelWidget({ label, value, sub, tone }) {
   return (
-    <div className={`border rounded-xl p-3 ${isOpen ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'}`}>
-      <div className="flex items-center justify-between flex-wrap gap-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-        <div>
-          <span className="font-bold text-gray-900 text-sm">{fmtDate(cycle.dateDebut)} → {cycle.dateFin ? fmtDate(cycle.dateFin) : 'en cours'}</span>
-          {isOpen && <span className="ml-2 bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">🔵 CYCLE EN COURS</span>}
-          {cycle.merged && (
-            <span className="ml-2 bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-              🔗 {cycle.pleins.length} pleins fusionnés {cycle.mergedManually ? '(manuel)' : '(auto)'}
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2 flex-wrap text-xs">
-          <span className="bg-gray-50 text-gray-700 font-semibold px-2 py-0.5 rounded-lg">
-            {cycle.distance !== null ? `${fmt(cycle.distance)} km` : 'en attente'}
-          </span>
-          {cycle.coutKm !== null && (
-            <span className="bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-lg">{cycle.coutKm.toFixed(2)} DHS/km</span>
-          )}
-          {cycle.consoL100 !== null && (
-            <span className="bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-lg">{cycle.consoL100.toFixed(1)} L/100km</span>
-          )}
-          <span className="bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-lg">{fmt(cycle.coutTotal)} DHS</span>
-        </div>
-      </div>
-
-      {expanded && (
-        <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-            <div className="bg-gray-50 rounded-lg p-1.5"><div className="text-[10px] text-gray-400">KM début</div><div className="text-xs font-bold">{fmt(cycle.kmDebut)}</div></div>
-            <div className="bg-gray-50 rounded-lg p-1.5"><div className="text-[10px] text-gray-400">KM {isOpen ? 'actuel' : 'fin'}</div><div className="text-xs font-bold">{isOpen ? (cycle.kmActuel !== null ? fmt(cycle.kmActuel) : '—') : fmt(cycle.kmFin)}</div></div>
-            <div className="bg-blue-50 rounded-lg p-1.5"><div className="text-[10px] text-blue-400">Litres Gasoil</div><div className="text-xs font-bold text-blue-700">{fmtD(cycle.litresGasoil)} L</div></div>
-            <div className="bg-cyan-50 rounded-lg p-1.5"><div className="text-[10px] text-cyan-400">Litres AdBlue</div><div className="text-xs font-bold text-cyan-700">{cycle.litresAdblue ? `${fmtD(cycle.litresAdblue)} L` : '—'}</div></div>
-          </div>
-
-          {/* Pleins in this cycle-start group */}
-          <div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Pleins ({cycle.pleins.length})</div>
-            <div className="space-y-1">
-              {cycle.pleins.map((p, i) => (
-                <div key={p.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-2 py-1.5 text-xs">
-                  <div>
-                    <span className="font-semibold text-gray-800">{fmtDate(p.date)}{p.heure ? ` ${p.heure}` : ''}</span>
-                    <span className="text-gray-400 ml-2">{fmtD(p.qte)} L · KM {fmt(p.km)}</span>
-                  </div>
-                  {i > 0 && onMergeChoice && (
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => onMergeChoice(p.id, false)}
-                        className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white border border-gray-200 hover:bg-gray-100"
-                        title="Créer un nouveau cycle à partir de ce plein"
-                      >✂️ Nouveau cycle</button>
-                    </div>
-                  )}
-                  {i === 0 && cycle.pleins.length === 1 && onMergeChoice && (
-                    <button
-                      onClick={() => onMergeChoice(p.id, true)}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white border border-gray-200 hover:bg-gray-100"
-                      title="Fusionner avec le plein précédent"
-                    >🔗 Fusionner avec le précédent</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Voyages in this cycle */}
-          <div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Voyages du cycle ({cycle.nbVoyages})</div>
-            {cycle.voyages.length === 0 ? (
-              <div className="text-[10px] text-gray-400 italic">Aucun voyage dans ce cycle</div>
-            ) : (
-              <div className="space-y-1">
-                {cycle.voyages.map(v => {
-                  const part = cycle.coutKm !== null && v.vKm !== null ? v.vKm * cycle.coutKm : null
-                  return (
-                    <Link key={v.id} href={`/voyages/${v.id}`} className="flex items-center justify-between bg-slate-50 hover:bg-slate-100 rounded-lg px-2 py-1.5 text-xs transition-colors">
-                      <div>
-                        <span className="font-semibold text-gray-800">{v.reference || `#${v.id}`}</span>
-                        <span className="text-gray-400 ml-2">{fmtDate(v.date_depart)}</span>
-                        {v.destination && <span className="text-gray-400 ml-1">→ {v.destination}</span>}
-                      </div>
-                      <div className="flex gap-3 text-right">
-                        <span className="text-blue-600 font-semibold">{v.vKm !== null ? `${fmt(v.vKm)} km` : '—'}</span>
-                        <span className="text-amber-600 font-bold">{part !== null ? `${fmt(part)} DHS` : '—'}</span>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+    <div className={`stat-card border ${tone}`}>
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      {sub && <div className="stat-sub">{sub}</div>}
     </div>
   )
 }
@@ -131,6 +44,7 @@ export default function CarburantCycles() {
   const [loading, setLoading] = useState(true)
   const [selectedCamion, setSelectedCamion] = useState('')
   const [thresholdPct, setThresholdPct] = useState(15)
+  const [analyzing, setAnalyzing] = useState(null) // { cycle, camionPlaque }
 
   useEffect(() => { loadAll() }, [])
 
@@ -149,11 +63,16 @@ export default function CarburantCycles() {
     setLoading(false)
   }
 
+  // Everything below is derived from the 3 arrays already loaded above via
+  // useMemo — no duplicated queries, no repeated computation on unrelated
+  // re-renders (§13).
   const byCamion = useMemo(() => buildFuelCycles({ gasoil, voyages, camions }), [gasoil, voyages, camions])
+  const enriched = useMemo(() => enrichByCamion(byCamion, thresholdPct), [byCamion, thresholdPct])
   const fleetStats = useMemo(() => buildFleetFuelStats(byCamion), [byCamion])
+  const intel = useMemo(() => buildFleetIntelligenceSummary(enriched), [enriched])
   const alerts = useMemo(() => detectAlerts({ byCamion, thresholdPct }), [byCamion, thresholdPct])
 
-  const visibleCamions = selectedCamion ? byCamion.filter(b => b.camionId === parseInt(selectedCamion)) : byCamion
+  const visibleCamions = selectedCamion ? enriched.filter(b => b.camionId === parseInt(selectedCamion)) : enriched
   const visibleAlerts = selectedCamion ? alerts.filter(a => a.camionId === parseInt(selectedCamion)) : alerts
 
   async function handleMergeChoice(gasoilId, value) {
@@ -171,7 +90,7 @@ export default function CarburantCycles() {
   }), { kmTotal: 0, litresGasoil: 0, litresAdblue: 0, coutTotal: 0, nbCycles: 0, nbPleins: 0 })
 
   return (
-    <Layout title="Cycles Carburant" subtitle="Cycles de plein automatiques, coût/km réel et alertes par camion">
+    <Layout title="Cycles Carburant" subtitle="Intelligence flotte : cycles, santé camion, alertes et aide à la décision">
 
       {/* ── FILTERS ── */}
       <div className="card mb-6">
@@ -196,7 +115,21 @@ export default function CarburantCycles() {
         </div>
       </div>
 
-      {/* ── FLEET DASHBOARD ── */}
+      {/* ── FLEET INTELLIGENCE WIDGETS ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <IntelWidget label="Conso. flotte" value={intel.fleetAvgConso !== null ? `${intel.fleetAvgConso.toFixed(1)} L/100` : '—'} sub="Moyenne tous camions" tone="border-purple-100 bg-purple-50" />
+        <IntelWidget label="🏆 Meilleur camion" value={intel.bestTruck?.camionPlaque || '—'} sub={intel.bestTruck ? `${intel.bestTruck.health.avgConso.toFixed(1)} L/100` : 'Aucune donnée'} tone="border-emerald-100 bg-emerald-50" />
+        <IntelWidget label="⚠️ Camion à surveiller" value={intel.worstTruck?.camionPlaque || '—'} sub={intel.worstTruck ? `${intel.worstTruck.health.avgConso.toFixed(1)} L/100` : 'Aucune donnée'} tone="border-red-100 bg-red-50" />
+        <IntelWidget label="Cycles en cours" value={intel.openCyclesCount} sub="Camions actifs" tone="border-blue-100 bg-blue-50" />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <IntelWidget label="Alertes critiques" value={intel.criticalAlertsCount} sub="Cycles 🔴" tone="border-red-100 bg-red-50" />
+        <IntelWidget label="🔧 À inspecter" value={intel.trucksNeedingInspection.length} sub="Camions" tone="border-orange-100 bg-orange-50" />
+        <IntelWidget label="Cycle le plus long" value={intel.longestCycle ? `${fmt(intel.longestCycle.distance)} km` : '—'} sub={intel.longestCycle?.camionPlaque || 'Par distance'} tone="border-gray-100" />
+        <IntelWidget label="💸 Camion le + coûteux (mois)" value={intel.mostExpensiveTruckThisMonth?.camionPlaque || '—'} sub={intel.mostExpensiveTruckThisMonth ? `${fmt(intel.mostExpensiveTruckThisMonth.cost)} DHS` : 'Aucune donnée'} tone="border-amber-100 bg-amber-50" />
+      </div>
+
+      {/* ── FLEET TOTALS ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
         <div className="stat-card border border-blue-100 bg-blue-50">
           <div className="stat-label text-blue-600">Total KM</div>
@@ -243,16 +176,31 @@ export default function CarburantCycles() {
                   <h2 className="font-semibold text-gray-900">🚛 {truck.camionPlaque}</h2>
                   <Link href={`/camions/${truck.camionId}`} className="text-xs font-semibold text-brand-600 hover:underline">Fiche camion →</Link>
                 </div>
+
+                <TruckHealthPanel camionPlaque={truck.camionPlaque} health={truck.health} />
+
                 {truck.cycles.length === 0 ? (
                   <div className="text-center text-gray-400 text-xs py-6">
                     Aucun cycle détectable — enregistrez le KM compteur sur les pleins de ce camion
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {[...truck.cycles].reverse().map((c, i) => (
-                      <CycleCard key={`${truck.camionId}-${c.dateDebut}-${i}`} cycle={c} onMergeChoice={handleMergeChoice} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 mt-2">Chronologie</div>
+                    <Timeline truck={truck} />
+
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 mt-3">Cycles</div>
+                    <div className="space-y-2">
+                      {[...truck.cycles].reverse().map((c, i) => (
+                        <CycleCard
+                          key={`${truck.camionId}-${c.dateDebut}-${i}`}
+                          cycle={c}
+                          onMergeChoice={handleMergeChoice}
+                          onAnalyze={cycle => setAnalyzing({ cycle, camionPlaque: truck.camionPlaque })}
+                          thresholdPct={thresholdPct}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             ))
@@ -276,6 +224,14 @@ export default function CarburantCycles() {
           </div>
         </div>
       </div>
+
+      {analyzing && (
+        <CycleAnalysisModal
+          cycle={analyzing.cycle}
+          camionPlaque={analyzing.camionPlaque}
+          onClose={() => setAnalyzing(null)}
+        />
+      )}
 
     </Layout>
   )
