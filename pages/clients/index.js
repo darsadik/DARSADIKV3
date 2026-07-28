@@ -695,6 +695,15 @@ ${pEntries.length > 0 ? `<div class="totals-row">
     const nLiv = rowsSel.filter(r => r.kind === 'livraison').length
     const nPai = rowsSel.filter(r => r.kind === 'paiement').length
     const ancienSolde = (selected.solde || 0) - total
+    // ── running Solde column, same convention as the other statements
+    // (chrono/présentation): starts at Ancien Solde when included, else 0,
+    // then +débit/−crédit through the rows in their displayed order. Purely
+    // a derived display value — never written anywhere, never changes total.
+    let runningSolde = billingIncludePrevSolde ? ancienSolde : 0
+    rowsSel.forEach(r => {
+      runningSolde += r.kind === 'paiement' ? -(r.raw.montant || 0) : (r.raw.total_vente || 0)
+      r.solde = runningSolde
+    })
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
 
@@ -776,10 +785,12 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
 <table>
   <thead><tr>
     <th>Date</th><th>Camion</th><th>Produit</th>
-    <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th>Note</th>
+    <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th class="r">Solde</th><th>Note</th>
   </tr></thead>
   <tbody>
     ${rowsSel.map(r => {
+      const soldeColor = r.solde > 0 ? '#1e3a5f' : '#16a34a'
+      const soldeCell = `<td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${r.solde>=0?'+ '+fmtMoney(r.solde):'− '+fmtMoney(Math.abs(r.solde))}</td>`
       if (r.kind === 'paiement') {
         const p = r.raw
         const noteTxt = [p.mode, p.note].filter(Boolean).join(' · ')
@@ -790,6 +801,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">—</td>
         <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">—</td>
         <td class="r" style="font-size:14.5px;font-weight:800;color:#1e3a5f;white-space:nowrap">− ${fmtMoney(p.montant||0)}</td>
+        ${soldeCell}
         <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${noteTxt?600:400};color:${noteTxt?'#1f2937':'#6b7280'}">${noteTxt || '—'}</td>
       </tr>`
       }
@@ -801,6 +813,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">${fmt(v.qte)}</td>
         <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">${fmtMoney(v.prix_vente||0)}</td>
         <td class="r" style="font-size:14.5px;font-weight:800;color:#1e3a5f;white-space:nowrap">+ ${fmtMoney(v.total_vente||0)}</td>
+        ${soldeCell}
         <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${v.note?600:400};color:${v.note?'#1f2937':'#6b7280'}">${v.note || '—'}</td>
       </tr>`
     }).join('')}
@@ -1739,6 +1752,14 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
     const selectedRows = orderKeys.filter(k => billingSelectedRows.has(k)).map(k => byKey.get(k)).filter(Boolean)
     const selectedTotal = selectedRows.reduce((s, r) => s + (r.kind === 'paiement' ? -(r.raw.montant || 0) : (r.raw.total_vente || 0)), 0)
     const ancienSolde = (selected?.solde || 0) - selectedTotal
+    // Running Solde column, same convention as the other statements — starts
+    // at Ancien Solde when included, else 0, then +débit/−crédit in display order.
+    let runningSolde = billingIncludePrevSolde ? ancienSolde : 0
+    const soldeByKey = new Map()
+    selectedRows.forEach(r => {
+      runningSolde += r.kind === 'paiement' ? -(r.raw.montant || 0) : (r.raw.total_vente || 0)
+      soldeByKey.set(r.key, runningSolde)
+    })
 
     function toggleRow(key) {
       const ns = new Set(billingSelectedRows)
@@ -1880,7 +1901,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 </th>
                 {[
                   {l:'Date',r:false},{l:'Camion',r:false},{l:'Produit',r:false},
-                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Note',r:false}
+                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Solde',r:true},{l:'Note',r:false}
                 ].map((col,ci) => (
                   <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
                 ))}
@@ -1911,6 +1932,12 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                     <td className="td text-right" style={{...bdr,padding:'10px 14px',fontSize:15,fontWeight:900,color: isPai ? '#334155' : '#0f766e',whiteSpace:'nowrap',letterSpacing:'-0.2px'}}>
                       {isPai ? `− ${fmtMoney(v.montant||0)}` : `+ ${fmtMoney(v.total_vente||0)}`}
                     </td>
+                    <td className="td text-right" style={{...bdr,padding:'10px 14px',whiteSpace:'nowrap'}}>
+                      {soldeByKey.has(c.key)
+                        ? (() => { const sv = soldeByKey.get(c.key); const sc = sv > 0 ? '#1e3a5f' : '#16a34a'
+                            return <span style={{fontWeight:900,fontSize:14,color:sc,letterSpacing:'-0.2px'}}>{sv>=0?'+ ':'− '}{fmtMoney(Math.abs(sv))}</span> })()
+                        : <span style={{color:'#cbd5e1'}}>—</span>}
+                    </td>
                     <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',color:(isPai ? [v.mode,v.note].filter(Boolean).join(' · ') : v.note)?'#374151':'#9ca3af',fontStyle:(isPai ? v.mode||v.note : v.note)?'normal':'italic',fontWeight:(isPai ? v.mode||v.note : v.note)?600:400}}>
                       {isPai ? ([v.mode, v.note].filter(Boolean).join(' · ') || '—') : (v.note || '—')}
                     </td>
@@ -1927,6 +1954,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                   <td style={{padding:'14px',background:'#f0fdf4',fontSize:24,fontWeight:900,color:'#166534',textAlign:'right',borderTop:'3px solid #166534',letterSpacing:'-0.3px'}}>
                     {fmtMoney(selectedTotal)} <span style={{fontSize:13,fontWeight:800,color:'#166534'}}>DHS</span>
                   </td>
+                  <td style={{background:'#f0fdf4',borderTop:'3px solid #166534'}}></td>
                   <td style={{background:'#f0fdf4',borderTop:'3px solid #166534'}}></td>
                 </tr>
               </tfoot>
