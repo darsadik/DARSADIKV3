@@ -45,7 +45,7 @@ function IntelWidget({ label, value, sub, tone }) {
 }
 
 const DEFAULT_FILTERS = {
-  camionId: '', from: '', to: '', status: '', thresholdPct: 15,
+  camionId: '', periodKind: 'tous', from: '', to: '', status: '', thresholdPct: 15,
   issues: false, missingKm: false, missingRefills: false, mergeSuggestions: false, openCycles: false,
 }
 

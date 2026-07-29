@@ -1,4 +1,5 @@
 import { CYCLE_STATUS_META } from '../../lib/services/fuelCycles'
+import { periodRange } from '../../lib/camionPerformance'
 
 // ── Smart Filters (spec §9) — every filter here operates purely on data the
 // page already computed via useMemo (byCamion/enriched/missingData/
@@ -13,9 +14,30 @@ const TOGGLES = [
   { key: 'openCycles', label: 'Cycles en cours' },
 ]
 
+// Same preset kinds/labels as pages/camions (lib/camionPerformance.periodRange)
+// so "Mois"/"Année" mean the same date range across the app.
+const PERIOD_KINDS = [
+  { id: 'tous', label: 'Toute la période' },
+  { id: 'semaine', label: 'Semaine' },
+  { id: 'mois', label: 'Mois' },
+  { id: 'annee', label: 'Année' },
+  { id: 'perso', label: 'Personnalisé' },
+]
+
 export default function SmartFilters({ camions, filters, setFilters }) {
   function toggle(key) {
     setFilters(f => ({ ...f, [key]: !f[key] }))
+  }
+
+  function setPeriodKind(kind) {
+    if (kind === 'tous') {
+      setFilters(f => ({ ...f, periodKind: kind, from: '', to: '' }))
+    } else if (kind === 'perso') {
+      setFilters(f => ({ ...f, periodKind: kind }))
+    } else {
+      const { from, to } = periodRange(kind, filters.from, filters.to)
+      setFilters(f => ({ ...f, periodKind: kind, from, to }))
+    }
   }
 
   return (
@@ -30,15 +52,26 @@ export default function SmartFilters({ camions, filters, setFilters }) {
           </select>
         </div>
         <div>
-          <label className="label">Du</label>
-          <input type="date" className="input" style={{ width: '150px' }} value={filters.from}
-            onChange={e => setFilters(f => ({ ...f, from: e.target.value }))} />
+          <label className="label">Période</label>
+          <select className="input" style={{ width: '160px' }} value={filters.periodKind || 'tous'}
+            onChange={e => setPeriodKind(e.target.value)}>
+            {PERIOD_KINDS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
         </div>
-        <div>
-          <label className="label">Au</label>
-          <input type="date" className="input" style={{ width: '150px' }} value={filters.to}
-            onChange={e => setFilters(f => ({ ...f, to: e.target.value }))} />
-        </div>
+        {filters.periodKind === 'perso' && (
+          <>
+            <div>
+              <label className="label">Du</label>
+              <input type="date" className="input" style={{ width: '150px' }} value={filters.from}
+                onChange={e => setFilters(f => ({ ...f, from: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Au</label>
+              <input type="date" className="input" style={{ width: '150px' }} value={filters.to}
+                onChange={e => setFilters(f => ({ ...f, to: e.target.value }))} />
+            </div>
+          </>
+        )}
         <div>
           <label className="label">Statut cycle</label>
           <select className="input" style={{ width: '170px' }} value={filters.status}
@@ -68,9 +101,9 @@ export default function SmartFilters({ camions, filters, setFilters }) {
             {t.label}
           </button>
         ))}
-        {(filters.camionId || filters.status || filters.from || filters.to || TOGGLES.some(t => filters[t.key])) && (
+        {(filters.camionId || filters.status || filters.from || filters.to || (filters.periodKind && filters.periodKind !== 'tous') || TOGGLES.some(t => filters[t.key])) && (
           <button
-            onClick={() => setFilters(f => ({ ...f, camionId: '', status: '', from: '', to: '', issues: false, missingKm: false, missingRefills: false, mergeSuggestions: false, openCycles: false }))}
+            onClick={() => setFilters(f => ({ ...f, camionId: '', status: '', from: '', to: '', periodKind: 'tous', issues: false, missingKm: false, missingRefills: false, mergeSuggestions: false, openCycles: false }))}
             className="text-xs font-semibold px-3 py-1.5 rounded-full text-gray-400 hover:text-gray-600 underline"
           >
             Réinitialiser
