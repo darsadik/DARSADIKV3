@@ -19,7 +19,7 @@ const nav = [
   { href: '/paiements',           icon: 'card',    label: 'Paiements' },
   { href: '/retours',     icon: 'undo',       label: 'Retours' },
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },
-  { href: '/carburant',   icon: 'refresh-cw', label: 'Cycles Carburant' },
+  { href: '/carburant',   icon: 'refresh-cw', label: 'Contrôle KM & Carburant' },
   { href: '/camions',     icon: 'activity',   label: 'Performance Camions' },
   { href: '/charges',     icon: 'dollar',     label: 'Charges' },
   { href: '/grignon',     icon: 'leaf',       label: 'Grignon' },

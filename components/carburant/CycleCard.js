@@ -115,28 +115,46 @@ export default function CycleCard({ cycle, onMergeChoice, onAnalyze, thresholdPc
           <div>
             <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Pleins ({cycle.pleins.length})</div>
             <div className="space-y-1">
-              {cycle.pleins.map((p, i) => (
-                <div key={p.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-2 py-1.5 text-xs">
-                  <div>
-                    <span className="font-semibold text-gray-800">{fmtDate(p.date)}{p.heure ? ` ${p.heure}` : ''}</span>
-                    <span className="text-gray-400 ml-2">{fmtD(p.qte)} L · KM {fmt(p.km)}</span>
+              {cycle.pleins.map((p, i) => {
+                // Spec §5's explicit sequence: opening refill → (intermediate
+                // refills, when this cycle-start group merged several
+                // same-session pleins) → the row below the loop shows the
+                // closing refill (the NEXT cycle's opening plein).
+                const roleLabel = i === 0 ? 'Plein d\'ouverture' : 'Plein intermédiaire'
+                return (
+                  <div key={p.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-2 py-1.5 text-xs">
+                    <div>
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mr-1.5">{roleLabel}</span>
+                      <span className="font-semibold text-gray-800">{fmtDate(p.date)}{p.heure ? ` ${p.heure}` : ''}</span>
+                      <span className="text-gray-400 ml-2">{fmtD(p.qte)} L · KM {fmt(p.km)}</span>
+                    </div>
+                    {i > 0 && onMergeChoice && (
+                      <button
+                        onClick={() => onMergeChoice(p.id, false)}
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white border border-gray-200 hover:bg-gray-100"
+                        title="Créer un nouveau cycle à partir de ce plein"
+                      >✂️ Nouveau cycle</button>
+                    )}
+                    {i === 0 && cycle.pleins.length === 1 && onMergeChoice && (
+                      <button
+                        onClick={() => onMergeChoice(p.id, true)}
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white border border-gray-200 hover:bg-gray-100"
+                        title="Fusionner avec le plein précédent"
+                      >🔗 Fusionner avec le précédent</button>
+                    )}
                   </div>
-                  {i > 0 && onMergeChoice && (
-                    <button
-                      onClick={() => onMergeChoice(p.id, false)}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white border border-gray-200 hover:bg-gray-100"
-                      title="Créer un nouveau cycle à partir de ce plein"
-                    >✂️ Nouveau cycle</button>
-                  )}
-                  {i === 0 && cycle.pleins.length === 1 && onMergeChoice && (
-                    <button
-                      onClick={() => onMergeChoice(p.id, true)}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white border border-gray-200 hover:bg-gray-100"
-                      title="Fusionner avec le plein précédent"
-                    >🔗 Fusionner avec le précédent</button>
-                  )}
+                )
+              })}
+              {cycle.closingPlein && (
+                <div className="flex items-center justify-between bg-emerald-50 rounded-lg px-2 py-1.5 text-xs ring-1 ring-inset ring-emerald-100">
+                  <div>
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-500 mr-1.5">Plein de clôture</span>
+                    <span className="font-semibold text-emerald-800">{fmtDate(cycle.closingPlein.date)}{cycle.closingPlein.heure ? ` ${cycle.closingPlein.heure}` : ''}</span>
+                    <span className="text-emerald-500 ml-2">KM {fmt(cycle.closingPlein.km)}</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-600">🏁 Cycle clôturé</span>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
