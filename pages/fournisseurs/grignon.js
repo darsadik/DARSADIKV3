@@ -40,7 +40,15 @@ export default function FournisseursGrignon() {
   async function selectFournisseur(f) {
     setSelected(f)
     setLoadingDetail(true)
-    const [{ data: ac }, { data: pa }] = await Promise.all([
+    // Fournisseur-grignon payments live in two places depending on where they
+    // were entered: legacy direct entries from the old /grignon page
+    // (grignon_fournisseur_paiements) and payments recorded through the
+    // central /paiements page ("Paiements Émis" → paiements.type_compte
+    // ='fourn_grignon'), which is the only place new payments should come
+    // from now. Both are reconciled into grignon_fournisseurs.solde already
+    // (see sql/01_fournisseurs_snapshot_and_reconcile.sql) — merge them here
+    // too so the displayed history matches the balance.
+    const [{ data: ac }, { data: paLegacy }, { data: paMain }] = await Promise.all([
       supabase.from('grignon_operations')
         .select('*')
         .eq('fournisseur_id', f.id)
@@ -49,9 +57,18 @@ export default function FournisseursGrignon() {
         .select('*')
         .eq('fournisseur_id', f.id)
         .order('date', { ascending: true }),
+      supabase.from('paiements')
+        .select('*')
+        .eq('grignon_fourn_id', f.id)
+        .eq('type_compte', 'fourn_grignon')
+        .order('date', { ascending: true }),
     ])
     setAchats(ac || [])
-    setPaiements(pa || [])
+    const merged = [
+      ...(paLegacy || []).map(p => ({ id: `legacy-${p.id}`, date: p.date, montant: p.montant, mode: p.mode_paiement, note: p.note, cheque_number: null })),
+      ...(paMain   || []).map(p => ({ id: `main-${p.id}`,   date: p.date, montant: p.montant, mode: p.mode,           note: p.note, cheque_number: p.cheque_number })),
+    ].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    setPaiements(merged)
     setLoadingDetail(false)
   }
 

@@ -47,7 +47,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 | `/retours` | Return merchandise |
 | `/gasoil` | Fuel log |
 | `/charges` | Expense tracking |
-| `/grignon` | Olive pomace module — fully isolated from brique tables |
+| `/grignon` | Grignon reference data only — create/edit/activate/search `grignon_clients` & `grignon_fournisseurs`. No operational entry (see below). |
+| `/clients/grignon` | Grignon client statement — unified timeline (historical + Voyage-sourced `grignon_operations`, plus `grignon_paiements`) |
+| `/fournisseurs/grignon` | Grignon fournisseur statement — unified timeline (`grignon_operations` + merged payments, see below) |
 | `/rentabilite` | Profitability analysis with Recharts |
 | `/parametres` | App settings |
 | `/admin` | Super-admin only: manage `allowed_users` |
@@ -59,6 +61,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 **GRIGNON** uses: `grignon_clients`, `grignon_fournisseurs`, `grignon_camions`, `grignon_operations`, `grignon_fournisseur_paiements`, `grignon_paiements`
 
 **Never mix these.** A brique fournisseur (Nova, Dura) is NOT a grignon fournisseur. Type briques (B12, B10, B7, GF1) are NOT grignon clients.
+
+### Grignon: Voyage is the only operational source
+
+All grignon achats/livraisons are created from a Voyage (`lib/services/voyage/achats.js`, `lib/services/voyage/livraisons.js`), which mirror into `grignon_operations` (with `voyage_id` set — best-effort, retried without that column if the migration hasn't run yet). `/grignon` no longer has a saisie/edit/delete UI for operations — it's reference-data only (clients & fournisseurs: create, edit, activate/deactivate via `actif`, search — see `sql/13_grignon_master_data.sql`). `grignon_camions` and the old direct-entry dashboard were retired; Voyage camion selection uses the main `camions` table.
+
+Grignon client/fournisseur payments are recorded from `/paiements` (client payments → `grignon_paiements`; fournisseur payments → `paiements` with `type_compte='fourn_grignon'`), never from `/grignon`. **Historical exception:** fournisseur-grignon payments entered before this change live in the legacy `grignon_fournisseur_paiements` table — `pages/fournisseurs/grignon.js` merges both tables into one displayed timeline so old and new payments show up together (see `sql/01_fournisseurs_snapshot_and_reconcile.sql` for how `grignon_fournisseurs.solde` already reconciles both sources). When touching fournisseur-grignon payment display/logic, always account for both tables — querying only one silently hides real payments without affecting the (correct) balance, which is exactly the bug this merge fixes.
 
 ## Voyage module data flow
 
