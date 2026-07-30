@@ -24,7 +24,12 @@ export default function FournisseursGrignon() {
   const [search,       setSearch]       = useState('')
   const [filterFrom,   setFilterFrom]   = useState(startOfMonth())
   const [filterTo,     setFilterTo]     = useState(today())
-  const [filterType,   setFilterType]   = useState('month')
+  // Defaults to 'all': the achats table only ever renders the filtered list
+  // (never the raw `achats` array), so defaulting to 'month' silently hid
+  // every prior-month purchase behind a toggle the user had to know to
+  // click — that's what looked like "Voyage purchases missing" even though
+  // selectFournisseur() already fetches full, unfiltered history above.
+  const [filterType,   setFilterType]   = useState('all')
   const [showAdd,      setShowAdd]      = useState(false)
   const [newNom,       setNewNom]       = useState('')
 

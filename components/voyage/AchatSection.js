@@ -33,7 +33,7 @@ export default function AchatSection({
               <option value="grignon">🫒 Grignon</option>
             </select></div>
           <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Fournisseur</label>
-            <select value={achatForm.fournisseur_id} onChange={e=>onFormChange({...achatForm,fournisseur_id:e.target.value})} className="input w-full text-sm">
+            <select value={achatForm.fournisseur_id} onChange={e=>onFormChange({...achatForm,fournisseur_id:e.target.value})} className="input w-full text-sm" required>
               <option value="">— Sélectionner —</option>
               {(achatForm.type_produit==='brique'?fournisseurs:grignonFournisseurs).map(f=><option key={f.id} value={f.id}>{f.nom}</option>)}
             </select></div>

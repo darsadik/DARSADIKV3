@@ -25,7 +25,12 @@ export default function ClientsGrignon() {
   const [search,       setSearch]       = useState('')
   const [filterFrom,   setFilterFrom]   = useState(startOfMonth())
   const [filterTo,     setFilterTo]     = useState(today())
-  const [filterType,   setFilterType]   = useState('month')
+  // Defaults to 'all' — same fix as pages/fournisseurs/grignon.js: the
+  // operations table only ever renders the filtered list, so a 'month'
+  // default silently hid every prior-month operation behind a toggle,
+  // which read as "records missing" even though selectClient() already
+  // fetches full, unfiltered history.
+  const [filterType,   setFilterType]   = useState('all')
   const [showAddClient,setShowAddClient]= useState(false)
   const [newClientNom, setNewClientNom] = useState('')
 
