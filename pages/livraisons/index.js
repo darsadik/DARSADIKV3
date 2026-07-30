@@ -271,7 +271,7 @@ export default function Livraisons() {
   function printLivraisons() {
     const sections = Object.values(byClient).sort((a,b)=>b.vente-a.vente).map(cl => {
       const marge = cl.vente - cl.achat
-      const rows = cl.ops.sort((a,b)=>b.date_livraison.localeCompare(a.date_livraison)).map(l => {
+      const rows = cl.ops.sort((a,b)=>(b.date_livraison||'').localeCompare(a.date_livraison||'')).map(l => {
         const m = (l.total_vente||0)-(l.qte||0)*(l.prix_achat||0)
         return '<tr>'
           + '<td>' + fmtDate(l.date_livraison) + '</td>'
@@ -487,7 +487,7 @@ export default function Livraisons() {
                             <th className="th text-right">Total DHS</th><th className="th text-right">Marge</th><th className="th">Note</th>
                           </tr></thead>
                           <tbody>
-                            {cl.ops.sort((a,b)=>b.date_livraison.localeCompare(a.date_livraison)).map(l => {
+                            {cl.ops.sort((a,b)=>(b.date_livraison||'').localeCompare(a.date_livraison||'')).map(l => {
                               const m = (l.total_vente||0)-(l.qte||0)*(l.prix_achat||0)
                               return (
                                 <tr key={l.id} className="hover:bg-gray-50">

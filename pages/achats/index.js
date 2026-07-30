@@ -27,7 +27,7 @@ const PRINT_CSS = `
 
   function printAchats() {
     const sections = Object.values(byFourn).sort((a,b)=>b.total-a.total).map(f => {
-      const rows = f.ops.sort((a,b)=>b.date_achat.localeCompare(a.date_achat)).map(a => `<tr>
+      const rows = f.ops.sort((a,b)=>(b.date_achat||'').localeCompare(a.date_achat||'')).map(a => `<tr>
         <td>${fmtDate(a.date_achat)}</td>
         <td>${a.voyages?.reference || a.voyage_id || '—'}</td>
         <td>${a.type_brique || tab}</td>
@@ -303,7 +303,7 @@ export default function Achats() {
                     {admin && <th className="th"></th>}
                   </tr></thead>
                   <tbody>
-                    {f.ops.sort((a,b)=>b.date_achat.localeCompare(a.date_achat)).map(a => (
+                    {f.ops.sort((a,b)=>(b.date_achat||'').localeCompare(a.date_achat||'')).map(a => (
                       <tr key={a.id} className="hover:bg-gray-50">
                         <td className="td text-gray-500">{fmtDate(a.date_achat)}</td>
                         <td className="td">

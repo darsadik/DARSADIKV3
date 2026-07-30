@@ -274,7 +274,7 @@ export default function Gasoil() {
       if (search && !(g.camion_plaque + g.station + (g.chauffeur || '')).toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
 
   const totLitres = filtered.reduce((s, g) => s + (g.qte || 0), 0)
   const totDHS = filtered.reduce((s, g) => s + (g.total || 0), 0)
@@ -296,7 +296,7 @@ export default function Gasoil() {
   const consoStats = (() => {
     const monthGasoil = gasoil
       .filter(g => g.date && g.date.startsWith(consoMonth) && g.km)
-      .sort((a, b) => a.date.localeCompare(b.date) || (a.id - b.id))
+      .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.id - b.id))
 
     const byCam = {}
     monthGasoil.forEach(g => {
@@ -314,7 +314,7 @@ export default function Gasoil() {
 
     return Object.entries(byCam)
       .map(([plaque, d]) => {
-        const sorted = d.entries.sort((a, b) => a.date.localeCompare(b.date))
+        const sorted = d.entries.sort((a, b) => (a.date || '').localeCompare(b.date || ''))
         const firstKm = sorted.length > 0 ? parseFloat(sorted[0].km) : null
         const lastKm  = sorted.length > 1 ? parseFloat(sorted[sorted.length - 1].km) : null
         const distance = firstKm && lastKm && lastKm > firstKm ? lastKm - firstKm : null
@@ -1065,7 +1065,7 @@ export default function Gasoil() {
               {gasoilPaiements.length === 0 ? (
                 <div className="text-center text-gray-400 text-xs py-4">Aucun paiement enregistré</div>
               ) : (
-                [...gasoilPaiements].sort((a,b) => b.date.localeCompare(a.date)).map(p => (
+                [...gasoilPaiements].sort((a,b) => (b.date || '').localeCompare(a.date || '')).map(p => (
                   <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                     <div>
                       <div className="text-xs font-semibold text-gray-700">{fmt(p.montant)} DHS</div>

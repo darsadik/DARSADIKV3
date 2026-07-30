@@ -1360,7 +1360,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnÃ
       .sort((a, b) => b[1].qte - a[1].qte)
       .map(([plaque, data]) => {
         const opRows = data.ops
-          .slice().sort((a, b) => a.date.localeCompare(b.date))
+          .slice().sort((a, b) => (a.date||'').localeCompare(b.date||''))
           .map(v => `<tr>
             <td>${fmtDate(v.date)}</td>
             <td>${v.client_nom || 'â€”'}</td>
@@ -1814,7 +1814,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
               if (filterTo   && v.date > filterTo)   return false
               if (filterClient && v.client_id !== parseInt(filterClient)) return false
               return true
-            }).sort((a,b) => b.date.localeCompare(a.date))
+            }).sort((a,b) => (b.date||'').localeCompare(a.date||''))
             const totalMdo = mdoFiltered.reduce((s,v) => s + (v.montant_mdo || 0), 0)
 
             function printMdo() {
@@ -1985,7 +1985,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
               if (filterTo    && v.date > filterTo)    return false
               if (filterClient && v.client_id !== parseInt(filterClient)) return false
               return true
-            }).sort((a,b) => b.date.localeCompare(a.date))
+            }).sort((a,b) => (b.date||'').localeCompare(a.date||''))
             const totalRemises = remisesFiltered.reduce((s,v) => s + (v.montant_mdo||0), 0)
 
             function printRemises() {
