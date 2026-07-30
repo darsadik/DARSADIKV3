@@ -16,10 +16,18 @@ BEGIN
   IF NOT FOUND THEN RETURN; END IF;
 
   IF v.type_produit = 'grignon' THEN
-    -- Remove mirrored grignon_operations row (match on client_id + date; voyage_id is optional)
-    DELETE FROM grignon_operations
-    WHERE client_id = v.client_id
-      AND date      = v.date_livraison;
+    -- Remove mirrored grignon_operations row by its exact link
+    -- (voyage_livraisons.grignon_operation_id, sql/14_grignon_livraison_link.sql).
+    -- The client_id+date match is not unique — it was hitting unrelated rows
+    -- (other voyages, or historical data) for the same client on the same day.
+    IF v.grignon_operation_id IS NOT NULL THEN
+      DELETE FROM grignon_operations WHERE id = v.grignon_operation_id;
+    ELSE
+      DELETE FROM grignon_operations
+      WHERE client_id   = v.client_id
+        AND date        = v.date_livraison
+        AND qte         = v.qte;
+    END IF;
 
     UPDATE grignon_clients
     SET solde = solde - COALESCE(v.total_vente, 0)
@@ -248,8 +256,14 @@ BEGIN
   -- Livraisons: reverse client balances + delete mirrored rows
   FOR liv IN SELECT * FROM voyage_livraisons WHERE voyage_id = p_voyage_id LOOP
     IF liv.type_produit = 'grignon' THEN
-      DELETE FROM grignon_operations
-        WHERE client_id = liv.client_id AND date = liv.date_livraison;
+      -- Exact link first (sql/14_grignon_livraison_link.sql) — client_id+date
+      -- alone is not unique and can delete another voyage's/historical row.
+      IF liv.grignon_operation_id IS NOT NULL THEN
+        DELETE FROM grignon_operations WHERE id = liv.grignon_operation_id;
+      ELSE
+        DELETE FROM grignon_operations
+          WHERE client_id = liv.client_id AND date = liv.date_livraison AND qte = liv.qte;
+      END IF;
       UPDATE grignon_clients SET solde = solde - COALESCE(liv.total_vente, 0) WHERE id = liv.client_id;
     ELSE
       IF liv.vente_id IS NOT NULL THEN

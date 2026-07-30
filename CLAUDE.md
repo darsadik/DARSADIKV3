@@ -68,6 +68,12 @@ All grignon achats/livraisons are created from a Voyage (`lib/services/voyage/ac
 
 Grignon client/fournisseur payments are recorded from `/paiements` (client payments → `grignon_paiements`; fournisseur payments → `paiements` with `type_compte='fourn_grignon'`), never from `/grignon`. **Historical exception:** fournisseur-grignon payments entered before this change live in the legacy `grignon_fournisseur_paiements` table — `pages/fournisseurs/grignon.js` merges both tables into one displayed timeline so old and new payments show up together (see `sql/01_fournisseurs_snapshot_and_reconcile.sql` for how `grignon_fournisseurs.solde` already reconciles both sources). When touching fournisseur-grignon payment display/logic, always account for both tables — querying only one silently hides real payments without affecting the (correct) balance, which is exactly the bug this merge fixes.
 
+### Grignon mirror links — always update/delete by exact id, never by client+date
+
+`voyage_achats` ↔ `grignon_operations` (achats) has always had a proper link column (`voyage_achats.grignon_operation_id`, `sql/08_transaction_mirror_links.sql`). `voyage_livraisons` ↔ `grignon_operations` (client deliveries) did **not** — until `sql/14_grignon_livraison_link.sql` added `voyage_livraisons.grignon_operation_id` and `grignon_operations.voyage_id`. Before that migration, `updateLiv`/`delLiv` (`lib/services/voyage/livraisons.js`) and the `delete_voyage_livraison`/`delete_voyage` RPCs (`supabase_rpc.sql`) fell back to matching the mirror row by `client_id + date` alone — not unique, so editing/deleting one grignon livraison could silently corrupt or delete an unrelated `grignon_operations` row (a different voyage's entry, or historical data) for the same client on the same day. That was the real cause of grignon records "disappearing" — not a query bug in `/clients/grignon` or `/fournisseurs/grignon`, which already read `grignon_operations` correctly.
+
+**Rule going forward:** any code that updates/deletes a grignon mirror row must use the id link (`old.grignon_operation_id` on the `voyage_livraisons`/`voyage_achats` side) as the primary path. The client_id+date(+qte) match must only ever be a fallback for rows saved before the link existed (no backfill was run — same precedent as `sql/08`), never the default.
+
 ## Voyage module data flow
 
 Each voyage save writes to TWO tables:

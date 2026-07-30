@@ -7,7 +7,7 @@ import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow }
 import { ADMIN_EMAIL } from '../../lib/config'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
-import { resolveLivraisonGrignonHeuristic } from '../../lib/services/voyage/resolveSource'
+import { resolveLivraisonByGrignonOpId, resolveLivraisonGrignonHeuristic } from '../../lib/services/voyage/resolveSource'
 
 const ADMIN = ADMIN_EMAIL
 
@@ -63,7 +63,10 @@ export default function ClientsGrignon() {
   useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
 
   async function editOperation(op) {
-    const resolved = await resolveLivraisonGrignonHeuristic({ voyage_id: op.voyage_id, client_id: op.client_id, date: op.date })
+    // Exact link first (sql/14_grignon_livraison_link.sql); the heuristic
+    // match is only for rows saved before that column existed.
+    const resolved = await resolveLivraisonByGrignonOpId(op.id)
+      || await resolveLivraisonGrignonHeuristic({ voyage_id: op.voyage_id, client_id: op.client_id, date: op.date })
     if (!resolved) { alert("Cette opération ne peut pas être modifiée depuis cette page — ouvrez le voyage."); return }
     openVoyEdit('liv', resolved)
   }
