@@ -28,7 +28,12 @@ export default function FournisseursBriques() {
   const [search,       setSearch]       = useState('')
   const [filterFrom,   setFilterFrom]   = useState(startOfMonth())
   const [filterTo,     setFilterTo]     = useState(today())
-  const [filterType,   setFilterType]   = useState('month')
+  // Defaults to 'all' — same fix as pages/fournisseurs/grignon.js and
+  // pages/clients/grignon.js: the achats table only ever renders the
+  // filtered list, so a 'month' default silently hid every prior-month
+  // purchase even though selectFournisseur() already fetches full,
+  // unfiltered history above.
+  const [filterType,   setFilterType]   = useState('all')
   const [showAdd,      setShowAdd]      = useState(false)
   const [newNom,       setNewNom]       = useState('')
 

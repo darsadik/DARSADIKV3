@@ -54,9 +54,17 @@ export default function FournisseursGrignon() {
     // (see sql/01_fournisseurs_snapshot_and_reconcile.sql) — merge them here
     // too so the displayed history matches the balance.
     const [{ data: ac }, { data: paLegacy }, { data: paMain }] = await Promise.all([
+      // grignon_operations holds BOTH purchase-mirror rows (client_id null)
+      // and delivery-mirror rows (client_id set) — a delivery row also
+      // carries a fournisseur_id (borrowed from the voyage's own purchase,
+      // see saveLiv in lib/services/voyage/livraisons.js) and a total_achat
+      // (cost basis of what was delivered). Without excluding client_id,
+      // every delivery's cost was double-counted into this supplier's
+      // purchase history/total on top of the real achat row it came from.
       supabase.from('grignon_operations')
         .select('*')
         .eq('fournisseur_id', f.id)
+        .is('client_id', null)
         .order('date', { ascending: true }),
       supabase.from('grignon_fournisseur_paiements')
         .select('*')

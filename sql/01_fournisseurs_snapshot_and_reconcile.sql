@@ -149,11 +149,17 @@ FROM grignon_fournisseurs f
 JOIN grignon_fournisseurs_snapshot_20260530 snap ON snap.id = f.id
 
 LEFT JOIN (
+    -- client_id IS NULL excludes delivery-mirror rows: a grignon delivery
+    -- also carries a fournisseur_id (borrowed from the voyage's own
+    -- purchase — see saveLiv in lib/services/voyage/livraisons.js) and a
+    -- total_achat (cost basis of what was delivered). Without this filter,
+    -- every delivery's cost was double-counted on top of the real achat row.
     SELECT
         fournisseur_id,
         SUM(COALESCE(total_achat, 0)) AS total_purchases
     FROM grignon_operations
     WHERE fournisseur_id IS NOT NULL
+      AND client_id IS NULL
     GROUP BY fournisseur_id
 ) purchases ON purchases.fournisseur_id = f.id
 
@@ -183,6 +189,7 @@ SET solde =
         SELECT SUM(COALESCE(op.total_achat, 0))
         FROM grignon_operations op
         WHERE op.fournisseur_id = f.id
+          AND op.client_id IS NULL
     ), 0)
     - COALESCE((
         SELECT SUM(p.montant)
