@@ -178,7 +178,24 @@ export default function Clients() {
       supabase.from('paiements').select('*').eq('client_id', client.id).order('date', { ascending: true }),
       supabase.from('remises').select('*').eq('client_id', client.id).order('date', { ascending: true }),
     ])
-    setClientVentes(ventes || [])
+    // camion_plaque on ventes is a snapshot taken from the voyage at insert
+    // time (lib/services/voyage/livraisons.js, achats.js, charges.js).
+    // Editing a voyage's truck afterwards only updates the voyages row — it
+    // never cascades to already-created mirror rows — so the snapshot can go
+    // stale or blank. The voyage is the single operational source of truth,
+    // so always resolve the truck from the linked voyage when one exists
+    // (paiements aren't voyage-mirrored — their camion is chosen directly on
+    // the payment form — so they're left untouched).
+    const voyageIds = [...new Set((ventes || []).map(v => v.voyage_id).filter(Boolean))]
+    let voyageCamionById = {}
+    if (voyageIds.length > 0) {
+      const { data: voys } = await supabase.from('voyages').select('id,camion_plaque').in('id', voyageIds)
+      voyageCamionById = Object.fromEntries((voys || []).map(v => [v.id, v.camion_plaque]))
+    }
+    setClientVentes((ventes || []).map(v => ({
+      ...v,
+      camion_plaque: (v.voyage_id && voyageCamionById[v.voyage_id]) || v.camion_plaque || '',
+    })))
     setClientPaiements(paiements || [])
     setClientRemises(remises || [])
 

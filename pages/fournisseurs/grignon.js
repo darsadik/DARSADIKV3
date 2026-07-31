@@ -76,7 +76,23 @@ export default function FournisseursGrignon() {
         .eq('type_compte', 'fourn_grignon')
         .order('date', { ascending: true }),
     ])
-    setAchats(ac || [])
+    // camion_plaque on grignon_operations is a snapshot taken from the voyage
+    // at insert time (lib/services/voyage/achats.js). Editing a voyage's
+    // truck afterwards only updates the voyages row — it never cascades to
+    // already-created mirror rows — so the snapshot can go stale or blank.
+    // The voyage is the single operational source of truth for grignon data
+    // (see pages/clients/grignon.js for the same fix), so always resolve the
+    // truck from the linked voyage when one exists.
+    const voyageIds = [...new Set((ac || []).map(a => a.voyage_id).filter(Boolean))]
+    let voyageCamionById = {}
+    if (voyageIds.length > 0) {
+      const { data: voys } = await supabase.from('voyages').select('id,camion_plaque').in('id', voyageIds)
+      voyageCamionById = Object.fromEntries((voys || []).map(v => [v.id, v.camion_plaque]))
+    }
+    setAchats((ac || []).map(a => ({
+      ...a,
+      camion_plaque: (a.voyage_id && voyageCamionById[a.voyage_id]) || a.camion_plaque || '',
+    })))
     const merged = [
       ...(paLegacy || []).map(p => ({ id: `legacy-${p.id}`, date: p.date, montant: p.montant, mode: p.mode_paiement, note: p.note, cheque_number: null })),
       ...(paMain   || []).map(p => ({ id: `main-${p.id}`,   date: p.date, montant: p.montant, mode: p.mode,           note: p.note, cheque_number: p.cheque_number })),

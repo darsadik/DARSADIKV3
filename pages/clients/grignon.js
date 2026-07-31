@@ -52,7 +52,25 @@ export default function ClientsGrignon() {
       supabase.from('grignon_operations').select('*').eq('client_id', cl.id).order('date', { ascending: true }),
       supabase.from('grignon_paiements').select('*').eq('client_id', cl.id).order('date', { ascending: true }),
     ])
-    setOperations((ops || []).map(op => ({...op, client_nom: gMap(op.client_nom)})))
+    // camion_plaque on grignon_operations is a snapshot taken from the voyage
+    // at insert time (lib/services/voyage/livraisons.js). Editing a voyage's
+    // truck afterwards (pages/voyages/index.js updateVoyage()) only updates
+    // the voyages row — it never cascades to already-created mirror rows —
+    // so the snapshot can go stale or blank. The voyage is the single
+    // operational source of truth for grignon data, so always resolve the
+    // truck from the linked voyage when one exists; the stored snapshot is
+    // only a fallback for rows saved before voyage_id existed.
+    const voyageIds = [...new Set((ops || []).map(op => op.voyage_id).filter(Boolean))]
+    let voyageCamionById = {}
+    if (voyageIds.length > 0) {
+      const { data: voys } = await supabase.from('voyages').select('id,camion_plaque').in('id', voyageIds)
+      voyageCamionById = Object.fromEntries((voys || []).map(v => [v.id, v.camion_plaque]))
+    }
+    setOperations((ops || []).map(op => ({
+      ...op,
+      client_nom: gMap(op.client_nom),
+      camion_plaque: (op.voyage_id && voyageCamionById[op.voyage_id]) || op.camion_plaque || '',
+    })))
     setPaiements(pa || [])
     setLoadingDetail(false)
   }
@@ -121,11 +139,11 @@ export default function ClientsGrignon() {
   function printClient() {
     if (!selected) return
     const rows = filteredOps.map(op => `<tr>
+      <td>${fmtDate(op.date)}</td>
       <td>${op.camion_plaque||'—'}</td>
       <td style="text-align:right">${fmt(op.qte)} kg</td>
       <td style="text-align:right">${fmtD(op.prix_vente)}</td>
       <td style="text-align:right"><b>${fmt(op.total_vente)} DHS</b></td>
-      <td>${op.note||'—'}</td>
     </tr>`).join('')
     const paiRows = filteredPai.map(p => `<tr>
       <td>${fmtDate(p.date)}</td>
@@ -149,9 +167,9 @@ export default function ClientsGrignon() {
       <div><div style="font-size:20px;font-weight:900">🫒 ${selected.nom}</div><div style="opacity:0.8;font-size:11px">${from && to ? fmtDate(from)+' → '+fmtDate(to) : 'Toutes les périodes'}</div></div>
     </div>
     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#92400e;border-bottom:2px solid #92400e;padding-bottom:4px;margin-bottom:8px">Opérations Grignon</h3>
-    <table><thead><tr><th>Camion</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
+    <table><thead><tr><th>Date</th><th>Camion</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
-    ${filteredOps.length>0?`<tfoot><tr><td>TOTAL</td><td style="text-align:right">${fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmt(totalVentes)} DHS</td><td></td></tr></tfoot>`:''}
+    ${filteredOps.length>0?`<tfoot><tr><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmt(totalVentes)} DHS</td></tr></tfoot>`:''}
     </table>
     <div style="margin-top:20px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;display:flex;justify-content:space-between">
       <span></span>
@@ -279,7 +297,6 @@ export default function ClientsGrignon() {
                           <th className="th text-right">Qté kg</th>
                           <th className="th text-right">Prix/kg</th>
                           <th className="th text-right">Total DHS</th>
-                          <th className="th">Note</th>
                           <th className="th"></th>
                         </tr></thead>
                         <tbody>
@@ -290,7 +307,6 @@ export default function ClientsGrignon() {
                               <td className="td text-right font-semibold">{fmt(op.qte)} kg</td>
                               <td className="td text-right text-gray-500">{fmtD(op.prix_vente)}</td>
                               <td className="td text-right font-bold text-amber-700">{fmt(op.total_vente)} DHS</td>
-                              <td className="td text-gray-400 text-xs">{op.note||'—'}</td>
                               <td className="td whitespace-nowrap">
                                 {op.voyage_id && (
                                   <div className="flex items-center gap-1">
@@ -303,7 +319,7 @@ export default function ClientsGrignon() {
                               </td>
                             </tr>
                           ))}
-                          {filteredOps.length === 0 && <tr><td colSpan={7} className="td text-center text-gray-400 py-6">Aucune opération</td></tr>}
+                          {filteredOps.length === 0 && <tr><td colSpan={6} className="td text-center text-gray-400 py-6">Aucune opération</td></tr>}
                         </tbody>
                         {filteredOps.length > 0 && (
                           <tfoot><tr>
@@ -311,7 +327,6 @@ export default function ClientsGrignon() {
                             <td className="tfoot-td text-right">{fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td>
                             <td className="tfoot-td"></td>
                             <td className="tfoot-td text-right text-amber-700">{fmt(totalVentes)} DHS</td>
-                            <td className="tfoot-td"></td>
                             <td className="tfoot-td"></td>
                           </tr></tfoot>
                         )}
