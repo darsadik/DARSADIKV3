@@ -624,8 +624,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
   .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;font-weight:800;font-size:14px;color:#5b21b6}
   .totals-amt{font-size:16px;font-weight:600;font-family:'Courier New',monospace}
   .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
-  .sf-lbl{font-size:12px;font-weight:700;color:#166534}
-  .sf-amt{font-size:34px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
+  .sf-lbl{font-size:20px;font-weight:900;color:#166534}
+  .sf-amt{font-size:22px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
   .sf-unit{font-size:12px;font-weight:600;color:#4ade80;margin-left:4px}
   .sf-sub{font-size:10px;color:#86efac;margin-top:2px}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
