@@ -444,10 +444,11 @@ export default function Clients() {
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
-  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#eff6ff;border-top:3px solid #1e3a5f;border-bottom:2px solid #bfdbfe;font-weight:800;font-size:14px;color:#1e3a5f}
+  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;font-weight:800;font-size:14px;color:#5b21b6}
+  .totals-amt{font-size:16px;font-weight:600;font-family:'Courier New',monospace}
   .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
   .sf-lbl{font-size:12px;font-weight:700;color:#166534;letter-spacing:0.01em}
-  .sf-amt{font-size:30px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
+  .sf-amt{font-size:34px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
   .sf-unit{font-size:12px;font-weight:600;color:#4ade80;margin-left:4px}
   .sf-sub{font-size:10px;color:#86efac;margin-top:2px}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
@@ -513,8 +514,8 @@ export default function Clients() {
   </tbody>
 </table>
 ${pDisplayEntries.length > 0 ? `<div class="totals-row">
-  <span>Total — ${pDisplayEntries.length} opération${pDisplayEntries.length !== 1 ? 's' : ''}</span>
-  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmtMoney(pFinalBalance)} DHS</span>
+  <span>Total</span>
+  <span class="totals-amt">${fmtMoney(pFinalBalance)} DHS</span>
 </div>` : ''}
 <div class="solde-final">
   <div><div class="sf-lbl">Solde actuel à payer</div><div class="sf-sub">${periode}</div></div>
@@ -620,10 +621,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#ede9fe;border-top:3px solid #7c3aed;font-weight:800;font-size:14px;color:#5b21b6}
+  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;font-weight:800;font-size:14px;color:#5b21b6}
+  .totals-amt{font-size:16px;font-weight:600;font-family:'Courier New',monospace}
   .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
   .sf-lbl{font-size:12px;font-weight:700;color:#166534}
-  .sf-amt{font-size:30px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
+  .sf-amt{font-size:34px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
   .sf-unit{font-size:12px;font-weight:600;color:#4ade80;margin-left:4px}
   .sf-sub{font-size:10px;color:#86efac;margin-top:2px}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
@@ -665,8 +667,8 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
   <tbody>${rows}</tbody>
 </table>
 ${pEntries.length > 0 ? `<div class="totals-row">
-  <span>Total — ${pEntries.length} opération${pEntries.length!==1?'s':''}</span>
-  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmtMoney(pFinalBalance)} DHS</span>
+  <span>Total</span>
+  <span class="totals-amt">${fmtMoney(pFinalBalance)} DHS</span>
 </div>` : ''}
 <div class="solde-final">
   <div><div class="sf-lbl">Solde à payer</div><div class="sf-sub">${isSelectionPrint ? `${pEntries.length} opération${pEntries.length!==1?'s':''} sélectionnée${pEntries.length!==1?'s':''}` : 'Vue Présentation'}</div></div>
@@ -1738,14 +1740,14 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
             {displayEntries.length > 0 && (
               <tfoot>
                 <tr>
-                  <td colSpan={9} style={{padding:'11px 12px',background:'#ede9fe',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'2px solid #ddd6fe'}}>
-                    Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
+                  <td colSpan={9} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
+                    Total
                   </td>
-                  <td style={{padding:'11px 14px',background:'#ede9fe',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #ddd6fe',letterSpacing:'-0.2px'}}>
+                  <td style={{padding:'11px 14px',background:'#f5f3ff',fontSize:17,fontWeight:600,color:'#5b21b6',textAlign:'right',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',letterSpacing:'-0.2px'}}>
                     {fmtMoney(presLedger.finalBalance)} <span style={{fontSize:12,fontWeight:600,color:'#a78bfa'}}>DHS</span>
                   </td>
-                  <td style={{background:'#ede9fe',borderTop:'2px solid #ddd6fe'}}></td>
-                  <td style={{background:'#ede9fe',borderTop:'2px solid #ddd6fe'}}></td>
+                  <td style={{background:'#f5f3ff',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe'}}></td>
+                  <td style={{background:'#f5f3ff',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderRight:'1px solid #ddd6fe',borderRadius:'0 0 8px 0'}}></td>
                 </tr>
               </tfoot>
             )}
@@ -2436,13 +2438,13 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                               {displayEntries.length > 0 && finalEntry && (
                                 <tfoot>
                                   <tr>
-                                    <td colSpan={7} style={{padding:'11px 12px',background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:13,borderTop:'2px solid #bfdbfe'}}>
-                                      Total — {displayEntries.length} opération{displayEntries.length !== 1 ? 's' : ''}
+                                    <td colSpan={7} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
+                                      Total
                                     </td>
-                                    <td style={{padding:'11px 14px',background:'#eff6ff',fontSize:15,fontWeight:900,color:'#1e3a5f',textAlign:'right',borderTop:'2px solid #bfdbfe',letterSpacing:'-0.2px'}}>
-                                      {fmtMoney(finalEntry.solde)} <span style={{fontSize:12,fontWeight:600,color:'#94a3b8'}}>DHS</span>
+                                    <td style={{padding:'11px 14px',background:'#f5f3ff',fontSize:17,fontWeight:600,color:'#5b21b6',textAlign:'right',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',letterSpacing:'-0.2px'}}>
+                                      {fmtMoney(finalEntry.solde)} <span style={{fontSize:12,fontWeight:600,color:'#a78bfa'}}>DHS</span>
                                     </td>
-                                    <td colSpan={2} style={{background:'#eff6ff',borderTop:'2px solid #bfdbfe'}}></td>
+                                    <td colSpan={2} style={{background:'#f5f3ff',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderRight:'1px solid #ddd6fe',borderRadius:'0 0 8px 0'}}></td>
                                   </tr>
                                 </tfoot>
                               )}
@@ -2461,7 +2463,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       <div className="mt-1" style={{color:'#4ade80',fontSize:12}}>{getFilterLabel()}</div>
                     </div>
                     <div style={{textAlign:'right'}}>
-                      <div className="font-black" style={{fontSize:32,color:ledger.finalBalance>0?'#15803d':'#16a34a',lineHeight:1,letterSpacing:'-0.5px'}}>
+                      <div className="font-black" style={{fontSize:36,color:ledger.finalBalance>0?'#15803d':'#16a34a',lineHeight:1,letterSpacing:'-0.5px'}}>
                         {fmtMoney(ledger.finalBalance)}
                       </div>
                       <div style={{fontSize:13,fontWeight:600,color:'#86efac',marginTop:3}}>DHS</div>
