@@ -309,9 +309,13 @@ export default function Voyages() {
     }).eq('id', editingVoyage.id)
     setSavingEditVoyage(false)
     setEditingVoyage(null)
-    await recalcOdometerChain(parseInt(editVoyageForm.camion_id))
-    if (editingVoyage.camion_id && editingVoyage.camion_id !== parseInt(editVoyageForm.camion_id)) {
-      await recalcOdometerChain(editingVoyage.camion_id)
+    try {
+      await recalcOdometerChain(parseInt(editVoyageForm.camion_id))
+      if (editingVoyage.camion_id && editingVoyage.camion_id !== parseInt(editVoyageForm.camion_id)) {
+        await recalcOdometerChain(editingVoyage.camion_id)
+      }
+    } catch (err) {
+      alert('Erreur recalcul chaîne kilométrique: ' + err.message)
     }
     loadAll()
   }
@@ -348,7 +352,11 @@ export default function Voyages() {
       return
     }
     const camionIds = [...new Set(deletePreviewFor.map(v => v.camion_id).filter(Boolean))]
-    await Promise.all(camionIds.map(recalcOdometerChain))
+    try {
+      await Promise.all(camionIds.map(recalcOdometerChain))
+    } catch (err) {
+      alert('Erreur recalcul chaîne kilométrique: ' + err.message)
+    }
     setDeletePreviewFor(null)
     setSelectedIds([])
     loadAll()
@@ -374,7 +382,11 @@ export default function Voyages() {
     if (error) { setMsg('❌ ' + error.message); return }
     setShowForm(false)
     setForm({ date_depart: today(), camion_id: '', destination: '', note: '', km_depart: '' })
-    await recalcOdometerChain(parseInt(form.camion_id))
+    try {
+      await recalcOdometerChain(parseInt(form.camion_id))
+    } catch (err) {
+      alert('Erreur recalcul chaîne kilométrique: ' + err.message)
+    }
     router.push(`/voyages/${data.id}`)
   }
 

@@ -486,7 +486,11 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   async function updateKm() {
     setSavingKm(true)
     await dbUpdateKm(id, kmForm.km_depart)
-    if (voyage?.camion_id) await recalcOdometerChain(voyage.camion_id)
+    try {
+      if (voyage?.camion_id) await recalcOdometerChain(voyage.camion_id)
+    } catch (err) {
+      alert('Erreur recalcul chaîne kilométrique: ' + err.message)
+    }
     setSavingKm(false)
     setEditingKm(false)
     loadVoyage()

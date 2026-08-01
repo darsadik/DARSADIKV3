@@ -92,7 +92,11 @@ export default function VoyagesArchives() {
     // Restoring re-inserts this voyage into its truck's chronological
     // odometer chain — must recalc, same as every other create/edit/delete
     // path that can change which voyages exist for a camion_id.
-    if (v.camion_id) await recalcOdometerChain(v.camion_id)
+    try {
+      if (v.camion_id) await recalcOdometerChain(v.camion_id)
+    } catch (err) {
+      alert('Erreur recalcul chaîne kilométrique: ' + err.message)
+    }
     loadAll()
   }
 
