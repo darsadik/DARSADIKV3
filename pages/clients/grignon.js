@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow, sortGrignonRecords } from '../../lib/utils'
 import { ADMIN_EMAIL } from '../../lib/config'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
@@ -120,12 +120,12 @@ export default function ClientsGrignon() {
   }
   const { from, to } = getDateRange()
 
-  const filteredOps = operations.filter(op => {
+  const filteredOps = sortGrignonRecords(operations.filter(op => {
     const d = op.date
     if (from && d < from) return false
     if (to   && d > to)   return false
     return true
-  })
+  }))
   const filteredPai = paiements.filter(p => {
     const d = p.date
     if (from && d < from) return false
@@ -155,11 +155,11 @@ export default function ClientsGrignon() {
     openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Client Grignon — ${selected.nom}</title>
     <style>*{-webkit-print-color-adjust:exact !important}
     @page{margin:0}
-    body{font-family:Arial;padding:28px;font-size:12px;color:#1e293b}
+    body{font-family:Arial;padding:28px;font-size:13px;color:#1e293b}
     .hdr{background:#92400e;color:#fff;padding:16px;border-radius:8px;margin-bottom:16px}
     table{width:100%;border-collapse:collapse;margin-bottom:16px}
-    th{background:#92400e !important;color:#fff !important;padding:7px 10px;text-align:left;font-size:10px;font-weight:700}
-    td{padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:11px}
+    th{background:#92400e !important;color:#fff !important;padding:9px 10px;text-align:left;font-size:11px;font-weight:700}
+    td{padding:9px 10px;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:500}
     tr:nth-child(even) td{background:#fffbeb !important}
     tfoot td{background:#f1f5f9 !important;font-weight:800 !important}
     @media print{button{display:none !important}}</style></head><body>
@@ -293,21 +293,21 @@ export default function ClientsGrignon() {
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead><tr>
-                          <th className="th">Date</th><th className="th">Camion</th>
-                          <th className="th text-right">Qté kg</th>
-                          <th className="th text-right">Prix/kg</th>
-                          <th className="th text-right">Total DHS</th>
-                          <th className="th"></th>
+                          <th className="th text-xs py-3.5">Date</th><th className="th text-xs py-3.5">Camion</th>
+                          <th className="th text-xs py-3.5 text-right">Qté kg</th>
+                          <th className="th text-xs py-3.5 text-right">Prix/kg</th>
+                          <th className="th text-xs py-3.5 text-right">Total DHS</th>
+                          <th className="th text-xs py-3.5"></th>
                         </tr></thead>
                         <tbody>
                           {filteredOps.map(op => (
                             <tr key={op.id} className="hover:bg-amber-50">
-                              <td className="td text-gray-500">{fmtDate(op.date)}</td>
-                              <td className="td text-gray-500 text-xs">{op.camion_plaque||'—'}</td>
-                              <td className="td text-right font-semibold">{fmt(op.qte)} kg</td>
-                              <td className="td text-right text-gray-500">{fmtD(op.prix_vente)}</td>
-                              <td className="td text-right font-bold text-amber-700">{fmt(op.total_vente)} DHS</td>
-                              <td className="td whitespace-nowrap">
+                              <td className="td py-3.5 text-gray-600 font-medium">{fmtDate(op.date)}</td>
+                              <td className="td py-3.5 text-gray-600 font-medium">{op.camion_plaque||'—'}</td>
+                              <td className="td py-3.5 text-right font-bold">{fmt(op.qte)} kg</td>
+                              <td className="td py-3.5 text-right text-gray-600 font-medium">{fmtD(op.prix_vente)}</td>
+                              <td className="td py-3.5 text-right font-bold text-amber-700">{fmt(op.total_vente)} DHS</td>
+                              <td className="td py-3.5 whitespace-nowrap">
                                 {op.voyage_id && (
                                   <div className="flex items-center gap-1">
                                     <button onClick={() => editOperation(op)} title="Modifier (voyage)"
@@ -323,11 +323,11 @@ export default function ClientsGrignon() {
                         </tbody>
                         {filteredOps.length > 0 && (
                           <tfoot><tr>
-                            <td className="tfoot-td" colSpan={2}>TOTAL ({filteredOps.length})</td>
-                            <td className="tfoot-td text-right">{fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td>
-                            <td className="tfoot-td"></td>
-                            <td className="tfoot-td text-right text-amber-700">{fmt(totalVentes)} DHS</td>
-                            <td className="tfoot-td"></td>
+                            <td className="tfoot-td py-3.5" colSpan={2}>TOTAL ({filteredOps.length})</td>
+                            <td className="tfoot-td py-3.5 text-right">{fmt(filteredOps.reduce((s,o)=>s+(o.qte||0),0))} kg</td>
+                            <td className="tfoot-td py-3.5"></td>
+                            <td className="tfoot-td py-3.5 text-right text-amber-700">{fmt(totalVentes)} DHS</td>
+                            <td className="tfoot-td py-3.5"></td>
                           </tr></tfoot>
                         )}
                       </table>
@@ -339,26 +339,26 @@ export default function ClientsGrignon() {
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead><tr>
-                          <th className="th">Date</th><th className="th">Mode</th>
-                          <th className="th text-right">Montant DHS</th>
-                          <th className="th">Note</th>
+                          <th className="th text-xs py-3.5">Date</th><th className="th text-xs py-3.5">Mode</th>
+                          <th className="th text-xs py-3.5 text-right">Montant DHS</th>
+                          <th className="th text-xs py-3.5">Note</th>
                         </tr></thead>
                         <tbody>
                           {filteredPai.map(p => (
                             <tr key={p.id} className="hover:bg-green-50">
-                              <td className="td text-gray-500">{fmtDate(p.date)}</td>
-                              <td className="td text-xs">{p.mode||'—'}</td>
-                              <td className="td text-right font-bold text-green-600">− {fmt(p.montant)} DHS</td>
-                              <td className="td text-gray-400 text-xs">{p.note||'—'}</td>
+                              <td className="td py-3.5 text-gray-600 font-medium">{fmtDate(p.date)}</td>
+                              <td className="td py-3.5 font-medium">{p.mode||'—'}</td>
+                              <td className="td py-3.5 text-right font-bold text-green-600">− {fmt(p.montant)} DHS</td>
+                              <td className="td py-3.5 text-gray-500">{p.note||'—'}</td>
                             </tr>
                           ))}
                           {filteredPai.length === 0 && <tr><td colSpan={4} className="td text-center text-gray-400 py-6">Aucun paiement</td></tr>}
                         </tbody>
                         {filteredPai.length > 0 && (
                           <tfoot><tr>
-                            <td className="tfoot-td" colSpan={2}>TOTAL reçu</td>
-                            <td className="tfoot-td text-right text-green-700">− {fmt(totalPaiements)} DHS</td>
-                            <td className="tfoot-td"></td>
+                            <td className="tfoot-td py-3.5" colSpan={2}>TOTAL reçu</td>
+                            <td className="tfoot-td py-3.5 text-right text-green-700">− {fmt(totalPaiements)} DHS</td>
+                            <td className="tfoot-td py-3.5"></td>
                           </tr></tfoot>
                         )}
                       </table>
