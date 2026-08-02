@@ -389,6 +389,28 @@ export default function Clients() {
     return `solo:${eKey(e)}`
   }
 
+  // ── VOYAGE ROW SPANS — for real <td rowspan> merging of Date/Camion cells.
+  // Returns an array parallel to `entries`: at a group's first index, the
+  // number of consecutive rows sharing its voyageGroupKey (the rowspan count);
+  // at every other index within that group, 0 (meaning: render no cell there,
+  // the earlier <td rowspan> already covers this row).
+  // `breakBefore` (optional Set of indices) forces a group boundary even when
+  // voyageGroupKey matches — needed where an unrelated standalone <tr> (e.g.
+  // the "Report/carry-forward" row) gets injected mid-list, since a real
+  // rowspan can't skip over a foreign sibling row.
+  function computeVoyageRowSpans(entries, breakBefore) {
+    const spans = new Array(entries.length).fill(1)
+    let i = 0
+    while (i < entries.length) {
+      let j = i + 1
+      while (j < entries.length && !breakBefore?.has(j) && voyageGroupKey(entries[j]) === voyageGroupKey(entries[i])) j++
+      spans[i] = j - i
+      for (let k = i + 1; k < j; k++) spans[k] = 0
+      i = j
+    }
+    return spans
+  }
+
   // ── PRESENTATION HELPERS ──
   function getEffectivePeriod(e) {
     return presentationOrder[eKey(e)]?.p ?? e.date.slice(0, 7)
@@ -411,6 +433,7 @@ export default function Clients() {
     const pLedger = buildLedger()
     const pDisplayEntries = pLedger.entries
     const pFinalBalance = pLedger.finalBalance
+    const pRowSpans = computeVoyageRowSpans(pDisplayEntries)
 
     function pMv(e) {
       const abs = Math.abs(e.delta); const isPos = e.delta >= 0
@@ -499,20 +522,23 @@ export default function Clients() {
   </tr></thead>
   <tbody>
     ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:12px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report' : 'Solde initial'}</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmtMoney(ancienSoldeVal)}</td><td class="m">${carryOver !== null ? '' : (selected.opening_note||'Solde de départ')}</td></tr>` : ''}
-    ${pDisplayEntries.map(e => {
+    ${pDisplayEntries.map((e, i) => {
       const isVente = e.src === 'vente'; const v = e.raw
       const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
       const mvColor = isPos ? '#1d4ed8' : '#16a34a'
       const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
       const noteDisplay = e.note || '—'
+      const rowSpan = pRowSpans[i]
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       const typeTag = e.type === 'vente' || e.type === 'frais-charge'
         ? `<span class="tag">${e.label}</span>`
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
         : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
       return `<tr>
-        <td class="m" style="white-space:nowrap">${fmtDate(e.date)}</td>
-        <td class="m">${e.detail||'—'}</td>
+        ${dateCell}
+        ${camionCell}
         <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
         <td>${typeTag}</td>
         <td class="r" style="font-weight:700;color:#0f172a;font-size:13.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
@@ -560,14 +586,16 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
 
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+    const pRowSpans = computeVoyageRowSpans(pEntries)
 
-    const rows = reportRowHtml + pEntries.map(e => {
+    const rows = reportRowHtml + pEntries.map((e, i) => {
+      const rowSpan = pRowSpans[i]
       // ── Opening balance row ──
       if (e.type === 'opening') {
         const soldeAmber = e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`
         return `<tr style="background:#fffbeb !important">
-          <td class="m" style="color:#92400e;white-space:nowrap">${e.date ? fmtDate(e.date) : '—'}</td>
-          <td class="m">—</td>
+          <td class="m" style="color:#92400e;white-space:nowrap" rowspan="${rowSpan}">${e.date ? fmtDate(e.date) : '—'}</td>
+          <td class="m" rowspan="${rowSpan}">—</td>
           <td style="font-size:12px;font-weight:600;color:#92400e">Solde initial</td>
           <td><span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Solde initial</span></td>
           <td class="r" style="color:#9ca3af">—</td>
@@ -591,9 +619,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
         : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       return `<tr>
-        <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>
-        <td class="m">${e.detail||'—'}</td>
+        ${dateCell}
+        ${camionCell}
         <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
         <td>${typeTag}</td>
         <td class="r">${qteCell}</td>
@@ -1444,6 +1474,9 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
       ? displayEntries.findIndex(e => presSelectedRows.has(eKey(e)))
       : -1
     const carryForwardBalance = firstSelIdx > 0 ? displayEntries[firstSelIdx - 1].solde : null
+    // The Report row (if any) is a standalone <tr> injected right before firstSelIdx —
+    // force a voyage-group boundary there so no rowspan tries to span across it.
+    const rowSpans = computeVoyageRowSpans(displayEntries, firstSelIdx > 0 ? new Set([firstSelIdx]) : undefined)
 
     if (displayEntries.length === 0) {
       return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune opération</div>
@@ -1589,7 +1622,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 const typeRowBg  = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement' || e.type === 'frais-deduction') ? '#f0fdf4'
                   : e.type === 'mdo' ? '#fefce8' : undefined
                 const rowBg = isSelected ? '#ede9fe' : typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
-                const isGroupStart = i === 0 || voyageGroupKey(displayEntries[i - 1]) !== voyageGroupKey(e)
+                const rowSpan = rowSpans[i]
 
                 const rowEl = (
                   <tr key={eKey(e)}
@@ -1657,19 +1690,23 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
                       ⠿
                     </td>
-                    {/* DATE + MOVED INDICATOR — blank on grouped continuation rows */}
-                    <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>
-                      {isGroupStart && <div>{fmtDate(e.date)}</div>}
-                      {isMoved && (
-                        <div style={{fontSize:9,marginTop:2}}>
-                          <span style={{background:'#ede9fe',color:'#7c3aed',fontWeight:700,padding:'1px 4px',borderRadius:3}}>↕ Déplacé</span>
-                        </div>
-                      )}
-                    </td>
-                    {/* CAMION — blank on grouped continuation rows */}
-                    <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px'}}>
-                      {isGroupStart ? (e.detail || <span className="text-gray-400">—</span>) : ''}
-                    </td>
+                    {/* DATE + MOVED INDICATOR — real rowspan merge across the voyage group */}
+                    {rowSpan > 0 && (
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle'}}>
+                        <div>{fmtDate(e.date)}</div>
+                        {isMoved && (
+                          <div style={{fontSize:9,marginTop:2}}>
+                            <span style={{background:'#ede9fe',color:'#7c3aed',fontWeight:700,padding:'1px 4px',borderRadius:3}}>↕ Déplacé</span>
+                          </div>
+                        )}
+                      </td>
+                    )}
+                    {/* CAMION — real rowspan merge across the voyage group */}
+                    {rowSpan > 0 && (
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle'}}>
+                        {e.detail || <span className="text-gray-400">—</span>}
+                      </td>
+                    )}
                     {/* OPÉRATION */}
                     <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
                       {e.operation}
@@ -2364,7 +2401,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                   </tr>
                                 )}
 
-                                {displayEntries.map((e, i) => {
+                                {(() => { const rowSpans = computeVoyageRowSpans(displayEntries); return displayEntries.map((e, i) => {
                                   const isVente = e.src === 'vente'
                                   const isPos = e.delta >= 0
                                   const absAmt = Math.abs(e.delta)
@@ -2375,17 +2412,21 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                     : e.type === 'mdo' ? '#fefce8' : undefined
                                   const rowBg = isHighlighted ? '#fef9c3' : (typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined))
                                   const noteDisplay = e.note || '—'
-                                  const isGroupStart = i === 0 || voyageGroupKey(displayEntries[i - 1]) !== voyageGroupKey(e)
+                                  const rowSpan = rowSpans[i]
                                   return (
                                     <Fragment key={eKey(e)}>
                                       <tr style={{ background: rowBg, cursor: 'pointer', transition: 'background 0.1s' }}
                                         onClick={() => toggleHighlight(eKey(e))}>
-                                        {/* DATE — blank on grouped continuation rows */}
-                                        <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>{isGroupStart ? fmtDate(e.date) : ''}</td>
-                                        {/* CAMION — blank on grouped continuation rows */}
-                                        <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px'}}>
-                                          {isGroupStart ? (e.detail || <span className="text-gray-400">—</span>) : ''}
-                                        </td>
+                                        {/* DATE — real rowspan merge across the voyage group */}
+                                        {rowSpan > 0 && (
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle'}}>{fmtDate(e.date)}</td>
+                                        )}
+                                        {/* CAMION — real rowspan merge across the voyage group */}
+                                        {rowSpan > 0 && (
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle'}}>
+                                            {e.detail || <span className="text-gray-400">—</span>}
+                                          </td>
+                                        )}
                                         {/* OPÉRATION */}
                                         <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
                                           {e.operation}
@@ -2446,7 +2487,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                       </tr>
                                     </Fragment>
                                   )
-                                })}
+                                }) })()}
                               </tbody>
                               {displayEntries.length > 0 && finalEntry && (
                                 <tfoot>
