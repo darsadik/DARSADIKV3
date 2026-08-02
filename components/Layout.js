@@ -19,6 +19,7 @@ const nav = [
   { href: '/paiements',           icon: 'card',    label: 'Paiements' },
   { href: '/retours',     icon: 'undo',       label: 'Retours' },
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },
+  { href: '/voyages/km-carburant', icon: 'layers', label: 'Voyage KM & Fuel', highlight: true },
   { href: '/carburant',   icon: 'refresh-cw', label: 'Contrôle KM & Carburant' },
   { href: '/kilometrage', icon: 'gauge',      label: 'Kilométrage' },
   { href: '/camions',     icon: 'activity',   label: 'Performance Camions' },
@@ -169,6 +170,13 @@ function Icon({ name, size = 18 }) {
         <path d="M12 21a9 9 0 100-18 9 9 0 000 18z"/>
         <path d="M12 13l4-5"/>
         <path d="M12 13a2 2 0 100 4 2 2 0 000-4z"/>
+      </>
+    ),
+    layers: (
+      <>
+        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+        <polyline points="2 17 12 22 22 17"/>
+        <polyline points="2 12 12 17 22 12"/>
       </>
     ),
   }
