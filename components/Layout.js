@@ -19,7 +19,7 @@ const nav = [
   { href: '/paiements',           icon: 'card',    label: 'Paiements' },
   { href: '/retours',     icon: 'undo',       label: 'Retours' },
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },
-  { href: '/voyages/km-carburant', icon: 'layers', label: 'Voyage KM & Fuel', highlight: true },
+  { href: '/voyages/km-carburant', icon: 'layers', label: 'Truck Control Center', highlight: true },
   { href: '/carburant',   icon: 'refresh-cw', label: 'Contrôle KM & Carburant' },
   { href: '/kilometrage', icon: 'gauge',      label: 'Kilométrage' },
   { href: '/camions',     icon: 'activity',   label: 'Performance Camions' },

@@ -168,7 +168,7 @@ export default function CarburantCycles() {
       <div className="flex justify-end -mt-3 mb-3 text-xs text-gray-400">
         <Link href="/gasoil" className="text-brand-600 font-semibold hover:underline">← Gasoil (pleins)</Link>
         {' · '}
-        <Link href="/voyages/km-carburant" className="text-brand-600 font-semibold hover:underline">Voyage KM & Fuel Manager (par voyage) →</Link>
+        <Link href="/voyages/km-carburant" className="text-brand-600 font-semibold hover:underline">Truck Timeline & KM/Fuel Control Center →</Link>
         {' · '}
         <Link href="/camions" className="text-brand-600 font-semibold hover:underline">Performance Camions →</Link>
       </div>

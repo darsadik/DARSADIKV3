@@ -1,31 +1,27 @@
 import { useState, useEffect, useMemo } from 'react'
-import Link from 'next/link'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
-import { fmt, fmtD, fmtDate } from '../../lib/utils'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
-import { buildVoyageKmFuelTimeline, buildTimelineDashboard, detectFuelAssignmentProblems, detectUnrealisticDistances, TIMELINE_STATUS } from '../../lib/services/voyageKmFuel'
+import { buildVoyageKmFuelTimeline, buildTimelineDashboard, detectFuelAssignmentProblems, detectUnrealisticDistances } from '../../lib/services/voyageKmFuel'
 import { detectProblems as detectOdometerProblems, buildOdometerRows } from '../../lib/services/kilometrage'
+import { buildUnifiedTimeline, filterUnifiedTimeline } from '../../lib/services/voyage/timelineEvents'
 import VoyageFixModal from '../../components/carburant/VoyageFixModal'
+import GasoilFixModal from '../../components/carburant/GasoilFixModal'
+import KmFuelDashboardCards from '../../components/carburant/KmFuelDashboardCards'
+import QuickAuditStrip from '../../components/carburant/QuickAuditStrip'
+import TimelineFilterBar from '../../components/carburant/TimelineFilterBar'
+import UnifiedTimelineList from '../../components/carburant/UnifiedTimelineList'
+import FuelAssignPopover from '../../components/carburant/FuelAssignPopover'
+import KmEditPopover from '../../components/carburant/KmEditPopover'
+import CreateNextVoyageModal from '../../components/carburant/CreateNextVoyageModal'
+import OdometerChainStrip from '../../components/carburant/OdometerChainStrip'
 
-const BADGE_TONE = { ok: 'badge-green', warning: 'badge-amber', error: 'badge-red' }
 const SEVERITY_TONE = { error: 'badge-red', warning: 'badge-amber', info: 'badge-blue' }
 
-function StatusBadge({ status }) {
-  const m = TIMELINE_STATUS[status]
-  if (!m) return null
-  return <span className={BADGE_TONE[m.tone]}>{m.emoji} {m.label}</span>
-}
-
-function DashCard({ label, count, tone, active, onClick }) {
-  const color = tone === 'error' ? 'text-red-600' : tone === 'warning' ? 'text-amber-600' : 'text-emerald-600'
-  return (
-    <button onClick={onClick} className={`stat-card text-left ${active ? 'ring-2 ring-brand-500' : ''}`}>
-      <div className="stat-label">{label}</div>
-      <div className={`stat-value ${color}`}>{count}</div>
-    </button>
-  )
+const DEFAULT_FILTERS = {
+  camionId: '', dateFrom: '', dateTo: '', show: 'all', search: '',
+  statusFilter: '', needsAssignmentOnly: false,
 }
 
 export default function VoyageKmCarburant() {
@@ -36,10 +32,14 @@ export default function VoyageKmCarburant() {
   const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
   const [loading, setLoading] = useState(true)
 
-  const [filterCamion, setFilterCamion] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [search, setSearch] = useState('')
+  const [filters, setFilters] = useState(DEFAULT_FILTERS)
+
   const [fixingVoyageId, setFixingVoyageId] = useState(null)
+  const [assigningGasoilId, setAssigningGasoilId] = useState(null)
+  const [fixingGasoilRow, setFixingGasoilRow] = useState(null)
+  const [kmEditContext, setKmEditContext] = useState(null) // { voyageId, mode }
+  const [creatingNextVoyageFor, setCreatingNextVoyageFor] = useState(null)
+  const [viewingChainForCamionId, setViewingChainForCamionId] = useState(null)
 
   useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
@@ -48,9 +48,9 @@ export default function VoyageKmCarburant() {
     const [{ data: ca }, { data: vo }, { data: ga }, { data: vg }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('voyages')
-        .select('id,reference,date_depart,camion_id,camion_plaque,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
+        .select('id,reference,date_depart,camion_id,camion_plaque,chauffeur,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
         .order('date_depart', { ascending: true }),
-      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,adblue_total,date,heure'),
+      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,date,heure,station'),
       supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total,is_split'),
     ])
     setCamions(ca || [])
@@ -60,55 +60,103 @@ export default function VoyageKmCarburant() {
     setLoading(false)
   }
 
-  const rows = useMemo(() => buildVoyageKmFuelTimeline({
+  const activeVoyages = useMemo(() => voyages.filter(v => !v.deleted_at), [voyages])
+
+  const voyageRows = useMemo(() => buildVoyageKmFuelTimeline({
     voyages, camions, gasoil, voyageGasoilRows, remiseRate,
   }), [voyages, camions, gasoil, voyageGasoilRows, remiseRate])
 
-  const dashboard = useMemo(() => buildTimelineDashboard(rows), [rows])
+  const dashboard = useMemo(() => buildTimelineDashboard(voyageRows), [voyageRows])
 
-  const odometerProblems = useMemo(() => {
-    const active = voyages.filter(v => !v.deleted_at)
-    return detectOdometerProblems(buildOdometerRows(active, camions))
-  }, [voyages, camions])
+  const odometerRows = useMemo(() => buildOdometerRows(activeVoyages, camions), [activeVoyages, camions])
+  const odometerProblems = useMemo(() => detectOdometerProblems(odometerRows), [odometerRows])
   const fuelProblems = useMemo(() => detectFuelAssignmentProblems({ gasoil, voyageGasoilRows }), [gasoil, voyageGasoilRows])
-  const distanceProblems = useMemo(() => detectUnrealisticDistances(rows), [rows])
+  const distanceProblems = useMemo(() => detectUnrealisticDistances(voyageRows), [voyageRows])
   const allProblems = useMemo(() => {
     const order = { error: 0, warning: 1, info: 2 }
     return [...odometerProblems, ...fuelProblems, ...distanceProblems].sort((a, b) => order[a.severity] - order[b.severity])
   }, [odometerProblems, fuelProblems, distanceProblems])
 
-  const visibleRows = useMemo(() => rows
-    .filter(r => !filterCamion || r.camionId === parseInt(filterCamion))
-    .filter(r => !filterStatus || r.status === filterStatus)
-    .filter(r => !search || r.reference.toLowerCase().includes(search.toLowerCase()) || r.plaque.toLowerCase().includes(search.toLowerCase())),
-    [rows, filterCamion, filterStatus, search])
+  const problemVoyageIds = useMemo(() => new Set(allProblems.flatMap(p => p.voyageIds || [])), [allProblems])
+  const problemGasoilIds = useMemo(() => new Set(fuelProblems.map(p => p.gasoilId).filter(Boolean)), [fuelProblems])
+
+  const unifiedTimeline = useMemo(() => buildUnifiedTimeline({
+    voyageRows, gasoil, voyageGasoilRows, problemVoyageIds, problemGasoilIds,
+  }), [voyageRows, gasoil, voyageGasoilRows, problemVoyageIds, problemGasoilIds])
+
+  const pleinsWithKmCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein' && e.hasKm).length, [unifiedTimeline])
+  const pleinsNeedingAssignmentCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein' && e.needsAssignment).length, [unifiedTimeline])
+
+  const visibleEvents = useMemo(() => filterUnifiedTimeline(unifiedTimeline, {
+    camionId: filters.camionId ? parseInt(filters.camionId) : null,
+    dateFrom: filters.dateFrom, dateTo: filters.dateTo, show: filters.show, search: filters.search,
+    statusFilter: filters.statusFilter, needsAssignmentOnly: filters.needsAssignmentOnly,
+  }), [unifiedTimeline, filters])
 
   const visibleProblems = useMemo(() =>
-    filterCamion ? allProblems.filter(p => p.camionId === parseInt(filterCamion)) : allProblems,
-    [allProblems, filterCamion])
+    filters.camionId ? allProblems.filter(p => p.camionId === parseInt(filters.camionId)) : allProblems,
+    [allProblems, filters.camionId])
 
-  function clickDashCard(status) {
-    setFilterCamion('')
-    setFilterStatus(status)
+  const camionVoyagesRaw = useMemo(() => {
+    const map = new Map()
+    activeVoyages.forEach(v => {
+      if (!v.camion_id) return
+      if (!map.has(v.camion_id)) map.set(v.camion_id, [])
+      map.get(v.camion_id).push(v)
+    })
+    return map
+  }, [activeVoyages])
+
+  function selectStatus(key) {
+    setFilters(f => ({ ...f, statusFilter: f.statusFilter === key ? '' : key, needsAssignmentOnly: false }))
+  }
+  function toggleNeedsAssignment() {
+    setFilters(f => ({ ...f, needsAssignmentOnly: !f.needsAssignmentOnly, statusFilter: '' }))
+  }
+  function resetFilters() {
+    setFilters(DEFAULT_FILTERS)
+  }
+
+  // ── Modal wiring ───────────────────────────────────────────────────────────
+  const kmEditVoyage = kmEditContext ? voyageRows.find(v => v.voyageId === kmEditContext.voyageId) : null
+  const assigningPlein = assigningGasoilId ? unifiedTimeline.find(e => e.type === 'plein' && e.gasoilId === assigningGasoilId) : null
+  const viewingChainCamion = viewingChainForCamionId ? camions.find(c => c.id === viewingChainForCamionId) : null
+
+  function onEditKm(voyageEvent, mode) {
+    setKmEditContext({ voyageId: voyageEvent.voyageId, mode })
+  }
+  function onAssignFuel(pleinEvent) {
+    setAssigningGasoilId(pleinEvent.gasoilId)
+  }
+  function onFixGasoil(pleinEvent) {
+    setFixingGasoilRow({
+      id: pleinEvent.gasoilId, date: pleinEvent.date, camion_plaque: pleinEvent.plaque,
+      km: pleinEvent.km, heure: pleinEvent.heure, camion_id: pleinEvent.camionId,
+    })
+  }
+  function onCreateNext(voyage) {
+    setKmEditContext(null)
+    setCreatingNextVoyageFor({ camionId: voyage.camionId, camionPlaque: voyage.plaque, chauffeur: voyage.chauffeur, prefillKm: '' })
   }
 
   return (
-    <Layout title="Voyage KM & Fuel Manager" subtitle="Vue unifiée par voyage — KM départ/arrivée, distance, carburant assigné et coût/km. Cliquez « Corriger » pour éditer un voyage directement depuis cette liste.">
+    <Layout title="Truck Timeline & KM/Fuel Control Center" subtitle="Centre de contrôle unique par camion — voyages, pleins, KM, distance et carburant en une seule chronologie. Corrigez, assignez et vérifiez tout depuis cette page.">
 
-      {/* ── DASHBOARD ── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <DashCard label="Voyages" count={dashboard.total} tone="ok"
-          active={!filterStatus && !filterCamion} onClick={() => { setFilterStatus(''); setFilterCamion('') }} />
-        {Object.entries(TIMELINE_STATUS).map(([key, meta]) => (
-          <DashCard key={key} label={`${meta.emoji} ${meta.label}`} count={dashboard.byStatus[key] || 0}
-            tone={meta.tone} active={filterStatus === key} onClick={() => clickDashCard(key)} />
-        ))}
-      </div>
+      <KmFuelDashboardCards dashboard={dashboard} activeStatus={filters.statusFilter} onSelectStatus={selectStatus} onReset={resetFilters} />
 
-      {/* ── PROBLEMS ── */}
+      <QuickAuditStrip
+        dashboard={dashboard}
+        pleinsWithKm={pleinsWithKmCount}
+        pleinsNeedingAssignment={pleinsNeedingAssignmentCount}
+        activeStatus={filters.statusFilter}
+        needsAssignmentActive={filters.needsAssignmentOnly}
+        onSelectStatus={selectStatus}
+        onNeedsAssignment={toggleNeedsAssignment}
+      />
+
       {visibleProblems.length > 0 && (
         <div className="card mb-6">
-          <h3 className="font-semibold text-gray-900 mb-3">Problèmes détectés ({visibleProblems.length})</h3>
+          <h3 className="font-semibold text-gray-900 mb-3">⚠ Problèmes détectés ({visibleProblems.length})</h3>
           <div className="space-y-1.5 max-h-64 overflow-y-auto">
             {visibleProblems.map((p, i) => (
               <div key={i} className="w-full flex items-start gap-2 px-3 py-2 rounded-lg text-xs">
@@ -120,101 +168,69 @@ export default function VoyageKmCarburant() {
         </div>
       )}
 
-      {/* ── FILTERS ── */}
-      <div className="card mb-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="label">Camion</label>
-            <select className="input" value={filterCamion} onChange={e => setFilterCamion(e.target.value)} style={{ minWidth: '160px' }}>
-              <option value="">Tous</option>
-              {camions.map(c => <option key={c.id} value={c.id}>{c.plaque}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Statut</label>
-            <select className="input" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ minWidth: '200px' }}>
-              <option value="">Tous</option>
-              {Object.entries(TIMELINE_STATUS).map(([k, m]) => <option key={k} value={k}>{m.emoji} {m.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Rechercher</label>
-            <input className="input" placeholder="Voyage, camion..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '160px' }} />
-          </div>
-          <button onClick={() => { setFilterCamion(''); setFilterStatus(''); setSearch('') }} className="btn-secondary text-xs">↺ Réinitialiser</button>
-        </div>
-      </div>
+      <TimelineFilterBar camions={camions} filters={filters} setFilters={setFilters} onReset={resetFilters} />
 
-      {/* ── TIMELINE TABLE ── */}
-      <div className="card">
-        {loading ? (
-          <div className="text-center text-gray-400 py-10">Chargement...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <th className="th">Date</th>
-                  <th className="th">Camion</th>
-                  <th className="th">Chauffeur</th>
-                  <th className="th">Voyage</th>
-                  <th className="th text-right">KM Départ</th>
-                  <th className="th text-right">KM Arrivée</th>
-                  <th className="th text-right">Distance</th>
-                  <th className="th">Plein lié</th>
-                  <th className="th text-right">Litres</th>
-                  <th className="th text-right">Coût carburant</th>
-                  <th className="th text-right">Coût/km</th>
-                  <th className="th">Statut</th>
-                  <th className="th"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map(r => (
-                  <tr key={r.voyageId} className={`hover:bg-gray-50 transition-colors ${r.status === 'cannot_calculate' ? 'bg-red-50/50' : ''}`}>
-                    <td className="td text-gray-500">{fmtDate(r.date)}</td>
-                    <td className="td text-gray-700">{r.plaque}</td>
-                    <td className="td text-gray-500">{r.chauffeur}</td>
-                    <td className="td">
-                      <Link href={`/voyages/${r.voyageId}`} className="font-semibold text-brand-600 hover:underline">{r.reference}</Link>
-                      {r.outOfSync && <span className="badge-amber ml-2 text-[10px]">désynchronisé</span>}
-                    </td>
-                    <td className="td text-right">{r.kmDepart !== null ? fmt(r.kmDepart) : <span className="text-slate-300">—</span>}</td>
-                    <td className="td text-right">
-                      {r.kmArrivee !== null ? fmt(r.kmArrivee) : (
-                        r.isLastForTruck ? <span className="text-amber-500 text-[10px]">en attente</span> : <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className={`td text-right font-semibold ${r.distance < 0 ? 'text-red-600' : r.distance === 0 ? 'text-amber-600' : 'text-gray-900'}`}>
-                      {r.distance !== null ? `${fmt(r.distance)} km` : <span className="text-slate-300 font-normal">—</span>}
-                    </td>
-                    <td className="td text-gray-500 text-xs">{r.fillLabel || <span className="text-slate-300">—</span>}</td>
-                    <td className="td text-right">{r.litersLinked !== null ? `${fmtD(r.litersLinked)} L` : <span className="text-slate-300">—</span>}</td>
-                    <td className="td text-right font-semibold text-amber-700">{r.fuelCost ? `${fmt(r.fuelCost)} DHS` : <span className="text-slate-300 font-normal">—</span>}</td>
-                    <td className="td text-right">{r.costPerKm !== null ? `${fmtD(r.costPerKm)} DHS` : <span className="text-slate-300">—</span>}</td>
-                    <td className="td"><StatusBadge status={r.status} /></td>
-                    <td className="td">
-                      <button onClick={() => setFixingVoyageId(r.voyageId)}
-                        className="text-xs font-semibold text-brand-600 hover:underline whitespace-nowrap">
-                        Corriger
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {visibleRows.length === 0 && (
-                  <tr><td colSpan={13} className="td text-center text-gray-400 py-10">Aucun voyage trouvé</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {filters.camionId && (
+        <div className="flex justify-end -mt-3 mb-3">
+          <button onClick={() => setViewingChainForCamionId(parseInt(filters.camionId))}
+            className="text-xs font-semibold text-brand-600 hover:underline">
+            🔗 Voir la chaîne odomètre de ce camion →
+          </button>
+        </div>
+      )}
+
+      <UnifiedTimelineList
+        events={visibleEvents}
+        loading={loading}
+        onFixVoyage={setFixingVoyageId}
+        onEditKm={onEditKm}
+        onAssignFuel={onAssignFuel}
+        onFixGasoil={onFixGasoil}
+      />
 
       {fixingVoyageId && (
-        <VoyageFixModal
-          voyageId={fixingVoyageId}
-          onClose={() => setFixingVoyageId(null)}
+        <VoyageFixModal voyageId={fixingVoyageId} onClose={() => setFixingVoyageId(null)} onSaved={loadAll} />
+      )}
+
+      {fixingGasoilRow && (
+        <GasoilFixModal gasoilRow={fixingGasoilRow} camions={camions} onClose={() => setFixingGasoilRow(null)} onSaved={loadAll} />
+      )}
+
+      {assigningPlein && (
+        <FuelAssignPopover
+          plein={assigningPlein}
+          camionVoyageRows={voyageRows}
+          onClose={() => setAssigningGasoilId(null)}
           onSaved={loadAll}
+        />
+      )}
+
+      {kmEditVoyage && kmEditContext && (
+        <KmEditPopover
+          voyage={kmEditVoyage}
+          mode={kmEditContext.mode}
+          camionRawVoyages={camionVoyagesRaw.get(kmEditVoyage.camionId) || []}
+          onClose={() => setKmEditContext(null)}
+          onSaved={loadAll}
+          onCreateNext={onCreateNext}
+        />
+      )}
+
+      {creatingNextVoyageFor && (
+        <CreateNextVoyageModal
+          {...creatingNextVoyageFor}
+          onClose={() => setCreatingNextVoyageFor(null)}
+          onCreated={loadAll}
+        />
+      )}
+
+      {viewingChainCamion && (
+        <OdometerChainStrip
+          camionId={viewingChainCamion.id}
+          camionPlaque={viewingChainCamion.plaque}
+          odometerRows={odometerRows}
+          gasoil={gasoil}
+          onClose={() => setViewingChainForCamionId(null)}
         />
       )}
     </Layout>
