@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Link from 'next/link'
 import { fmt, fmtD, fmtDate } from '../../lib/utils'
 import Section from '../ui/Section'
@@ -17,7 +18,14 @@ export default function GasoilSection({
   totalGasoilManuel,
   camionPlaque,
   voyageId,
+  onUseAsFuelCost,
 }) {
+  // Litres to assign per plein in the picker — keyed by plein id. Blank
+  // (default) = link the whole plein, exactly as before. A value < the
+  // plein's litres splits it: this voyage gets only that portion, and the
+  // plein stays linkable to other voyages for the rest (spec: "assignable
+  // to one voyage / multiple voyages, split between several voyages").
+  const [splitQte, setSplitQte] = useState({})
   return (
     <Section icon="⛽" title={`Gasoil${gasoil.length > 0 ? ` (${gasoil.length} plein(s))` : ''}`} color="orange"
       action={
@@ -46,7 +54,7 @@ export default function GasoilSection({
           ) : (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {camionPleins.map(p => (
-                <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border border-slate-100 hover:bg-orange-50">
+                <div key={p.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-slate-100 hover:bg-orange-50">
                   <div className="text-xs">
                     <span className="font-semibold text-slate-700">{fmtDate(p.date)}</span>
                     <span className="text-slate-400 ml-2">{p.station || '—'}</span>
@@ -55,14 +63,26 @@ export default function GasoilSection({
                       <span className="text-red-400 ml-2">(déjà lié à un autre voyage)</span>
                     )}
                   </div>
-                  <button
-                    onClick={() => onLinkGasoil(p)}
-                    disabled={linkingGasoil}
-                    className="text-xs bg-orange-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-orange-600 ml-2">
-                    ✓ Lier
-                  </button>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <input
+                      type="number" min="0" max={p.qte || undefined} step="0.01"
+                      placeholder={`${p.qte}L`}
+                      value={splitQte[p.id] || ''}
+                      onChange={e => setSplitQte({ ...splitQte, [p.id]: e.target.value })}
+                      title="Litres à assigner à ce voyage — laisser vide pour lier tout le plein"
+                      className="input text-xs w-16 py-1" />
+                    <button
+                      onClick={() => onLinkGasoil(p, parseFloat(splitQte[p.id]) || null)}
+                      disabled={linkingGasoil}
+                      className="text-xs bg-orange-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-orange-600">
+                      ✓ Lier
+                    </button>
+                  </div>
                 </div>
               ))}
+              <div className="text-[10px] text-slate-400 px-1">
+                Laisser le champ litres vide = lier tout le plein. Entrer une valeur inférieure = n'assigner qu'une partie (le reste reste disponible pour d'autres voyages).
+              </div>
             </div>
           )}
         </div>
@@ -100,7 +120,10 @@ export default function GasoilSection({
             <tbody>
               {gasoil.map(g => (
                 <tr key={g.id} className="border-b border-slate-50 hover:bg-slate-50">
-                  <td className="py-2 pr-3 text-slate-500">{fmtDate(g.date_gasoil)}</td>
+                  <td className="py-2 pr-3 text-slate-500">
+                    {fmtDate(g.date_gasoil)}
+                    {g.is_split && <span className="ml-1.5 text-[9px] font-bold text-orange-500 bg-orange-50 border border-orange-100 rounded px-1 py-0.5 align-middle">partiel</span>}
+                  </td>
                   <td className="py-2 pr-3 text-slate-500 truncate max-w-[140px]">{g.station}</td>
                   <td className="py-2 pr-3 text-right">{g.qte_litres}L</td>
                   <td className="py-2 pr-3 text-right">{fmtD(g.prix_unitaire)}</td>
@@ -116,8 +139,14 @@ export default function GasoilSection({
             </tbody>
           </table>
           {fuelSource === 'automatic' && (
-            <div className="mt-2 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-              ⚡ Ce voyage utilise l'allocation km automatique ({fmt(fuelCost)} DHS) — les entrées ci-dessus sont conservées à titre d'historique.
+            <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+              <span>⚡ Ce voyage utilise l'allocation km automatique ({fmt(fuelCost)} DHS) — les entrées ci-dessus sont conservées à titre d'historique.</span>
+              {onUseAsFuelCost && (
+                <button onClick={onUseAsFuelCost}
+                  className="flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition">
+                  Utiliser ce carburant lié à la place ({fmt(totalGasoilManuel)} DHS)
+                </button>
+              )}
             </div>
           )}
           {(fuelSource === 'manual_rate' || fuelSource === 'manual_amount') && (

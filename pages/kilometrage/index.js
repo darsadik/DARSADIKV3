@@ -103,6 +103,10 @@ export default function Kilometrage() {
   return (
     <Layout title="Kilométrage" subtitle="Suivi de la chaîne d'odomètre par camion — la distance est toujours dérivée du KM, jamais saisie à la main">
 
+      <div className="flex justify-end -mt-3 mb-3 text-xs text-gray-400">
+        <Link href="/voyages/km-carburant" className="text-brand-600 font-semibold hover:underline">Voyage KM & Fuel Manager (par voyage, avec carburant) →</Link>
+      </div>
+
       {/* ── DASHBOARD ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <DashCard label="✓ Camions OK" count={dashboard.okTrucks.length} tone="ok"

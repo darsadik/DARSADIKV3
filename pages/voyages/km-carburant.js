@@ -5,8 +5,9 @@ import { supabase } from '../../lib/supabase'
 import { fmt, fmtD, fmtDate } from '../../lib/utils'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
-import { buildVoyageKmFuelTimeline, buildTimelineDashboard, detectFuelAssignmentProblems, TIMELINE_STATUS } from '../../lib/services/voyageKmFuel'
+import { buildVoyageKmFuelTimeline, buildTimelineDashboard, detectFuelAssignmentProblems, detectUnrealisticDistances, TIMELINE_STATUS } from '../../lib/services/voyageKmFuel'
 import { detectProblems as detectOdometerProblems, buildOdometerRows } from '../../lib/services/kilometrage'
+import VoyageFixModal from '../../components/carburant/VoyageFixModal'
 
 const BADGE_TONE = { ok: 'badge-green', warning: 'badge-amber', error: 'badge-red' }
 const SEVERITY_TONE = { error: 'badge-red', warning: 'badge-amber', info: 'badge-blue' }
@@ -38,6 +39,7 @@ export default function VoyageKmCarburant() {
   const [filterCamion, setFilterCamion] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [search, setSearch] = useState('')
+  const [fixingVoyageId, setFixingVoyageId] = useState(null)
 
   useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
@@ -49,7 +51,7 @@ export default function VoyageKmCarburant() {
         .select('id,reference,date_depart,camion_id,camion_plaque,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
         .order('date_depart', { ascending: true }),
       supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,adblue_total,date,heure'),
-      supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total'),
+      supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total,is_split'),
     ])
     setCamions(ca || [])
     setVoyages(vo || [])
@@ -69,10 +71,11 @@ export default function VoyageKmCarburant() {
     return detectOdometerProblems(buildOdometerRows(active, camions))
   }, [voyages, camions])
   const fuelProblems = useMemo(() => detectFuelAssignmentProblems({ gasoil, voyageGasoilRows }), [gasoil, voyageGasoilRows])
+  const distanceProblems = useMemo(() => detectUnrealisticDistances(rows), [rows])
   const allProblems = useMemo(() => {
     const order = { error: 0, warning: 1, info: 2 }
-    return [...odometerProblems, ...fuelProblems].sort((a, b) => order[a.severity] - order[b.severity])
-  }, [odometerProblems, fuelProblems])
+    return [...odometerProblems, ...fuelProblems, ...distanceProblems].sort((a, b) => order[a.severity] - order[b.severity])
+  }, [odometerProblems, fuelProblems, distanceProblems])
 
   const visibleRows = useMemo(() => rows
     .filter(r => !filterCamion || r.camionId === parseInt(filterCamion))
@@ -90,7 +93,7 @@ export default function VoyageKmCarburant() {
   }
 
   return (
-    <Layout title="Voyage KM & Fuel Manager" subtitle="Vue unifiée par voyage — KM départ/arrivée, distance, carburant assigné et coût/km. Lecture seule pour l'instant — édition via la fiche voyage.">
+    <Layout title="Voyage KM & Fuel Manager" subtitle="Vue unifiée par voyage — KM départ/arrivée, distance, carburant assigné et coût/km. Cliquez « Corriger » pour éditer un voyage directement depuis cette liste.">
 
       {/* ── DASHBOARD ── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
@@ -163,6 +166,7 @@ export default function VoyageKmCarburant() {
                   <th className="th text-right">Coût carburant</th>
                   <th className="th text-right">Coût/km</th>
                   <th className="th">Statut</th>
+                  <th className="th"></th>
                 </tr>
               </thead>
               <tbody>
@@ -189,16 +193,30 @@ export default function VoyageKmCarburant() {
                     <td className="td text-right font-semibold text-amber-700">{r.fuelCost ? `${fmt(r.fuelCost)} DHS` : <span className="text-slate-300 font-normal">—</span>}</td>
                     <td className="td text-right">{r.costPerKm !== null ? `${fmtD(r.costPerKm)} DHS` : <span className="text-slate-300">—</span>}</td>
                     <td className="td"><StatusBadge status={r.status} /></td>
+                    <td className="td">
+                      <button onClick={() => setFixingVoyageId(r.voyageId)}
+                        className="text-xs font-semibold text-brand-600 hover:underline whitespace-nowrap">
+                        Corriger
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {visibleRows.length === 0 && (
-                  <tr><td colSpan={12} className="td text-center text-gray-400 py-10">Aucun voyage trouvé</td></tr>
+                  <tr><td colSpan={13} className="td text-center text-gray-400 py-10">Aucun voyage trouvé</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {fixingVoyageId && (
+        <VoyageFixModal
+          voyageId={fixingVoyageId}
+          onClose={() => setFixingVoyageId(null)}
+          onSaved={loadAll}
+        />
+      )}
     </Layout>
   )
 }

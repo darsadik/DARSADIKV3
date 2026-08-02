@@ -124,6 +124,18 @@ BEGIN
   SELECT * INTO vg FROM voyage_gasoil WHERE id = p_id;
   IF NOT FOUND THEN RETURN; END IF;
 
+  -- Split assignments (sql/16_voyage_gasoil_split.sql) only own a PORTION of
+  -- the source plein — the plein itself and the camion's running totals were
+  -- already accounted for once, at the original /gasoil insert, independent
+  -- of how many voyages it ends up split across. Unlinking a split
+  -- assignment must only ever remove this one voyage_gasoil row — never the
+  -- shared gasoil source row (other voyages may still reference it) or
+  -- camion stats (would double-decrement them).
+  IF COALESCE(vg.is_split, false) THEN
+    DELETE FROM voyage_gasoil WHERE id = p_id;
+    RETURN;
+  END IF;
+
   IF vg.gasoil_id IS NOT NULL THEN
     DELETE FROM gasoil WHERE id = vg.gasoil_id;
   END IF;
