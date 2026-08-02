@@ -411,6 +411,29 @@ export default function Clients() {
     return spans
   }
 
+  // ── VOYAGE GROUP BAND/DIVIDER — companion to computeVoyageRowSpans, same
+  // grouping key (voyageGroupKey) and same breakBefore contract. Gives every
+  // row in a voyage group one shared zebra "band" (alternating once PER GROUP
+  // instead of per row, so a 4-row voyage never shows internal stripes) and
+  // flags the last row of each group so a stronger rule can close off the
+  // block — this is what makes a merged Date/Camion cell read as one solid
+  // anchor instead of a transparent cell with mismatched colors bleeding
+  // through behind it from whichever row happens to sit underneath.
+  function computeVoyageGroupMeta(entries, breakBefore) {
+    const band = new Array(entries.length).fill(0)
+    const isGroupLast = new Array(entries.length).fill(true)
+    let i = 0, g = 0
+    while (i < entries.length) {
+      let j = i + 1
+      while (j < entries.length && !breakBefore?.has(j) && voyageGroupKey(entries[j]) === voyageGroupKey(entries[i])) j++
+      for (let k = i; k < j; k++) { band[k] = g % 2; isGroupLast[k] = false }
+      isGroupLast[j - 1] = true
+      g++
+      i = j
+    }
+    return { band, isGroupLast }
+  }
+
   // ── PRESENTATION HELPERS ──
   function getEffectivePeriod(e) {
     return presentationOrder[eKey(e)]?.p ?? e.date.slice(0, 7)
@@ -434,6 +457,7 @@ export default function Clients() {
     const pDisplayEntries = pLedger.entries
     const pFinalBalance = pLedger.finalBalance
     const pRowSpans = computeVoyageRowSpans(pDisplayEntries)
+    const pGroupMeta = computeVoyageGroupMeta(pDisplayEntries)
 
     function pMv(e) {
       const abs = Math.abs(e.delta); const isPos = e.delta >= 0
@@ -473,10 +497,11 @@ export default function Clients() {
   thead th{background:#1e3a5f !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
+  tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.45}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  tbody tr.band td{background:#f6f8fb !important}
+  tbody tr.grp-end td{border-bottom:1.5px solid #c3ccd6 !important}
   .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
   .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;font-weight:800;font-size:14px;color:#5b21b6}
   .totals-amt{font-size:16px;font-weight:600;font-family:'Courier New',monospace}
@@ -529,14 +554,16 @@ export default function Clients() {
       const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
       const noteDisplay = e.note || '—'
       const rowSpan = pRowSpans[i]
-      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
-      const camionCell = rowSpan > 0 ? `<td class="m" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+      const bandBg = pGroupMeta.band[i] === 1 ? '#f6f8fb' : '#ffffff'
+      const rowClass = [pGroupMeta.band[i] === 1 ? 'band' : '', pGroupMeta.isGroupLast[i] ? 'grp-end' : ''].filter(Boolean).join(' ')
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg}" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       const typeTag = e.type === 'vente' || e.type === 'frais-charge'
         ? `<span class="tag">${e.label}</span>`
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
         : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
-      return `<tr>
+      return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
         <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
@@ -587,13 +614,15 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
     const _now = new Date()
     const date = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     const pRowSpans = computeVoyageRowSpans(pEntries)
+    const pGroupMeta = computeVoyageGroupMeta(pEntries)
 
     const rows = reportRowHtml + pEntries.map((e, i) => {
       const rowSpan = pRowSpans[i]
+      const rowClass = [pGroupMeta.band[i] === 1 ? 'band' : '', pGroupMeta.isGroupLast[i] ? 'grp-end' : ''].filter(Boolean).join(' ')
       // ── Opening balance row ──
       if (e.type === 'opening') {
         const soldeAmber = e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`
-        return `<tr style="background:#fffbeb !important">
+        return `<tr class="${rowClass}" style="background:#fffbeb !important">
           <td class="m" style="color:#92400e;white-space:nowrap" rowspan="${rowSpan}">${e.date ? fmtDate(e.date) : '—'}</td>
           <td class="m" rowspan="${rowSpan}">—</td>
           <td style="font-size:12px;font-weight:600;color:#92400e">Solde initial</td>
@@ -619,9 +648,10 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
         : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
-      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
-      const camionCell = rowSpan > 0 ? `<td class="m" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
-      return `<tr>
+      const bandBg = pGroupMeta.band[i] === 1 ? '#f6f8fb' : '#ffffff'
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg}" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+      return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
         <td style="font-size:12px;font-weight:600;color:#1e293b">${e.operation}</td>
@@ -658,10 +688,11 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
   thead th{background:#7c3aed !important;color:#fff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
+  tbody td{padding:9.5px 12px;font-size:13.5px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.45}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  tbody tr.band td{background:#f6f8fb !important}
+  tbody tr.grp-end td{border-bottom:1.5px solid #c3ccd6 !important}
   .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;font-weight:800;font-size:14px;color:#5b21b6}
   .totals-amt{font-size:16px;font-weight:600;font-family:'Courier New',monospace}
   .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
@@ -1476,7 +1507,9 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
     const carryForwardBalance = firstSelIdx > 0 ? displayEntries[firstSelIdx - 1].solde : null
     // The Report row (if any) is a standalone <tr> injected right before firstSelIdx —
     // force a voyage-group boundary there so no rowspan tries to span across it.
-    const rowSpans = computeVoyageRowSpans(displayEntries, firstSelIdx > 0 ? new Set([firstSelIdx]) : undefined)
+    const groupBreak = firstSelIdx > 0 ? new Set([firstSelIdx]) : undefined
+    const rowSpans = computeVoyageRowSpans(displayEntries, groupBreak)
+    const groupMeta = computeVoyageGroupMeta(displayEntries, groupBreak)
 
     if (displayEntries.length === 0) {
       return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune opération</div>
@@ -1621,8 +1654,15 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 const isMoved    = !!presentationOrder[eKey(e)]
                 const typeRowBg  = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement' || e.type === 'frais-deduction') ? '#f0fdf4'
                   : e.type === 'mdo' ? '#fefce8' : undefined
-                const rowBg = isSelected ? '#ede9fe' : typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
                 const rowSpan = rowSpans[i]
+                // ── Group-aware zebra/divider: the whole voyage group shares one band
+                // (not per-row) and only the LAST row of a group gets the heavier
+                // divider — this is what makes a multi-row voyage read as one block
+                // instead of a stack of independently striped rows.
+                const isGroupLast = groupMeta.isGroupLast[i]
+                const bandBg = groupMeta.band[i] === 1 ? '#f7f9fb' : '#ffffff'
+                const rowBg = isSelected ? '#ede9fe' : typeRowBg || bandBg
+                const bdr = { border: '1px solid #f1f5f9', borderBottom: isGroupLast ? '1.5px solid #c3ccd6' : '1px solid #f1f5f9' }
 
                 const rowEl = (
                   <tr key={eKey(e)}
@@ -1690,9 +1730,11 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
                       ⠿
                     </td>
-                    {/* DATE + MOVED INDICATOR — real rowspan merge across the voyage group */}
+                    {/* DATE + MOVED INDICATOR — real rowspan merge across the voyage group.
+                        Explicit background (not transparent) so the merged block never
+                        shows a mismatched color bleeding through from a row beneath it. */}
                     {rowSpan > 0 && (
-                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle'}}>
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle'}}>
                         <div>{fmtDate(e.date)}</div>
                         {isMoved && (
                           <div style={{fontSize:9,marginTop:2}}>
@@ -1701,9 +1743,11 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         )}
                       </td>
                     )}
-                    {/* CAMION — real rowspan merge across the voyage group */}
+                    {/* CAMION — real rowspan merge across the voyage group. The heavier
+                        right border marks where the "anchor" columns end and the
+                        transaction detail columns begin. */}
                     {rowSpan > 0 && (
-                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle'}}>
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle'}}>
                         {e.detail || <span className="text-gray-400">—</span>}
                       </td>
                     )}
@@ -2401,7 +2445,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                   </tr>
                                 )}
 
-                                {(() => { const rowSpans = computeVoyageRowSpans(displayEntries); return displayEntries.map((e, i) => {
+                                {(() => { const rowSpans = computeVoyageRowSpans(displayEntries); const groupMeta = computeVoyageGroupMeta(displayEntries); return displayEntries.map((e, i) => {
                                   const isVente = e.src === 'vente'
                                   const isPos = e.delta >= 0
                                   const absAmt = Math.abs(e.delta)
@@ -2410,20 +2454,29 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                   const isHighlighted = chronoHighlights.has(eKey(e))
                                   const typeRowBg = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement' || e.type === 'frais-deduction') ? '#f0fdf4'
                                     : e.type === 'mdo' ? '#fefce8' : undefined
-                                  const rowBg = isHighlighted ? '#fef9c3' : (typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined))
                                   const noteDisplay = e.note || '—'
                                   const rowSpan = rowSpans[i]
+                                  // ── Group-aware zebra/divider: whole voyage group shares one band
+                                  // (not per-row) and only the LAST row of a group gets the heavier
+                                  // divider, so a multi-row voyage reads as one block.
+                                  const isGroupLast = groupMeta.isGroupLast[i]
+                                  const bandBg = groupMeta.band[i] === 1 ? '#f7f9fb' : '#ffffff'
+                                  const rowBg = isHighlighted ? '#fef9c3' : (typeRowBg || bandBg)
+                                  const bdr = { border: '1px solid #f1f5f9', borderBottom: isGroupLast ? '1.5px solid #c3ccd6' : '1px solid #f1f5f9' }
                                   return (
                                     <Fragment key={eKey(e)}>
                                       <tr style={{ background: rowBg, cursor: 'pointer', transition: 'background 0.1s' }}
                                         onClick={() => toggleHighlight(eKey(e))}>
-                                        {/* DATE — real rowspan merge across the voyage group */}
+                                        {/* DATE — real rowspan merge across the voyage group. Explicit
+                                            background so it never shows a mismatched color bleeding
+                                            through from a differently-tinted row beneath it. */}
                                         {rowSpan > 0 && (
-                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle'}}>{fmtDate(e.date)}</td>
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle'}}>{fmtDate(e.date)}</td>
                                         )}
-                                        {/* CAMION — real rowspan merge across the voyage group */}
+                                        {/* CAMION — real rowspan merge across the voyage group. Heavier
+                                            right border marks where the anchor columns end. */}
                                         {rowSpan > 0 && (
-                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle'}}>
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle'}}>
                                             {e.detail || <span className="text-gray-400">—</span>}
                                           </td>
                                         )}
