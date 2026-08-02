@@ -378,6 +378,17 @@ export default function Clients() {
   // ── ENTRY KEY ──
   function eKey(e) { return `${e.src}:${e.raw?.id ?? e.date}` }
 
+  // ── VOYAGE GROUP KEY (display-only — groups consecutive rows from the same voyage
+  // so Date/Camion print once per voyage instead of once per row). Same voyage_id wins;
+  // for pre-migration rows lacking voyage_id, fall back to date+camion (client is already
+  // fixed since this is a single-client statement). Non voyage-sourced rows (paiement,
+  // remise) never merge into a group. Purely a rendering decision — no data changes.
+  function voyageGroupKey(e) {
+    if (e.voyage_id) return `v:${e.voyage_id}`
+    if (e.src === 'vente' || e.src === 'frais') return `f:${e.date}|${e.detail || ''}`
+    return `solo:${eKey(e)}`
+  }
+
   // ── PRESENTATION HELPERS ──
   function getEffectivePeriod(e) {
     return presentationOrder[eKey(e)]?.p ?? e.date.slice(0, 7)
@@ -1578,6 +1589,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 const typeRowBg  = (e.type === 'remise' || e.type === 'remise-voyage' || e.type === 'paiement' || e.type === 'frais-deduction') ? '#f0fdf4'
                   : e.type === 'mdo' ? '#fefce8' : undefined
                 const rowBg = isSelected ? '#ede9fe' : typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined)
+                const isGroupStart = i === 0 || voyageGroupKey(displayEntries[i - 1]) !== voyageGroupKey(e)
 
                 const rowEl = (
                   <tr key={eKey(e)}
@@ -1645,18 +1657,18 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
                       ⠿
                     </td>
-                    {/* DATE + MOVED INDICATOR */}
+                    {/* DATE + MOVED INDICATOR — blank on grouped continuation rows */}
                     <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>
-                      <div>{fmtDate(e.date)}</div>
+                      {isGroupStart && <div>{fmtDate(e.date)}</div>}
                       {isMoved && (
                         <div style={{fontSize:9,marginTop:2}}>
                           <span style={{background:'#ede9fe',color:'#7c3aed',fontWeight:700,padding:'1px 4px',borderRadius:3}}>↕ Déplacé</span>
                         </div>
                       )}
                     </td>
-                    {/* CAMION */}
+                    {/* CAMION — blank on grouped continuation rows */}
                     <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px'}}>
-                      {e.detail || <span className="text-gray-400">—</span>}
+                      {isGroupStart ? (e.detail || <span className="text-gray-400">—</span>) : ''}
                     </td>
                     {/* OPÉRATION */}
                     <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
@@ -2363,15 +2375,16 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                     : e.type === 'mdo' ? '#fefce8' : undefined
                                   const rowBg = isHighlighted ? '#fef9c3' : (typeRowBg || (i % 2 === 1 ? '#f9fafb' : undefined))
                                   const noteDisplay = e.note || '—'
+                                  const isGroupStart = i === 0 || voyageGroupKey(displayEntries[i - 1]) !== voyageGroupKey(e)
                                   return (
                                     <Fragment key={eKey(e)}>
                                       <tr style={{ background: rowBg, cursor: 'pointer', transition: 'background 0.1s' }}
                                         onClick={() => toggleHighlight(eKey(e))}>
-                                        {/* DATE */}
-                                        <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>{fmtDate(e.date)}</td>
-                                        {/* CAMION */}
+                                        {/* DATE — blank on grouped continuation rows */}
+                                        <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>{isGroupStart ? fmtDate(e.date) : ''}</td>
+                                        {/* CAMION — blank on grouped continuation rows */}
                                         <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px'}}>
-                                          {e.detail || <span className="text-gray-400">—</span>}
+                                          {isGroupStart ? (e.detail || <span className="text-gray-400">—</span>) : ''}
                                         </td>
                                         {/* OPÉRATION */}
                                         <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
