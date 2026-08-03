@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
@@ -33,7 +33,45 @@ export default function FournisseursGasoil() {
   const [newNom,       setNewNom]       = useState('')
   const [remiseRate,   setRemiseRate]   = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
+  // ── STATEMENT MODE (Chronologique / Présentation) — same architecture,
+  // components and UX as the Brick Client Statement (pages/clients/index.js).
+  // Presentation mode is a pure visual reordering layer: it never touches
+  // debit/credit/solde math, accounting dates, or database chronology.
+  const [stmtMode, setStmtMode] = useState('chrono') // 'chrono' | 'presentation'
+
+  // ── PRESENTATION ORDER (stored in gasoil_fournisseurs.presentation_order
+  // JSONB, mirrors clients.presentation_order) ──
+  // Structure: { "<entryId>": { p: "2026-05", s: 1748736000000 }, ... }
+  const [presentationOrder, setPresentationOrder] = useState({})
+  const [presHistory, setPresHistory] = useState([])   // undo stack, max 20 snapshots
+  const [presDragFrom, setPresDragFrom] = useState(null)
+  const [presDragOver, setPresDragOver] = useState(null)
+  const [presSelectedRows, setPresSelectedRows] = useState(new Set())
+  const [presLastClickedIdx, setPresLastClickedIdx] = useState(null)
+
+  // ── DRAG-SELECT STATE (mouse drag across rows to multi-select) ──
+  const [presDragSelectStart, setPresDragSelectStart] = useState(null)
+  const [presDragSelectActive, setPresDragSelectActive] = useState(false)
+  const presSelectInitRef = useRef(null) // selection snapshot at mousedown
+
   useEffect(() => { loadFournisseurs(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
+
+  // Reset presentation state when supplier changes
+  useEffect(() => {
+    if (!selected?.id) return
+    setPresentationOrder(selected.presentation_order || {})
+    setPresHistory([])
+    setPresSelectedRows(new Set())
+    setPresLastClickedIdx(null)
+    setStmtMode('chrono')
+  }, [selected?.id])
+
+  // End drag-selection on mouse-up anywhere on the page
+  useEffect(() => {
+    const up = () => { setPresDragSelectStart(null); setPresDragSelectActive(false) }
+    window.addEventListener('mouseup', up)
+    return () => window.removeEventListener('mouseup', up)
+  }, [])
 
   async function loadFournisseurs() {
     setLoading(true)
@@ -79,7 +117,7 @@ export default function FournisseursGasoil() {
   }
   const { from, to } = getDateRange()
 
-  // ── ONE MERGED CHRONOLOGICAL LEDGER (§5, §6) ──
+  // ── ONE MERGED CHRONOLOGICAL LEDGER (accounting source of truth — unchanged) ──
   const allEntries = [
     ...achats.map(a => ({
       id: `p-${a.id}`, date: a.date, seq: `${a.date}_0_${String(a.id).padStart(10,'0')}`,
@@ -122,7 +160,92 @@ export default function FournisseursGasoil() {
   const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
   const netSupplierTotal  = Math.round((totalAchats - fuelDiscount) * 100) / 100
 
+  // ── PRESENTATION HELPERS — same shape as pages/clients/index.js ──
+  function eKey(e) { return e.id }
+  function getEffectivePeriod(e) { return presentationOrder[eKey(e)]?.p ?? e.date.slice(0, 7) }
+  function getEffectiveSeq(e) { return presentationOrder[eKey(e)]?.s ?? new Date(e.date + 'T00:00:00').getTime() }
+
+  // ── BUILD PRESENTATION LEDGER — full supplier history (not date-filtered),
+  // sorted by effectivePeriod/effectiveSeq when a custom order exists,
+  // otherwise falls back exactly to chronological (seq) order. ──
+  function buildPresentationLedger() {
+    const entries = allEntries.map(e => ({ ...e }))
+    entries.forEach(e => { e.effectivePeriod = getEffectivePeriod(e); e.effectiveSeq = getEffectiveSeq(e) })
+
+    entries.sort((a, b) => {
+      const aO = presentationOrder[eKey(a)], bO = presentationOrder[eKey(b)]
+      if (!aO && !bO) return a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0
+      if (a.effectivePeriod !== b.effectivePeriod) return a.effectivePeriod < b.effectivePeriod ? -1 : 1
+      return a.effectiveSeq - b.effectiveSeq
+    })
+
+    let balance = 0
+    entries.forEach(e => { balance += e.debit - e.credit; e.solde = balance })
+    return { entries, finalBalance: balance }
+  }
+
+  // ── PRESENTATION ORDER PERSISTENCE ──
+  async function savePresentationOrder(newOrder) {
+    setPresentationOrder(newOrder)
+    if (!selected?.id) return
+    await supabase.from('gasoil_fournisseurs').update({ presentation_order: newOrder }).eq('id', selected.id)
+  }
+
+  function handlePresentationReorder(fromIdx, toIdx, displayEntries) {
+    if (fromIdx === null || fromIdx === toIdx) return
+
+    const draggedKey = eKey(displayEntries[fromIdx])
+    const isDragSelected = presSelectedRows.has(draggedKey)
+    const toMoveKeys = isDragSelected && presSelectedRows.size > 1
+      ? new Set(presSelectedRows)
+      : new Set([draggedKey])
+
+    // Save snapshot for undo
+    setPresHistory(h => [...h.slice(-19), JSON.parse(JSON.stringify(presentationOrder))])
+
+    const newOrder = { ...presentationOrder }
+    const staticEntries = displayEntries.filter(e => !toMoveKeys.has(eKey(e)))
+    const movingEntries  = displayEntries.filter(e =>  toMoveKeys.has(eKey(e)))
+
+    // Find insertion point in static array
+    const targetKey  = eKey(displayEntries[toIdx])
+    let anchorIdx    = staticEntries.findIndex(e => eKey(e) === targetKey)
+    if (anchorIdx === -1) anchorIdx = staticEntries.length
+    const insertIdx  = fromIdx > toIdx ? anchorIdx : anchorIdx + 1
+
+    // Target period from the static context at drop position
+    const prevStatic = insertIdx > 0 ? staticEntries[insertIdx - 1] : null
+    const nextStatic = insertIdx < staticEntries.length ? staticEntries[insertIdx] : null
+    const targetPeriod = prevStatic?.effectivePeriod ?? nextStatic?.effectivePeriod ?? movingEntries[0].effectivePeriod
+
+    // Distribute moving entries evenly between prev and next seq
+    const seqBefore = prevStatic?.effectiveSeq ?? ((nextStatic?.effectiveSeq ?? Date.now()) - movingEntries.length * 2000000)
+    const seqAfter  = nextStatic?.effectiveSeq ?? (seqBefore + movingEntries.length * 2000000)
+    const gap = (seqAfter - seqBefore) / (movingEntries.length + 1)
+
+    movingEntries.forEach((e, i) => {
+      newOrder[eKey(e)] = { p: targetPeriod, s: Math.round(seqBefore + gap * (i + 1)) }
+    })
+
+    setPresSelectedRows(new Set())
+    savePresentationOrder(newOrder)
+  }
+
+  function undoPresentation() {
+    if (!presHistory.length) return
+    const prev = presHistory[presHistory.length - 1]
+    setPresHistory(h => h.slice(0, -1))
+    savePresentationOrder(prev)
+  }
+
+  function resetPresentation() {
+    setPresHistory([])
+    savePresentationOrder({})
+  }
+
+  // ── PRINT: ROUTER (chrono vs presentation, same pattern as printClient) ──
   function printFournisseur() {
+    if (stmtMode === 'presentation') { printPresentationFournisseur(); return }
     if (!selected) return
     const accent = '#f97316'
     const printDate = printGeneratedDate()
@@ -188,6 +311,336 @@ ${summaryCards([
 </div>
 ${printFooter(printDate)}
 </div></body></html>`)
+  }
+
+  // ── PRINT: PRESENTATION MODE — same structure/behavior as
+  // printPresentationClient in pages/clients/index.js: prints the full
+  // presentation-ordered ledger, or just the selected rows + a "Report"
+  // carry-forward row when a subset is selected. ──
+  function printPresentationFournisseur() {
+    if (!selected) return
+    const pLedger = buildPresentationLedger()
+    const isSelectionPrint = presSelectedRows.size > 0
+    const pEntries = isSelectionPrint
+      ? pLedger.entries.filter(e => presSelectedRows.has(eKey(e)))
+      : pLedger.entries
+    const pFinalBalance = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
+
+    let selectionCarryForward = null
+    if (isSelectionPrint && pLedger.entries.length > 0) {
+      const firstSelIdxInFull = pLedger.entries.findIndex(e => presSelectedRows.has(eKey(e)))
+      if (firstSelIdxInFull > 0) selectionCarryForward = pLedger.entries[firstSelIdxInFull - 1].solde
+    }
+
+    const accent = '#7c3aed'
+    const printDate = printGeneratedDate()
+
+    const reportRowHtml = selectionCarryForward !== null ? (() => {
+      const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
+      const cfAmt = fmtMoney(Math.abs(selectionCarryForward))
+      return `<tr style="background:#fef3c7"><td class="m" style="color:#92400e">—</td><td style="font-size:12px;font-weight:700;color:#92400e">Report</td><td class="m">—</td><td class="m">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15.5px;color:#b45309;white-space:nowrap">${cfSign}${cfAmt}</td></tr>`
+    })() : ''
+
+    const rows = reportRowHtml + pEntries.map(e => {
+      const isMoved = !!presentationOrder[eKey(e)]
+      const priceLines = e.type === 'purchase' && (e.qte || e.adblueQte) ? `<div style="font-size:9.5px;color:#94a3b8;margin-top:2px;font-weight:400;font-family:'Courier New',monospace">${
+        e.qte ? `${fmtD(e.qte)} L × ${fmtMoney(e.prixUnitaire)} DH/L` : ''
+      }${e.adblueQte ? `${e.qte ? '<br>' : ''}AdBlue: ${fmtD(e.adblueQte)} L × ${fmtMoney(e.adbluePrixUnitaire)} DH/L` : ''}</div>` : ''
+      return `<tr>
+      <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>
+      <td>${e.label}${priceLines}</td>
+      <td class="m">${e.camion}</td>
+      <td class="m">${e.bon}</td>
+      <td class="r" style="color:${accent}">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
+      <td class="r" style="color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
+      <td class="r" style="font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
+    </tr>`
+    }).join('')
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Relevé Présentation — ${selected.nom}</title>
+<style>
+${printBaseCss(accent)}
+.mode-badge{display:inline-block;background:#ede9fe;color:#7c3aed;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #ddd6fe;margin-bottom:6px}
+</style></head><body>
+${printHeader({ date: printDate, extraRight: '<div class="mode-badge">↕ Vue Présentation</div>&nbsp;' })}
+${entityCard({
+  avatarText: '⛽',
+  name: selected.nom,
+  metaHtml: `<strong>Fournisseur Carburant</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(selected.solde||0)} DHS`,
+})}
+<div class="bdy">
+<div class="sec-title">Relevé Présentation${isSelectionPrint ? ` — Sélection (${pEntries.length})` : ''}</div>
+<table>
+  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>Bon / Mode</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+</table>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
+  <div>
+    <div style="font-size:11.5px;font-weight:700;color:#9a3412">Solde à payer</div>
+    <div style="font-size:9.5px;color:#c2703d;margin-top:2px">${isSelectionPrint ? `${pEntries.length} opération${pEntries.length!==1?'s':''} sélectionnée${pEntries.length!==1?'s':''}` : 'Vue Présentation'}</div>
+  </div>
+  <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(pFinalBalance)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
+</div>
+${printFooter(printDate)}
+</div></body></html>`)
+  }
+
+  // ── RENDER: PRESENTATION TABLE — same interaction model as
+  // renderPresentationTable() in pages/clients/index.js: drag handle reorder,
+  // click/shift-click/drag-select multi-select, floating action toolbar,
+  // undo/reset. Adapted columns: Débit/Crédit instead of Qté/Prix, no
+  // voyage-group rowspan merging (fuel ledger rows are already flat). ──
+  function renderPresentationTable() {
+    const presLedger     = buildPresentationLedger()
+    const displayEntries = presLedger.entries
+    const thS = { background:'#ede9fe', color:'#5b21b6', borderBottom:'2px solid #ddd6fe', whiteSpace:'nowrap', padding:'9px 12px', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
+
+    const selectedEntries = displayEntries.filter(e => presSelectedRows.has(eKey(e)))
+    const selectedTotal   = selectedEntries.reduce((s, e) => s + (e.debit - e.credit), 0)
+    const selectedSolde   = selectedEntries.length > 0 ? selectedEntries[selectedEntries.length - 1].solde : presLedger.finalBalance
+
+    const firstSelIdx = presSelectedRows.size > 0
+      ? displayEntries.findIndex(e => presSelectedRows.has(eKey(e)))
+      : -1
+    const carryForwardBalance = firstSelIdx > 0 ? displayEntries[firstSelIdx - 1].solde : null
+
+    if (displayEntries.length === 0) {
+      return <div style={{padding:'24px',textAlign:'center',color:'#94a3b8',fontStyle:'italic'}}>Aucune opération</div>
+    }
+
+    return (
+      <div>
+        {/* STATIC TOOLBAR — drag hint + undo/reset */}
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',borderBottom:'1px solid #f1f5f9',background:'#faf5ff',flexWrap:'wrap'}}>
+          <span style={{fontSize:11,color:'#7c3aed',flex:1,minWidth:0}}>
+            ↕ Glissez les lignes pour réorganiser · Cliquez pour sélectionner · Maj+Clic pour une plage
+          </span>
+          {presHistory.length > 0 && (
+            <button onClick={undoPresentation}
+              style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:5,border:'1px solid #bfdbfe',background:'#eff6ff',color:'#1d4ed8',cursor:'pointer'}}>
+              ↩ Annuler
+            </button>
+          )}
+          {Object.keys(presentationOrder).length > 0 && (
+            <button onClick={resetPresentation}
+              style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:5,border:'1px solid #fde68a',background:'#fffbeb',color:'#92400e',cursor:'pointer'}}>
+              ↺ Réinitialiser
+            </button>
+          )}
+        </div>
+
+        {/* FLOATING ACTION TOOLBAR — appears only when rows are selected */}
+        {presSelectedRows.size > 0 && (
+          <div style={{background:'#1e3a5f',color:'#fff',padding:'10px 16px',display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,boxShadow:'0 4px 16px rgba(30,58,95,0.35)'}}>
+            <div style={{flex:1,minWidth:180}}>
+              <div style={{fontWeight:700,fontSize:13,lineHeight:1.3}}>
+                {presSelectedRows.size} opération{presSelectedRows.size > 1 ? 's' : ''} sélectionnée{presSelectedRows.size > 1 ? 's' : ''}
+              </div>
+              <div style={{fontSize:12,opacity:0.85,marginTop:3,display:'flex',gap:16}}>
+                <span>Total : <strong>{selectedTotal >= 0 ? '+' : '−'} {fmtMoney(Math.abs(selectedTotal))} DHS</strong></span>
+                <span>Solde : <strong>{fmtMoney(selectedSolde)} DHS</strong></span>
+              </div>
+            </div>
+            <button onClick={() => { printPresentationFournisseur(); setPresSelectedRows(new Set()) }}
+              style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#fff',color:'#1e3a5f',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              🖨️ Imprimer
+            </button>
+            <button onClick={() => { printPresentationFournisseur(); setPresSelectedRows(new Set()) }}
+              style={{padding:'5px 12px',borderRadius:6,border:'none',background:'#c7d2fe',color:'#1e40af',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              📄 PDF
+            </button>
+            <button onClick={() => setPresSelectedRows(new Set())}
+              style={{padding:'5px 12px',borderRadius:6,border:'1px solid rgba(255,255,255,0.25)',background:'transparent',color:'#fca5a5',fontWeight:700,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>
+              ✕ Annuler
+            </button>
+          </div>
+        )}
+
+        <div className="overflow-x-auto" style={{userSelect:'none'}}>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                {/* Select-all checkbox */}
+                <th style={{...thS,width:36,padding:'9px 6px',textAlign:'center'}}>
+                  <input type="checkbox"
+                    checked={displayEntries.length > 0 && displayEntries.every(e => presSelectedRows.has(eKey(e)))}
+                    onChange={ev => setPresSelectedRows(ev.target.checked ? new Set(displayEntries.map(eKey)) : new Set())}
+                    style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
+                </th>
+                {/* Drag handle col */}
+                <th style={{...thS,width:20,padding:'9px 4px'}}></th>
+                {[
+                  {l:'Date',r:false},{l:'Opération',r:false},{l:'Camion',r:false},{l:'Bon / Mode',r:false},
+                  {l:'Note',r:false},{l:'Débit (+)',r:true},{l:'Crédit (−)',r:true},{l:'Solde',r:true}
+                ].map((col,ci) => (
+                  <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayEntries.map((e, i) => {
+                const isSelected   = presSelectedRows.has(eKey(e))
+                const isDragging   = presDragFrom === i
+                const isDropTarget = presDragOver === i && presDragFrom !== null && presDragFrom !== i
+                const isMoved      = !!presentationOrder[eKey(e)]
+                const typeRowBg    = e.type === 'payment' ? '#f0fdf4' : undefined
+                const bandBg       = i % 2 === 1 ? '#f7f9fb' : '#ffffff'
+                const rowBg        = isSelected ? '#ede9fe' : typeRowBg || bandBg
+                const bdr          = { border:'1px solid #f1f5f9' }
+
+                const rowEl = (
+                  <tr key={eKey(e)}
+                    /* ── Drop zone (for row reorder) ── */
+                    onDragOver={ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setPresDragOver(i) }}
+                    onDrop={ev => { ev.preventDefault(); handlePresentationReorder(presDragFrom, i, displayEntries) }}
+                    onDragEnd={() => { setPresDragFrom(null); setPresDragOver(null) }}
+                    /* ── ERP-style toggle click ── */
+                    onClick={ev => {
+                      if (presDragSelectActive) return // was a drag, not a click
+                      const key = eKey(e)
+                      if (ev.shiftKey && presLastClickedIdx !== null) {
+                        const lo = Math.min(presLastClickedIdx, i), hi = Math.max(presLastClickedIdx, i)
+                        const ns = new Set(presSelectInitRef.current ?? presSelectedRows)
+                        for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
+                        setPresSelectedRows(ns)
+                      } else {
+                        const ns = new Set(presSelectedRows)
+                        ns.has(key) ? ns.delete(key) : ns.add(key)
+                        setPresSelectedRows(ns)
+                        setPresLastClickedIdx(i)
+                        presSelectInitRef.current = new Set(ns)
+                      }
+                    }}
+                    /* ── Drag-select (mousedown → mouseenter) ── */
+                    onMouseDown={ev => {
+                      if (ev.button !== 0) return
+                      setPresDragSelectStart(i)
+                      setPresDragSelectActive(false)
+                      presSelectInitRef.current = new Set(presSelectedRows)
+                    }}
+                    onMouseEnter={ev => {
+                      if (presDragSelectStart === null || !(ev.buttons & 1) || presDragFrom !== null) return
+                      setPresDragSelectActive(true)
+                      const lo = Math.min(presDragSelectStart, i), hi = Math.max(presDragSelectStart, i)
+                      const ns = new Set(presSelectInitRef.current ?? presSelectedRows)
+                      for (let j = lo; j <= hi; j++) ns.add(eKey(displayEntries[j]))
+                      setPresSelectedRows(ns)
+                      setPresLastClickedIdx(i)
+                    }}
+                    style={{
+                      background: rowBg,
+                      opacity: isDragging ? 0.4 : 1,
+                      borderTop: isDropTarget ? '2px solid #7c3aed' : undefined,
+                      borderLeft: isSelected ? '3px solid #7c3aed' : undefined,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {/* CHECKBOX — still visible but clicking anywhere on row works */}
+                    <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}} onClick={ev => ev.stopPropagation()}>
+                      <input type="checkbox" checked={isSelected} onChange={() => {
+                        const ns = new Set(presSelectedRows)
+                        ns.has(eKey(e)) ? ns.delete(eKey(e)) : ns.add(eKey(e))
+                        setPresSelectedRows(ns); setPresLastClickedIdx(i)
+                        presSelectInitRef.current = new Set(ns)
+                      }}
+                        style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
+                    </td>
+                    {/* DRAG HANDLE — only this initiates row reorder */}
+                    <td
+                      draggable
+                      onDragStart={ev => { ev.dataTransfer.effectAllowed = 'move'; setPresDragFrom(i) }}
+                      onClick={ev => ev.stopPropagation()}
+                      style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
+                      ⠿
+                    </td>
+                    {/* DATE + MOVED INDICATOR */}
+                    <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>
+                      <div>{fmtDate(e.date)}</div>
+                      {isMoved && (
+                        <div style={{fontSize:9,marginTop:2}}>
+                          <span style={{background:'#ede9fe',color:'#7c3aed',fontWeight:700,padding:'1px 4px',borderRadius:3}}>↕ Déplacé</span>
+                        </div>
+                      )}
+                    </td>
+                    {/* OPÉRATION */}
+                    <td className="td" style={{...bdr,padding:'10px 12px'}}>
+                      <span style={{
+                        background: e.type==='purchase' ? '#fff7ed' : '#dcfce7',
+                        color: e.type==='purchase' ? '#c2410c' : '#15803d',
+                        fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,
+                        border:`1px solid ${e.type==='purchase' ? '#fed7aa' : '#bbf7d0'}`,whiteSpace:'nowrap',
+                      }}>
+                        {e.type==='purchase' ? '⛽' : '💸'} {e.label}
+                      </span>
+                      {e.type === 'purchase' && (e.qte > 0 || e.adblueQte > 0) && (
+                        <div style={{fontSize:10,color:'#9ca3af',marginTop:3,lineHeight:1.3}}>
+                          {e.qte > 0 && <div>{fmtD(e.qte)} L × {fmtMoney(e.prixUnitaire)} DH/L</div>}
+                          {e.adblueQte > 0 && <div>AdBlue: {fmtD(e.adblueQte)} L × {fmtMoney(e.adbluePrixUnitaire)} DH/L</div>}
+                        </div>
+                      )}
+                    </td>
+                    {/* CAMION */}
+                    <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{e.camion}</td>
+                    {/* BON / MODE */}
+                    <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{e.bon}</td>
+                    {/* NOTE */}
+                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
+                      color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                      {e.note || '—'}
+                    </td>
+                    {/* DÉBIT */}
+                    <td className="td text-right" style={{...bdr,fontSize:13,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#c2410c'}}>
+                      {e.debit ? `+ ${fmtMoney(e.debit)}` : <span style={{color:'#9ca3af'}}>—</span>}
+                    </td>
+                    {/* CRÉDIT */}
+                    <td className="td text-right" style={{...bdr,fontSize:13,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#16a34a'}}>
+                      {e.credit ? `− ${fmtMoney(e.credit)}` : <span style={{color:'#9ca3af'}}>—</span>}
+                    </td>
+                    {/* SOLDE */}
+                    <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                      color: e.solde >= 0 ? '#dc2626' : '#16a34a', letterSpacing:'-0.2px'}}>
+                      {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
+                    </td>
+                  </tr>
+                )
+                if (i === firstSelIdx && carryForwardBalance !== null) {
+                  const cfSign = carryForwardBalance >= 0 ? '+ ' : '− '
+                  const cfAmt = fmtMoney(Math.abs(carryForwardBalance))
+                  return (
+                    <Fragment key={`rf-${eKey(e)}`}>
+                      <tr style={{background:'#fef3c7',cursor:'default'}}>
+                        <td colSpan={9} style={{border:'1px solid #fde68a',padding:'10px 12px',color:'#92400e',fontWeight:700,fontSize:12}}>
+                          <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',marginRight:8}}>Report</span>
+                          Solde reporté avant la sélection
+                        </td>
+                        <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 14px'}}>
+                          {cfSign}{cfAmt}
+                        </td>
+                      </tr>
+                      {rowEl}
+                    </Fragment>
+                  )
+                }
+                return rowEl
+              })}
+            </tbody>
+            {displayEntries.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={9} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
+                    Solde final
+                  </td>
+                  <td style={{padding:'11px 14px',background:'#f5f3ff',fontSize:17,fontWeight:700,color: presLedger.finalBalance >= 0 ? '#dc2626' : '#16a34a',textAlign:'right',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderRight:'1px solid #ddd6fe',borderRadius:'0 0 8px 0',letterSpacing:'-0.2px'}}>
+                    {presLedger.finalBalance >= 0 ? '+ ' : '− '}{fmtMoney(Math.abs(presLedger.finalBalance))} <span style={{fontSize:12,fontWeight:600}}>DHS</span>
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    )
   }
 
   const filtered    = fournisseurs.filter(f => !search || f.nom.toLowerCase().includes(search.toLowerCase()))
@@ -288,93 +741,122 @@ ${printFooter(printDate)}
               </div>
 
               {loadingDetail ? <div className="card text-center py-8 text-gray-400">Chargement...</div> : (
-                <div className="card">
-                  <h3 className="font-bold text-gray-900 mb-3">📒 Relevé Chronologique ({ledger.length})</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead><tr>
-                        <th className="th">Date</th>
-                        <th className="th">Opération</th>
-                        <th className="th">Camion</th>
-                        <th className="th">Bon / Mode</th>
-                        <th className="th">Note</th>
-                        <th className="th text-right">Débit (+)</th>
-                        <th className="th text-right">Crédit (−)</th>
-                        <th className="th text-right">Solde</th>
-                      </tr></thead>
-                      <tbody>
-                        {from && openingBalance !== 0 && (
-                          <tr className="bg-gray-50">
-                            <td className="td text-gray-500">{fmtDate(from)}</td>
-                            <td className="td font-semibold text-gray-600">Solde d'ouverture</td>
-                            <td className="td text-gray-400">—</td>
-                            <td className="td text-gray-400">—</td>
-                            <td className="td text-gray-400">—</td>
-                            <td className="td text-right text-gray-400">—</td>
-                            <td className="td text-right text-gray-400">—</td>
-                            <td className={`td text-right font-bold ${openingBalance>=0?'text-red-600':'text-green-600'}`}>
-                              {openingBalance>=0?'+ ':'− '}{fmtMoney(Math.abs(openingBalance))}
-                            </td>
-                          </tr>
-                        )}
-                        {ledger.map(e => (
-                          <tr key={e.id} className={e.type==='purchase' ? 'hover:bg-orange-50' : 'hover:bg-green-50'}>
-                            <td className="td text-gray-500">{fmtDate(e.date)}</td>
-                            <td className="td">
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${e.type==='purchase'?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700'}`}>
-                                {e.type==='purchase' ? '⛽' : '💸'} {e.label}
-                              </span>
-                              {e.type === 'purchase' && (e.qte > 0 || e.adblueQte > 0) && (
-                                <div className="text-[10px] text-gray-400 mt-1 leading-tight">
-                                  {e.qte > 0 && <div>{fmtD(e.qte)} L × {fmtMoney(e.prixUnitaire)} DH/L</div>}
-                                  {e.adblueQte > 0 && <div>AdBlue: {fmtD(e.adblueQte)} L × {fmtMoney(e.adbluePrixUnitaire)} DH/L</div>}
-                                </div>
-                              )}
-                            </td>
-                            <td className="td text-xs text-gray-600">{e.camion}</td>
-                            <td className="td text-xs text-gray-600">{e.bon}</td>
-                            <td className="td text-xs text-gray-400">{e.note || '—'}</td>
-                            <td className="td text-right font-bold text-orange-700">{e.debit ? `+ ${fmtMoney(e.debit)}` : '—'}</td>
-                            <td className="td text-right font-bold text-green-600">{e.credit ? `− ${fmtMoney(e.credit)}` : '—'}</td>
-                            <td className={`td text-right font-bold ${e.solde>=0?'text-red-600':'text-green-600'}`}>
-                              {e.solde>=0?'+ ':'− '}{fmtMoney(Math.abs(e.solde))}
-                            </td>
-                          </tr>
-                        ))}
-                        {ledger.length === 0 && <tr><td colSpan={8} className="td text-center text-gray-400 py-8">Aucune opération pour cette période</td></tr>}
-                      </tbody>
-                      {ledger.length > 0 && (
-                        <tfoot><tr>
-                          <td className="tfoot-td" colSpan={5}>TOTAL période</td>
-                          <td className="tfoot-td text-right text-orange-700">+ {fmtMoney(totalAchats)} DHS</td>
-                          <td className="tfoot-td text-right text-green-700">− {fmtMoney(totalPaiements)} DHS</td>
-                          <td className={`tfoot-td text-right ${closingBalance>=0?'text-red-600':'text-green-600'}`}>
-                            {closingBalance>=0?'+ ':'− '}{fmtMoney(Math.abs(closingBalance))}
-                          </td>
-                        </tr></tfoot>
-                      )}
-                    </table>
+                <div className="card" style={{padding:0,overflow:'hidden'}}>
+                  {/* TOOLBAR — title + Chronologique/Présentation mode toggle */}
+                  <div className="flex items-center justify-between flex-wrap gap-2" style={{padding:'14px 16px 10px'}}>
+                    <h3 className="font-bold text-gray-900" style={{fontSize:14}}>
+                      {stmtMode === 'presentation' ? '↕ Relevé Présentation' : '📒 Relevé Chronologique'}
+                      <span className="text-gray-400 font-normal text-sm ml-2">
+                        ({stmtMode === 'presentation' ? buildPresentationLedger().entries.length : ledger.length})
+                      </span>
+                    </h3>
+                    <div style={{display:'flex',borderRadius:6,overflow:'hidden',border:'1px solid #e2e8f0',flexShrink:0}}>
+                      <button
+                        onClick={()=>setStmtMode('chrono')}
+                        style={{padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer',border:'none',
+                          background: stmtMode==='chrono' ? '#f97316' : '#f8fafc',
+                          color: stmtMode==='chrono' ? '#fff' : '#64748b', transition:'all 0.15s'}}>
+                        Chronologique
+                      </button>
+                      <button
+                        onClick={()=>setStmtMode('presentation')}
+                        style={{padding:'4px 10px',fontSize:11,fontWeight:700,cursor:'pointer',border:'none',borderLeft:'1px solid #e2e8f0',
+                          background: stmtMode==='presentation' ? '#7c3aed' : '#f8fafc',
+                          color: stmtMode==='presentation' ? '#fff' : '#64748b', transition:'all 0.15s'}}>
+                        ↕ Présentation
+                      </button>
+                    </div>
                   </div>
-                  {ledger.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                        <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres Gasoil</div>
-                        <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalFuelLitres)} L</div>
+
+                  {stmtMode === 'presentation' ? renderPresentationTable() : (
+                    <div style={{padding:'0 16px 16px'}}>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead><tr>
+                            <th className="th">Date</th>
+                            <th className="th">Opération</th>
+                            <th className="th">Camion</th>
+                            <th className="th">Bon / Mode</th>
+                            <th className="th">Note</th>
+                            <th className="th text-right">Débit (+)</th>
+                            <th className="th text-right">Crédit (−)</th>
+                            <th className="th text-right">Solde</th>
+                          </tr></thead>
+                          <tbody>
+                            {from && openingBalance !== 0 && (
+                              <tr className="bg-gray-50">
+                                <td className="td text-gray-500">{fmtDate(from)}</td>
+                                <td className="td font-semibold text-gray-600">Solde d'ouverture</td>
+                                <td className="td text-gray-400">—</td>
+                                <td className="td text-gray-400">—</td>
+                                <td className="td text-gray-400">—</td>
+                                <td className="td text-right text-gray-400">—</td>
+                                <td className="td text-right text-gray-400">—</td>
+                                <td className={`td text-right font-bold ${openingBalance>=0?'text-red-600':'text-green-600'}`}>
+                                  {openingBalance>=0?'+ ':'− '}{fmtMoney(Math.abs(openingBalance))}
+                                </td>
+                              </tr>
+                            )}
+                            {ledger.map(e => (
+                              <tr key={e.id} className={e.type==='purchase' ? 'hover:bg-orange-50' : 'hover:bg-green-50'}>
+                                <td className="td text-gray-500">{fmtDate(e.date)}</td>
+                                <td className="td">
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${e.type==='purchase'?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700'}`}>
+                                    {e.type==='purchase' ? '⛽' : '💸'} {e.label}
+                                  </span>
+                                  {e.type === 'purchase' && (e.qte > 0 || e.adblueQte > 0) && (
+                                    <div className="text-[10px] text-gray-400 mt-1 leading-tight">
+                                      {e.qte > 0 && <div>{fmtD(e.qte)} L × {fmtMoney(e.prixUnitaire)} DH/L</div>}
+                                      {e.adblueQte > 0 && <div>AdBlue: {fmtD(e.adblueQte)} L × {fmtMoney(e.adbluePrixUnitaire)} DH/L</div>}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="td text-xs text-gray-600">{e.camion}</td>
+                                <td className="td text-xs text-gray-600">{e.bon}</td>
+                                <td className="td text-xs text-gray-400">{e.note || '—'}</td>
+                                <td className="td text-right font-bold text-orange-700">{e.debit ? `+ ${fmtMoney(e.debit)}` : '—'}</td>
+                                <td className="td text-right font-bold text-green-600">{e.credit ? `− ${fmtMoney(e.credit)}` : '—'}</td>
+                                <td className={`td text-right font-bold ${e.solde>=0?'text-red-600':'text-green-600'}`}>
+                                  {e.solde>=0?'+ ':'− '}{fmtMoney(Math.abs(e.solde))}
+                                </td>
+                              </tr>
+                            ))}
+                            {ledger.length === 0 && <tr><td colSpan={8} className="td text-center text-gray-400 py-8">Aucune opération pour cette période</td></tr>}
+                          </tbody>
+                          {ledger.length > 0 && (
+                            <tfoot><tr>
+                              <td className="tfoot-td" colSpan={5}>TOTAL période</td>
+                              <td className="tfoot-td text-right text-orange-700">+ {fmtMoney(totalAchats)} DHS</td>
+                              <td className="tfoot-td text-right text-green-700">− {fmtMoney(totalPaiements)} DHS</td>
+                              <td className={`tfoot-td text-right ${closingBalance>=0?'text-red-600':'text-green-600'}`}>
+                                {closingBalance>=0?'+ ':'− '}{fmtMoney(Math.abs(closingBalance))}
+                              </td>
+                            </tr></tfoot>
+                          )}
+                        </table>
                       </div>
-                      {totalAdblueLitres > 0 && (
-                        <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres AdBlue</div>
-                          <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalAdblueLitres)} L</div>
+                      {ledger.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                            <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres Gasoil</div>
+                            <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalFuelLitres)} L</div>
+                          </div>
+                          {totalAdblueLitres > 0 && (
+                            <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                              <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres AdBlue</div>
+                              <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalAdblueLitres)} L</div>
+                            </div>
+                          )}
+                          <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
+                            <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Remise Carburant</div>
+                            <div className="font-bold text-orange-700 text-sm mt-0.5">− {fmtMoney(fuelDiscount)} DHS</div>
+                          </div>
+                          <div className="text-center p-2.5 rounded-lg bg-gray-100 border border-gray-200">
+                            <div className="text-[10px] text-gray-600 font-semibold uppercase tracking-wide">Total Net Fournisseur</div>
+                            <div className="font-bold text-gray-800 text-sm mt-0.5">{fmtMoney(netSupplierTotal)} DHS</div>
+                          </div>
                         </div>
                       )}
-                      <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
-                        <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Remise Carburant</div>
-                        <div className="font-bold text-orange-700 text-sm mt-0.5">− {fmtMoney(fuelDiscount)} DHS</div>
-                      </div>
-                      <div className="text-center p-2.5 rounded-lg bg-gray-100 border border-gray-200">
-                        <div className="text-[10px] text-gray-600 font-semibold uppercase tracking-wide">Total Net Fournisseur</div>
-                        <div className="font-bold text-gray-800 text-sm mt-0.5">{fmtMoney(netSupplierTotal)} DHS</div>
-                      </div>
                     </div>
                   )}
                 </div>
