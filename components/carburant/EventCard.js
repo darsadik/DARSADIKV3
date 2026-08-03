@@ -128,7 +128,7 @@ function PleinBlock({ e, onAssign, onFixGasoil }) {
           <span className="text-2xl">⛽</span>
           <div>
             <div className="text-lg font-black text-emerald-700 leading-tight">Plein — {e.plaque}</div>
-            <div className="text-xs font-semibold text-slate-500">{e.station || 'Station inconnue'}{e.heure ? ` · ${e.heure}` : ''}</div>
+            <div className="text-xs font-semibold text-slate-500">{e.station || 'Station inconnue'}</div>
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">

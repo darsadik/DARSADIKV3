@@ -48,11 +48,11 @@ export default function VoyageKmCarburant() {
       supabase.from('voyages')
         .select('id,reference,date_depart,camion_id,camion_plaque,chauffeur,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
         .order('date_depart', { ascending: true }),
-      // NOTE: 'heure' is intentionally NOT selected — it's only added by
-      // sql/12_fuel_cycles.sql's `ALTER TABLE gasoil ADD COLUMN heure`,
-      // which hasn't been run on every environment. Selecting a column
-      // that doesn't exist fails the WHOLE query (not just that field),
-      // which previously emptied the entire fuel timeline silently.
+      // 'heure' was a product decision to drop entirely (trucks don't operate
+      // on an hourly schedule) — do not select it, it no longer exists on
+      // gasoil. Selecting a nonexistent column fails the WHOLE query (not
+      // just that field), which previously emptied the entire fuel timeline
+      // silently.
       supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,date,station'),
       supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total,is_split'),
     ])
@@ -143,7 +143,7 @@ export default function VoyageKmCarburant() {
   function onFixGasoil(pleinEvent) {
     setFixingGasoilRow({
       id: pleinEvent.gasoilId, date: pleinEvent.date, camion_plaque: pleinEvent.plaque,
-      km: pleinEvent.km, heure: pleinEvent.heure, camion_id: pleinEvent.camionId,
+      km: pleinEvent.km, camion_id: pleinEvent.camionId,
     })
   }
   function onCreateNext(voyage) {

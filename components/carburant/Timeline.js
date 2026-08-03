@@ -26,7 +26,7 @@ export default function Timeline({ truck, limit = 30 }) {
         return (
           <div key={i} className="flex items-center gap-2 text-xs">
             <span className={`w-6 h-6 flex items-center justify-center rounded-full ${m.color} flex-shrink-0`}>{m.icon}</span>
-            <span className="text-gray-400 w-20 flex-shrink-0">{fmtDate(e.date)}{e.heure ? ` ${e.heure}` : ''}</span>
+            <span className="text-gray-400 w-20 flex-shrink-0">{fmtDate(e.date)}</span>
             <span className="text-gray-700 truncate">{eventLabel(e)}</span>
           </div>
         )

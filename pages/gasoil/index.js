@@ -67,7 +67,7 @@ export default function Gasoil() {
   const [filterTo, setFilterTo] = useState(today())
   const [form, setForm] = useState({
     date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom',
-    qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', heure: '',
+    qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '',
     adblue_qte: '', adblue_prix_unitaire: ''
   })
   const [showAdblue, setShowAdblue] = useState(false)
@@ -89,11 +89,11 @@ export default function Gasoil() {
   const cyclePreview = useMemo(() => {
     if (!form.camion_id || !form.km) return null
     return previewCycleForNewPlein({
-      camionId: form.camion_id, date: form.date, heure: form.heure || null, km: form.km,
+      camionId: form.camion_id, date: form.date, km: form.km,
       qte: form.qte, prixUnitaire: form.prix_unitaire, adblueQte: form.adblue_qte, adblueTotal,
       gasoil, voyages, camions, mergeOverride: mergeChoice,
     })
-  }, [form.camion_id, form.date, form.heure, form.km, form.qte, form.prix_unitaire, form.adblue_qte, adblueTotal, gasoil, voyages, camions, mergeChoice])
+  }, [form.camion_id, form.date, form.km, form.qte, form.prix_unitaire, form.adblue_qte, adblueTotal, gasoil, voyages, camions, mergeChoice])
 
   // ── CONSUMPTION MONTH FILTER ──
   const currentMonth = () => {
@@ -129,7 +129,7 @@ export default function Gasoil() {
     if (!hasDiesel && !hasAdblue) { setFormError('Renseignez au moins le gasoil ou l\'AdBlue.'); return }
     setSaving(true)
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
-    await supabase.from('gasoil').insert({
+    const { error } = await supabase.from('gasoil').insert({
       date: form.date,
       camion_id: parseInt(form.camion_id),
       camion_plaque: camion?.plaque || '',
@@ -138,13 +138,17 @@ export default function Gasoil() {
       qte, prix_unitaire: pu, total,
       bon: form.bon,
       km: parseFloat(form.km) || null,
-      heure: form.heure || null,
       note: form.note,
       adblue_qte: adblueQte,
       adblue_prix_unitaire: adbluePu,
       adblue_total: adblueTotal,
       merge_with_previous: mergeChoice,
     })
+    if (error) {
+      setSaving(false)
+      setFormError('❌ ' + error.message)
+      return
+    }
     if (camion) {
       await supabase.from('camions').update({
         gasoil_dhs: (camion.gasoil_dhs || 0) + total,
@@ -153,7 +157,7 @@ export default function Gasoil() {
       }).eq('id', camion.id)
     }
     setSaving(false)
-    setForm({ date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', heure: '', adblue_qte: '', adblue_prix_unitaire: '' })
+    setForm({ date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', adblue_qte: '', adblue_prix_unitaire: '' })
     setMergeChoice(null)
     setShowAdblue(false)
     loadAll()
@@ -191,7 +195,6 @@ export default function Gasoil() {
       bon: g.bon || '',
       station: g.station || '',
       note: g.note || '',
-      heure: g.heure || '',
       adblue_qte: g.adblue_qte || '',
       adblue_prix_unitaire: g.adblue_prix_unitaire || '',
     })
@@ -220,7 +223,6 @@ export default function Gasoil() {
       bon: editForm.bon || null,
       station: editForm.station || null,
       note: editForm.note || null,
-      heure: editForm.heure || null,
       adblue_qte: adblueQte,
       adblue_prix_unitaire: adbluePu,
       adblue_total: adblueTotal,
@@ -739,11 +741,6 @@ export default function Gasoil() {
                   <input className="input" type="number" placeholder="ex: 85000" value={form.km} onChange={e => setForm({...form, km: e.target.value})} />
                 </div>
               </div>
-              <div>
-                <label className="label">Heure (optionnel)</label>
-                <input className="input" type="time" value={form.heure} onChange={e => setForm({...form, heure: e.target.value})} />
-                <div className="text-[10px] text-gray-400 mt-1">Utile pour départager deux pleins le même jour sur le même camion.</div>
-              </div>
               {qte > 0 && pu > 0 && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
                   <div className="text-xs text-amber-600 mb-1">Total à payer</div>
@@ -1240,12 +1237,6 @@ export default function Gasoil() {
                     value={editForm.bon}
                     onChange={e => setEditForm({...editForm, bon: e.target.value})} />
                 </div>
-              </div>
-              <div>
-                <label className="label">Heure (optionnel)</label>
-                <input type="time" className="input"
-                  value={editForm.heure}
-                  onChange={e => setEditForm({...editForm, heure: e.target.value})} />
               </div>
               {editForm.qte && editForm.prix_unitaire && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">

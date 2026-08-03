@@ -7,14 +7,15 @@
 -- in lib/services/fuelCycles.js from the existing gasoil/voyages/camions
 -- tables, exactly like the app's other fuel-cycle readers
 -- (lib/services/profitability.js, lib/camionPerformance.js,
--- pages/gasoil/index.js). These two columns only add the two pieces of
--- input data that were missing to build cycles correctly: a same-day
--- ordering hint, and an explicit user override for merging refills.
-
--- Optional time-of-day for a plein, to disambiguate same-day chronological
--- order (e.g. 08h00 vs 15h00 same-day refills of the same truck). NULL
--- (every pre-existing row) falls back to created_at as the tiebreaker.
-ALTER TABLE gasoil ADD COLUMN IF NOT EXISTS heure TIME;
+-- pages/gasoil/index.js). This column adds the one piece of input data
+-- that was missing to build cycles correctly: an explicit user override
+-- for merging refills.
+--
+-- NOTE: this file originally also added a `heure` (time-of-day) column.
+-- That was a product decision to drop — trucks don't operate on an hourly
+-- schedule, so same-day plein ordering falls back to created_at/id only.
+-- `heure` was removed from every query/insert/update in the app; do NOT
+-- re-add that column.
 
 -- User override for cycle fusion with the immediately preceding plein of the
 -- same truck (see lib/services/fuelCycles.js:groupPleinsIntoCycles).

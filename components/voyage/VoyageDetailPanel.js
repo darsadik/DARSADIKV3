@@ -200,7 +200,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   useEffect(() => {
     if (!voyage?.camion_id) return
     Promise.all([
-      supabase.from('gasoil').select('id,camion_id,km,total,adblue_total,date,heure,qte,adblue_qte,merge_with_previous').eq('camion_id', voyage.camion_id),
+      supabase.from('gasoil').select('id,camion_id,km,total,adblue_total,date,qte,adblue_qte,merge_with_previous').eq('camion_id', voyage.camion_id),
       supabase.from('voyages').select('id,camion_id,date_depart,km_depart,km_arrivee,deleted_at').eq('camion_id', voyage.camion_id),
     ]).then(([{ data: g }, { data: v }]) => {
       setCycleGasoil(g || [])

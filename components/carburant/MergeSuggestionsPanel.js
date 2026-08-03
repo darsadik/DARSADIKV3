@@ -18,7 +18,7 @@ export default function MergeSuggestionsPanel({ suggestions, onMergeChoice }) {
               <div className="font-bold text-purple-800">{s.camionPlaque} — Cycle #{s.cycleNumber}</div>
               <div className="text-purple-700/90 mt-0.5">{s.message}</div>
               <div className="text-purple-400 mt-1">
-                {s.pleins.map(p => `${fmtDate(p.date)}${p.heure ? ` ${p.heure}` : ''} · ${fmtD(p.qte)} L · KM ${fmt(p.km)}`).join('  —  ')}
+                {s.pleins.map(p => `${fmtDate(p.date)} · ${fmtD(p.qte)} L · KM ${fmt(p.km)}`).join('  —  ')}
               </div>
               <div className="flex gap-2 mt-2">
                 <button

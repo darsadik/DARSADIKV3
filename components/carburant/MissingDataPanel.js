@@ -8,7 +8,6 @@ import { fmtDate } from '../../lib/utils'
 const CATEGORY_META = {
   voyage_missing_km: { emoji: '🚚', label: 'Voyage sans KM' },
   plein_missing_km:  { emoji: '⛽', label: 'Plein sans KM' },
-  plein_missing_hour:{ emoji: '🕒', label: 'Heure manquante' },
   missing_cycle:     { emoji: '📭', label: 'Aucun cycle' },
   missing_truck:     { emoji: '❓', label: 'Camion manquant' },
 }

@@ -125,7 +125,7 @@ export default function CycleCard({ cycle, onMergeChoice, onAnalyze, thresholdPc
                   <div key={p.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-2 py-1.5 text-xs">
                     <div>
                       <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mr-1.5">{roleLabel}</span>
-                      <span className="font-semibold text-gray-800">{fmtDate(p.date)}{p.heure ? ` ${p.heure}` : ''}</span>
+                      <span className="font-semibold text-gray-800">{fmtDate(p.date)}</span>
                       <span className="text-gray-400 ml-2">{fmtD(p.qte)} L · KM {fmt(p.km)}</span>
                     </div>
                     {i > 0 && onMergeChoice && (
@@ -149,7 +149,7 @@ export default function CycleCard({ cycle, onMergeChoice, onAnalyze, thresholdPc
                 <div className="flex items-center justify-between bg-emerald-50 rounded-lg px-2 py-1.5 text-xs ring-1 ring-inset ring-emerald-100">
                   <div>
                     <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-500 mr-1.5">Plein de clôture</span>
-                    <span className="font-semibold text-emerald-800">{fmtDate(cycle.closingPlein.date)}{cycle.closingPlein.heure ? ` ${cycle.closingPlein.heure}` : ''}</span>
+                    <span className="font-semibold text-emerald-800">{fmtDate(cycle.closingPlein.date)}</span>
                     <span className="text-emerald-500 ml-2">KM {fmt(cycle.closingPlein.km)}</span>
                   </div>
                   <span className="text-[10px] font-semibold text-emerald-600">🏁 Cycle clôturé</span>
