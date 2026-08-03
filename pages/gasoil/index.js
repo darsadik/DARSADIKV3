@@ -3,6 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, fmtMoney, today, startOfMonth, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards, soldeFinal, printFooter } from '../../lib/printLayout'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate, DEFAULT_FUEL_OPENING_BALANCE, fetchFuelOpeningBalance } from '../../lib/services/settings'
 import { previewCycleForNewPlein } from '../../lib/services/fuelCycles'
@@ -456,8 +457,7 @@ export default function Gasoil() {
   // cumulatively instead of only to the printed window. No other formula,
   // database write, or on-screen figure is touched by this report.
   function printGasoil() {
-    const _now = new Date()
-    const printDate = _now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+    const printDate = printGeneratedDate()
 
     // Opening balance = everything before the period start, full account
     // (never scoped by the on-screen camion/search filters — there is only
@@ -589,82 +589,38 @@ export default function Gasoil() {
       <td class="r"><b>${fmtMoney(d.montant)} DHS</b></td>
     </tr>`).join('')
 
+    const accent = '#f97316'
+    const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
+
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Grand Livre Fournisseur — Carburant — DAR SADIK</title>
 <style>
-  @page{margin:0mm}
-  @media print{.btn-p{display:none!important} .doc-footer{position:fixed}}
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#1e293b;background:#fff}
-
-  /* ── document header — logo left, coordonnées right, one separator ── */
-  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:16px 26px 14px;border-bottom:1px solid #e2e8f0}
-  .co-n{font-size:18px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .co-tag{font-size:10.5px;color:#2563eb;font-weight:700;margin-top:2px}
-  .co-addr{font-size:10.5px;color:#64748b;margin-top:6px}
-  .co-r{text-align:right;flex-shrink:0}
-  .btn-p{padding:4px 12px;border:none;border-radius:3px;font-size:10px;font-weight:700;cursor:pointer;background:#1e3a5f;color:#fff;margin-top:6px}
-
-  /* ── supplier block — plain text, no box ── */
-  .supplier-block{padding:20px 26px 4px}
-  .supplier-name{font-size:21px;font-weight:900;color:#1e3a5f;letter-spacing:0.2px}
-  .supplier-period{font-size:11.5px;color:#64748b;margin-top:5px}
-
-  .bdy{padding:16px 26px 4px}
-  .sec-title{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;color:#1e3a5f;border-bottom:1.5px solid #1e3a5f;padding-bottom:4px;margin:20px 0 8px}
-
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#fff !important;padding:7px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;text-align:left;white-space:nowrap}
-  thead th.r{text-align:right}
-  tbody tr{page-break-inside:avoid}
-  tbody td{padding:6px 8px;font-size:11px;color:#1e293b;border-bottom:1px solid #eef1f4;vertical-align:middle}
-  tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-weight:500;white-space:nowrap}
-  tbody td.nowrap{white-space:nowrap}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .debit{font-weight:700;color:#1e3a5f}
-  .credit{font-weight:700;color:#374151}
-  .solde{font-weight:800}
-  .dash{color:#cbd5e1}
-  .empty-row td{text-align:center;color:#94a3b8;padding:18px;font-style:italic}
-
-  /* ── résumé comptable (single summary, printed once at the end) ── */
+${printBaseCss(accent)}
+  /* ── résumé comptable (extra breakdown table specific to this ledger) ── */
   .summary-table td{padding:7px 10px;font-size:11.5px;border-bottom:1px solid #e2e8f0}
   .summary-table tr:last-child td{border-bottom:none}
   .summary-table td.sl{color:#374151;font-weight:600}
   .summary-table td.sv{text-align:right;font-family:'Courier New',monospace;font-weight:700}
-  .summary-table tr.final td{background:#f8fafc !important;border-top:2px solid #1e3a5f;padding-top:10px;padding-bottom:10px}
+  .summary-table tr.final td{background:#f8fafc !important;border-top:2px solid ${accent};padding-top:10px;padding-bottom:10px}
   .summary-table tr.final td.sl{font-weight:800;font-size:12px}
   .summary-table tr.final td.sv{font-weight:900;font-size:15px}
-
-  .doc-footer{left:0;right:0;bottom:0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;padding:6px 26px;border-top:1px solid #e2e8f0;background:#fff}
-  .foot-spacer{height:34px}
+  .debit{font-weight:700;color:${accent}}
+  .credit{font-weight:700;color:#374151}
+  .solde{font-weight:800}
+  .dash{color:#cbd5e1}
+  .empty-row td{text-align:center;color:#94a3b8;padding:18px;font-style:italic}
 </style></head><body>
-
-<div class="hdr">
-  <div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <svg width="40" height="40" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
-      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Grand Livre Fournisseur — Carburant</div></div>
-    </div>
-    <div class="co-addr">Selouane, Nador</div>
-  </div>
-  <div class="co-r">
-    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
-      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
-      <strong>Bureau</strong> 06 62 82 88 20<br>
-      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
-    </div>
-    <div style="font-size:9.5px;color:#94a3b8;margin-top:4px">Généré le ${printDate}</div>
-    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
-  </div>
-</div>
-
-<div class="supplier-block">
-  <div class="supplier-name">${supplierName}</div>
-  <div class="supplier-period">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
-</div>
-
+${printHeader({ date: printDate })}
+${entityCard({
+  avatarText: '⛽',
+  name: supplierName,
+  metaHtml: `<strong>Grand Livre Fournisseur — Carburant</strong> &nbsp;·&nbsp; <strong>Période:</strong> ${periode}`,
+})}
+${summaryCards([
+  { label: 'Total Achats', value: `${fmtMoney(pTotalPurchases)} DHS`, color: accent },
+  { label: 'Total Paiements', value: `${fmtMoney(pTotalPaid)} DHS`, color: '#16a34a' },
+  { label: 'Solde Final', value: `${soldeSign(closingBalance)}${fmtMoney(Math.abs(closingBalance))} DHS`, color: soldeColor(closingBalance) },
+])}
 <div class="bdy">
 <table>
   <thead><tr>
@@ -699,11 +655,9 @@ export default function Gasoil() {
   </tbody>
 </table>
 
-<div class="foot-spacer"></div>
-</div>
-
-<div class="doc-footer"><span>DAR SADIK — Selouane, Nador</span><span>Généré le ${printDate}</span></div>
-</body></html>`)
+${soldeFinal({ label: 'Solde Final', amountFormatted: fmtMoney(closingBalance), amount: closingBalance, sub: periode })}
+${printFooter(printDate)}
+</div></body></html>`)
   }
 
   function exportCSV() {

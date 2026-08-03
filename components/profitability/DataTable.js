@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, printFooter } from '../../lib/printLayout'
 
 // ── Generic sortable / searchable / exportable table shell ──────────────────
 // Used by every tabular section of the Profitability Center (By Voyage, By
@@ -28,28 +29,32 @@ export function exportExcel(rows, columns, filename) {
 }
 
 export function exportPrint(rows, columns, title, subtitle) {
+  const accent = '#2563eb'
+  const printDate = printGeneratedDate()
   const printCols = columns.filter(c => c.exportValue || c.sortValue)
-  const th = printCols.map(c => `<th style="text-align:${c.right ? 'right' : c.center ? 'center' : 'left'}">${c.label}</th>`).join('')
+  const th = printCols.map(c => `<th class="${c.right ? 'r' : ''}">${c.label}</th>`).join('')
   const tr = rows.map(row => `<tr>${printCols.map(c => {
     const v = (c.exportValue || c.sortValue)(row)
-    return `<td style="text-align:${c.right ? 'right' : c.center ? 'center' : 'left'}">${v ?? ''}</td>`
+    return `<td class="${c.right ? 'r' : c.center ? 'm' : ''}" style="${c.center ? 'text-align:center' : ''}">${v ?? ''}</td>`
   }).join('')}</tr>`).join('')
-  const html = `
-    <html><head><meta charset="utf-8"><title>${title}</title>
-    <style>
-      body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#1e293b}
-      h1{font-size:16px;margin:0 0 2px}
-      .sub{font-size:11px;color:#64748b;margin-bottom:16px}
-      table{width:100%;border-collapse:collapse;font-size:11px}
-      th,td{border:1px solid #e2e8f0;padding:5px 8px}
-      th{background:#f8fafc;text-transform:uppercase;font-size:9px;letter-spacing:.04em;color:#64748b}
-      @media print { @page { size: landscape; margin: 12mm } }
-    </style></head>
-    <body>
-      <h1>${title}</h1>
-      <div class="sub">${subtitle || ''} — généré le ${new Date().toLocaleDateString('fr-MA')}</div>
-      <table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>
-    </body></html>`
+
+  const html = `<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>${title} — DAR SADIK</title>
+<style>
+${printBaseCss(accent)}
+@page{size:landscape;margin:12mm}
+</style></head><body>
+${printHeader({ date: printDate })}
+<div class="periode-bar" style="padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600">
+  ${title}${subtitle ? ` &nbsp;·&nbsp; <strong style="color:${accent};font-weight:800">${subtitle}</strong>` : ''}
+</div>
+<div class="bdy">
+<table>
+  <thead><tr>${th}</tr></thead>
+  <tbody>${tr}</tbody>
+</table>
+${printFooter(printDate)}
+</div></body></html>`
   openPrintWindow(html)
 }
 

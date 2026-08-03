@@ -3,6 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, totalsRow, soldeFinal, printFooter } from '../../lib/printLayout'
 
 const MODES = ['Espèce', 'Chèque', 'Virement', 'Paiement fournisseur']
 const CHEQUE_STATUSES = ['pending', 'validated', 'rejected']
@@ -499,67 +500,28 @@ export default function Paiements() {
 
   // ── PRINT ──
   function printPaiements() {
-    const _now = new Date()
-    const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+    const printDateTime = printGeneratedDate()
     const tabTitles = { all: 'Paiements Clients', cheques: 'Paiements Chèques', fournisseurs: 'Paiements Fournisseurs', grignon: 'Paiements Grignon' }
     const pdfTitle = tabTitles[activeTab] || 'Paiements Clients'
     const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
+    const accent = '#1e3a5f'
 
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>${pdfTitle} — DAR SADIK</title>
 <style>
-  @page{margin:0mm}
-  @media print{.btn-p{display:none!important}}
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
-  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
-  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
-  .co-addr{font-size:11px;color:#475569;margin-top:5px}
-  .co-r{text-align:right;flex-shrink:0}
-  .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
+${printBaseCss(accent)}
   .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
   .periode-bar strong{color:#1e3a5f;font-weight:800}
-  .bdy{padding:10px 24px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
-  thead th.r{text-align:right}
-  tbody tr{page-break-inside:avoid}
-  tbody td{padding:9.5px 12px;font-size:13px;color:#1e293b;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
-  tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-size:12px;font-weight:500}
+  tbody td{font-size:13px}
+  tbody td.m{font-size:12px}
   tbody tr:nth-child(even) td{background:#f8fafc !important}
   tbody tr.rej td{background:#fef2f2 !important}
   .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
   .b-esp{background:#dcfce7;color:#166534}.b-chq{background:#fef9c3;color:#854d0e}
   .b-vir{background:#dbeafe;color:#1e40af}.b-fou{background:#f3e8ff;color:#6b21a8}
   .s-pending{color:#b45309}.s-validated{color:#16a34a}.s-rejected{color:#dc2626;font-weight:700}
-  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#eff6ff;border-top:3px solid #1e3a5f;border-bottom:2px solid #bfdbfe;font-weight:800;font-size:14px;color:#1e3a5f}
-  .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
-  .sf-lbl{font-size:12px;font-weight:700;color:#166534;letter-spacing:0.01em}
-  .sf-amt{font-size:30px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
-  .sf-unit{font-size:12px;font-weight:600;color:#4ade80;margin-left:4px}
-  .sf-sub{font-size:10px;color:#86efac;margin-top:2px}
-  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
-<div class="hdr">
-  <div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
-      <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
-    </div>
-    <div class="co-addr">Selouane, Nador</div>
-  </div>
-  <div class="co-r">
-    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
-      <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
-      <strong>Bureau</strong> 06 62 82 88 20<br>
-      <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
-    </div>
-    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${printDateTime}</div>
-    <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
-  </div>
-</div>
+${printHeader({ date: printDateTime })}
 <div class="periode-bar">Période : <strong>${periode}</strong></div>
 <div class="bdy">
 <table>
@@ -586,15 +548,9 @@ export default function Paiements() {
     }).join('')}
   </tbody>
 </table>
-${filtered.length > 0 ? `<div class="totals-row">
-  <span>Total — ${filtered.length} paiement${filtered.length !== 1 ? 's' : ''}</span>
-  <span style="font-size:14px;font-weight:900;font-family:'Courier New',monospace">${fmtMoney(total)} DHS</span>
-</div>` : ''}
-<div class="solde-final">
-  <div><div class="sf-lbl">Total général encaissé</div><div class="sf-sub">${periode}</div></div>
-  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(total)}</span><span class="sf-unit">DHS</span></div></div>
-</div>
-<div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
+${filtered.length > 0 ? totalsRow(`Total — ${filtered.length} paiement${filtered.length !== 1 ? 's' : ''}`, `${fmtMoney(total)} DHS`) : ''}
+${soldeFinal({ label: 'Total général encaissé', amountFormatted: fmtMoney(total), amount: total, sub: periode })}
+${printFooter(printDateTime)}
 </div></body></html>`)
   }
 

@@ -4,7 +4,8 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import * as XLSX from 'xlsx'
-import { fmtMoney } from '../../lib/utils'
+import { fmtMoney, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, summaryCards, soldeFinal, printFooter } from '../../lib/printLayout'
 
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtD    = n => parseFloat(n || 0).toFixed(2)
@@ -20,41 +21,6 @@ function useIsMobile() {
     return () => window.removeEventListener('resize', check)
   }, [])
   return m
-}
-
-const PRINT_CSS = [
-  '* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }',
-  'body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b; background: #fff; margin: 0; }',
-  'h1 { font-size: 18px; margin: 0 0 4px; }',
-  '.sub { color: #555; font-size: 11px; margin-bottom: 16px; }',
-  'table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }',
-  'th { background: #1e3a5f !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }',
-  'td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }',
-  'tr:nth-child(even) td { background: #f8fafc !important; }',
-  'tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; border-top: 2px solid #1e3a5f !important; }',
-  '.ch { background: #1e3a5f !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; }',
-  '.gt { background: #1e3a5f !important; color: #fff !important; padding: 12px 16px; border-radius: 6px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center; }',
-  '.footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888; font-size: 10px; text-align: center; }',
-  '@media print { button { display: none !important; } body { padding: 0; } }',
-].join('\n')
-
-function openPrint(html) {
-  const old = document.getElementById('__po')
-  if (old) old.remove()
-  const ov = document.createElement('div')
-  ov.id = '__po'
-  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#1e293b;display:flex;flex-direction:column'
-  const bar = document.createElement('div')
-  bar.style.cssText = 'display:flex;gap:8px;padding:10px 16px;background:#0f172a;flex-shrink:0'
-  bar.innerHTML = '<button onclick="document.getElementById(\'__pf\').contentWindow.print()" style="padding:7px 18px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer</button>'
-    + '<button onclick="document.getElementById(\'__po\').remove()" style="padding:7px 18px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✕ Fermer</button>'
-  const fr = document.createElement('iframe')
-  fr.id = '__pf'
-  fr.style.cssText = 'flex:1;border:none;width:100%;background:#fff'
-  ov.appendChild(bar); ov.appendChild(fr)
-  document.body.appendChild(ov)
-  fr.contentWindow.document.write(html)
-  fr.contentWindow.document.close()
 }
 
 export default function Livraisons() {
@@ -270,53 +236,68 @@ export default function Livraisons() {
   }
 
   function printLivraisons() {
+    const accent = tab === 'brique' ? '#1e3a5f' : '#92400e'
+    const printDate = printGeneratedDate()
+    const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
+    const unit = tab === 'grignon' ? 'kg' : 'u'
+    const label = tab === 'brique' ? 'Livraisons Briques' : 'Livraisons Grignon'
+
     const sections = Object.values(byClient).sort((a,b)=>b.vente-a.vente).map(cl => {
       const marge = cl.vente - cl.achat
       const rows = cl.ops.sort((a,b)=>(b.date_livraison||'').localeCompare(a.date_livraison||'')).map(l => {
         const m = (l.total_vente||0)-(l.qte||0)*(l.prix_achat||0)
         return '<tr>'
-          + '<td>' + fmtDate(l.date_livraison) + '</td>'
-          + '<td>' + (l.voyages?.reference||l.voyage_id||'—') + '</td>'
+          + '<td class="m" style="white-space:nowrap">' + fmtDate(l.date_livraison) + '</td>'
+          + '<td class="m">' + (l.voyages?.reference||l.voyage_id||'—') + '</td>'
           + '<td>' + (l.type_brique||l.type_produit||'—') + '</td>'
-          + '<td style="text-align:right">' + fmt(l.qte) + '</td>'
-          + '<td style="text-align:right">' + fmtMoney(l.prix_vente) + '</td>'
-          + '<td style="text-align:right"><b>' + fmtMoney(l.total_vente) + ' DHS</b></td>'
-          + '<td style="text-align:right;color:#7c3aed">' + fmtMoney(m) + ' DHS</td>'
-          + '<td>' + (l.note||'—') + '</td>'
+          + '<td class="r">' + fmt(l.qte) + '</td>'
+          + '<td class="r">' + fmtMoney(l.prix_vente) + '</td>'
+          + '<td class="r"><b>' + fmtMoney(l.total_vente) + ' DHS</b></td>'
+          + '<td class="r" style="color:#7c3aed">' + fmtMoney(m) + ' DHS</td>'
+          + '<td class="m">' + (l.note||'—') + '</td>'
           + '</tr>'
       }).join('')
       return '<div style="margin-bottom:20px;page-break-inside:avoid">'
-        + '<div class="ch"><div style="font-size:13px;font-weight:800;color:#fff">👤 ' + cl.nom + '</div>'
-        + '<div style="color:#fff;font-size:11px">' + cl.ops.length + ' livraison(s) · CA: ' + fmtMoney(cl.vente) + ' DHS · Marge: ' + fmtMoney(marge) + ' DHS</div></div>'
+        + '<div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">'
+        + '<span>👤 ' + cl.nom + '</span>'
+        + '<span style="font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:normal;color:#64748b">' + cl.ops.length + ' livraison(s) · CA: ' + fmtMoney(cl.vente) + ' DHS · Marge: ' + fmtMoney(marge) + ' DHS</span>'
+        + '</div>'
         + '<table><thead><tr>'
         + '<th>Date</th><th>Voyage</th><th>Produit</th>'
-        + '<th style="text-align:right">Qté</th><th style="text-align:right">Prix/u</th>'
-        + '<th style="text-align:right">Total DHS</th><th style="text-align:right">Marge</th><th>Note</th>'
+        + '<th class="r">Qté</th><th class="r">Prix/u</th>'
+        + '<th class="r">Total DHS</th><th class="r">Marge</th><th>Note</th>'
         + '</tr></thead><tbody>' + rows + '</tbody>'
         + '<tfoot><tr><td colspan="3">TOTAL ' + cl.nom + '</td>'
-        + '<td style="text-align:right">' + fmt(cl.qte) + '</td><td></td>'
-        + '<td style="text-align:right">' + fmtMoney(cl.vente) + ' DHS</td>'
-        + '<td style="text-align:right;color:#7c3aed">' + fmtMoney(marge) + ' DHS</td><td></td>'
+        + '<td class="r">' + fmt(cl.qte) + '</td><td></td>'
+        + '<td class="r">' + fmtMoney(cl.vente) + ' DHS</td>'
+        + '<td class="r" style="color:#7c3aed">' + fmtMoney(marge) + ' DHS</td><td></td>'
         + '</tr></tfoot></table></div>'
     }).join('')
 
-    const label = tab === 'brique' ? 'Livraisons Briques' : 'Livraisons Grignon'
-    openPrint('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + label + '</title>'
-      + '<style>' + PRINT_CSS + '</style></head><body>'
-      + '<h1>🚚 ' + (tab === 'brique' ? 'DAR SADIK — ' : '') + label + '</h1>'
-      + '<div class="sub">Période: ' + fmtDate(filterFrom) + ' → ' + fmtDate(filterTo)
-      + ' · ' + filtered.length + ' livraison(s) · Généré le ' + new Date().toLocaleDateString('fr-MA') + '</div>'
-      + (sections || '<p style="color:#aaa;text-align:center">Aucune livraison</p>')
-      + '<div class="gt">'
-      + '<div><b>TOTAL ' + label.toUpperCase() + '</b><br>'
-      + '<span style="font-size:11px;opacity:0.8">' + filtered.length + ' livraison(s) · '
-      + Object.keys(byClient).length + ' client(s) · ' + fmt(totalQte) + (tab==='grignon'?' kg':' u') + '</span></div>'
-      + '<div style="text-align:right">'
-      + '<div style="font-size:10px;opacity:0.7">CA / Coût / Marge</div>'
-      + '<div style="font-size:18px;font-weight:900">' + fmtMoney(totalVente) + ' / ' + fmtMoney(totalAchat) + ' / ' + fmtMoney(totalMarge) + ' DHS</div>'
-      + '</div></div>'
-      + (tab === 'brique' ? '<div class="footer">DAR SADIK — Selouane, Nador | Dar.sadik@hotmail.com | 06 61 97 87 47</div>' : '')
-      + '</body></html>')
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>${label} — DAR SADIK</title>
+<style>
+${printBaseCss(accent)}
+</style></head><body>
+${printHeader({ date: printDate })}
+<div class="periode-bar" style="padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600">
+  🚚 ${label} &nbsp;·&nbsp; Période : <strong style="color:${accent};font-weight:800">${periode}</strong>
+</div>
+${summaryCards([
+  { label: 'Chiffre d’affaires', value: `${fmtMoney(totalVente)} DHS`, color: accent },
+  { label: 'Coût', value: `${fmtMoney(totalAchat)} DHS`, color: '#64748b' },
+  { label: 'Marge', value: `${fmtMoney(totalMarge)} DHS`, color: '#7c3aed' },
+])}
+<div class="bdy">
+${sections || '<p style="color:#94a3b8;text-align:center;padding:20px">Aucune livraison</p>'}
+${soldeFinal({
+  label: `Total général — ${label}`,
+  amountFormatted: fmtMoney(totalVente),
+  amount: totalVente,
+  sub: `${filtered.length} livraison(s) · ${Object.keys(byClient).length} client(s) · ${fmt(totalQte)} ${unit}`,
+})}
+${tab === 'brique' ? printFooter(printDate) : ''}
+</div></body></html>`)
   }
 
   function exportSaisieXLSX() {

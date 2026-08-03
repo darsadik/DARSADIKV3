@@ -3,6 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards, soldeFinal, printFooter } from '../../lib/printLayout'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 
@@ -107,49 +108,46 @@ export default function FournisseursGasoil() {
 
   function printFournisseur() {
     if (!selected) return
+    const accent = '#f97316'
+    const printDate = printGeneratedDate()
+    const periode = filterType === 'all' ? 'Toutes dates' : `${fmtDate(from)} → ${fmtDate(to)}`
     const rows = (from && openingBalance !== 0 ? [{
       date: from, type: 'opening', label: "Solde d'ouverture", debit: 0, credit: 0, camion: '—', bon: '—', note: '', solde: openingBalance,
     }] : []).concat(ledger).map(e => `<tr>
-      <td>${fmtDate(e.date)}</td>
+      <td class="m" style="white-space:nowrap">${fmtDate(e.date)}</td>
       <td>${e.label}</td>
-      <td>${e.camion}</td>
-      <td>${e.bon}</td>
-      <td style="text-align:right;color:#1e3a5f">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
-      <td style="text-align:right;color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
-      <td style="text-align:right;font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
+      <td class="m">${e.camion}</td>
+      <td class="m">${e.bon}</td>
+      <td class="r" style="color:${accent}">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
+      <td class="r" style="color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
+      <td class="r" style="font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
     </tr>`).join('')
 
-    openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournisseur Carburant — ${selected.nom}</title>
-    <style>*{-webkit-print-color-adjust:exact !important}
-    body{font-family:Arial;padding:28px;font-size:12px;color:#1e293b}
-    .hdr{background:#f97316;color:#fff;padding:16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between}
-    table{width:100%;border-collapse:collapse;margin-bottom:16px}
-    th{background:#f97316 !important;color:#fff !important;padding:7px 10px;text-align:left;font-size:10px;font-weight:700}
-    td{padding:7px 10px;border-bottom:1px solid #e2e8f0;font-size:11px}
-    tr:nth-child(even) td{background:#fff7ed !important}
-    tfoot td{background:#f1f5f9 !important;font-weight:800 !important}
-    .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
-    .k{border:1px solid #e2e8f0;border-radius:6px;padding:10px;text-align:center}
-    .kl{font-size:9px;text-transform:uppercase;color:#6b7280;margin-bottom:3px}
-    .kv{font-size:16px;font-weight:900}
-    @media print{button{display:none !important}}</style></head><body>
-    <div class="hdr">
-      <div><div style="font-size:20px;font-weight:900">⛽ ${selected.nom}</div><div style="opacity:0.8;font-size:11px">Fournisseur Carburant — DAR SADIK</div></div>
-      <div style="text-align:right;font-size:11px;opacity:0.9">Solde dû: <b style="font-size:16px">${fmtMoney(selected.solde||0)} DHS</b></div>
-    </div>
-    <div class="kpi">
-      <div class="k"><div class="kl">Achats période</div><div class="kv" style="color:#f97316">${fmtMoney(totalAchats)} DHS</div></div>
-      <div class="k"><div class="kl">Payé période</div><div class="kv" style="color:#16a34a">${fmtMoney(totalPaiements)} DHS</div></div>
-      <div class="k"><div class="kl">Solde total dû</div><div class="kv" style="color:#dc2626">${fmtMoney(selected.solde||0)} DHS</div></div>
-    </div>
-    <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#f97316;border-bottom:2px solid #f97316;padding-bottom:4px;margin-bottom:8px">Relevé Chronologique</h3>
-    <table><thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>Bon / Mode</th><th style="text-align:right">Débit (+)</th><th style="text-align:right">Crédit (−)</th><th style="text-align:right">Solde</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
-    </table>
-    <div style="margin-top:20px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;display:flex;justify-content:space-between">
-      <span>DAR SADIK — Selouane, Nador | Dar.sadik@hotmail.com</span>
-      <span>Généré le ${new Date().toLocaleDateString('fr-MA')}</span>
-    </div></body></html>`)
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Fournisseur Carburant — ${selected.nom}</title>
+<style>
+${printBaseCss(accent)}
+</style></head><body>
+${printHeader({ date: printDate })}
+${entityCard({
+  avatarText: '⛽',
+  name: selected.nom,
+  metaHtml: `<strong>Fournisseur Carburant</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(selected.solde||0)} DHS &nbsp;·&nbsp; <strong>Période:</strong> ${periode}`,
+})}
+${summaryCards([
+  { label: 'Achats période', value: `${fmtMoney(totalAchats)} DHS`, color: accent },
+  { label: 'Payé période', value: `${fmtMoney(totalPaiements)} DHS`, color: '#16a34a' },
+  { label: 'Solde total dû', value: `${fmtMoney(selected.solde||0)} DHS`, color: '#dc2626' },
+])}
+<div class="bdy">
+<div class="sec-title">Relevé Chronologique</div>
+<table>
+  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>Bon / Mode</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+</table>
+${soldeFinal({ label: 'Solde total dû', amountFormatted: fmtMoney(selected.solde||0), amount: selected.solde||0, sub: periode })}
+${printFooter(printDate)}
+</div></body></html>`)
   }
 
   const filtered    = fournisseurs.filter(f => !search || f.nom.toLowerCase().includes(search.toLowerCase()))

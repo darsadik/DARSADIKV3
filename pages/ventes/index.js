@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import * as XLSX from 'xlsx'
 import { fmt, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, summaryCards, soldeFinal, printFooter } from '../../lib/printLayout'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import { resolveLivraisonByVenteId } from '../../lib/services/voyage/resolveSource'
@@ -336,106 +337,67 @@ export default function Ventes() {
   }
 
   function printClientView() {
+    const accent = '#1a5fa8'
+    const printDate = printGeneratedDate()
+    const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
     const tQ = filtered.reduce((s,v)=>s+(v.qte||0),0)
     const tV = filtered.reduce((s,v)=>s+(v.total_vente||0),0)
     const tR = filtered.reduce((s,v)=>s+(v.retour_montant||0),0)
     const tRR = filtered.reduce((s,v)=>s+(v.retour_restant||0),0)
     const hasRetour = filtered.some(v => v.retour_client)
-    const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmtMoney(v.retour_montant)}</td><td style="text-align:right">${fmtMoney(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmtMoney(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
-    const _now = new Date()
-    const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
-    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Ventes — DAR SADIK</title>
+    const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td><td style="font-weight:700;color:#0f172a">${v.client_nom}</td><td class="m">${v.camion_plaque}</td><td class="m">${v.retour_client}</td><td class="r">${fmtMoney(v.retour_montant)}</td><td class="r">${fmtMoney(v.retour_paye||0)}</td><td class="r" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmtMoney(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Ventes — DAR SADIK</title>
 <style>
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
-  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
-  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
-  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
-  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
-  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
-  .co-r strong{color:#fff}
-  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
-  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:18px 24px}
-  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
-  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
-  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
-  .kpi{padding:10px 13px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
-  .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:3px}
-  .val{font-size:18px;font-weight:900;line-height:1}
-  .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
-  .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
-  .kpi.am{border-left-color:#b45309}.kpi.am .val{color:#b45309}
-  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
-  thead th.r{text-align:right}
-  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  tbody td.r{text-align:right;font-family:monospace}
-  tbody td.m{color:#94a3b8;font-size:10px}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .num{font-weight:700;font-size:11px}
-  .tag{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700}
-  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
-  tfoot td.r{font-size:12px}
-  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
-  @media print{.btn-p,.btn-d{display:none !important}}
-  @page{size:A4;margin:8mm 10mm}
+${printBaseCss(accent)}
+  .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
+  .periode-bar strong{color:${accent};font-weight:800}
 </style></head><body>
-<div class="hdr">
-  <div>
-    <div class="co-n">DAR SADIK</div>
-    <div class="co-ar">دار صديق</div>
-    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
-  </div>
-  <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
-    <div>Dar.sadik@hotmail.com</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${printDateTime}</div>
-  </div>
-</div>
+${printHeader({ date: printDate })}
+<div class="periode-bar">Ventes &nbsp;·&nbsp; Période : <strong>${periode}</strong></div>
+${summaryCards([
+  { label: 'Total quantité', value: `${fmt(tQ)} briques`, color: accent },
+  { label: 'Total ventes', value: `${fmtMoney(tV)} DHS`, color: '#16a34a' },
+  { label: 'Retours transport', value: `${fmtMoney(tR)} DHS`, color: '#b45309' },
+])}
 <div class="bdy">
-<div class="ttl">Ventes — ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
-<div class="sub">${filtered.length} ventes &nbsp;·&nbsp; Total Qté : ${fmt(tQ)} briques &nbsp;·&nbsp; Total : ${fmtMoney(tV)} DHS</div>
-<div class="kpi-g">
-  <div class="kpi bl"><div class="lbl">Total quantité</div><div class="val">${fmt(tQ)}</div></div>
-  <div class="kpi gn"><div class="lbl">Total ventes</div><div class="val">${fmtMoney(tV)} DHS</div></div>
-  <div class="kpi am"><div class="lbl">Retours transport</div><div class="val">${fmtMoney(tR)} DHS</div></div>
-</div>
-<div class="sec">Détail des ventes (${filtered.length})</div>
-<table><thead><tr>
-  <th>Date</th><th>Client</th><th>Produit</th><th>Transport</th>
-  <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th>Note</th>
-</tr></thead>
-<tbody>${filtered.map(v=>`<tr>
-  <td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td>
-  <td><span class="tag">${v.type_brique||'—'}</span></td>
-  <td>${v.camion_plaque||'—'}</td>
-  <td class="r">${fmt(v.qte)}</td>
-  <td class="r">${fmtMoney(v.prix_vente)}</td>
-  <td class="r num">${fmtMoney(v.total_vente)}</td>
-  <td class="m">${v.note||'—'}</td>
-</tr>`).join('')}</tbody>
-<tfoot><tr>
-  <td colspan="4">TOTAL (${filtered.length} ventes)</td>
-  <td class="r">${fmt(tQ)}</td><td></td>
-  <td class="r">${fmtMoney(tV)} DHS</td><td></td>
-</tr></tfoot>
+<div class="sec-title">Détail des ventes (${filtered.length})</div>
+<table>
+  <thead><tr>
+    <th>Date</th><th>Client</th><th>Produit</th><th>Transport</th>
+    <th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th>Note</th>
+  </tr></thead>
+  <tbody>${filtered.map(v=>`<tr>
+    <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td><td style="font-weight:700;color:#0f172a">${v.client_nom}</td>
+    <td><span class="tag">${v.type_brique||'—'}</span></td>
+    <td class="m">${v.camion_plaque||'—'}</td>
+    <td class="r">${fmt(v.qte)}</td>
+    <td class="r">${fmtMoney(v.prix_vente)}</td>
+    <td class="r" style="font-weight:700">${fmtMoney(v.total_vente)}</td>
+    <td class="m">${v.note||'—'}</td>
+  </tr>`).join('')}</tbody>
+  <tfoot><tr>
+    <td colspan="4">TOTAL (${filtered.length} ventes)</td>
+    <td class="r">${fmt(tQ)}</td><td></td>
+    <td class="r">${fmtMoney(tV)} DHS</td><td></td>
+  </tr></tfoot>
 </table>
-${hasRetour ? `<div class="sec">Retours Transport</div>
-<table><thead><tr>
-  <th>Date</th><th>Client vente</th><th>Camion</th><th>Retour client</th>
-  <th class="r">Montant</th><th class="r">Payé</th><th class="r">Restant</th>
-</tr></thead>
-<tbody>${retourRows}</tbody>
-<tfoot><tr>
-  <td colspan="4">TOTAL RETOURS</td>
-  <td class="r">${fmtMoney(tR)} DHS</td><td></td>
-  <td class="r">${fmtMoney(tRR)} DHS</td>
-</tr></tfoot>
+${hasRetour ? `<div class="sec-title">Retours Transport</div>
+<table>
+  <thead><tr>
+    <th>Date</th><th>Client vente</th><th>Camion</th><th>Retour client</th>
+    <th class="r">Montant</th><th class="r">Payé</th><th class="r">Restant</th>
+  </tr></thead>
+  <tbody>${retourRows}</tbody>
+  <tfoot><tr>
+    <td colspan="4">TOTAL RETOURS</td>
+    <td class="r">${fmtMoney(tR)} DHS</td><td></td>
+    <td class="r">${fmtMoney(tRR)} DHS</td>
+  </tr></tfoot>
 </table>` : ''}
-<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
+${soldeFinal({ label: 'Total général — Ventes', amountFormatted: fmtMoney(tV), amount: tV, sub: periode })}
+${printFooter(printDate)}
 </div></body></html>`)
   }
 
@@ -816,25 +778,25 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
       const rows = data.ops
         .sort((a,b)=>(a.date_fournisseur||a.date).localeCompare(b.date_fournisseur||b.date))
         .map(v => `<tr>
-          <td>${fmtDate(v.date_fournisseur || v.date)}</td>
+          <td class="m" style="white-space:nowrap">${fmtDate(v.date_fournisseur || v.date)}</td>
           <td>${v.type_brique||'—'}</td>
-          <td style="text-align:right">${fmt(v.qte)}</td>
-          <td style="text-align:right">${fmtMoney(v.prix_achat)}</td>
-          <td style="text-align:right"><b>${fmtMoney(v.total_achat)}</b></td>
+          <td class="r">${fmt(v.qte)}</td>
+          <td class="r">${fmtMoney(v.prix_achat)}</td>
+          <td class="r"><b>${fmtMoney(v.total_achat)}</b></td>
         </tr>`).join('')
       const typeRows = Object.entries(data.byType)
         .sort(([a],[b])=>a.localeCompare(b))
         .map(([tb,td]) => `<tr style="background:#fffbeb !important">
           <td colspan="2" style="font-weight:800;color:#92400e">📦 ${tb}</td>
-          <td style="text-align:right;font-weight:800;color:#1d4ed8">${fmt(td.qte)}</td>
+          <td class="r" style="font-weight:800;color:#1d4ed8">${fmt(td.qte)}</td>
           <td></td>
-          <td style="text-align:right;font-weight:800;color:#b45309">${fmtMoney(td.total)} DHS</td>
+          <td class="r" style="font-weight:800;color:#b45309">${fmtMoney(td.total)} DHS</td>
         </tr>`).join('')
       return `
         <div class="fourn-block">
-          <div class="fourn-header">
-            <div class="fourn-title">${fourn}</div>
-            <div class="fourn-sub">${data.ops.length} op. &nbsp;·&nbsp; ${fmt(totQte)} briques &nbsp;·&nbsp; ${fmtMoney(totAchat)} DHS</div>
+          <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>🏭 ${fourn}</span>
+            <span style="font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:normal;color:#64748b">${data.ops.length} op. &nbsp;·&nbsp; ${fmt(totQte)} briques &nbsp;·&nbsp; ${fmtMoney(totAchat)} DHS</span>
           </div>
           <table>
             <thead><tr>
@@ -858,61 +820,32 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
         </div>`
     }).join('')
 
-    const _now = new Date()
-    const _dt = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
+    const accent = '#1e3a5f'
+    const printDate = printGeneratedDate()
+    const periode = `${fmtDate(fFilterFrom)} → ${fmtDate(fFilterTo)}`
+    const totQteAll   = fFiltered.reduce((s,v)=>s+(v.qte||0),0)
+    const totAchatAll = fFiltered.reduce((s,v)=>s+(v.total_achat||0),0)
+
     return `<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Rapport Fournisseurs — DAR SADIK</title>
 <style>
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
-  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
-  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
-  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
-  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
-  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
-  .co-r strong{color:#fff}
-  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
-  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:18px 24px}
-  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
-  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
-  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
-  table{width:100%;border-collapse:collapse;margin-bottom:8px}
-  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
-  thead th.r{text-align:right}
-  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  tbody td.r{text-align:right;font-family:monospace}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .num{font-weight:700;font-size:11px}
-  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
-  tfoot td.r{font-size:12px}
+${printBaseCss(accent)}
+  .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
+  .periode-bar strong{color:${accent};font-weight:800}
   .fourn-block{margin-bottom:20px;page-break-inside:avoid}
-  .fourn-header{background:#1a3a6b !important;color:#fff !important;border-radius:6px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
-  .fourn-title{font-size:13px;font-weight:800;color:#fff !important}
-  .fourn-sub{font-size:11px;color:#bfdbfe}
-  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
-  @media print{.btn-p,.btn-d{display:none !important}}
-  @page{size:A4;margin:8mm 10mm}
 </style>
 </head><body>
-<div class="hdr">
-  <div>
-    <div class="co-n">DAR SADIK</div>
-    <div class="co-ar">دار صديق</div>
-    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
-  </div>
-  <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
-    <div>Dar.sadik@hotmail.com</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${_dt}</div>
-  </div>
-</div>
+${printHeader({ date: printDate })}
+<div class="periode-bar">Rapport Fournisseurs — Achats &nbsp;·&nbsp; Période : <strong>${periode}</strong></div>
+${summaryCards([
+  { label: 'Total achats', value: `${fmtMoney(totAchatAll)} DHS`, color: accent },
+  { label: 'Quantité totale', value: `${fmt(totQteAll)}`, color: '#ea580c' },
+  { label: 'Fournisseurs', value: `${Object.keys(byFourn).length}`, color: '#475569' },
+])}
 <div class="bdy">
-<div class="ttl">Rapport Fournisseurs — Achats</div>
-<div class="sub">Période : ${fmtDate(fFilterFrom)} → ${fmtDate(fFilterTo)} &nbsp;·&nbsp; ${Object.keys(byFourn).length} fournisseur(s)</div>
-${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
-<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_dt}</span></div>
+${sections || '<p style="color:#94a3b8;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
+${soldeFinal({ label: 'Total général — Achats Fournisseurs', amountFormatted: fmtMoney(totAchatAll), amount: totAchatAll, sub: periode })}
+${printFooter(printDate)}
 </div></body></html>`
   }
 
@@ -1362,32 +1295,19 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
         const opRows = data.ops
           .slice().sort((a, b) => (a.date||'').localeCompare(b.date||''))
           .map(v => `<tr>
-            <td>${fmtDate(v.date)}</td>
-            <td>${v.client_nom || '—'}</td>
-            <td>${v.fournisseur || '—'}</td>
+            <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td>
+            <td class="m">${v.client_nom || '—'}</td>
+            <td class="m">${v.fournisseur || '—'}</td>
             <td>${v.type_brique || '—'}</td>
-            <td class="r num">${fmt(v.qte)}</td>
+            <td class="r" style="font-weight:700">${fmt(v.qte)}</td>
             <td><span class="tag" style="${v.client_nom?'background:#eff6ff;color:#1d4ed8':'background:#f0fdf4;color:#15803d'}">${v.client_nom ? 'Vente' : 'Achat'}</span></td>
           </tr>`).join('')
 
-        const productPills = Object.entries(data.types)
-          .map(([tb, q]) => `<span class="product-pill">${tb} — ${fmt(q)}</span>`).join('')
-
         return `
-          <div class="camion-block">
-            <div class="camion-hdr">
-              <div>
-                <div class="camion-ttl">${plaque}</div>
-                ${data.chauffeur ? `<div class="camion-sub-txt">${data.chauffeur}</div>` : ''}
-              </div>
-              <div class="camion-info">
-                ${data.voyages} voyage(s) &nbsp;·&nbsp; ${fmt(data.qte)} briques &nbsp;·&nbsp; ${fmtMoney(data.vente)} DHS
-              </div>
-            </div>
-            <div class="kpi-g">
-              <div class="kpi bl"><div class="lbl">Voyages</div><div class="val">${data.voyages}</div></div>
-              <div class="kpi gn"><div class="lbl">Briques</div><div class="val">${fmt(data.qte)}</div></div>
-              <div class="kpi am"><div class="lbl">Total DHS</div><div class="val">${fmtMoney(data.vente)}</div></div>
+          <div class="camion-block" style="margin-bottom:20px;page-break-inside:avoid">
+            <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">
+              <span>🚛 ${plaque}${data.chauffeur ? ` — ${data.chauffeur}` : ''}</span>
+              <span style="font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:normal;color:#64748b">${data.voyages} voyage(s) &nbsp;·&nbsp; ${fmt(data.qte)} briques &nbsp;·&nbsp; ${fmtMoney(data.vente)} DHS</span>
             </div>
             <table>
               <thead><tr>
@@ -1401,91 +1321,51 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
               </tr></tfoot>
             </table>
             ${data.retours.length > 0 ? `
-            <div class="retour-blk">
-              <div class="retour-ttl">Retours Transport (${data.retours.length}) — Total: ${fmtMoney(data.retourTotal)} DHS &nbsp;·&nbsp; Restant: ${fmtMoney(data.retourRestant)} DHS</div>
+            <div style="margin-top:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">
+              <div style="font-weight:800;font-size:11px;color:#15803d;margin-bottom:6px">Retours Transport (${data.retours.length}) — Total: ${fmtMoney(data.retourTotal)} DHS &nbsp;·&nbsp; Restant: ${fmtMoney(data.retourRestant)} DHS</div>
               <table>
                 <thead><tr>
                   <th>Date</th><th>Client retour</th>
                   <th class="r">Montant</th><th class="r">Payé</th><th class="r">Restant</th><th>Note</th>
                 </tr></thead>
                 <tbody>${data.retours.map(v=>`<tr>
-                  <td>${fmtDate(v.date)}</td><td><b>${v.retour_client}</b></td>
+                  <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td><td style="font-weight:700">${v.retour_client}</td>
                   <td class="r">${fmtMoney(v.retour_montant)}</td>
                   <td class="r" style="color:#16a34a">${fmtMoney(v.retour_paye||0)}</td>
                   <td class="r" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmtMoney(v.retour_restant):'Payé'}</td>
-                  <td>${v.retour_note||'—'}</td>
+                  <td class="m">${v.retour_note||'—'}</td>
                 </tr>`).join('')}</tbody>
               </table>
             </div>` : ''}
           </div>`
       }).join('')
 
-    const _now2 = new Date()
-    const _dt2 = _now2.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now2.getHours()).padStart(2,'0') + ':' + String(_now2.getMinutes()).padStart(2,'0')
+    const accent = '#2563eb'
+    const printDate = printGeneratedDate()
+    const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
+    const totQteAll = filtered.reduce((s,v)=>s+(v.qte||0),0)
+    const totVenteAll = filtered.reduce((s,v)=>s+(v.total_vente||0),0)
+
     return `<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Rapport Camions — DAR SADIK</title>
 <style>
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
-  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
-  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}
-  .co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}
-  .co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
-  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}
-  .co-r strong{color:#fff}
-  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}
-  .btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:18px 24px}
-  .ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}
-  .sub{font-size:11px;color:#64748b;margin-bottom:14px}
-  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:16px 0 8px}
-  table{width:100%;border-collapse:collapse;margin-bottom:8px}
-  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
-  thead th.r{text-align:right}
-  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  tbody td.r{text-align:right;font-family:monospace}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .num{font-weight:700;font-size:11px}
+${printBaseCss(accent)}
+  .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
+  .periode-bar strong{color:${accent};font-weight:800}
   .tag{background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 8px;font-size:9px;font-weight:700}
-  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
-  tfoot td.r{font-size:12px}
-  .camion-block{margin-bottom:20px;page-break-inside:avoid}
-  .camion-hdr{background:#1a3a6b !important;color:#fff !important;border-radius:6px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
-  .camion-ttl{font-size:13px;font-weight:800;color:#fff !important}
-  .camion-sub-txt{font-size:10px;color:#93c5fd;margin-top:2px}
-  .camion-info{font-size:11px;color:#bfdbfe;text-align:right}
-  .kpi-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
-  .kpi{padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;border-left:3px solid #cbd5e1}
-  .lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin-bottom:2px}
-  .val{font-size:16px;font-weight:900;line-height:1}
-  .kpi.bl{border-left-color:#1d4ed8}.kpi.bl .val{color:#1d4ed8}
-  .kpi.gn{border-left-color:#16a34a}.kpi.gn .val{color:#16a34a}
-  .kpi.am{border-left-color:#b45309}.kpi.am .val{color:#b45309}
-  .retour-blk{margin-top:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px}
-  .retour-ttl{font-weight:800;font-size:11px;color:#15803d;margin-bottom:6px}
-  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
-  @media print{.btn-p,.btn-d{display:none !important}}
-  @page{size:A4;margin:8mm 10mm}
 </style>
 </head><body>
-<div class="hdr">
-  <div>
-    <div class="co-n">DAR SADIK</div>
-    <div class="co-ar">دار صديق</div>
-    <div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div>
-  </div>
-  <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
-    <div>Dar.sadik@hotmail.com</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${_dt2}</div>
-  </div>
-</div>
+${printHeader({ date: printDate })}
+<div class="periode-bar">Rapport Camions &nbsp;·&nbsp; Période : <strong>${periode}</strong></div>
+${summaryCards([
+  { label: 'Camions', value: `${Object.keys(byCamion).length}`, color: accent },
+  { label: 'Quantité totale', value: `${fmt(totQteAll)}`, color: '#ea580c' },
+  { label: 'Total ventes', value: `${fmtMoney(totVenteAll)} DHS`, color: '#16a34a' },
+])}
 <div class="bdy">
-<div class="ttl">Rapport Camions</div>
-<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${Object.keys(byCamion).length} camion(s)</div>
-${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
-<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_dt2}</span></div>
+${camionBlocks || '<p style="color:#94a3b8;text-align:center;padding:40px">Aucune donnée pour cette période</p>'}
+${soldeFinal({ label: 'Total général — Rapport Camions', amountFormatted: fmtMoney(totVenteAll), amount: totVenteAll, sub: periode })}
+${printFooter(printDate)}
 </div></body></html>`
   }
 
@@ -1818,58 +1698,42 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
             const totalMdo = mdoFiltered.reduce((s,v) => s + (v.montant_mdo || 0), 0)
 
             function printMdo() {
-                            const rows = mdoFiltered.map(v => `<tr>
-                <td>${fmtDate(v.date)}</td>
-                <td><b>${v.client_nom}</b></td>
+              const accent = '#92400e'
+              const printDate = printGeneratedDate()
+              const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
+              const rows = mdoFiltered.map(v => `<tr>
+                <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td>
+                <td style="font-weight:700;color:#0f172a">${v.client_nom}</td>
                 <td>${v.type_entree==='gasoil'?'⛽ Frais Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 Main d\'oeuvre'}</td>
-                <td>${v.description_mdo || '—'}</td>
-                <td>${v.camion_plaque || '—'}</td>
-                <td style="text-align:right"><b>${fmtMoney(v.montant_mdo)} DHS</b></td>
-                <td>${v.note || '—'}</td>
+                <td class="m">${v.description_mdo || '—'}</td>
+                <td class="m">${v.camion_plaque || '—'}</td>
+                <td class="r"><b>${fmtMoney(v.montant_mdo)} DHS</b></td>
+                <td class="m">${v.note || '—'}</td>
               </tr>`).join('')
-              const _mn = new Date(); const _mdt = _mn.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(_mn.getHours()).padStart(2,'0')+':'+String(_mn.getMinutes()).padStart(2,'0')
-              openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Main d'oeuvre — DAR SADIK</title>
+
+              openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Main d'oeuvre — DAR SADIK</title>
 <style>
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
-  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
-  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}.co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}.co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
-  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}.co-r strong{color:#fff}
-  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}.btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:18px 24px}.ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}.sub{font-size:11px;color:#64748b;margin-bottom:14px}
-  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:14px 0 8px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
-  thead th.r{text-align:right}
-  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  tbody td.r{text-align:right;font-family:monospace}.tbody td.m{color:#94a3b8;font-size:10px}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .num{font-weight:700;font-size:11px}
-  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
-  tfoot td.r{font-size:12px}
-  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
-  @media print{.btn-p,.btn-d{display:none !important}}@page{size:A4;margin:8mm 10mm}
+${printBaseCss(accent)}
+  .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
+  .periode-bar strong{color:${accent};font-weight:800}
 </style></head><body>
-<div class="hdr">
-  <div><div class="co-n">DAR SADIK</div><div class="co-ar">دار صديق</div><div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div></div>
-  <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
-    <div>Dar.sadik@hotmail.com</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${_mdt}</div>
-  </div>
-</div>
+${printHeader({ date: printDate })}
+<div class="periode-bar">MDO / Frais Gasoil / Autre &nbsp;·&nbsp; Période : <strong>${periode}</strong></div>
+${summaryCards([
+  { label: 'Entrées', value: `${mdoFiltered.length}`, color: accent },
+  { label: 'Total', value: `${fmtMoney(totalMdo)} DHS`, color: accent },
+])}
 <div class="bdy">
-<div class="ttl">MDO / Frais Gasoil / Autre</div>
-<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${mdoFiltered.length} entrée(s) &nbsp;·&nbsp; Total : ${fmtMoney(totalMdo)} DHS</div>
-<div class="sec">Détail (${mdoFiltered.length})</div>
-<table><thead><tr>
-  <th>Date</th><th>Client</th><th>Type</th><th>Description</th><th>Camion</th><th class="r">Montant DHS</th><th>Note</th>
-</tr></thead>
-<tbody>${rows}</tbody>
-<tfoot><tr><td colspan="5">TOTAL (${mdoFiltered.length})</td><td class="r">${fmtMoney(totalMdo)} DHS</td><td></td></tr></tfoot>
+<table>
+  <thead><tr>
+    <th>Date</th><th>Client</th><th>Type</th><th>Description</th><th>Camion</th><th class="r">Montant DHS</th><th>Note</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot><tr><td colspan="5">TOTAL (${mdoFiltered.length})</td><td class="r">${fmtMoney(totalMdo)} DHS</td><td></td></tr></tfoot>
 </table>
-<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_mdt}</span></div>
+${soldeFinal({ label: "Total général — MDO / Gasoil / Autre", amountFormatted: fmtMoney(totalMdo), amount: totalMdo, sub: periode })}
+${printFooter(printDate)}
 </div></body></html>`)
 
             }
@@ -1989,56 +1853,40 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
             const totalRemises = remisesFiltered.reduce((s,v) => s + (v.montant_mdo||0), 0)
 
             function printRemises() {
-                            const rows = remisesFiltered.map(v => `<tr>
-                <td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td>
-                <td style="text-align:right;color:#15803d"><b>− ${fmtMoney(v.montant_mdo)} DHS</b></td>
-                <td>${v.description_mdo||v.note||'—'}</td></tr>`).join('')
-              const _rn = new Date(); const _rdt = _rn.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(_rn.getHours()).padStart(2,'0')+':'+String(_rn.getMinutes()).padStart(2,'0')
-              openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Remises — DAR SADIK</title>
+              const accent = '#15803d'
+              const printDate = printGeneratedDate()
+              const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
+              const rows = remisesFiltered.map(v => `<tr>
+                <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td><td style="font-weight:700;color:#0f172a">${v.client_nom}</td>
+                <td class="r" style="color:#15803d"><b>− ${fmtMoney(v.montant_mdo)} DHS</b></td>
+                <td class="m">${v.description_mdo||v.note||'—'}</td></tr>`).join('')
+
+              openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Remises — DAR SADIK</title>
 <style>
-  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff}
-  .hdr{background:#1a3a6b;padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start}
-  .co-n{font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1}.co-ar{font-size:12px;color:#93c5fd;direction:rtl;margin-top:2px}.co-tag{font-size:9px;color:#93c5fd;margin-top:1px}
-  .co-r{text-align:right;font-size:10px;color:#bfdbfe;line-height:1.7}.co-r strong{color:#fff}
-  .btn-p,.btn-d{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;margin-right:5px}.btn-p{background:#475569;color:#fff}.btn-d{background:#16a34a;color:#fff}
-  .bdy{padding:18px 24px}.ttl{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:4px}.sub{font-size:11px;color:#64748b;margin-bottom:14px}
-  .sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#475569;border-bottom:2px solid #1a3a6b;padding-bottom:4px;margin:14px 0 8px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#334155 !important;color:#fff !important;padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;text-align:left}
-  thead th.r{text-align:right}
-  tbody td{padding:7px 10px;font-size:10px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  tbody td.r{text-align:right;font-family:monospace}.tbody td.m{color:#94a3b8;font-size:10px}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
-  .gv{color:#16a34a;font-weight:700}.num{font-weight:700;font-size:11px}
-  tfoot td{background:#1e293b !important;color:#fff !important;padding:8px 10px;font-weight:700;font-size:11px;border:none !important}
-  tfoot td.r{font-size:12px}
-  .foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
-  @media print{.btn-p,.btn-d{display:none !important}}@page{size:A4;margin:8mm 10mm}
+${printBaseCss(accent)}
+  .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
+  .periode-bar strong{color:${accent};font-weight:800}
 </style></head><body>
-<div class="hdr">
-  <div><div class="co-n">DAR SADIK</div><div class="co-ar">دار صديق</div><div class="co-tag">بائع جميع مواد البناء &nbsp;·&nbsp; Selouane, Nador</div></div>
-  <div class="co-r">
-    <div><strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47 &nbsp;·&nbsp; <strong>Bureau</strong> 06 62 82 88 20</div>
-    <div>Dar.sadik@hotmail.com</div>
-    <div style="margin-top:6px"><button class="btn-p" onclick="window.print()">Imprimer</button><button class="btn-d" onclick="window.print()">Télécharger PDF</button></div>
-    <div style="font-size:9px;color:#93c5fd;margin-top:3px">Généré le ${_rdt}</div>
-  </div>
-</div>
+${printHeader({ date: printDate })}
+<div class="periode-bar">🎁 Remises Clients &nbsp;·&nbsp; Période : <strong>${periode}</strong></div>
+${summaryCards([
+  { label: 'Remises', value: `${remisesFiltered.length}`, color: accent },
+  { label: 'Total', value: `− ${fmtMoney(totalRemises)} DHS`, color: accent },
+])}
 <div class="bdy">
-<div class="ttl">Remises Clients</div>
-<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${remisesFiltered.length} remise(s) &nbsp;·&nbsp; Total : − ${fmtMoney(totalRemises)} DHS</div>
-<div class="sec">Détail des remises (${remisesFiltered.length})</div>
-<table><thead><tr>
-  <th>Date</th><th>Client</th><th class="r">Remise DHS</th><th>Note / Motif</th>
-</tr></thead>
-<tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#aaa;padding:14px;font-style:italic">Aucune remise</td></tr>'}</tbody>
-${remisesFiltered.length > 0 ? `<tfoot><tr>
-  <td colspan="2">TOTAL (${remisesFiltered.length})</td>
-  <td class="r gv num">− ${fmtMoney(totalRemises)} DHS</td><td></td>
-</tr></tfoot>` : ''}
+<table>
+  <thead><tr>
+    <th>Date</th><th>Client</th><th class="r">Remise DHS</th><th>Note / Motif</th>
+  </tr></thead>
+  <tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:14px;font-style:italic">Aucune remise</td></tr>'}</tbody>
+  ${remisesFiltered.length > 0 ? `<tfoot><tr>
+    <td colspan="2">TOTAL (${remisesFiltered.length})</td>
+    <td class="r" style="color:#15803d">− ${fmtMoney(totalRemises)} DHS</td><td></td>
+  </tr></tfoot>` : ''}
 </table>
-<div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_rdt}</span></div>
+${soldeFinal({ label: 'Total général — Remises', amountFormatted: `− ${fmtMoney(totalRemises)}`, amount: totalRemises, sub: periode })}
+${printFooter(printDate)}
 </div></body></html>`)
 
             }

@@ -4,70 +4,70 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, summaryCards, soldeFinal, printFooter } from '../../lib/printLayout'
 import { ADMIN_EMAIL } from '../../lib/config'
 
 const ADMIN = ADMIN_EMAIL
 
-const PRINT_CSS = `
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      body { font-family: Arial, sans-serif; padding: 28px; font-size: 12px; color: #1e293b; background: #fff; margin: 0; }
-      h1 { font-size: 18px; margin: 0 0 4px; }
-      .sub { color: #555; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-      th { background: #1e3a5f !important; color: #fff !important; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; }
-      td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
-      tr:nth-child(even) td { background: #f8fafc !important; }
-      tfoot td { background: #f1f5f9 !important; font-weight: 800 !important; border-top: 2px solid #1e3a5f !important; }
-      .fourn-header, .client-header { background: #1e3a5f !important; color: #fff !important; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; }
-      .grand-total { background: #1e3a5f !important; color: #fff !important; padding: 12px 16px; border-radius: 6px; margin-top: 16px; }
-      .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; color: #888; font-size: 10px; text-align: center; }
-      @media print { button { display: none !important; } body { padding: 0; } }
-`
-
-
   function printAchats() {
+    const accent = tab === 'brique' ? '#1e3a5f' : '#92400e'
+    const printDate = printGeneratedDate()
+    const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
+    const unit = tab === 'grignon' ? 'kg' : 'u'
     const sections = Object.values(byFourn).sort((a,b)=>b.total-a.total).map(f => {
       const rows = f.ops.sort((a,b)=>(b.date_achat||'').localeCompare(a.date_achat||'')).map(a => `<tr>
-        <td>${fmtDate(a.date_achat)}</td>
-        <td>${a.voyages?.reference || a.voyage_id || '—'}</td>
+        <td class="m" style="white-space:nowrap">${fmtDate(a.date_achat)}</td>
+        <td class="m">${a.voyages?.reference || a.voyage_id || '—'}</td>
         <td>${a.type_brique || tab}</td>
-        <td style="text-align:right">${fmt(a.qte)}</td>
-        <td style="text-align:right">${fmtMoney(a.prix_achat)}</td>
-        <td style="text-align:right"><b>${fmtMoney(a.total_achat)} DHS</b></td>
-        <td>${a.note||'—'}</td>
+        <td class="r">${fmt(a.qte)}</td>
+        <td class="r">${fmtMoney(a.prix_achat)}</td>
+        <td class="r"><b>${fmtMoney(a.total_achat)} DHS</b></td>
+        <td class="m">${a.note||'—'}</td>
       </tr>`).join('')
       return `<div style="margin-bottom:20px;page-break-inside:avoid">
-        <div class="fourn-header">
-          <div class="fourn-title">🏭 ${f.nom}</div>
-          <div style="color:#fff;font-size:11px">${f.ops.length} achat(s) · ${fmt(f.qte)} ${tab==='grignon'?'kg':'u'} · ${fmtMoney(f.total)} DHS</div>
+        <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🏭 ${f.nom}</span>
+          <span style="font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:normal;color:#64748b">${f.ops.length} achat(s) · ${fmt(f.qte)} ${unit} · ${fmtMoney(f.total)} DHS</span>
         </div>
         <table><thead><tr>
           <th>Date</th><th>Voyage</th><th>Produit</th>
-          <th style="text-align:right">Qté</th><th style="text-align:right">Prix/u</th>
-          <th style="text-align:right">Total DHS</th><th>Note</th>
+          <th class="r">Qté</th><th class="r">Prix/u</th>
+          <th class="r">Total DHS</th><th>Note</th>
         </tr></thead><tbody>${rows}</tbody>
         <tfoot><tr>
           <td colspan="3">TOTAL ${f.nom}</td>
-          <td style="text-align:right">${fmt(f.qte)}</td>
+          <td class="r">${fmt(f.qte)}</td>
           <td></td>
-          <td style="text-align:right">${fmtMoney(f.total)} DHS</td>
+          <td class="r">${fmtMoney(f.total)} DHS</td>
           <td></td>
         </tr></tfoot></table>
       </div>`
     }).join('')
 
-    openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Achats ${tab}</title>
-    <style>${PRINT_CSS}</style></head><body>
-    <h1>📦 DAR SADIK — Achats ${tab === 'brique' ? 'Briques' : 'Grignon'}</h1>
-    <div class="sub">Période: ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} · ${filteredVoy.length} opération(s) · Généré le ${new Date().toLocaleDateString('fr-MA')}</div>
-    ${sections || '<p style="color:#aaa;text-align:center">Aucun achat</p>'}
-    <div class="grand-total">
-      <div><b>TOTAL GÉNÉRAL — ${tab === 'brique' ? 'ACHATS BRIQUES' : 'ACHATS GRIGNON'}</b><br>
-      <span style="font-size:11px;opacity:0.8">${filteredVoy.length} opération(s) · ${Object.keys(byFourn).length} fournisseur(s) · ${fmt(totalQte)} ${tab==='grignon'?'kg':'u'}</span></div>
-      <div style="font-size:22px;font-weight:900">${fmtMoney(totalAchat)} DHS</div>
-    </div>
-    <div class="footer">DAR SADIK — Selouane, Nador | Dar.sadik@hotmail.com | 06 61 97 87 47</div>
-    </body></html>`)
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Achats ${tab === 'brique' ? 'Briques' : 'Grignon'} — DAR SADIK</title>
+<style>
+${printBaseCss(accent)}
+</style></head><body>
+${printHeader({ date: printDate })}
+<div class="periode-bar" style="padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600">
+  📦 Achats ${tab === 'brique' ? 'Briques' : 'Grignon'} &nbsp;·&nbsp; Période : <strong style="color:${accent};font-weight:800">${periode}</strong>
+</div>
+${summaryCards([
+  { label: 'Total achats', value: `${fmtMoney(totalAchat)} DHS`, color: accent },
+  { label: 'Quantité totale', value: `${fmt(totalQte)} ${unit}`, color: '#ea580c' },
+  { label: 'Prix moyen', value: `${totalQte > 0 ? fmtMoney(totalAchat/totalQte) : '0,00'} DHS/${unit}`, color: '#475569' },
+])}
+<div class="bdy">
+${sections || '<p style="color:#94a3b8;text-align:center;padding:20px">Aucun achat</p>'}
+${soldeFinal({
+  label: `Total général — Achats ${tab === 'brique' ? 'Briques' : 'Grignon'}`,
+  amountFormatted: fmtMoney(totalAchat),
+  amount: totalAchat,
+  sub: `${filteredVoy.length} opération(s) · ${Object.keys(byFourn).length} fournisseur(s) · ${fmt(totalQte)} ${unit}`,
+})}
+${printFooter(printDate)}
+</div></body></html>`)
   }
 
 export default function Achats() {

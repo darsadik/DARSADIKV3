@@ -4,6 +4,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, summaryCards, totalsRow, printFooter } from '../../lib/printLayout'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import { resolveRetourByMirrorId } from '../../lib/services/voyage/resolveSource'
@@ -76,43 +77,47 @@ export default function Retours() {
   }
 
   function printRetours() {
+    const accent = '#1d4ed8'
+    const printDate = printGeneratedDate()
+    const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
     const rows = filtered.map(r => {
       const s = getStatus(r)
       return `<tr>
-        <td>${fmtDate(r.date)}</td><td><b>${r.client_nom}</b></td>
-        <td>${r.destination||'—'}</td><td>${r.camion_plaque||'—'}</td>
-        <td style="text-align:right"><b>${fmtMoney(r.montant)} DHS</b></td>
-        <td style="text-align:right;color:#16a34a">${fmtMoney(r.montant_paye||0)} DHS</td>
-        <td style="text-align:right;color:${(r.restant||0)>0?'#dc2626':'#16a34a'}">${fmtMoney(r.restant||0)} DHS</td>
-        <td><span style="background:${s.bg};color:${s.color};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">${s.label}</span></td>
-        <td>${r.note||'—'}</td>
+        <td class="m" style="white-space:nowrap">${fmtDate(r.date)}</td><td style="font-weight:700;color:#0f172a">${r.client_nom}</td>
+        <td class="m">${r.destination||'—'}</td><td class="m">${r.camion_plaque||'—'}</td>
+        <td class="r"><b>${fmtMoney(r.montant)} DHS</b></td>
+        <td class="r" style="color:#16a34a">${fmtMoney(r.montant_paye||0)} DHS</td>
+        <td class="r" style="color:${(r.restant||0)>0?'#dc2626':'#16a34a'}">${fmtMoney(r.restant||0)} DHS</td>
+        <td><span class="tag" style="background:${s.bg};color:${s.color};border-color:${s.color}33">${s.label}</span></td>
+        <td class="m">${r.note||'—'}</td>
       </tr>`
     }).join('')
-    openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <style>*{-webkit-print-color-adjust:exact !important}
-    body{font-family:Arial,sans-serif;padding:28px;font-size:12px}
-    h1{font-size:18px;margin:0 0 4px}
-    table{width:100%;border-collapse:collapse}
-    th{background:#1e3a5f !important;color:#fff !important;padding:8px;text-align:left;font-size:10px}
-    td{padding:7px 8px;border-bottom:1px solid #e2e8f0;font-size:11px}
-    tfoot td{background:#f1f5f9 !important;font-weight:800 !important}
-    @media print{button{display:none !important}}</style></head><body>
-    <h1>↩️ DAR SADIK — Retours Transport</h1>
-    <div style="color:#555;font-size:11px;margin-bottom:16px">${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
-    <table><thead><tr>
-      <th>Date</th><th>Client</th><th>Destination</th><th>Camion</th>
-      <th style="text-align:right">Montant</th><th style="text-align:right">Payé</th>
-      <th style="text-align:right">Restant</th><th>Statut</th><th>Note</th>
-    </tr></thead>
-    <tbody>${rows||'<tr><td colspan="9" style="text-align:center">Aucun retour</td></tr>'}</tbody>
-    <tfoot><tr>
-      <td colspan="4">TOTAL (${filtered.length})</td>
-      <td style="text-align:right">${fmtMoney(totalMontant)} DHS</td>
-      <td style="text-align:right;color:#16a34a">${fmtMoney(totalPaye)} DHS</td>
-      <td style="text-align:right;color:#dc2626">${fmtMoney(totalRestant)} DHS</td>
-      <td colspan="2"></td>
-    </tr></tfoot>
-    </table></body></html>`)
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Retours Transport — DAR SADIK</title>
+<style>
+${printBaseCss(accent)}
+  .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
+  .periode-bar strong{color:${accent};font-weight:800}
+</style></head><body>
+${printHeader({ date: printDate })}
+<div class="periode-bar">↩️ Retours Transport &nbsp;·&nbsp; Période : <strong>${periode}</strong></div>
+${summaryCards([
+  { label: 'Total revenus', value: `${fmtMoney(totalMontant)} DHS`, color: accent },
+  { label: 'Encaissé', value: `${fmtMoney(totalPaye)} DHS`, color: '#16a34a' },
+  { label: 'Reste à encaisser', value: `${fmtMoney(totalRestant)} DHS`, color: '#dc2626' },
+])}
+<div class="bdy">
+<table>
+  <thead><tr>
+    <th>Date</th><th>Client</th><th>Destination</th><th>Camion</th>
+    <th class="r">Montant</th><th class="r">Payé</th><th class="r">Restant</th><th>Statut</th><th>Note</th>
+  </tr></thead>
+  <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:#94a3b8">Aucun retour</td></tr>'}</tbody>
+</table>
+${filtered.length > 0 ? totalsRow(`Total — ${filtered.length} retour${filtered.length !== 1 ? 's' : ''}`, `${fmtMoney(totalMontant)} DHS`) : ''}
+${printFooter(printDate)}
+</div></body></html>`)
   }
 
   const filtered = retours.filter(r => {

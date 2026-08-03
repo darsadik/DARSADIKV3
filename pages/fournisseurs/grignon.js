@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow, sortGrignonRecords } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards, soldeFinal, printFooter } from '../../lib/printLayout'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import { resolveAchatByGrignonOpId } from '../../lib/services/voyage/resolveSource'
@@ -159,59 +160,57 @@ export default function FournisseursGrignon() {
 
   function printFournisseur() {
     if (!selected) return
+    const accent = '#15803d'
+    const printDate = printGeneratedDate()
+    const periode = filterType === 'all' ? 'Toutes dates' : `${fmtDate(from)} → ${fmtDate(to)}`
     const rows = filteredAchats.map(a => `<tr>
-      <td>${fmtDate(a.date)}</td>
-      <td>${a.camion_plaque||'—'}</td>
-      <td style="text-align:right">${fmt(a.qte)} kg</td>
-      <td style="text-align:right">${fmtMoney(a.prix_achat)}</td>
-      <td style="text-align:right"><b>${fmtMoney(a.total_achat)} DHS</b></td>
-      <td>${a.note||'—'}</td>
+      <td class="m" style="white-space:nowrap">${fmtDate(a.date)}</td>
+      <td class="m">${a.camion_plaque||'—'}</td>
+      <td class="r">${fmt(a.qte)} kg</td>
+      <td class="r">${fmtMoney(a.prix_achat)}</td>
+      <td class="r"><b>${fmtMoney(a.total_achat)} DHS</b></td>
+      <td class="m">${a.note||'—'}</td>
     </tr>`).join('')
     const paiRows = filteredPai.map(p => `<tr>
-      <td>${fmtDate(p.date)}</td>
-      <td>${p.mode||'—'}</td>
-      <td>${p.cheque_number||'—'}</td>
-      <td style="text-align:right;color:#16a34a"><b>− ${fmtMoney(p.montant)} DHS</b></td>
-      <td>${p.note||'—'}</td>
+      <td class="m" style="white-space:nowrap">${fmtDate(p.date)}</td>
+      <td class="m">${p.mode||'—'}</td>
+      <td class="m">${p.cheque_number||'—'}</td>
+      <td class="r" style="color:#16a34a"><b>− ${fmtMoney(p.montant)} DHS</b></td>
+      <td class="m">${p.note||'—'}</td>
     </tr>`).join('')
 
-    openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fournisseur Grignon — ${selected.nom}</title>
-    <style>*{-webkit-print-color-adjust:exact !important}
-    body{font-family:Arial;padding:28px;font-size:13px;color:#1e293b}
-    .hdr{background:#15803d;color:#fff;padding:16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between}
-    table{width:100%;border-collapse:collapse;margin-bottom:16px}
-    th{background:#15803d !important;color:#fff !important;padding:9px 10px;text-align:left;font-size:11px;font-weight:700}
-    td{padding:9px 10px;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:500}
-    tr:nth-child(even) td{background:#f0fdf4 !important}
-    tfoot td{background:#f1f5f9 !important;font-weight:800 !important}
-    .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
-    .k{border:1px solid #e2e8f0;border-radius:6px;padding:10px;text-align:center}
-    .kl{font-size:9px;text-transform:uppercase;color:#6b7280;margin-bottom:3px}
-    .kv{font-size:16px;font-weight:900}
-    @media print{button{display:none !important}}</style></head><body>
-    <div class="hdr">
-      <div><div style="font-size:20px;font-weight:900">🌿 ${selected.nom}</div><div style="opacity:0.8;font-size:11px">Fournisseur Grignon — DAR SADIK</div></div>
-      <div style="text-align:right;font-size:11px;opacity:0.9">Solde dû: <b style="font-size:16px">${fmtMoney(selected.solde||0)} DHS</b></div>
-    </div>
-    <div class="kpi">
-      <div class="k"><div class="kl">Achats période</div><div class="kv" style="color:#15803d">${fmtMoney(totalAchats)} DHS</div></div>
-      <div class="k"><div class="kl">Payé période</div><div class="kv" style="color:#16a34a">${fmtMoney(totalPaiements)} DHS</div></div>
-      <div class="k"><div class="kl">Solde total dû</div><div class="kv" style="color:#dc2626">${fmtMoney(selected.solde||0)} DHS</div></div>
-    </div>
-    <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#15803d;border-bottom:2px solid #15803d;padding-bottom:4px;margin-bottom:8px">Achats Grignon</h3>
-    <table><thead><tr><th>Date</th><th>Camion</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="6" style="text-align:center;color:#aaa">Aucun achat</td></tr>'}</tbody>
-    ${filteredAchats.length>0?`<tfoot><tr><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmtMoney(totalAchats)} DHS</td><td></td></tr></tfoot>`:''}
-    </table>
-    <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#16a34a;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:8px">Paiements effectués</h3>
-    <table><thead><tr><th>Date</th><th>Mode</th><th>Chèque</th><th style="text-align:right">Montant</th><th>Note</th></tr></thead>
-    <tbody>${paiRows||'<tr><td colspan="5" style="text-align:center;color:#aaa">Aucun paiement</td></tr>'}</tbody>
-    ${filteredPai.length>0?`<tfoot><tr><td colspan="3">TOTAL payé</td><td style="text-align:right">− ${fmtMoney(totalPaiements)} DHS</td><td></td></tr></tfoot>`:''}
-    </table>
-    <div style="margin-top:20px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;display:flex;justify-content:space-between">
-      <span>DAR SADIK — Selouane, Nador | Dar.sadik@hotmail.com</span>
-      <span>Généré le ${new Date().toLocaleDateString('fr-MA')}</span>
-    </div></body></html>`)
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Fournisseur Grignon — ${selected.nom}</title>
+<style>
+${printBaseCss(accent)}
+</style></head><body>
+${printHeader({ date: printDate })}
+${entityCard({
+  avatarText: '🌿',
+  name: selected.nom,
+  metaHtml: `<strong>Fournisseur Grignon</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(selected.solde||0)} DHS &nbsp;·&nbsp; <strong>Période:</strong> ${periode}`,
+})}
+${summaryCards([
+  { label: 'Achats période', value: `${fmtMoney(totalAchats)} DHS`, color: accent },
+  { label: 'Payé période', value: `${fmtMoney(totalPaiements)} DHS`, color: '#16a34a' },
+  { label: 'Solde total dû', value: `${fmtMoney(selected.solde||0)} DHS`, color: '#dc2626' },
+])}
+<div class="bdy">
+<div class="sec-title">Achats Grignon</div>
+<table>
+  <thead><tr><th>Date</th><th>Camion</th><th class="r">Qté kg</th><th class="r">Prix/kg</th><th class="r">Total DHS</th><th>Note</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="6" style="text-align:center;color:#aaa">Aucun achat</td></tr>'}</tbody>
+  ${filteredAchats.length>0?`<tfoot><tr><td colspan="2">TOTAL</td><td class="r">${fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td><td></td><td class="r">${fmtMoney(totalAchats)} DHS</td><td></td></tr></tfoot>`:''}
+</table>
+<div class="sec-title" style="color:#16a34a;border-color:#16a34a">Paiements effectués</div>
+<table>
+  <thead><tr><th>Date</th><th>Mode</th><th>Chèque</th><th class="r">Montant</th><th>Note</th></tr></thead>
+  <tbody>${paiRows||'<tr><td colspan="5" style="text-align:center;color:#aaa">Aucun paiement</td></tr>'}</tbody>
+  ${filteredPai.length>0?`<tfoot><tr><td colspan="3">TOTAL payé</td><td class="r">− ${fmtMoney(totalPaiements)} DHS</td><td></td></tr></tfoot>`:''}
+</table>
+${soldeFinal({ label: 'Solde total dû', amountFormatted: fmtMoney(selected.solde||0), amount: selected.solde||0, sub: periode })}
+${printFooter(printDate)}
+</div></body></html>`)
   }
 
   const filtered    = fournisseurs.filter(f => !search || f.nom.toLowerCase().includes(search.toLowerCase()))

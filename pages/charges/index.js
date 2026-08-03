@@ -4,6 +4,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, summaryCards, totalsRow, printFooter } from '../../lib/printLayout'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 
@@ -139,33 +140,41 @@ export default function Charges() {
   }
 
   function printCharges() {
+    const accent = '#dc2626'
+    const printDate = printGeneratedDate()
+    const periode = `${fmtDate(filterFrom)} → ${fmtDate(filterTo)}`
     const rows = filteredVoyage.map(c => `<tr>
-      <td>${fmtDate(c.date_charge)}</td>
-      <td>${c.voyages?.reference||'—'}</td>
+      <td class="m" style="white-space:nowrap">${fmtDate(c.date_charge)}</td>
+      <td class="m">${c.voyages?.reference||'—'}</td>
       <td>${c.description||c.categorie||'—'}</td>
-      <td>${c.facture_client?`✓ ${c.client_nom||''}`:'—'}</td>
-      <td style="text-align:right"><b>${fmtMoney(c.montant)} DHS</b></td>
+      <td class="m">${c.facture_client?`✓ ${c.client_nom||''}`:'—'}</td>
+      <td class="r"><b>${fmtMoney(c.montant)} DHS</b></td>
     </tr>`).join('')
-    openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <style>*{-webkit-print-color-adjust:exact !important}
-    body{font-family:Arial,sans-serif;padding:28px;font-size:12px}
-    h1{font-size:18px;margin:0 0 4px}
-    table{width:100%;border-collapse:collapse}
-    th{background:#1e3a5f !important;color:#fff !important;padding:8px;text-align:left;font-size:10px}
-    td{padding:7px 8px;border-bottom:1px solid #e2e8f0;font-size:11px}
-    tfoot td{background:#f1f5f9 !important;font-weight:800 !important}
-    @media print{button{display:none !important}}</style></head><body>
-    <h1>💸 DAR SADIK — Charges Voyages</h1>
-    <div style="color:#555;font-size:11px;margin-bottom:16px">${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
-    <table><thead><tr>
-      <th>Date</th><th>Voyage</th><th>Description</th><th>Facturé client</th>
-      <th style="text-align:right">Montant</th>
-    </tr></thead>
-    <tbody>${rows||'<tr><td colspan="5" style="text-align:center">Aucune charge</td></tr>'}</tbody>
-    <tfoot><tr>
-      <td colspan="4">TOTAL (${filteredVoyage.length})</td>
-      <td style="text-align:right">${fmtMoney(totalVoyage)} DHS</td>
-    </tr></tfoot></table></body></html>`)
+
+    openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>Charges Voyages — DAR SADIK</title>
+<style>
+${printBaseCss(accent)}
+  .periode-bar{padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600}
+  .periode-bar strong{color:${accent};font-weight:800}
+</style></head><body>
+${printHeader({ date: printDate })}
+<div class="periode-bar">💸 Charges Voyages &nbsp;·&nbsp; Période : <strong>${periode}</strong></div>
+${summaryCards([
+  { label: 'Total charges', value: `${fmtMoney(totalVoyage)} DHS`, color: accent },
+  { label: 'Coûts entreprise', value: `${fmtMoney(totalEntrepr)} DHS`, color: '#ea580c' },
+  { label: 'Facturées client', value: `${fmtMoney(totalClient)} DHS`, color: '#d97706' },
+])}
+<div class="bdy">
+<table>
+  <thead><tr>
+    <th>Date</th><th>Voyage</th><th>Description</th><th>Facturé client</th><th class="r">Montant</th>
+  </tr></thead>
+  <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:#94a3b8">Aucune charge</td></tr>'}</tbody>
+</table>
+${filteredVoyage.length > 0 ? totalsRow(`Total — ${filteredVoyage.length} charge${filteredVoyage.length !== 1 ? 's' : ''}`, `${fmtMoney(totalVoyage)} DHS`) : ''}
+${printFooter(printDate)}
+</div></body></html>`)
   }
 
   const tabs = [
