@@ -3,15 +3,13 @@ const SHOW_CHIPS = [
   { key: 'voyages', label: '🚚 Voyages' },
   { key: 'fuel', label: '⛽ Carburant' },
   { key: 'problems', label: '⚠ Problèmes' },
-  { key: 'completed', label: '🟢 Complets' },
-  { key: 'assigned', label: '🔗 Assigné' },
-  { key: 'not_assigned', label: '⚪ Non assigné' },
-  { key: 'estimated', label: '📍 Position estimée' },
 ]
 
-// Spec §11 — professional filter bar: truck / date range as inputs, event
-// kind + assignment state as a single-select chip row (mutually exclusive,
-// same `show` value the dashboard cards drive). Controlled component only.
+// Spec §9 — professional filter bar: truck / date range as inputs, event
+// kind as a single-select chip row. Assignment-state filtering (assigned /
+// not assigned) is one level up, driven by the dashboard's "Fuel Not
+// Assigned" / "Manual Assignments" cards — same `show` value, just not
+// duplicated here as its own chip.
 export default function TimelineFilterBar({ camions, filters, setFilters, onReset }) {
   return (
     <div className="card mb-4">

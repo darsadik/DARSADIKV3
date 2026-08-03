@@ -86,8 +86,6 @@ export default function VoyageKmCarburant() {
 
   const pleinsNeedingAssignmentCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein' && e.needsAssignment).length, [unifiedTimeline])
   const pleinsAssignedCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein' && (e.assignmentStatus === 'assigned' || e.assignmentStatus === 'split')).length, [unifiedTimeline])
-  const fuelPurchaseCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein').length, [unifiedTimeline])
-  const truckCount = useMemo(() => new Set(unifiedTimeline.map(e => e.camionId).filter(Boolean)).size, [unifiedTimeline])
 
   const visibleEvents = useMemo(() => filterUnifiedTimeline(unifiedTimeline, {
     camionId: filters.camionId ? parseInt(filters.camionId) : null,
@@ -146,9 +144,6 @@ export default function VoyageKmCarburant() {
 
       <KmFuelDashboardCards
         dashboard={dashboard}
-        truckCount={truckCount}
-        voyageCount={dashboard.total}
-        fuelCount={fuelPurchaseCount}
         pleinsNeedingAssignment={pleinsNeedingAssignmentCount}
         pleinsAssigned={pleinsAssignedCount}
         activeStatus={filters.statusFilter}
@@ -173,22 +168,15 @@ export default function VoyageKmCarburant() {
 
       <TimelineFilterBar camions={camions} filters={filters} setFilters={setFilters} onReset={resetFilters} />
 
-      {filters.camionId && (
-        <div className="flex justify-end -mt-3 mb-3">
-          <button onClick={() => setViewingChainForCamionId(parseInt(filters.camionId))}
-            className="text-xs font-semibold text-brand-600 hover:underline">
-            🔗 Voir la chaîne odomètre de ce camion →
-          </button>
-        </div>
-      )}
-
       <UnifiedTimelineList
         events={visibleEvents}
+        camions={camions}
         loading={loading}
         onFixVoyage={setFixingVoyageId}
         onEditKm={onEditKm}
         onAssignFuel={onAssignFuel}
         onFixGasoil={onFixGasoil}
+        onViewChain={setViewingChainForCamionId}
       />
 
       {fixingVoyageId && (
