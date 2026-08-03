@@ -382,7 +382,8 @@ export default function Gasoil() {
     if (!byCamion[g.camion_plaque]) byCamion[g.camion_plaque] = { litres: 0, total: 0, pleins: 0 }
     byCamion[g.camion_plaque].litres += g.qte || 0
     byCamion[g.camion_plaque].total += g.total || 0
-    byCamion[g.camion_plaque].pleins += 1
+    // Plein = diesel purchase only — AdBlue-only rows (qte===0) never count.
+    if ((g.qte || 0) > 0) byCamion[g.camion_plaque].pleins += 1
   })
 
   // ── GRAND LIVRE FOURNISSEUR (CARBURANT) — professional ERP-style ledger.
@@ -495,7 +496,8 @@ export default function Gasoil() {
     periodGasoil.forEach(g => {
       const k = g.camion_plaque || '—'
       if (!camionStats[k]) camionStats[k] = { pleins: 0, litres: 0, litresAdblue: 0, montant: 0 }
-      camionStats[k].pleins       += 1
+      // Plein = diesel purchase only — AdBlue-only rows (qte===0) never count.
+      if ((g.qte || 0) > 0) camionStats[k].pleins += 1
       camionStats[k].litres       += g.qte || 0
       camionStats[k].litresAdblue += g.adblue_qte || 0
       camionStats[k].montant      += (g.total||0) + (g.adblue_total||0)
