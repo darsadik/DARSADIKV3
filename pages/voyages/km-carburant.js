@@ -43,18 +43,30 @@ export default function VoyageKmCarburant() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: ca }, { data: vo }, { data: ga }, { data: vg }] = await Promise.all([
+    const [camionsRes, voyagesRes, gasoilRes, voyageGasoilRes] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('voyages')
         .select('id,reference,date_depart,camion_id,camion_plaque,chauffeur,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
         .order('date_depart', { ascending: true }),
-      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,date,heure,station'),
+      // NOTE: 'heure' is intentionally NOT selected — it's only added by
+      // sql/12_fuel_cycles.sql's `ALTER TABLE gasoil ADD COLUMN heure`,
+      // which hasn't been run on every environment. Selecting a column
+      // that doesn't exist fails the WHOLE query (not just that field),
+      // which previously emptied the entire fuel timeline silently.
+      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,date,station'),
       supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total,is_split'),
     ])
-    setCamions(ca || [])
-    setVoyages(vo || [])
-    setGasoil(ga || [])
-    setVoyageGasoilRows(vg || [])
+    // Surface query failures instead of silently rendering empty data —
+    // this is exactly the class of bug that made the Fuel tab look empty
+    // (a bad column name failed the query, and the failure went unnoticed
+    // because only `data` was read, never `error`).
+    ;[camionsRes, voyagesRes, gasoilRes, voyageGasoilRes].forEach(res => {
+      if (res.error) console.error('km-carburant loadAll:', res.error.message)
+    })
+    setCamions(camionsRes.data || [])
+    setVoyages(voyagesRes.data || [])
+    setGasoil(gasoilRes.data || [])
+    setVoyageGasoilRows(voyageGasoilRes.data || [])
     setLoading(false)
   }
 
