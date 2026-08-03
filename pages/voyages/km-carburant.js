@@ -5,11 +5,10 @@ import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { buildVoyageKmFuelTimeline, buildTimelineDashboard, detectFuelAssignmentProblems, detectUnrealisticDistances } from '../../lib/services/voyageKmFuel'
 import { detectProblems as detectOdometerProblems, buildOdometerRows } from '../../lib/services/kilometrage'
-import { buildUnifiedTimeline, filterUnifiedTimeline } from '../../lib/services/voyage/timelineEvents'
+import { buildUnifiedTimeline, filterUnifiedTimeline, attachChainContext } from '../../lib/services/voyage/timelineEvents'
 import VoyageFixModal from '../../components/carburant/VoyageFixModal'
 import GasoilFixModal from '../../components/carburant/GasoilFixModal'
 import KmFuelDashboardCards from '../../components/carburant/KmFuelDashboardCards'
-import QuickAuditStrip from '../../components/carburant/QuickAuditStrip'
 import TimelineFilterBar from '../../components/carburant/TimelineFilterBar'
 import UnifiedTimelineList from '../../components/carburant/UnifiedTimelineList'
 import FuelAssignPopover from '../../components/carburant/FuelAssignPopover'
@@ -20,8 +19,7 @@ import OdometerChainStrip from '../../components/carburant/OdometerChainStrip'
 const SEVERITY_TONE = { error: 'badge-red', warning: 'badge-amber', info: 'badge-blue' }
 
 const DEFAULT_FILTERS = {
-  camionId: '', dateFrom: '', dateTo: '', show: 'all', search: '',
-  statusFilter: '', needsAssignmentOnly: false,
+  camionId: '', dateFrom: '', dateTo: '', show: 'all', search: '', statusFilter: '',
 }
 
 export default function VoyageKmCarburant() {
@@ -80,17 +78,21 @@ export default function VoyageKmCarburant() {
   const problemVoyageIds = useMemo(() => new Set(allProblems.flatMap(p => p.voyageIds || [])), [allProblems])
   const problemGasoilIds = useMemo(() => new Set(fuelProblems.map(p => p.gasoilId).filter(Boolean)), [fuelProblems])
 
-  const unifiedTimeline = useMemo(() => buildUnifiedTimeline({
+  const unifiedTimelineBase = useMemo(() => buildUnifiedTimeline({
     voyageRows, gasoil, voyageGasoilRows, problemVoyageIds, problemGasoilIds,
   }), [voyageRows, gasoil, voyageGasoilRows, problemVoyageIds, problemGasoilIds])
 
-  const pleinsWithKmCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein' && e.hasKm).length, [unifiedTimeline])
+  const unifiedTimeline = useMemo(() => attachChainContext(unifiedTimelineBase, odometerRows, gasoil), [unifiedTimelineBase, odometerRows, gasoil])
+
   const pleinsNeedingAssignmentCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein' && e.needsAssignment).length, [unifiedTimeline])
+  const pleinsAssignedCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein' && (e.assignmentStatus === 'assigned' || e.assignmentStatus === 'split')).length, [unifiedTimeline])
+  const fuelPurchaseCount = useMemo(() => unifiedTimeline.filter(e => e.type === 'plein').length, [unifiedTimeline])
+  const truckCount = useMemo(() => new Set(unifiedTimeline.map(e => e.camionId).filter(Boolean)).size, [unifiedTimeline])
 
   const visibleEvents = useMemo(() => filterUnifiedTimeline(unifiedTimeline, {
     camionId: filters.camionId ? parseInt(filters.camionId) : null,
     dateFrom: filters.dateFrom, dateTo: filters.dateTo, show: filters.show, search: filters.search,
-    statusFilter: filters.statusFilter, needsAssignmentOnly: filters.needsAssignmentOnly,
+    statusFilter: filters.statusFilter,
   }), [unifiedTimeline, filters])
 
   const visibleProblems = useMemo(() =>
@@ -108,10 +110,10 @@ export default function VoyageKmCarburant() {
   }, [activeVoyages])
 
   function selectStatus(key) {
-    setFilters(f => ({ ...f, statusFilter: f.statusFilter === key ? '' : key, needsAssignmentOnly: false }))
+    setFilters(f => ({ ...f, statusFilter: f.statusFilter === key ? '' : key, show: 'all' }))
   }
-  function toggleNeedsAssignment() {
-    setFilters(f => ({ ...f, needsAssignmentOnly: !f.needsAssignmentOnly, statusFilter: '' }))
+  function selectShow(mode) {
+    setFilters(f => ({ ...f, show: f.show === mode ? 'all' : mode, statusFilter: '' }))
   }
   function resetFilters() {
     setFilters(DEFAULT_FILTERS)
@@ -142,16 +144,17 @@ export default function VoyageKmCarburant() {
   return (
     <Layout title="Truck Timeline & KM/Fuel Control Center" subtitle="Centre de contrôle unique par camion — voyages, pleins, KM, distance et carburant en une seule chronologie. Corrigez, assignez et vérifiez tout depuis cette page.">
 
-      <KmFuelDashboardCards dashboard={dashboard} activeStatus={filters.statusFilter} onSelectStatus={selectStatus} onReset={resetFilters} />
-
-      <QuickAuditStrip
+      <KmFuelDashboardCards
         dashboard={dashboard}
-        pleinsWithKm={pleinsWithKmCount}
+        truckCount={truckCount}
+        voyageCount={dashboard.total}
+        fuelCount={fuelPurchaseCount}
         pleinsNeedingAssignment={pleinsNeedingAssignmentCount}
+        pleinsAssigned={pleinsAssignedCount}
         activeStatus={filters.statusFilter}
-        needsAssignmentActive={filters.needsAssignmentOnly}
+        activeShow={filters.show}
         onSelectStatus={selectStatus}
-        onNeedsAssignment={toggleNeedsAssignment}
+        onSelectShow={selectShow}
       />
 
       {visibleProblems.length > 0 && (
