@@ -16,6 +16,7 @@ const nav = [
   { href: '/clients/grignon',     icon: 'users',   label: 'Clients Grignon' },
   { href: '/fournisseurs',        icon: 'building',label: 'Fourn. Briques' },
   { href: '/fournisseurs/grignon',icon: 'building',label: 'Fourn. Grignon' },
+  { href: '/fournisseurs/gasoil', icon: 'building',label: 'Fourn. Carburant' },
   { href: '/paiements',           icon: 'card',    label: 'Paiements' },
   { href: '/retours',     icon: 'undo',       label: 'Retours' },
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },

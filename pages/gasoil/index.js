@@ -55,6 +55,7 @@ export default function Gasoil() {
   const [camions, setCamions] = useState([])
   const [gasoil, setGasoil] = useState([])
   const [gasoilPaiements, setGasoilPaiements] = useState([])
+  const [gasoilFournisseurs, setGasoilFournisseurs] = useState([])
   const [voyages, setVoyages] = useState([])
   const [paiForm, setPaiForm] = useState({ date: '', montant: '', note: '' })
   const [savingPai, setSavingPai] = useState(false)
@@ -66,7 +67,7 @@ export default function Gasoil() {
   const [filterFrom, setFilterFrom] = useState(startOfMonth())
   const [filterTo, setFilterTo] = useState(today())
   const [form, setForm] = useState({
-    date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom',
+    date: today(), camion_id: '', fournisseur_id: '', station: '',
     qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '',
     adblue_qte: '', adblue_prix_unitaire: ''
   })
@@ -112,7 +113,7 @@ export default function Gasoil() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }, { data: vgas }] = await Promise.all([
+    const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }, { data: vgas }, { data: gf }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       // ✅ date ASC — oldest to newest
       supabase.from('gasoil').select('*').order('date', { ascending: true }),
@@ -122,12 +123,14 @@ export default function Gasoil() {
       // COÛT TOTAL includes Σ voyage_gasoil.total) — read-only, used only for the
       // Fuel Opening Balance's "Balance Carburant Actuelle" display below.
       supabase.from('voyage_gasoil').select('total'),
+      supabase.from('gasoil_fournisseurs').select('*').order('nom'),
     ])
     setCamions(ca || [])
     setGasoil(ga || [])
     setGasoilPaiements(gp || [])
     setVoyages(vg || [])
     setVoyageGasoilTotal((vgas || []).reduce((s, r) => s + (r.total || 0), 0))
+    setGasoilFournisseurs(gf || [])
     setLoading(false)
   }
 
@@ -138,13 +141,16 @@ export default function Gasoil() {
     // Diesel and AdBlue are independent — a plein can be diesel only, AdBlue
     // only (bought without fuel that day), or both.
     if (!hasDiesel && !hasAdblue) { setFormError('Renseignez au moins le gasoil ou l\'AdBlue.'); return }
+    if (!form.fournisseur_id) { setFormError('Sélectionnez un fournisseur carburant.'); return }
     setSaving(true)
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
+    const fournisseurId = parseInt(form.fournisseur_id)
     const { error } = await supabase.from('gasoil').insert({
       date: form.date,
       camion_id: parseInt(form.camion_id),
       camion_plaque: camion?.plaque || '',
       chauffeur: camion?.chauffeur || '',
+      fournisseur_id: fournisseurId,
       station: form.station,
       qte, prix_unitaire: pu, total,
       bon: form.bon,
@@ -167,8 +173,13 @@ export default function Gasoil() {
         litres: (camion.litres || 0) + qte,
       }).eq('id', camion.id)
     }
+    // ── FUEL SUPPLIER ACCOUNTING — every Plein is a DEBIT on that supplier's
+    // statement (see pages/fournisseurs/gasoil.js). Diesel + AdBlue count as
+    // one purchase line, matching the invoice amount actually owed.
+    const { data: freshFourn } = await supabase.from('gasoil_fournisseurs').select('solde').eq('id', fournisseurId).single()
+    if (freshFourn) await supabase.from('gasoil_fournisseurs').update({ solde: (freshFourn.solde || 0) + total + adblueTotal }).eq('id', fournisseurId)
     setSaving(false)
-    setForm({ date: today(), camion_id: '', station: 'HMIDA ZAIO — Station Petrom', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', adblue_qte: '', adblue_prix_unitaire: '' })
+    setForm({ date: today(), camion_id: '', fournisseur_id: '', station: '', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', adblue_qte: '', adblue_prix_unitaire: '' })
     setMergeChoice(null)
     setShowAdblue(false)
     loadAll()
@@ -204,6 +215,7 @@ export default function Gasoil() {
       prix_unitaire: g.prix_unitaire || '',
       km: g.km || '',
       bon: g.bon || '',
+      fournisseur_id: g.fournisseur_id ? String(g.fournisseur_id) : '',
       station: g.station || '',
       note: g.note || '',
       adblue_qte: g.adblue_qte || '',
@@ -227,11 +239,13 @@ export default function Gasoil() {
     }
     setEditSaving(true)
 
+    const newFournId = editForm.fournisseur_id ? parseInt(editForm.fournisseur_id) : null
     const { error } = await supabase.from('gasoil').update({
       date: editForm.date,
       qte, prix_unitaire: pu, total,
       km: parseFloat(editForm.km) || null,
       bon: editForm.bon || null,
+      fournisseur_id: newFournId,
       station: editForm.station || null,
       note: editForm.note || null,
       adblue_qte: adblueQte,
@@ -252,6 +266,29 @@ export default function Gasoil() {
           }).eq('id', camion.id)
         }
       }
+
+      // ── FUEL SUPPLIER ACCOUNTING — reconcile the DEBIT to whatever changed
+      // (amount and/or supplier), same reverse-then-reapply pattern used for
+      // outgoing payments in pages/paiements/index.js.
+      const oldFournId = editRow.fournisseur_id || null
+      const oldDebit = (editRow.total || 0) + (editRow.adblue_total || 0)
+      const newDebit = total + adblueTotal
+      if (oldFournId && oldFournId === newFournId) {
+        const diffDebit = newDebit - oldDebit
+        if (diffDebit !== 0) {
+          const { data: fresh } = await supabase.from('gasoil_fournisseurs').select('solde').eq('id', newFournId).single()
+          if (fresh) await supabase.from('gasoil_fournisseurs').update({ solde: (fresh.solde || 0) + diffDebit }).eq('id', newFournId)
+        }
+      } else {
+        if (oldFournId) {
+          const { data: freshOld } = await supabase.from('gasoil_fournisseurs').select('solde').eq('id', oldFournId).single()
+          if (freshOld) await supabase.from('gasoil_fournisseurs').update({ solde: (freshOld.solde || 0) - oldDebit }).eq('id', oldFournId)
+        }
+        if (newFournId) {
+          const { data: freshNew } = await supabase.from('gasoil_fournisseurs').select('solde').eq('id', newFournId).single()
+          if (freshNew) await supabase.from('gasoil_fournisseurs').update({ solde: (freshNew.solde || 0) + newDebit }).eq('id', newFournId)
+        }
+      }
     }
 
     setEditSaving(false)
@@ -264,16 +301,21 @@ export default function Gasoil() {
     }
   }
 
-  async function deleteGasoil(id, camionId, total, qte) {
+  async function deleteGasoil(g) {
     if (!confirm('Supprimer ce plein ?')) return
-    const camion = camions.find(c => c.id === camionId)
-    await supabase.from('gasoil').delete().eq('id', id)
+    const camion = camions.find(c => c.id === g.camion_id)
+    await supabase.from('gasoil').delete().eq('id', g.id)
     if (camion) {
       await supabase.from('camions').update({
-        gasoil_dhs: Math.max(0, (camion.gasoil_dhs || 0) - total),
-        pleins: Math.max(0, (camion.pleins || 0) - (qte > 0 ? 1 : 0)),
-        litres: Math.max(0, (camion.litres || 0) - qte),
+        gasoil_dhs: Math.max(0, (camion.gasoil_dhs || 0) - (g.total || 0)),
+        pleins: Math.max(0, (camion.pleins || 0) - ((g.qte || 0) > 0 ? 1 : 0)),
+        litres: Math.max(0, (camion.litres || 0) - (g.qte || 0)),
       }).eq('id', camion.id)
+    }
+    // ── FUEL SUPPLIER ACCOUNTING — reverse the DEBIT this Plein created.
+    if (g.fournisseur_id) {
+      const { data: fresh } = await supabase.from('gasoil_fournisseurs').select('solde').eq('id', g.fournisseur_id).single()
+      if (fresh) await supabase.from('gasoil_fournisseurs').update({ solde: (fresh.solde || 0) - ((g.total || 0) + (g.adblue_total || 0)) }).eq('id', g.fournisseur_id)
     }
     loadAll()
   }
@@ -749,11 +791,20 @@ export default function Gasoil() {
                 </select>
               </div>
               <div>
-                <label className="label">Station</label>
-                <select className="input" value={form.station} onChange={e => setForm({...form, station: e.target.value})}>
-                  <option>HMIDA ZAIO — Station Petrom</option>
-                  <option>Autre station</option>
+                <label className="label">Fournisseur Carburant</label>
+                <select className="input" value={form.fournisseur_id} required
+                  onChange={e => {
+                    const f = gasoilFournisseurs.find(x => x.id === parseInt(e.target.value))
+                    setForm({...form, fournisseur_id: e.target.value, station: f?.nom || ''})
+                  }}>
+                  <option value="">Sélectionner...</option>
+                  {gasoilFournisseurs.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
                 </select>
+                {gasoilFournisseurs.length === 0 && (
+                  <div className="text-[11px] text-amber-600 mt-1">
+                    Aucun fournisseur — ajoutez-en un dans <Link href="/fournisseurs/gasoil" className="underline font-semibold">Fournisseurs Carburant</Link>.
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1189,7 +1240,7 @@ export default function Gasoil() {
                         <td className="td">
                           <div className="flex gap-1">
                           {admin && <button onClick={() => openEditGasoil(g)} className="btn-secondary text-xs px-2" style={{color:'#1a5fa8',borderColor:'#1a5fa8'}}>✏️</button>}
-                          <button className="btn-danger" onClick={() => deleteGasoil(g.id, g.camion_id, g.total, g.qte)}>✕</button>
+                          <button className="btn-danger" onClick={() => deleteGasoil(g)}>✕</button>
                         </div>
                         </td>
                       </tr>
@@ -1247,10 +1298,15 @@ export default function Gasoil() {
                   onChange={e => setEditForm({...editForm, date: e.target.value})} />
               </div>
               <div>
-                <label className="label">Station</label>
-                <input type="text" className="input"
-                  value={editForm.station}
-                  onChange={e => setEditForm({...editForm, station: e.target.value})} />
+                <label className="label">Fournisseur Carburant</label>
+                <select className="input" value={editForm.fournisseur_id}
+                  onChange={e => {
+                    const f = gasoilFournisseurs.find(x => x.id === parseInt(e.target.value))
+                    setEditForm({...editForm, fournisseur_id: e.target.value, station: f?.nom || editForm.station})
+                  }}>
+                  <option value="">— Non lié —</option>
+                  {gasoilFournisseurs.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

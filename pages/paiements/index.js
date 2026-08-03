@@ -70,8 +70,9 @@ export default function Paiements() {
   // ── OUTGOING PAYMENTS (décaissements) ──
   const [payMode, setPayMode] = useState('incoming') // 'incoming' | 'outgoing'
   const [gFournisseurs, setGFournisseurs] = useState([])
+  const [gasoilFournisseurs, setGasoilFournisseurs] = useState([])
   const emptyOut = () => ({
-    date: today(), type: 'fourn_brique', tiers_id: '', tiers_nom: '',
+    date: today(), type: 'fourn_brique', tiers_id: '',
     mode: 'Espèce', montant: '', note: '',
     cheque_number: '', cheque_bank: '', cheque_status: 'pending',
     also_fourn_brique_id: '', // grignon→brique linkage (same company e.g. Nova Brique)
@@ -85,7 +86,7 @@ export default function Paiements() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: cl }, { data: pa }, { data: ca }, { data: fo }, { data: gc }, { data: gp }, { data: gf }] = await Promise.all([
+    const [{ data: cl }, { data: pa }, { data: ca }, { data: fo }, { data: gc }, { data: gp }, { data: gf }, { data: gaf }] = await Promise.all([
       supabase.from('clients').select('*').order('nom'),
       supabase.from('paiements').select('*').order('date', { ascending: true }),
       supabase.from('camions').select('*').order('plaque'),
@@ -93,6 +94,10 @@ export default function Paiements() {
       supabase.from('grignon_clients').select('*').order('nom'),
       supabase.from('grignon_paiements').select('*').order('date', { ascending: true }),
       supabase.from('grignon_fournisseurs').select('*').order('nom'),
+      // Payment dropdown only ever offers active Fuel Suppliers — same intent
+      // as the Brique/Grignon tiers lists, made explicit here since
+      // gasoil_fournisseurs is the one supplier table with an actif toggle.
+      supabase.from('gasoil_fournisseurs').select('*').eq('actif', true).order('nom'),
     ])
     setClients(cl || [])
     setPaiements(pa || [])
@@ -101,6 +106,7 @@ export default function Paiements() {
     setGrignonClients(gc || [])
     setGrignonPaiements(gp || [])
     setGFournisseurs(gf || [])
+    setGasoilFournisseurs(gaf || [])
     setLoading(false)
   }
 
@@ -313,13 +319,14 @@ export default function Paiements() {
 
   // ── OUTGOING: config + helpers ──
   const OUT_TYPES = {
-    fourn_brique:  { label: 'Fournisseur Brique',  icon: '🏭', color: '#1d4ed8', table: 'fournisseurs' },
-    fourn_grignon: { label: 'Fournisseur Grignon', icon: '🌿', color: '#15803d', table: 'grignon_fournisseurs' },
-    gasoil:        { label: 'Station Gasoil',      icon: '⛽', color: '#f97316', table: null },
+    fourn_brique:  { label: 'Fournisseur Brique',    icon: '🏭', color: '#1d4ed8', table: 'fournisseurs' },
+    fourn_grignon: { label: 'Fournisseur Grignon',   icon: '🌿', color: '#15803d', table: 'grignon_fournisseurs' },
+    gasoil:        { label: 'Fournisseur Carburant', icon: '⛽', color: '#f97316', table: 'gasoil_fournisseurs' },
   }
   function outTiersOptions(type) {
     if (type === 'fourn_brique')  return fournisseurs
     if (type === 'fourn_grignon') return gFournisseurs
+    if (type === 'gasoil')        return gasoilFournisseurs
     return []
   }
 
@@ -327,7 +334,7 @@ export default function Paiements() {
     e.preventDefault()
     const m = parseFloat(outForm.montant) || 0
     if (!m) return
-    if (outForm.type !== 'gasoil' && !outForm.tiers_id) { alert('Sélectionnez un tiers'); return }
+    if (!outForm.tiers_id) { alert('Sélectionnez un tiers'); return }
     setSavingOut(true)
     try {
       const type = outForm.type
@@ -342,10 +349,11 @@ export default function Paiements() {
         mode: outForm.mode,
         montant: m,
         note: outForm.note || null,
-        client_nom: tiers?.nom || (type === 'gasoil' ? (outForm.tiers_nom || 'Station Gasoil') : ''),
+        client_nom: tiers?.nom || '',
         fournisseur_id:   type === 'fourn_brique'  ? parseInt(outForm.tiers_id) : null,
-        fournisseur_nom:  type === 'fourn_brique'  ? tiers?.nom : (type==='gasoil' ? (outForm.tiers_nom||'Gasoil') : null),
+        fournisseur_nom:  type === 'fourn_brique'  ? tiers?.nom : null,
         grignon_fourn_id: type === 'fourn_grignon' ? parseInt(outForm.tiers_id) : null,
+        gasoil_fourn_id:  type === 'gasoil'        ? parseInt(outForm.tiers_id) : null,
         cheque_number: isCheque ? (outForm.cheque_number || null) : null,
         cheque_bank:   isCheque ? (outForm.cheque_bank   || null) : null,
         cheque_status: isCheque ? outForm.cheque_status           : null,
@@ -362,7 +370,9 @@ export default function Paiements() {
         if (error) throw error
       }
 
-      // Apply solde reduction to the supplier account
+      // Apply solde reduction to the supplier account (CREDIT — see §4 of the
+      // Fuel Supplier spec: gasoil follows the exact same pattern as
+      // fourn_brique/fourn_grignon, just against gasoil_fournisseurs).
       if (type === 'fourn_brique' && payload.fournisseur_id) {
         const { data: f } = await supabase.from('fournisseurs').select('solde').eq('id', payload.fournisseur_id).single()
         if (f) await supabase.from('fournisseurs').update({ solde: Math.max(0,(f.solde||0) - m) }).eq('id', payload.fournisseur_id)
@@ -375,6 +385,9 @@ export default function Paiements() {
           const { data: fb } = await supabase.from('fournisseurs').select('solde').eq('id', parseInt(outForm.also_fourn_brique_id)).single()
           if (fb) await supabase.from('fournisseurs').update({ solde: Math.max(0,(fb.solde||0) - m) }).eq('id', parseInt(outForm.also_fourn_brique_id))
         }
+      } else if (type === 'gasoil' && payload.gasoil_fourn_id) {
+        const { data: f } = await supabase.from('gasoil_fournisseurs').select('solde').eq('id', payload.gasoil_fourn_id).single()
+        if (f) await supabase.from('gasoil_fournisseurs').update({ solde: Math.max(0,(f.solde||0) - m) }).eq('id', payload.gasoil_fourn_id)
       }
 
       setOutForm(emptyOut())
@@ -395,6 +408,9 @@ export default function Paiements() {
     } else if (p.type_compte === 'fourn_grignon' && p.grignon_fourn_id) {
       const { data: f } = await supabase.from('grignon_fournisseurs').select('solde').eq('id', p.grignon_fourn_id).single()
       if (f) await supabase.from('grignon_fournisseurs').update({ solde: (f.solde||0) + m }).eq('id', p.grignon_fourn_id)
+    } else if (p.type_compte === 'gasoil' && p.gasoil_fourn_id) {
+      const { data: f } = await supabase.from('gasoil_fournisseurs').select('solde').eq('id', p.gasoil_fourn_id).single()
+      if (f) await supabase.from('gasoil_fournisseurs').update({ solde: (f.solde||0) + m }).eq('id', p.gasoil_fourn_id)
     }
   }
 
@@ -409,8 +425,7 @@ export default function Paiements() {
     setEditOutId(p.id)
     setOutForm({
       date: p.date, type: p.type_compte,
-      tiers_id: String(p.fournisseur_id || p.grignon_fourn_id || ''),
-      tiers_nom: p.fournisseur_nom || p.client_nom || '',
+      tiers_id: String(p.fournisseur_id || p.grignon_fourn_id || p.gasoil_fourn_id || ''),
       mode: p.mode || 'Espèce', montant: String(p.montant || ''),
       note: p.note || '',
       cheque_number: p.cheque_number || '', cheque_bank: p.cheque_bank || '',
@@ -737,24 +752,23 @@ ${filtered.length > 0 ? `<div class="totals-row">
                 onChange={e=>setOutForm({...emptyOut(), type:e.target.value, date:outForm.date})}>
                 <option value="fourn_brique">🏭 Fournisseur Brique</option>
                 <option value="fourn_grignon">🌿 Fournisseur Grignon</option>
-                <option value="gasoil">⛽ Station Gasoil</option>
+                <option value="gasoil">⛽ Fournisseur Carburant</option>
               </select>
             </div>
             <div><label className="label">Date</label>
               <input className="input" type="date" value={outForm.date} onChange={e=>setOutForm({...outForm,date:e.target.value})} required />
             </div>
-            {outForm.type !== 'gasoil' ? (
-              <div><label className="label">{OUT_TYPES[outForm.type].icon} {OUT_TYPES[outForm.type].label}</label>
-                <select className="input" value={outForm.tiers_id} onChange={e=>setOutForm({...outForm,tiers_id:e.target.value})} required>
-                  <option value="">Sélectionner...</option>
-                  {outTiersOptions(outForm.type).map(t=><option key={t.id} value={t.id}>{t.nom} — {fmtMoney(t.solde||0)} DHS</option>)}
-                </select>
-              </div>
-            ) : (
-              <div><label className="label">Station / Description</label>
-                <input className="input" placeholder="ex: Station Petrom Selouane" value={outForm.tiers_nom} onChange={e=>setOutForm({...outForm,tiers_nom:e.target.value})} />
-              </div>
-            )}
+            <div><label className="label">{OUT_TYPES[outForm.type].icon} {OUT_TYPES[outForm.type].label}</label>
+              <select className="input" value={outForm.tiers_id} onChange={e=>setOutForm({...outForm,tiers_id:e.target.value})} required>
+                <option value="">Sélectionner...</option>
+                {outTiersOptions(outForm.type).map(t=><option key={t.id} value={t.id}>{t.nom} — {fmtMoney(t.solde||0)} DHS</option>)}
+              </select>
+              {outForm.type === 'gasoil' && outTiersOptions('gasoil').length === 0 && (
+                <div className="text-[11px] text-amber-600 mt-1">
+                  Aucun fournisseur carburant — ajoutez-en un dans Fournisseurs Carburant.
+                </div>
+              )}
+            </div>
 
             {/* Grignon → Brique linkage (same company e.g. Nova Brique) */}
             {outForm.type === 'fourn_grignon' && (
@@ -812,7 +826,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
           </div>
           {/* Out tabs */}
           <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 flex-wrap">
-            {[['all','Tous'],['fourn_brique','🏭 Fourn. Brique'],['fourn_grignon','🌿 Fourn. Grignon'],['gasoil','⛽ Gasoil']].map(([k,l])=>(
+            {[['all','Tous'],['fourn_brique','🏭 Fourn. Brique'],['fourn_grignon','🌿 Fourn. Grignon'],['gasoil','⛽ Carburant']].map(([k,l])=>(
               <button key={k} onClick={()=>setOutTab(k)}
                 className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${outTab===k?'bg-white text-gray-900 shadow-sm':'text-gray-500'}`}>{l}</button>
             ))}
