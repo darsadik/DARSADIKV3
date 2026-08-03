@@ -3,8 +3,13 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
-import { fetchRemiseCarburantRate, saveRemiseCarburantRate } from '../../lib/services/settings'
+import {
+  fetchRemiseCarburantRate, saveRemiseCarburantRate,
+  DEFAULT_FUEL_OPENING_BALANCE, fetchFuelOpeningBalance, saveFuelOpeningBalance,
+} from '../../lib/services/settings'
 import { fmtMoney } from '../../lib/utils'
+
+const ADMIN = 'abdelhafidbaadi@gmail.com'
 
 function Section({ title, icon, children }) {
   return (
@@ -19,6 +24,7 @@ function Section({ title, icon, children }) {
 
 export default function Parametres() {
   const { user } = useAuth()
+  const admin = user?.email === ADMIN
   const [tab, setTab] = useState('camions')
   const [camions, setCamions] = useState([])
   const [loueurs, setLoueurs] = useState([])
@@ -41,7 +47,15 @@ export default function Parametres() {
   const [savingRemise, setSavingRemise] = useState(false)
   const [remiseMsg, setRemiseMsg] = useState('')
 
-  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(r => setRemiseRateInput(String(r))) }, [])
+  const [openingBalanceInput, setOpeningBalanceInput] = useState(String(DEFAULT_FUEL_OPENING_BALANCE))
+  const [savingOpeningBalance, setSavingOpeningBalance] = useState(false)
+  const [openingBalanceMsg, setOpeningBalanceMsg] = useState('')
+
+  useEffect(() => {
+    loadAll()
+    fetchRemiseCarburantRate().then(r => setRemiseRateInput(String(r)))
+    fetchFuelOpeningBalance().then(v => setOpeningBalanceInput(String(v)))
+  }, [])
 
   async function saveRemiseRate(e) {
     e.preventDefault()
@@ -53,6 +67,18 @@ export default function Parametres() {
     setSavingRemise(false)
     setRemiseMsg(err ? '❌ ' + err.message : '✅ Enregistré !')
     if (!err) setTimeout(() => setRemiseMsg(''), 2000)
+  }
+
+  async function saveOpeningBalance(e) {
+    e.preventDefault()
+    const value = parseFloat(openingBalanceInput)
+    if (!Number.isFinite(value)) { setOpeningBalanceMsg('❌ Montant invalide'); return }
+    setSavingOpeningBalance(true)
+    setOpeningBalanceMsg('')
+    const { error: err } = await saveFuelOpeningBalance(value)
+    setSavingOpeningBalance(false)
+    setOpeningBalanceMsg(err ? '❌ ' + err.message : '✅ Enregistré !')
+    if (!err) setTimeout(() => setOpeningBalanceMsg(''), 2000)
   }
 
   async function loadAll() {
@@ -482,6 +508,41 @@ export default function Parametres() {
                 </div>
               )}
               <div className="text-xs text-gray-400 mt-4">Taux par défaut : {fmtMoney(DEFAULT_REMISE_CARBURANT_RATE)} DH/L</div>
+            </Section>
+          </div>
+
+          <div className="lg:col-span-2">
+            <Section title="Solde d'ouverture Carburant" icon="🧾">
+              <p className="text-sm text-gray-500 mb-4">
+                Solde carburant qui existait déjà avant l'utilisation de cet ERP, saisi une seule fois.
+                Ce n'est pas une transaction, ni un achat, ni un plein — il sert uniquement de point de départ pour la
+                <b> Balance Carburant Actuelle</b> affichée sur la page Gasoil.
+              </p>
+              {admin ? (
+                <>
+                  <form onSubmit={saveOpeningBalance} className="flex items-end gap-3 max-w-sm">
+                    <div className="flex-1">
+                      <label className="label">Solde d'ouverture (DHS)</label>
+                      <input className="input" type="number" step="0.01"
+                        value={openingBalanceInput}
+                        onChange={e => setOpeningBalanceInput(e.target.value)} required />
+                    </div>
+                    <button type="submit" disabled={savingOpeningBalance} className="btn-primary">
+                      {savingOpeningBalance ? '...' : '✓ Enregistrer'}
+                    </button>
+                  </form>
+                  {openingBalanceMsg && (
+                    <div className={`mt-3 text-sm font-semibold ${openingBalanceMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                      {openingBalanceMsg}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-sm text-gray-700">
+                  Solde actuel : <b>{fmtMoney(parseFloat(openingBalanceInput) || 0)} DHS</b>
+                  <div className="text-xs text-gray-400 mt-1">Modifiable par l'administrateur uniquement.</div>
+                </div>
+              )}
             </Section>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, fmtMoney, today, startOfMonth, openPrintWindow } from '../../lib/utils'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
-import { fetchRemiseCarburantRate } from '../../lib/services/settings'
+import { fetchRemiseCarburantRate, DEFAULT_FUEL_OPENING_BALANCE, fetchFuelOpeningBalance } from '../../lib/services/settings'
 import { previewCycleForNewPlein } from '../../lib/services/fuelCycles'
 import Link from 'next/link'
 
@@ -73,6 +73,8 @@ export default function Gasoil() {
   const [showAdblue, setShowAdblue] = useState(false)
   const [formError, setFormError] = useState('')
   const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
+  const [fuelOpeningBalance, setFuelOpeningBalance] = useState(DEFAULT_FUEL_OPENING_BALANCE)
+  const [voyageGasoilTotal, setVoyageGasoilTotal] = useState(0)
   // null = auto-detect fusion (default), true = fusionner avec le précédent, false = nouveau cycle forcé
   const [mergeChoice, setMergeChoice] = useState(null)
 
@@ -102,21 +104,30 @@ export default function Gasoil() {
   }
   const [consoMonth, setConsoMonth] = useState(currentMonth())
 
-  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
+  useEffect(() => {
+    loadAll()
+    fetchRemiseCarburantRate().then(setRemiseRate)
+    fetchFuelOpeningBalance().then(setFuelOpeningBalance)
+  }, [])
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }] = await Promise.all([
+    const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }, { data: vgas }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       // ✅ date ASC — oldest to newest
       supabase.from('gasoil').select('*').order('date', { ascending: true }),
       supabase.from('gasoil_paiements').select('*').order('date', { ascending: true }),
       supabase.from('voyages').select('id,reference,date_depart,camion_id,camion_plaque,destination,km_depart,km_arrivee').order('date_depart', { ascending: true }),
+      // Fuel cost already allocated to voyages (CLAUDE.md profitability formula:
+      // COÛT TOTAL includes Σ voyage_gasoil.total) — read-only, used only for the
+      // Fuel Opening Balance's "Balance Carburant Actuelle" display below.
+      supabase.from('voyage_gasoil').select('total'),
     ])
     setCamions(ca || [])
     setGasoil(ga || [])
     setGasoilPaiements(gp || [])
     setVoyages(vg || [])
+    setVoyageGasoilTotal((vgas || []).reduce((s, r) => s + (r.total || 0), 0))
     setLoading(false)
   }
 
@@ -289,6 +300,14 @@ export default function Gasoil() {
   const totalGasoilAll = gasoil.reduce((s, g) => s + (g.total || 0), 0)
   const totalPaiements = gasoilPaiements.reduce((s, p) => s + (p.montant || 0), 0)
   const soldeGasoil = totalGasoilAll - totalPaiements
+
+  // ── FUEL OPENING BALANCE — global, single, not per-truck (see /parametres).
+  // Balance Carburant Actuelle = Opening Balance + Achats Gasoil + Coûts AdBlue
+  // − Coûts Carburant Alloués aux Voyages. Purely additive display: does not
+  // touch Fuel Cycle, Cost/KM, Voyage calculations, Profitability, Truck
+  // statistics, or Plein count.
+  const totalAdblueAll = gasoil.reduce((s, g) => s + (g.adblue_total || 0), 0)
+  const currentFuelBalance = fuelOpeningBalance + totalGasoilAll + totalAdblueAll - voyageGasoilTotal
 
   // ── MONTHLY CONSUMPTION PER CAMION ──
   // For each camion in selected month:
@@ -694,6 +713,20 @@ export default function Gasoil() {
           <div className={`stat-label ${soldeGasoil > 0 ? 'text-purple-600' : 'text-green-600'}`}>Solde restant</div>
           <div className={`stat-value ${soldeGasoil > 0 ? 'text-purple-700' : 'text-green-700'}`}>{fmtMoney(soldeGasoil)} DHS</div>
           <div className="stat-sub">{soldeGasoil > 0 ? 'À payer' : '✓ Soldé'}</div>
+        </div>
+      </div>
+
+      {/* FUEL OPENING BALANCE — global, single, not per-truck (see /parametres) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="stat-card border border-slate-200 bg-slate-50">
+          <div className="stat-label text-slate-500">🧾 Solde d'ouverture</div>
+          <div className="stat-value text-slate-700">{fmtMoney(fuelOpeningBalance)} DHS</div>
+          <div className="stat-sub">Solde carburant avant l'ERP — modifiable dans Paramètres</div>
+        </div>
+        <div className={`stat-card border ${currentFuelBalance >= 0 ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'}`}>
+          <div className={`stat-label ${currentFuelBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>💰 Balance Carburant Actuelle</div>
+          <div className={`stat-value ${currentFuelBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{fmtMoney(currentFuelBalance)} DHS</div>
+          <div className="stat-sub">Ouverture + Achats + AdBlue − Alloué aux voyages</div>
         </div>
       </div>
 
