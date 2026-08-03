@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ResponsiveContainer, ComposedChart, Bar, Line, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 import { aggregateVoyageProfits } from '../../lib/services/profitability'
 import Section from './Section'
 
@@ -16,7 +16,7 @@ function TooltipBox({ active, payload, label }) {
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center gap-1.5" style={{ color: p.color }}>
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          {p.name}: <span className="font-bold">{fmt(p.value)} DHS</span>
+          {p.name}: <span className="font-bold">{fmtMoney(p.value)} DHS</span>
         </div>
       ))}
     </div>
@@ -56,7 +56,7 @@ export default function DashboardCharts({ results, camions }) {
             <ComposedChart data={monthly}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={60} tickFormatter={fmt} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={60} tickFormatter={fmtMoney} />
               <Tooltip content={<TooltipBox />} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="revenue" name="Revenu" fill="#bfdbfe" radius={[4, 4, 0, 0]} maxBarSize={36} />
@@ -71,7 +71,7 @@ export default function DashboardCharts({ results, camions }) {
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={truckRanking} layout="vertical" margin={{ left: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={fmt} />
+              <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={fmtMoney} />
               <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} width={70} />
               <Tooltip content={<TooltipBox />} />
               <Bar dataKey="profit" name="Profit" radius={[0, 4, 4, 0]} maxBarSize={20}>

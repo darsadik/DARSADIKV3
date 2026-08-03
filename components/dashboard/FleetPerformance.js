@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 import { aggregateVoyageProfits } from '../../lib/services/profitability'
 import MarginBadge from '../profitability/MarginBadge'
 import EntityDrillDrawer from '../profitability/EntityDrillDrawer'
@@ -44,15 +44,15 @@ export default function FleetPerformance({ results, camions, periodLabel, onOpen
                 <MarginBadge marge={t.marge} />
               </div>
               <div className={`text-xl font-black leading-none mb-3 ${t.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                {t.profit >= 0 ? '+' : ''}{fmt(t.profit)} <span className="text-xs font-semibold text-slate-400">DHS</span>
+                {t.profit >= 0 ? '+' : ''}{fmtMoney(t.profit)} <span className="text-xs font-semibold text-slate-400">DHS</span>
               </div>
               <div className="grid grid-cols-2 gap-y-1.5 text-[11px]">
                 <span className="text-slate-400">Revenu</span>
-                <span className="text-right font-semibold text-slate-600">{fmt(t.revenue.total)}</span>
+                <span className="text-right font-semibold text-slate-600">{fmtMoney(t.revenue.total)}</span>
                 <span className="text-slate-400">Coût</span>
-                <span className="text-right font-semibold text-slate-600">{fmt(t.cost.total)}</span>
+                <span className="text-right font-semibold text-slate-600">{fmtMoney(t.cost.total)}</span>
                 <span className="text-slate-400">Carburant</span>
-                <span className="text-right font-semibold text-slate-600">{fmt(t.cost.fuel)}</span>
+                <span className="text-right font-semibold text-slate-600">{fmtMoney(t.cost.fuel)}</span>
                 <span className="text-slate-400">Voyages</span>
                 <span className="text-right font-semibold text-slate-600">{t.nbVoyages}</span>
               </div>

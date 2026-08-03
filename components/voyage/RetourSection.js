@@ -1,4 +1,4 @@
-import { fmt, fmtDate } from '../../lib/utils'
+import { fmt, fmtMoney, fmtDate } from '../../lib/utils'
 import Section from '../ui/Section'
 import Empty from '../ui/Empty'
 import DelBtn from '../ui/DelBtn'
@@ -37,7 +37,7 @@ export default function RetourSection({
             <input type="number" value={retForm.montant_paye} onChange={e => onFormChange({...retForm, montant_paye: e.target.value})} className="input w-full text-sm" placeholder="0"/></div>
           <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Restant</label>
             <div className="input w-full text-sm bg-slate-50 font-bold text-orange-600 flex items-center">
-              {fmt(Math.max(0, (parseFloat(retForm.montant)||0) - (parseFloat(retForm.montant_paye)||0)))} DHS
+              {fmtMoney(Math.max(0, (parseFloat(retForm.montant)||0) - (parseFloat(retForm.montant_paye)||0)))} DHS
             </div></div>
           <div className="col-span-2 md:col-span-3 flex justify-end gap-2 pt-1">
             <button type="button" onClick={onCancel} className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600">Annuler</button>
@@ -65,9 +65,9 @@ export default function RetourSection({
                   <td className="py-2 pr-3 text-slate-500">{fmtDate(r.date_retour)}</td>
                   <td className="py-2 pr-3 font-semibold">{r.client_nom}</td>
                   <td className="py-2 pr-3 text-slate-500">{r.destination || '—'}</td>
-                  <td className="py-2 pr-3 text-right font-bold text-purple-600">{fmt(r.montant)} DHS</td>
-                  <td className="py-2 pr-3 text-right text-emerald-600">{fmt(r.montant_paye)} DHS</td>
-                  <td className="py-2 text-right text-orange-500 font-semibold">{r.restant > 0 ? fmt(r.restant) + ' DHS ⚠' : '✓'}</td>
+                  <td className="py-2 pr-3 text-right font-bold text-purple-600">{fmtMoney(r.montant)} DHS</td>
+                  <td className="py-2 pr-3 text-right text-emerald-600">{fmtMoney(r.montant_paye)} DHS</td>
+                  <td className="py-2 text-right text-orange-500 font-semibold">{r.restant > 0 ? fmtMoney(r.restant) + ' DHS ⚠' : '✓'}</td>
                   <td className="py-2 pl-1 flex items-center gap-0.5">
                     <EditBtn onEdit={() => onEdit(r)}/>
                     <DelBtn onDel={() => onDel(r)}/>

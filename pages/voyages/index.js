@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { fmt, fmtDate, today, startOfMonth } from '../../lib/utils'
+import { fmt, fmtMoney, fmtDate, today, startOfMonth } from '../../lib/utils'
 import { computeVoyageProfit, aggregateVoyageProfits, aggregateClientProfits, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { recalcOdometerChain } from '../../lib/services/voyage/updates'
@@ -133,22 +133,22 @@ function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, 
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-emerald-50 rounded-xl p-3">
               <div className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide">Revenu total</div>
-              <div className="font-black text-emerald-700 text-sm mt-0.5">{fmt(revenuBrut)} DHS</div>
+              <div className="font-black text-emerald-700 text-sm mt-0.5">{fmtMoney(revenuBrut)} DHS</div>
             </div>
             <div className="bg-red-50 rounded-xl p-3">
               <div className="text-[10px] text-red-500 font-semibold uppercase tracking-wide">Achats</div>
-              <div className="font-black text-red-600 text-sm mt-0.5">{fmt(coutAchat)} DHS</div>
+              <div className="font-black text-red-600 text-sm mt-0.5">{fmtMoney(coutAchat)} DHS</div>
             </div>
             <div className="bg-orange-50 rounded-xl p-3">
               <div className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Charges + Gasoil</div>
-              <div className="font-black text-orange-600 text-sm mt-0.5">{fmt(coutCharges + coutGasoil)} DHS</div>
+              <div className="font-black text-orange-600 text-sm mt-0.5">{fmtMoney(coutCharges + coutGasoil)} DHS</div>
             </div>
             <div className={`rounded-xl p-3 ${profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
               <div className={`text-[10px] font-semibold uppercase tracking-wide ${profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 Profit archivé
               </div>
               <div className={`font-black text-sm mt-0.5 ${profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                {profit >= 0 ? '+' : ''}{fmt(profit)} DHS
+                {profit >= 0 ? '+' : ''}{fmtMoney(profit)} DHS
               </div>
             </div>
           </div>
@@ -702,18 +702,18 @@ export default function Voyages() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Revenu brut</div>
-              <div className="text-2xl font-black text-slate-800">{fmt(global.revenue.total)}</div>
+              <div className="text-2xl font-black text-slate-800">{fmtMoney(global.revenue.total)}</div>
               <div className="text-[10px] text-slate-400 mt-1">DHS · {filteredVoyages.length} voyages</div>
             </div>
             <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-4">
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Coût total</div>
-              <div className="text-2xl font-black text-red-500">{fmt(global.cost.total)}</div>
+              <div className="text-2xl font-black text-red-500">{fmtMoney(global.cost.total)}</div>
               <div className="text-[10px] text-slate-400 mt-1">DHS</div>
             </div>
             <div className={`bg-white rounded-2xl border shadow-sm p-4 ${global.profit >= 0 ? 'border-emerald-100' : 'border-red-100'}`}>
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Profit net</div>
               <div className={`text-2xl font-black ${global.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                {global.profit >= 0 ? '+' : ''}{fmt(global.profit)}
+                {global.profit >= 0 ? '+' : ''}{fmtMoney(global.profit)}
               </div>
               <div className="text-[10px] text-slate-400 mt-1">DHS</div>
             </div>
@@ -805,8 +805,8 @@ export default function Voyages() {
                           <td className="py-2.5 px-3 text-center">
                             <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{v.nbLivs}</span>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(v.revenue.total)}</td>
-                          <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmt(v.cost.total)}</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{fmtMoney(v.revenue.total)}</td>
+                          <td className="py-2.5 px-3 text-right text-red-400 whitespace-nowrap">−{fmtMoney(v.cost.total)}</td>
                           <td className="py-2.5 px-3 text-right whitespace-nowrap"><ProfitCell v={v.profit} /></td>
                           <td className="py-2.5 px-3 text-right"><MargeBadge m={v.marge} /></td>
                           <td className="py-2.5 px-3">
@@ -835,9 +835,9 @@ export default function Voyages() {
                       { value: `Total (${sortedVoyages.length})`, cls: 'text-sm' },
                       { value: '' }, { value: '' },
                       { value: sortedVoyages.reduce((s,v)=>s+v.nbLivs,0), center: true, cls: 'text-blue-300' },
-                      { value: fmt(global.revenue.total), right: true, cls: 'text-emerald-400' },
-                      { value: '−'+fmt(global.cost.total), right: true, cls: 'text-red-300' },
-                      { value: (global.profit>=0?'+':'')+fmt(global.profit), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
+                      { value: fmtMoney(global.revenue.total), right: true, cls: 'text-emerald-400' },
+                      { value: '−'+fmtMoney(global.cost.total), right: true, cls: 'text-red-300' },
+                      { value: (global.profit>=0?'+':'')+fmtMoney(global.profit), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
                       { value: global.marge+'%', right: true, cls: 'text-blue-300' },
                       { value: '' },
                     ]} />
@@ -878,8 +878,8 @@ export default function Voyages() {
                         <td className="py-3 px-3 text-center">
                           <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{d.nbV}</span>
                         </td>
-                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmt(d.revenue.total)}</td>
-                        <td className="py-3 px-3 text-right text-red-400">−{fmt(d.cost.total)}</td>
+                        <td className="py-3 px-3 text-right font-bold text-emerald-600">{fmtMoney(d.revenue.total)}</td>
+                        <td className="py-3 px-3 text-right text-red-400">−{fmtMoney(d.cost.total)}</td>
                         <td className="py-3 px-3 text-right"><ProfitCell v={d.profit} /></td>
                         <td className="py-3 px-3 text-right"><MargeBadge m={d.marge} /></td>
                       </tr>
@@ -889,9 +889,9 @@ export default function Voyages() {
                     <TotalRow cols={[
                       { value: 'TOTAL' },
                       { value: filteredVoyages.length, center: true, cls: 'text-blue-300' },
-                      { value: fmt(global.revenue.total), right: true, cls: 'text-emerald-400' },
-                      { value: '−'+fmt(global.cost.total), right: true, cls: 'text-red-300' },
-                      { value: (global.profit>=0?'+':'')+fmt(global.profit), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
+                      { value: fmtMoney(global.revenue.total), right: true, cls: 'text-emerald-400' },
+                      { value: '−'+fmtMoney(global.cost.total), right: true, cls: 'text-red-300' },
+                      { value: (global.profit>=0?'+':'')+fmtMoney(global.profit), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
                       { value: global.marge+'%', right: true, cls: 'text-blue-300' },
                     ]} />
                   </tfoot>
@@ -930,7 +930,7 @@ export default function Voyages() {
                   </div>
                   <div className="text-right">
                     <div className={`text-2xl font-black ${ca.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {ca.profit >= 0 ? '+' : ''}{fmt(ca.profit)} <span className="text-xs font-normal text-slate-400">DHS</span>
+                      {ca.profit >= 0 ? '+' : ''}{fmtMoney(ca.profit)} <span className="text-xs font-normal text-slate-400">DHS</span>
                     </div>
                     <div className="mt-0.5"><MargeBadge m={ca.marge} /></div>
                   </div>
@@ -938,21 +938,21 @@ export default function Voyages() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="bg-emerald-50 rounded-xl p-3">
                     <div className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide">Revenu brut</div>
-                    <div className="font-black text-emerald-700 mt-0.5 text-sm">{fmt(ca.revenue.total)} DHS</div>
+                    <div className="font-black text-emerald-700 mt-0.5 text-sm">{fmtMoney(ca.revenue.total)} DHS</div>
                   </div>
                   <div className="bg-red-50 rounded-xl p-3">
                     <div className="text-[10px] text-red-500 font-semibold uppercase tracking-wide">Coût total</div>
-                    <div className="font-black text-red-600 mt-0.5 text-sm">{fmt(ca.cost.total)} DHS</div>
+                    <div className="font-black text-red-600 mt-0.5 text-sm">{fmtMoney(ca.cost.total)} DHS</div>
                   </div>
                   {ca.type_camion === 'loue' ? (
                     <div className="bg-amber-50 rounded-xl p-3">
                       <div className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide">Location</div>
-                      <div className="font-black text-amber-700 mt-0.5 text-sm">{fmt(ca.cost.rental || 0)} DHS</div>
+                      <div className="font-black text-amber-700 mt-0.5 text-sm">{fmtMoney(ca.cost.rental || 0)} DHS</div>
                     </div>
                   ) : (
                     <div className="bg-orange-50 rounded-xl p-3">
                       <div className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Gasoil</div>
-                      <div className="font-black text-orange-600 mt-0.5 text-sm">{fmt(ca.cost.fuel)} DHS</div>
+                      <div className="font-black text-orange-600 mt-0.5 text-sm">{fmtMoney(ca.cost.fuel)} DHS</div>
                     </div>
                   )}
                   <div className="bg-blue-50 rounded-xl p-3">
@@ -971,7 +971,7 @@ export default function Voyages() {
                     <span className="text-slate-400">— {fmtDate(ca.bestVoyage.date_depart)}</span>
                     {ca.bestVoyage.destination && <span className="text-slate-400">→ {ca.bestVoyage.destination}</span>}
                     <span className={`font-black ${ca.bestVoyage.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {ca.bestVoyage.profit >= 0 ? '+' : ''}{fmt(ca.bestVoyage.profit)} DHS
+                      {ca.bestVoyage.profit >= 0 ? '+' : ''}{fmtMoney(ca.bestVoyage.profit)} DHS
                     </span>
                   </div>
                 )}
@@ -1029,11 +1029,11 @@ export default function Voyages() {
                           <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{c.nbLivs}</span>
                         </td>
                         <td className="py-2.5 px-3 text-right text-slate-500">{fmt(c.qte)}</td>
-                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{fmt(c.revenue.total)}</td>
-                        <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.cost.achatWAC)}</td>
-                        <td className="py-2.5 px-3 text-right text-orange-400">−{fmt(c.cost.fuelAllocated)}</td>
-                        <td className="py-2.5 px-3 text-right text-amber-500">{c.cost.rentalAllocated > 0 ? `−${fmt(c.cost.rentalAllocated)}` : '—'}</td>
-                        <td className="py-2.5 px-3 text-right text-red-400">−{fmt(c.cost.chargesAllocated)}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{fmtMoney(c.revenue.total)}</td>
+                        <td className="py-2.5 px-3 text-right text-red-400">−{fmtMoney(c.cost.achatWAC)}</td>
+                        <td className="py-2.5 px-3 text-right text-orange-400">−{fmtMoney(c.cost.fuelAllocated)}</td>
+                        <td className="py-2.5 px-3 text-right text-amber-500">{c.cost.rentalAllocated > 0 ? `−${fmtMoney(c.cost.rentalAllocated)}` : '—'}</td>
+                        <td className="py-2.5 px-3 text-right text-red-400">−{fmtMoney(c.cost.chargesAllocated)}</td>
                         <td className="py-2.5 px-3 text-right"><ProfitCell v={c.profit} /></td>
                         <td className="py-2.5 px-3 text-right"><MargeBadge m={c.marge} /></td>
                       </tr>
@@ -1045,12 +1045,12 @@ export default function Voyages() {
                       { value: '' },
                       { value: clientStats.reduce((s,c)=>s+c.nbLivs,0), center: true, cls: 'text-blue-300' },
                       { value: fmt(clientStats.reduce((s,c)=>s+c.qte,0)), right: true, cls: 'text-slate-300' },
-                      { value: fmt(clientStats.reduce((s,c)=>s+c.revenue.total,0)), right: true, cls: 'text-emerald-400' },
-                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.cost.achatWAC,0)), right: true, cls: 'text-red-300' },
-                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.cost.fuelAllocated,0)), right: true, cls: 'text-orange-300' },
-                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.cost.rentalAllocated,0)), right: true, cls: 'text-amber-300' },
-                      { value: '−'+fmt(clientStats.reduce((s,c)=>s+c.cost.chargesAllocated,0)), right: true, cls: 'text-red-300' },
-                      { value: (global.profit>=0?'+':'')+fmt(clientStats.reduce((s,c)=>s+c.profit,0)), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
+                      { value: fmtMoney(clientStats.reduce((s,c)=>s+c.revenue.total,0)), right: true, cls: 'text-emerald-400' },
+                      { value: '−'+fmtMoney(clientStats.reduce((s,c)=>s+c.cost.achatWAC,0)), right: true, cls: 'text-red-300' },
+                      { value: '−'+fmtMoney(clientStats.reduce((s,c)=>s+c.cost.fuelAllocated,0)), right: true, cls: 'text-orange-300' },
+                      { value: '−'+fmtMoney(clientStats.reduce((s,c)=>s+c.cost.rentalAllocated,0)), right: true, cls: 'text-amber-300' },
+                      { value: '−'+fmtMoney(clientStats.reduce((s,c)=>s+c.cost.chargesAllocated,0)), right: true, cls: 'text-red-300' },
+                      { value: (global.profit>=0?'+':'')+fmtMoney(clientStats.reduce((s,c)=>s+c.profit,0)), right: true, cls: global.profit>=0?'text-emerald-400 text-base':'text-red-400 text-base' },
                       { value: global.marge+'%', right: true, cls: 'text-blue-300' },
                     ]} />
                   </tfoot>

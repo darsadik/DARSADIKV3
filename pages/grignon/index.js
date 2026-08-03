@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, useIsMobile } from '../../lib/utils'
+import { fmt, fmtMoney, useIsMobile } from '../../lib/utils'
 import { ADMIN_EMAIL } from '../../lib/config'
 
 const ADMIN = ADMIN_EMAIL
@@ -219,7 +219,7 @@ export default function Grignon() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-amber-700">{fmt(entity.solde || 0)} DHS</span>
+          <span className="text-sm font-bold text-amber-700">{fmtMoney(entity.solde || 0)} DHS</span>
           {statementHref && (
             <Link href={statementHref} className="btn-secondary text-xs px-2 py-1" style={{ textDecoration: 'none' }}>Relevé ↗</Link>
           )}

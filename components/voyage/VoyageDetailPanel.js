@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useToast } from '../../lib/toast'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
+import { fmt, fmtD, fmtMoney, fmtDate, today } from '../../lib/utils'
 import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
 import { loadVoyageData } from '../../lib/services/voyage/loaders'
 import { updateStatut as dbUpdateStatut, updateKm as dbUpdateKm, recalcOdometerChain, updateFuelMode as dbUpdateFuelMode } from '../../lib/services/voyage/updates'
@@ -616,7 +616,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
                         ? (isActive ? 'text-emerald-300' : 'text-emerald-600')
                         : (isActive ? 'text-red-300' : 'text-red-500')
                     }`}>
-                      {profit >= 0 ? '+' : ''}{fmt(profit)} DHS
+                      {profit >= 0 ? '+' : ''}{fmtMoney(profit)} DHS
                     </div>
                   )}
                 </button>
@@ -811,11 +811,11 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
             <div className={`grid gap-4 mb-4 ${isLoue ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
               <div>
                 <div className="text-[10px] text-slate-400 mb-1">Revenu brut</div>
-                <div className="text-lg font-black text-emerald-400">{fmt(revenuBrut)} DHS</div>
+                <div className="text-lg font-black text-emerald-400">{fmtMoney(revenuBrut)} DHS</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-400 mb-1">Coût achats</div>
-                <div className="text-lg font-black text-red-400">{fmt(totalAchats)} DHS</div>
+                <div className="text-lg font-black text-red-400">{fmtMoney(totalAchats)} DHS</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-400 mb-1 flex items-center gap-1 flex-wrap">
@@ -826,9 +826,9 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
                   {fuelSource === 'manual_amount' && <span className="text-[9px] bg-purple-900/60 text-purple-300 px-1.5 py-0.5 rounded font-bold">💰 montant</span>}
                   {fuelSource === 'none' && !isLoue && <span className="text-[9px] bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded font-bold">⚠ manquant</span>}
                 </div>
-                <div className="text-lg font-black text-orange-400">{fmt(fuelCost + totalChargesFixed)} DHS</div>
+                <div className="text-lg font-black text-orange-400">{fmtMoney(fuelCost + totalChargesFixed)} DHS</div>
                 {fuelSource === 'automatic' && voyageKm > 0 && (
-                  <div className="text-[10px] text-emerald-300 mt-0.5">{fmt(voyageKm)} km · {fmtD(fuelCost / voyageKm)} DHS/km</div>
+                  <div className="text-[10px] text-emerald-300 mt-0.5">{fmt(voyageKm)} km · {fmtMoney(fuelCost / voyageKm)} DHS/km</div>
                 )}
               </div>
               {isLoue && (
@@ -837,16 +837,16 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
                     Location camion
                     {totalLocation === 0 && <span className="text-[9px] bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded font-bold">⚠ non saisi</span>}
                   </div>
-                  <div className="text-lg font-black text-amber-400">{fmt(totalLocation)} DHS</div>
+                  <div className="text-lg font-black text-amber-400">{fmtMoney(totalLocation)} DHS</div>
                   {locations.length > 0 && locations[0].reste > 0 && (
-                    <div className="text-[10px] text-red-300 mt-0.5">Reste: {fmt(locations[0].reste)} DHS</div>
+                    <div className="text-[10px] text-red-300 mt-0.5">Reste: {fmtMoney(locations[0].reste)} DHS</div>
                   )}
                 </div>
               )}
               <div>
                 <div className="text-[10px] text-slate-400 mb-1">Profit net</div>
                 <div className={`text-2xl font-black ${profitNet>=0?'text-emerald-400':'text-red-400'}`}>
-                  {profitNet>=0?'+':''}{fmt(profitNet)} DHS
+                  {profitNet>=0?'+':''}{fmtMoney(profitNet)} DHS
                 </div>
                 <div className="text-[10px] text-slate-500 mt-0.5">Marge: {margePercent}%</div>
               </div>
@@ -870,9 +870,9 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
                       <div className="text-[10px] text-slate-400 mt-0.5">
                         {fmt(cp.qte)} u · {Math.round(cp.briqueShare * 100)}% du carburant/location/charges du voyage
                       </div>
-                      <div className="text-[10px] text-slate-400">Rev: {fmt(cp.revenue.total)} · Coût: {fmt(cp.cost.total)}</div>
+                      <div className="text-[10px] text-slate-400">Rev: {fmtMoney(cp.revenue.total)} · Coût: {fmtMoney(cp.cost.total)}</div>
                       <div className={`text-base font-black mt-1 ${cp.profit>=0?'text-emerald-400':'text-red-400'}`}>
-                        {cp.profit>=0?'+':''}{fmt(cp.profit)} DHS
+                        {cp.profit>=0?'+':''}{fmtMoney(cp.profit)} DHS
                       </div>
                     </div>
                   ))}

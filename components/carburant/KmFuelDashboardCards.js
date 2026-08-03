@@ -1,4 +1,4 @@
-import { fmtD } from '../../lib/utils'
+import { fmtD, fmtMoney } from '../../lib/utils'
 
 function Card({ label, value, sub, active, onClick, toneClass, emoji }) {
   const clickable = !!onClick
@@ -34,7 +34,7 @@ export default function KmFuelDashboardCards({
         toneClass="text-red-600" active={activeStatus === 'impossible_distance'} onClick={() => onSelectStatus('impossible_distance')} />
       <Card emoji="🔵" label="Assignations manuelles" value={pleinsAssigned}
         toneClass="text-brand-600" active={activeShow === 'assigned'} onClick={() => onSelectShow('assigned')} />
-      <Card emoji="💰" label="Coût / KM moyen" value={dashboard.avgCostPerKm !== null ? `${fmtD(dashboard.avgCostPerKm)} DHS` : '—'} sub="Toute la flotte" />
+      <Card emoji="💰" label="Coût / KM moyen" value={dashboard.avgCostPerKm !== null ? `${fmtMoney(dashboard.avgCostPerKm)} DHS` : '—'} sub="Toute la flotte" />
     </div>
   )
 }

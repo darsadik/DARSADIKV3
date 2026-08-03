@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { fmt, fmtDate } from '../../lib/utils'
+import { fmt, fmtDate, fmtMoney } from '../../lib/utils'
 import DataTable from './DataTable'
 
 // NOT built from the profitability engine — suppliers don't have a "profit"
@@ -43,7 +43,7 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
     { key: 'nbVoyages', label: 'Voyages', center: true, sortValue: r => r.nbVoyages, render: r => (
       <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{r.nbVoyages}</span>
     ) },
-    { key: 'total', label: 'Total dépensé', right: true, sortValue: r => r.totalAchat, exportValue: r => Math.round(r.totalAchat), render: r => <span className="font-black text-red-500">{fmt(r.totalAchat)} DHS</span> },
+    { key: 'total', label: 'Total dépensé', right: true, sortValue: r => r.totalAchat, exportValue: r => Math.round(r.totalAchat), render: r => <span className="font-black text-red-500">{fmtMoney(r.totalAchat)} DHS</span> },
   ]
 
   const selectedSupplier = rows.find(r => r.key === selected)
@@ -57,8 +57,8 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
     { key: 'camion', label: 'Camion', sortValue: a => voyageById[a.voyage_id]?.camion_plaque || '', render: a => voyageById[a.voyage_id]?.camion_plaque || '—' },
     { key: 'type', label: 'Type', sortValue: a => a.type_brique || '', render: a => a.type_brique || '—' },
     { key: 'qte', label: 'Qté', right: true, sortValue: a => a.qte, exportValue: a => a.qte, render: a => fmt(a.qte) },
-    { key: 'prix', label: 'Prix/u', right: true, sortValue: a => a.prix_achat, exportValue: a => a.prix_achat, render: a => a.prix_achat },
-    { key: 'total', label: 'Total', right: true, sortValue: a => a.total_achat, exportValue: a => Math.round(a.total_achat), render: a => <span className="font-bold text-red-500">{fmt(a.total_achat)}</span> },
+    { key: 'prix', label: 'Prix/u', right: true, sortValue: a => a.prix_achat, exportValue: a => a.prix_achat, render: a => fmtMoney(a.prix_achat) },
+    { key: 'total', label: 'Total', right: true, sortValue: a => a.total_achat, exportValue: a => Math.round(a.total_achat), render: a => <span className="font-bold text-red-500">{fmtMoney(a.total_achat)}</span> },
   ]
 
   return (
@@ -77,7 +77,7 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="font-black text-slate-800 text-sm">🏭 {selectedSupplier.fournisseur_nom}</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{selectedSupplier.nbAchats} achat(s) sur {selectedSupplier.nbVoyages} voyage(s) — {fmt(selectedSupplier.totalAchat)} DHS au total</p>
+                <p className="text-xs text-slate-400 mt-0.5">{selectedSupplier.nbAchats} achat(s) sur {selectedSupplier.nbVoyages} voyage(s) — {fmtMoney(selectedSupplier.totalAchat)} DHS au total</p>
               </div>
               <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none px-1">×</button>
             </div>

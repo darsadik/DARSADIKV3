@@ -1,4 +1,4 @@
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 
 // Moved verbatim out of pages/voyages/index.js so other pages (Review Mode)
 // can reuse the exact same chips instead of redefining them.
@@ -16,7 +16,7 @@ export function StatusBadge({ statut }) {
 export function ProfitCell({ v }) {
   return (
     <span className={`font-black text-sm ${v >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-      {v >= 0 ? '+' : ''}{fmt(v)}
+      {v >= 0 ? '+' : ''}{fmtMoney(v)}
     </span>
   )
 }

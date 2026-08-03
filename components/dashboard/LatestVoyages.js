@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { fmt, fmtDate } from '../../lib/utils'
+import { fmt, fmtDate, fmtMoney } from '../../lib/utils'
 import DataTable from '../profitability/DataTable'
 import MarginBadge, { marginRowClass } from '../profitability/MarginBadge'
 import { StatusBadge } from '../voyage/StatusBadges'
@@ -28,10 +28,10 @@ export default function LatestVoyages({ results, onOpenVoyage }) {
     ) },
     { key: 'camion', label: 'Camion', sortValue: r => r.camion_plaque || '', render: r => r.camion_plaque || '—' },
     { key: 'client', label: 'Client', sortValue: r => clientLabel(r), render: r => clientLabel(r) },
-    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => r.revenue.total, exportValue: r => Math.round(r.revenue.total), render: r => r.revenue.total > 0 ? <span className="font-semibold text-slate-700">{fmt(r.revenue.total)}</span> : <span className="text-slate-300">—</span> },
-    { key: 'cost', label: 'Coût', right: true, sortValue: r => r.cost.total, exportValue: r => Math.round(r.cost.total), render: r => r.cost.total > 0 ? <span className="text-slate-500">{fmt(r.cost.total)}</span> : <span className="text-slate-300">—</span> },
+    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => r.revenue.total, exportValue: r => Math.round(r.revenue.total), render: r => r.revenue.total > 0 ? <span className="font-semibold text-slate-700">{fmtMoney(r.revenue.total)}</span> : <span className="text-slate-300">—</span> },
+    { key: 'cost', label: 'Coût', right: true, sortValue: r => r.cost.total, exportValue: r => Math.round(r.cost.total), render: r => r.cost.total > 0 ? <span className="text-slate-500">{fmtMoney(r.cost.total)}</span> : <span className="text-slate-300">—</span> },
     { key: 'profit', label: 'Profit', right: true, sortValue: r => r.profit, exportValue: r => Math.round(r.profit), render: r => (
-      <span className={`font-black ${r.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{r.profit >= 0 ? '+' : ''}{fmt(r.profit)}</span>
+      <span className={`font-black ${r.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{r.profit >= 0 ? '+' : ''}{fmtMoney(r.profit)}</span>
     ) },
     { key: 'marge', label: 'Marge', right: true, sortValue: r => r.marge, exportValue: r => r.marge, render: r => <MarginBadge marge={r.marge} /> },
     { key: 'statut', label: 'Statut', center: true, sortValue: r => r.statut || '', render: r => <StatusBadge statut={r.statut} /> },

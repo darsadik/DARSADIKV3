@@ -1,4 +1,4 @@
-import { fmt } from '../../lib/utils'
+import { fmtMoney } from '../../lib/utils'
 import FraisEditor from './FraisEditor'
 
 // Shared editor for achat / livraison / retour / charge rows sourced from a
@@ -32,7 +32,7 @@ export default function EditTransactionModal({ editRow, editForm, setEditForm, o
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Prix achat / u</label>
               <input type="number" step="0.01" value={ef.prix_achat||''} onChange={e=>setEf({prix_achat:e.target.value})} className="input w-full text-sm"/></div>
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total achat</label>
-              <div className="input w-full text-sm bg-slate-50 font-bold text-red-600">{fmt((parseFloat(ef.qte)||0)*(parseFloat(ef.prix_achat)||0))} DHS</div></div>
+              <div className="input w-full text-sm bg-slate-50 font-bold text-red-600">{fmtMoney((parseFloat(ef.qte)||0)*(parseFloat(ef.prix_achat)||0))} DHS</div></div>
           </>}
           {editRow.type==='liv' && <>
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date livraison</label>
@@ -46,14 +46,14 @@ export default function EditTransactionModal({ editRow, editForm, setEditForm, o
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Remise (DHS)</label>
               <input type="number" step="0.01" value={ef.remise||''} onChange={e=>setEf({remise:e.target.value})} className="input w-full text-sm"/></div>
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total produits</label>
-              <div className="input w-full text-sm bg-slate-50 font-bold text-emerald-600">{fmt(Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0)))} DHS</div></div>
+              <div className="input w-full text-sm bg-slate-50 font-bold text-emerald-600">{fmtMoney(Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0)))} DHS</div></div>
             <div className="col-span-2"><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note livraison</label>
               <input type="text" value={ef.note||''} onChange={e=>setEf({note:e.target.value})} className="input w-full text-sm" placeholder="ex: SAIDIA, Chantier A…"/></div>
             <div className="col-span-2">
               <FraisEditor items={ef.frais||[]} onChange={arr=>setEf({frais:arr})} />
               {(ef.frais||[]).length > 0 && (
                 <div className="text-[10px] text-emerald-700 font-bold mt-2 border-t border-slate-100 pt-2">
-                  Total livraison : {fmt(
+                  Total livraison : {fmtMoney(
                     Math.max(0,(parseFloat(ef.qte)||0)*(parseFloat(ef.prix_vente)||0)-(parseFloat(ef.remise)||0))
                     + (ef.frais||[]).reduce((s,f)=>{const amt=parseFloat(f.montant)||0; return s + (f.kind==='deduction' ? -amt : amt)},0)
                   )} DHS
@@ -73,7 +73,7 @@ export default function EditTransactionModal({ editRow, editForm, setEditForm, o
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Montant payé</label>
               <input type="number" value={ef.montant_paye||''} onChange={e=>setEf({montant_paye:e.target.value})} className="input w-full text-sm"/></div>
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Restant</label>
-              <div className="input w-full text-sm bg-slate-50 font-bold text-orange-600">{fmt(Math.max(0,(parseFloat(ef.montant)||0)-(parseFloat(ef.montant_paye)||0)))} DHS</div></div>
+              <div className="input w-full text-sm bg-slate-50 font-bold text-orange-600">{fmtMoney(Math.max(0,(parseFloat(ef.montant)||0)-(parseFloat(ef.montant_paye)||0)))} DHS</div></div>
           </>}
           {editRow.type==='charge' && <>
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>

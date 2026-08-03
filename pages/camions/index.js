@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Layout from '../../components/Layout'
 import PerfChart from '../../components/camions/PerfChart'
 import { supabase } from '../../lib/supabase'
-import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
+import { fmt, fmtD, fmtDate, fmtMoney, today } from '../../lib/utils'
 import {
   buildFuelCycles, historicalAverages, buildPeriodStats, globalStats,
   statusForCycle, periodRange, STATUS_META,
@@ -139,7 +139,7 @@ export default function PerformanceCamions() {
         </div>
         <div className="stat-card border border-orange-100 bg-orange-50">
           <div className="stat-label text-orange-600">Total DH carburant</div>
-          <div className="stat-value text-orange-700">{fmt(stats.totalDh)}</div>
+          <div className="stat-value text-orange-700">{fmtMoney(stats.totalDh)}</div>
           <div className="stat-sub">Dépensés</div>
         </div>
         <div className="stat-card border border-purple-100 bg-purple-50">
@@ -149,7 +149,7 @@ export default function PerformanceCamions() {
         </div>
         <div className="stat-card border border-gray-100">
           <div className="stat-label">Coût moyen/km</div>
-          <div className="stat-value text-gray-700">{stats.avgCoutKm !== null ? stats.avgCoutKm.toFixed(2) : '—'}</div>
+          <div className="stat-value text-gray-700">{stats.avgCoutKm !== null ? fmtMoney(stats.avgCoutKm) : '—'}</div>
           <div className="stat-sub">DH/km (flotte)</div>
         </div>
         <div className="stat-card border border-emerald-100 bg-emerald-50">
@@ -160,7 +160,7 @@ export default function PerformanceCamions() {
         <div className="stat-card border border-red-100 bg-red-50">
           <div className="stat-label text-red-600">⚠️ Le plus coûteux</div>
           <div className="stat-value text-red-700" style={{ fontSize: '18px' }}>{stats.mostCostly?.plaque || '—'}</div>
-          <div className="stat-sub">{stats.mostCostly ? `${stats.mostCostly.coutKm.toFixed(2)} DH/km` : 'Aucune donnée'}</div>
+          <div className="stat-sub">{stats.mostCostly ? `${fmtMoney(stats.mostCostly.coutKm)} DH/km` : 'Aucune donnée'}</div>
         </div>
         <div className="stat-card border border-rose-100 bg-rose-50">
           <div className="stat-label text-rose-600">🔴 Le plus d'alertes</div>
@@ -201,9 +201,9 @@ export default function PerformanceCamions() {
                       <td className="td text-xs text-gray-400">{periodLabel}</td>
                       <td className="td text-right font-medium">{r.kmTotal ? fmt(r.kmTotal) : '—'}</td>
                       <td className="td text-right">{r.litresTotal ? fmtD(r.litresTotal) : '—'}</td>
-                      <td className="td text-right font-semibold text-amber-600">{r.dhTotal ? fmt(r.dhTotal) : '—'}</td>
+                      <td className="td text-right font-semibold text-amber-600">{r.dhTotal ? fmtMoney(r.dhTotal) : '—'}</td>
                       <td className="td text-right font-bold">{r.consoL100 !== null ? r.consoL100.toFixed(1) : '—'}</td>
-                      <td className="td text-right font-bold">{r.coutKm !== null ? r.coutKm.toFixed(2) : '—'}</td>
+                      <td className="td text-right font-bold">{r.coutKm !== null ? fmtMoney(r.coutKm) : '—'}</td>
                       <td className="td text-right">{r.nbPleins}</td>
                       <td className="td text-right">{r.nbVoyages}</td>
                       <td className="td"><StatBadge status={r.status} /></td>
@@ -243,7 +243,7 @@ export default function PerformanceCamions() {
                                         <td className="td text-right">{fmt(c.kmParcourus)}</td>
                                         <td className="td text-right">{fmtD(c.litres)}</td>
                                         <td className="td text-right font-semibold">{c.consoL100.toFixed(1)}</td>
-                                        <td className="td text-right font-semibold">{c.coutKm.toFixed(2)}</td>
+                                        <td className="td text-right font-semibold">{fmtMoney(c.coutKm)}</td>
                                         <td className="td"><StatBadge status={statusForCycle(c, hist, thresholdPct)} /></td>
                                       </tr>
                                     ))}

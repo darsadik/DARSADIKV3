@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 import Section from '../ui/Section'
 
 const MODES = [
@@ -68,7 +68,7 @@ export default function FuelModeSection({ voyage, fuelCost, fuelSource, voyageKm
           </div>
           <div className="text-right">
             <div className="text-[10px] text-slate-400 uppercase tracking-wide">Coût carburant</div>
-            <div className="text-lg font-black text-slate-700">{fmt(fuelCost)} DHS</div>
+            <div className="text-lg font-black text-slate-700">{fmtMoney(fuelCost)} DHS</div>
           </div>
         </div>
       ) : (
@@ -106,7 +106,7 @@ export default function FuelModeSection({ voyage, fuelCost, fuelSource, voyageKm
                   className="input text-sm w-28" placeholder="Ex: 3.5" />
               </div>
               {previewRate > 0 && (
-                <div className="text-xs text-slate-500 pb-2">= <span className="font-bold text-slate-700">{fmt(previewRate)} DHS</span></div>
+                <div className="text-xs text-slate-500 pb-2">= <span className="font-bold text-slate-700">{fmtMoney(previewRate)} DHS</span></div>
               )}
             </div>
           )}

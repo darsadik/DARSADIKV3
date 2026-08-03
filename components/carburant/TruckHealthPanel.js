@@ -1,4 +1,4 @@
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 
 export default function TruckHealthPanel({ camionPlaque, health }) {
   if (!health || health.nbCycles === 0) return null
@@ -23,7 +23,7 @@ export default function TruckHealthPanel({ camionPlaque, health }) {
         </div>
         <div className="bg-amber-50 rounded-lg p-1.5">
           <div className="text-[10px] text-amber-500">Coût/km moyen</div>
-          <div className="text-xs font-bold text-amber-700">{health.avgCoutKm !== null ? `${health.avgCoutKm.toFixed(2)} DHS` : '—'}</div>
+          <div className="text-xs font-bold text-amber-700">{health.avgCoutKm !== null ? `${fmtMoney(health.avgCoutKm)} DHS` : '—'}</div>
         </div>
         <div className="bg-blue-50 rounded-lg p-1.5 col-span-2 md:col-span-1">
           <div className="text-[10px] text-blue-400">Distance/cycle moyenne</div>

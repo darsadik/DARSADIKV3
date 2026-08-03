@@ -1,4 +1,4 @@
-import { fmt, fmtD, fmtDate } from '../../lib/utils'
+import { fmt, fmtD, fmtMoney, fmtDate } from '../../lib/utils'
 import Section from '../ui/Section'
 import Empty from '../ui/Empty'
 import DelBtn from '../ui/DelBtn'
@@ -49,7 +49,7 @@ export default function AchatSection({
           <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Prix achat / u</label>
             <input type="number" step="0.01" value={achatForm.prix_achat} onChange={e=>onFormChange({...achatForm,prix_achat:e.target.value})} className="input w-full text-sm" placeholder="1.20" required/></div>
           <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total achat</label>
-            <div className="input w-full text-sm bg-slate-50 font-bold text-slate-700 flex items-center">{fmt((parseFloat(achatForm.qte)||0)*(parseFloat(achatForm.prix_achat)||0))} DHS</div></div>
+            <div className="input w-full text-sm bg-slate-50 font-bold text-slate-700 flex items-center">{fmtMoney((parseFloat(achatForm.qte)||0)*(parseFloat(achatForm.prix_achat)||0))} DHS</div></div>
           <div>
             {showAchatNote
               ? <><label className="text-[10px] font-semibold text-slate-500 block mb-1">Note</label>
@@ -66,12 +66,12 @@ export default function AchatSection({
               </div>
               <div className="text-center">
                 <div className="text-[10px] text-blue-400 uppercase">Prix/u</div>
-                <div className="font-bold text-blue-700">{fmtD(parseFloat(achatForm.prix_achat)||0)} DHS</div>
+                <div className="font-bold text-blue-700">{fmtMoney(parseFloat(achatForm.prix_achat)||0)} DHS</div>
               </div>
               <div className="text-center">
                 <div className="text-[10px] text-blue-400 uppercase font-bold">Total achat</div>
                 <div className="font-black text-red-600 text-lg">
-                  {fmt(Math.round((parseFloat(achatForm.qte)||0)*(parseFloat(achatForm.prix_achat)||0)*100)/100)} DHS
+                  {fmtMoney(Math.round((parseFloat(achatForm.qte)||0)*(parseFloat(achatForm.prix_achat)||0)*100)/100)} DHS
                 </div>
               </div>
             </div>
@@ -110,8 +110,8 @@ export default function AchatSection({
                   <td className="py-2 pr-3 font-semibold">{a.type_brique||a.type_produit}</td>
                   <td className="py-2 pr-3 text-slate-500">{a.fournisseur_nom||'—'}</td>
                   <td className="py-2 pr-3 text-right">{fmt(a.qte)}</td>
-                  <td className="py-2 pr-3 text-right">{fmtD(a.prix_achat)}</td>
-                  <td className="py-2 text-right font-bold text-red-500">{fmt(a.total_achat)} DHS</td>
+                  <td className="py-2 pr-3 text-right">{fmtMoney(a.prix_achat)}</td>
+                  <td className="py-2 text-right font-bold text-red-500">{fmtMoney(a.total_achat)} DHS</td>
                   <td className="py-2 pl-1 flex items-center gap-0.5">
                     <EditBtn onEdit={() => onEdit(a)}/>
                     <DelBtn onDel={() => onDel(a)}/>
@@ -120,7 +120,7 @@ export default function AchatSection({
               ))}
               <tr className="bg-slate-50">
                 <td colSpan={5} className="py-2 pr-3 font-bold text-slate-700 text-right text-[10px] uppercase">Total achats</td>
-                <td className="py-2 font-black text-red-600">{fmt(achats.reduce((s,a)=>s+(a.total_achat||0),0))} DHS</td>
+                <td className="py-2 font-black text-red-600">{fmtMoney(achats.reduce((s,a)=>s+(a.total_achat||0),0))} DHS</td>
                 <td></td>
               </tr>
             </tbody>

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtDate, today, startOfMonth } from '../../lib/utils'
+import { fmtDate, today, startOfMonth, fmtMoney } from '../../lib/utils'
 import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { computeVoyageValidation, voyageValidationStatus } from '../../lib/services/voyage/validation'
@@ -252,7 +252,7 @@ export default function ReviewMode() {
                   <div className="flex items-center justify-between mt-1">
                     <div className={isActive ? 'text-white' : ''}>
                       {isActive
-                        ? <span className={`font-black text-sm ${result.profit >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{result.profit >= 0 ? '+' : ''}{fmt(result.profit)}</span>
+                        ? <span className={`font-black text-sm ${result.profit >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{result.profit >= 0 ? '+' : ''}{fmtMoney(result.profit)}</span>
                         : <ProfitCell v={result.profit} />}
                     </div>
                     <label className="flex items-center gap-1 text-[10px]" onClick={e => e.stopPropagation()}>

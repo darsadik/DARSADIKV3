@@ -1,4 +1,4 @@
-import { fmt, fmtDate } from '../../lib/utils'
+import { fmtDate, fmtMoney } from '../../lib/utils'
 import DataTable from './DataTable'
 import MarginBadge, { marginRowClass } from './MarginBadge'
 
@@ -21,10 +21,10 @@ export default function EntityDrillDrawer({ title, subtitle, voyages, clientKey,
     { key: 'date', label: 'Date', sortValue: r => r.date_depart, render: r => fmtDate(r.date_depart) },
     { key: 'ref', label: 'Voyage', sortValue: r => r.reference || String(r.id), render: r => r.reference || `#${r.id}` },
     { key: 'camion', label: 'Camion', sortValue: r => r.camion_plaque, render: r => r.camion_plaque },
-    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => slice(r).revenue.total, exportValue: r => Math.round(slice(r).revenue.total), render: r => <span className="font-bold text-emerald-600">{fmt(slice(r).revenue.total)}</span> },
-    { key: 'cost', label: 'Coût', right: true, sortValue: r => slice(r).cost.total, exportValue: r => Math.round(slice(r).cost.total), render: r => <span className="text-red-400">−{fmt(slice(r).cost.total)}</span> },
+    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => slice(r).revenue.total, exportValue: r => Math.round(slice(r).revenue.total), render: r => <span className="font-bold text-emerald-600">{fmtMoney(slice(r).revenue.total)}</span> },
+    { key: 'cost', label: 'Coût', right: true, sortValue: r => slice(r).cost.total, exportValue: r => Math.round(slice(r).cost.total), render: r => <span className="text-red-400">−{fmtMoney(slice(r).cost.total)}</span> },
     { key: 'profit', label: '= Profit', right: true, sortValue: r => slice(r).profit, exportValue: r => Math.round(slice(r).profit), render: r => (
-      <span className={`font-black ${slice(r).profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{slice(r).profit >= 0 ? '+' : ''}{fmt(slice(r).profit)}</span>
+      <span className={`font-black ${slice(r).profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{slice(r).profit >= 0 ? '+' : ''}{fmtMoney(slice(r).profit)}</span>
     ) },
     { key: 'marge', label: 'Marge', right: true, sortValue: r => slice(r).marge, exportValue: r => slice(r).marge, render: r => <MarginBadge marge={slice(r).marge} /> },
   ]
@@ -38,9 +38,9 @@ export default function EntityDrillDrawer({ title, subtitle, voyages, clientKey,
       <tfoot>
         <tr className="border-t-2 border-slate-300 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
           <td colSpan={3} className="py-3 px-3 font-black text-sm uppercase">Total ({rows.length} voyages)</td>
-          <td className="py-3 px-3 text-right font-black text-emerald-400">{fmt(rev)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmt(cost)}</td>
-          <td className={`py-3 px-3 text-right font-black ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{fmt(profit)}</td>
+          <td className="py-3 px-3 text-right font-black text-emerald-400">{fmtMoney(rev)}</td>
+          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(cost)}</td>
+          <td className={`py-3 px-3 text-right font-black ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{fmtMoney(profit)}</td>
           <td className="py-3 px-3 text-right font-black text-blue-300">{marge}%</td>
         </tr>
       </tfoot>

@@ -1,4 +1,4 @@
-import { fmt, fmtDate } from '../../lib/utils'
+import { fmtMoney, fmtDate } from '../../lib/utils'
 import { CHARGE_CATS, COMMON_CHARGE_KEYS } from '../../lib/voyage-constants'
 import Section from '../ui/Section'
 import Empty from '../ui/Empty'
@@ -74,7 +74,7 @@ export default function ChargesSection({
           )}
           <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
             <div className="text-sm font-bold text-slate-700">
-              Total: <span className="text-red-600">{fmt(CHARGE_CATS.reduce((s, c) => s + (parseFloat(chgGrid[c.key]) || 0), 0))} DHS</span>
+              Total: <span className="text-red-600">{fmtMoney(CHARGE_CATS.reduce((s, c) => s + (parseFloat(chgGrid[c.key]) || 0), 0))} DHS</span>
               <span className="text-[10px] text-slate-400 ml-2">({CHARGE_CATS.filter(c => parseFloat(chgGrid[c.key]) > 0).length} catégorie(s))</span>
             </div>
             <div className="flex gap-2">
@@ -107,7 +107,7 @@ export default function ChargesSection({
                   <td className="py-2 pr-3 text-slate-500">{fmtDate(c.date_charge)}</td>
                   <td className="py-2 pr-3 font-semibold">{(() => { const cat = CHARGE_CATS.find(x => x.key === c.categorie); return cat ? `${cat.icon} ${cat.label}` : c.categorie })()}</td>
                   <td className="py-2 pr-3 text-slate-500">{c.description || '—'}</td>
-                  <td className="py-2 pr-3 text-right font-bold text-red-600">{fmt(c.montant)} DHS</td>
+                  <td className="py-2 pr-3 text-right font-bold text-red-600">{fmtMoney(c.montant)} DHS</td>
                   <td className="py-2 text-xs">
                     {c.facture_client
                       ? <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded font-semibold">📋 {c.client_nom || 'Client'}</span>
@@ -121,14 +121,14 @@ export default function ChargesSection({
               ))}
               <tr className="bg-slate-50 font-bold">
                 <td colSpan={3} className="py-2 pr-3 text-right text-[10px] uppercase text-slate-700">Total charges fixes</td>
-                <td className="py-2 pr-3 text-right text-red-600">{fmt(totalChargesFixed)} DHS</td>
+                <td className="py-2 pr-3 text-right text-red-600">{fmtMoney(totalChargesFixed)} DHS</td>
                 <td className="py-2 text-xs text-slate-400">répartition par quantité</td>
                 <td></td>
               </tr>
               {totalChargesClient > 0 && (
                 <tr className="bg-emerald-50">
                   <td colSpan={3} className="py-2 pr-3 text-right text-[10px] uppercase text-slate-700">Charges facturées clients</td>
-                  <td className="py-2 pr-3 text-right text-emerald-600 font-bold">{fmt(totalChargesClient)} DHS</td>
+                  <td className="py-2 pr-3 text-right text-emerald-600 font-bold">{fmtMoney(totalChargesClient)} DHS</td>
                   <td colSpan={2}></td>
                 </tr>
               )}

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { fmt, fmtD, fmtDate } from '../../lib/utils'
+import { fmt, fmtD, fmtDate, fmtMoney } from '../../lib/utils'
 import { linkGasoilToVoyage, unlinkGasoilFromVoyage } from '../../lib/services/voyage/gasoilLink'
 import { suggestVoyagesForPlein } from '../../lib/services/voyage/fuelSuggestions'
 
@@ -77,7 +77,7 @@ export default function FuelAssignPopover({ plein, camionVoyageRows, onClose, on
         <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
           <div>
             <h2 className="font-bold text-gray-900">⛽ Assigner ce plein</h2>
-            <p className="text-xs text-gray-400 mt-0.5">{plein.plaque} · {fmtDate(plein.date)} · {fmtD(plein.qte)}L = {fmt(plein.total)} DHS</p>
+            <p className="text-xs text-gray-400 mt-0.5">{plein.plaque} · {fmtDate(plein.date)} · {fmtD(plein.qte)}L = {fmtMoney(plein.total)} DHS</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
         </div>

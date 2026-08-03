@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { fmt, fmtD, fmtDate } from '../../lib/utils'
+import { fmt, fmtD, fmtMoney, fmtDate } from '../../lib/utils'
 import Section from '../ui/Section'
 import Empty from '../ui/Empty'
 import DelBtn from '../ui/DelBtn'
@@ -90,16 +90,16 @@ export default function LivraisonSection({
               </div>
               <div className="text-center">
                 <div className="text-[10px] text-emerald-400 uppercase">Produits</div>
-                <div className="font-bold text-emerald-700">{fmt(productTotal)} DHS</div>
+                <div className="font-bold text-emerald-700">{fmtMoney(productTotal)} DHS</div>
                 {fraisTotal !== 0 && (
                   <div className={`text-[9px] ${fraisTotal > 0 ? 'text-amber-500' : 'text-rose-500'}`}>
-                    {fraisTotal > 0 ? '+' : '−'} {fmt(Math.abs(fraisTotal))} {fraisTotal > 0 ? 'frais' : 'déduction'}
+                    {fraisTotal > 0 ? '+' : '−'} {fmtMoney(Math.abs(fraisTotal))} {fraisTotal > 0 ? 'frais' : 'déduction'}
                   </div>
                 )}
               </div>
               <div className="text-center">
                 <div className="text-[10px] text-emerald-400 uppercase">Total livraison</div>
-                <div className="font-bold text-emerald-700">{fmt(combinedTotal)} DHS</div>
+                <div className="font-bold text-emerald-700">{fmtMoney(combinedTotal)} DHS</div>
               </div>
               <div className="text-center">
                 <div className="text-[10px] text-purple-400 uppercase">Marge%</div>
@@ -151,16 +151,16 @@ export default function LivraisonSection({
                       <td className="py-2 pr-3 text-slate-500">{l.type_brique||l.type_produit}</td>
                       <td className="py-2 pr-3 text-right">{fmt(l.qte)}</td>
                       <td className="py-2 pr-3 text-right">
-                        {fmtD(l.prix_vente)}
-                        {l.remise>0 && <span className="ml-1 text-orange-500 text-[9px]">-{fmt(l.remise)}</span>}
+                        {fmtMoney(l.prix_vente)}
+                        {l.remise>0 && <span className="ml-1 text-orange-500 text-[9px]">-{fmtMoney(l.remise)}</span>}
                       </td>
                       <td className="py-2 pr-3 text-right font-bold text-emerald-600">
-                        {fmt(deliveryTotal)} DHS
+                        {fmtMoney(deliveryTotal)} DHS
                         {(chargesSum > 0 || deductionsSum > 0) && (
                           <div className="text-[9px] text-slate-400 font-normal">
-                            {chargesSum > 0 && <>dont +{fmt(chargesSum)} frais</>}
+                            {chargesSum > 0 && <>dont +{fmtMoney(chargesSum)} frais</>}
                             {chargesSum > 0 && deductionsSum > 0 && ' · '}
-                            {deductionsSum > 0 && <>−{fmt(deductionsSum)} déd.</>}
+                            {deductionsSum > 0 && <>−{fmtMoney(deductionsSum)} déd.</>}
                           </div>
                         )}
                       </td>
@@ -179,7 +179,7 @@ export default function LivraisonSection({
                             ↳ {f.label}
                           </td>
                           <td className={`py-1 pr-3 text-right text-[10px] font-semibold ${isDeduction ? 'text-rose-600' : 'text-amber-600'}`}>
-                            {isDeduction ? '−' : '+'} {fmt(f.montant)} DHS
+                            {isDeduction ? '−' : '+'} {fmtMoney(f.montant)} DHS
                           </td>
                           <td className="py-1 pr-3 text-[10px] text-slate-400">{f.note || ''}</td>
                           <td></td>
@@ -192,7 +192,7 @@ export default function LivraisonSection({
               <tr className="bg-slate-50 font-bold">
                 <td colSpan={4} className="py-2 pr-3 text-right text-[10px] uppercase text-slate-700">Total livraisons</td>
                 <td></td>
-                <td className="py-2 pr-3 text-right text-emerald-600">{fmt(totalRevenuLivs)} DHS</td>
+                <td className="py-2 pr-3 text-right text-emerald-600">{fmtMoney(totalRevenuLivs)} DHS</td>
                 <td colSpan={2}></td>
               </tr>
             </tbody>

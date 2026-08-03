@@ -291,7 +291,7 @@ export default function Clients() {
   }
 
   async function editSolde(client) {
-    const v = prompt(`Modifier le solde de ${client.nom} (actuel: ${fmt(client.solde)} DHS) :`, client.solde || 0)
+    const v = prompt(`Modifier le solde de ${client.nom} (actuel: ${fmtMoney(client.solde)} DHS) :`, client.solde || 0)
     if (v === null) return
     const n = parseFloat(v)
     if (isNaN(n)) return
@@ -985,7 +985,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
 
   async function fixSolde() {
     if (!selected || computedSolde === null) return
-    if (!confirm(`Corriger le solde de ${selected.nom} ?\n${fmt(selected.solde)} DHS → ${fmt(computedSolde)} DHS`)) return
+    if (!confirm(`Corriger le solde de ${selected.nom} ?\n${fmtMoney(selected.solde)} DHS → ${fmtMoney(computedSolde)} DHS`)) return
     await supabase.from('clients').update({ solde: computedSolde }).eq('id', selected.id)
     loadClients()
     setSelected({ ...selected, solde: computedSolde })
@@ -1306,7 +1306,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   }
 
   async function deleteRemise(r) {
-    if (!confirm(`Supprimer la remise de ${fmt(r.montant)} DHS ?`)) return
+    if (!confirm(`Supprimer la remise de ${fmtMoney(r.montant)} DHS ?`)) return
     await supabase.from('remises').delete().eq('id', r.id)
     const newSolde = (selected.solde || 0) + (r.montant || 0)
     await supabase.from('clients').update({ solde: newSolde }).eq('id', selected.id)
@@ -1370,7 +1370,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
           </div>
           <div className="flex items-center gap-2 ml-2">
             <div className={`text-xs font-bold ${balColor}`}>
-              {reportLoading ? '...' : `${fmt(displayBalance)} DHS`}
+              {reportLoading ? '...' : `${fmtMoney(displayBalance)} DHS`}
             </div>
             <span className="text-gray-300 lg:hidden">›</span>
           </div>
@@ -1404,7 +1404,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
               </div>
             </div>
             <div className="text-xs font-bold text-red-600 flex-shrink-0">
-              {reportLoading ? '...' : `${fmt(g.total)} DHS`}
+              {reportLoading ? '...' : `${fmtMoney(g.total)} DHS`}
             </div>
           </div>
         </div>
@@ -1436,7 +1436,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
     }
     const totalSolde = selClients.reduce(function(s, c) { return s + (reportPeriodActive ? (reportBalances[c.id] != null ? reportBalances[c.id] : c.solde || 0) : (c.solde || 0)) }, 0)
     const totalColor = totalSolde > 0 ? '#dc2626' : '#16a34a'
-    const totalSoldeStr = fmt(totalSolde)
+    const totalSoldeStr = fmtMoney(totalSolde)
     const p = 'padding:10px 14px;border-bottom:1px solid #e8ecf0'
     let rows = ''
     for (let i = 0; i < selClients.length; i++) {
@@ -1449,7 +1449,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         + '<td style="' + p + ';font-size:14px;font-weight:700;color:#0f172a;text-transform:uppercase">' + c.nom + '</td>'
         + '<td style="' + p + ';font-size:13px;color:#475569">' + (c.depot || '—') + '</td>'
         + '<td style="' + p + ';font-size:13px;color:#475569">' + (c.tel || '—') + '</td>'
-        + '<td style="' + p + ';text-align:right;font-size:15px;font-weight:900;color:' + soldeColor + ';white-space:nowrap;font-family:monospace;letter-spacing:-0.3px">' + fmt(solde) + ' DHS</td>'
+        + '<td style="' + p + ';text-align:right;font-size:15px;font-weight:900;color:' + soldeColor + ';white-space:nowrap;font-family:monospace;letter-spacing:-0.3px">' + fmtMoney(solde) + ' DHS</td>'
         + '</tr>'
     }
     const css = '@page{margin:12mm} @media print{.btn-p{display:none!important}} *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box;margin:0;padding:0} body{font-family:Arial,sans-serif;font-size:13px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f} table{width:100%;border-collapse:collapse} thead th{background:#1e3a5f;color:#fff;padding:10px 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;text-align:left;white-space:nowrap} .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}'
@@ -2213,7 +2213,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
               <span className="text-gray-500 font-medium">
                 Total créances{reportPeriodActive ? <span className="text-blue-500 text-xs ml-1">(période)</span> : ''}
               </span>
-              <span className="font-bold text-red-600">{reportLoading ? '...' : `${fmt(totalCreances)} DHS`}</span>
+              <span className="font-bold text-red-600">{reportLoading ? '...' : `${fmtMoney(totalCreances)} DHS`}</span>
             </div>
           </div>
         </div>
@@ -2295,11 +2295,11 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Solde actuel</span>
                     {((selected.opening_balance || 0) > 0 || carryOver !== null) && (
-                      <span className="text-xs text-gray-400">· Report: {fmt(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</span>
+                      <span className="text-xs text-gray-400">· Report: {fmtMoney(carryOver !== null ? carryOver : (selected.opening_balance || 0))} DHS</span>
                     )}
                   </div>
                   <span className="text-xl font-black" style={{color:(selected.solde||0)>0?'#d97706':'#16a34a'}}>
-                    {fmt(selected.solde || 0)} <span className="text-sm font-semibold text-gray-400">DHS</span>
+                    {fmtMoney(selected.solde || 0)} <span className="text-sm font-semibold text-gray-400">DHS</span>
                   </span>
                 </div>
 
@@ -2311,21 +2311,21 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       <div>
                         <div className="font-bold text-amber-700 mb-1">⚠️ Solde incohérent détecté</div>
                         <div className="text-amber-600">
-                          Solde enregistré: <strong>{fmt(selected.solde)} DHS</strong>
-                          {' '}· Solde calculé: <strong>{fmt(computedSolde)} DHS</strong>
-                          {' '}· Écart: <strong>{fmt(soldeGap)} DHS</strong>
+                          Solde enregistré: <strong>{fmtMoney(selected.solde)} DHS</strong>
+                          {' '}· Solde calculé: <strong>{fmtMoney(computedSolde)} DHS</strong>
+                          {' '}· Écart: <strong>{fmtMoney(soldeGap)} DHS</strong>
                         </div>
                       </div>
                       <button onClick={fixSolde}
                         className="flex-shrink-0 bg-amber-500 text-white px-3 py-1.5 rounded-lg font-bold text-xs hover:bg-amber-600 transition">
-                        Corriger → {fmt(computedSolde)} DHS
+                        Corriger → {fmtMoney(computedSolde)} DHS
                       </button>
                     </div>
                   ) : (
                     <div className="mt-3 px-3 py-2 rounded-xl text-xs flex items-center gap-2"
                       style={{background:'#f0fdf4', border:'1px solid #bbf7d0'}}>
                       <span className="text-green-600 font-bold">✓ Solde vérifié</span>
-                      <span className="text-green-500">Le solde correspond aux transactions ({fmt(computedSolde)} DHS)</span>
+                      <span className="text-green-500">Le solde correspond aux transactions ({fmtMoney(computedSolde)} DHS)</span>
                     </div>
                   )
                 )}
@@ -2623,10 +2623,10 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 <div className="p-3 rounded-xl text-sm" style={{background:'#faf5ff', border:'1px solid #e9d5ff'}}>
                   <div className="font-bold text-purple-700 mb-1">🎁 Aperçu</div>
                   <div className="text-gray-700">{selected?.nom}</div>
-                  <div className="text-xl font-bold text-purple-700">− {fmt(parseFloat(remiseForm.montant)||0)} DHS</div>
+                  <div className="text-xl font-bold text-purple-700">− {fmtMoney(parseFloat(remiseForm.montant)||0)} DHS</div>
                   {remiseForm.motif && <div className="text-xs text-gray-500 italic mt-1">{remiseForm.motif}</div>}
                   <div className="text-xs text-gray-400 mt-1">
-                    Nouveau solde: {fmt((selected?.solde || 0) - (parseFloat(remiseForm.montant)||0) + (remiseModal !== 'new' ? (remiseModal.montant || 0) : 0))} DHS
+                    Nouveau solde: {fmtMoney((selected?.solde || 0) - (parseFloat(remiseForm.montant)||0) + (remiseModal !== 'new' ? (remiseModal.montant || 0) : 0))} DHS
                   </div>
                 </div>
               )}
@@ -2729,7 +2729,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 <div className="p-3 rounded-xl text-sm" style={{background:'#fffbeb', border:'1px solid #fde68a'}}>
                   <div className="font-bold text-amber-700 mb-1">📂 Solde Reporté</div>
                   <div className="text-gray-700">{openingModal.nom}</div>
-                  <div className="text-xl font-bold text-amber-700">{fmt(parseFloat(openingForm.montant)||0)} DHS</div>
+                  <div className="text-xl font-bold text-amber-700">{fmtMoney(parseFloat(openingForm.montant)||0)} DHS</div>
                   {openingForm.date && <div className="text-xs text-amber-600 mt-1">au {fmtMois(openingForm.date)}</div>}
                   {openingForm.note && <div className="text-xs text-gray-500 italic mt-0.5">{openingForm.note}</div>}
                 </div>
@@ -2794,7 +2794,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
               {selectedClientIds.size} client{selectedClientIds.size > 1 ? 's' : ''} sélectionné{selectedClientIds.size > 1 ? 's' : ''}
             </div>
             <div style={{fontSize:12,opacity:0.85,marginTop:3}}>
-              Total créances : <strong>{fmt(selectedCreancesTotal)} DHS</strong>
+              Total créances : <strong>{fmtMoney(selectedCreancesTotal)} DHS</strong>
               {reportPeriodActive && reportTo && <span style={{opacity:0.7,marginLeft:6}}>· au {fmtDate(reportTo)}</span>}
             </div>
           </div>

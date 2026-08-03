@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { STATUS_META } from '../../lib/camionPerformance'
+import { fmtMoney } from '../../lib/utils'
 
 /**
  * PerfChart — évolution chronologique d'une métrique de performance carburant.
@@ -18,6 +19,9 @@ export default function PerfChart({ title, points, color, unit, height = 180 }) 
       </div>
     )
   }
+
+  const isMoney = typeof unit === 'string' && unit.includes('DH')
+  const fmtValue = (v, decimals) => isMoney ? fmtMoney(v) : v.toFixed(decimals)
 
   const W = 640, H = height, padL = 40, padR = 12, padT = 16, padB = 26
 
@@ -56,7 +60,7 @@ export default function PerfChart({ title, points, color, unit, height = 180 }) 
           return (
             <g key={i}>
               <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f1f5f9" strokeWidth="1" />
-              <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#94a3b8">{val.toFixed(1)}</text>
+              <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#94a3b8">{fmtValue(val, 1)}</text>
             </g>
           )
         })}
@@ -86,7 +90,7 @@ export default function PerfChart({ title, points, color, unit, height = 180 }) 
         {hover !== null ? (
           <>
             <span className="text-gray-500">{points[hover].sub || points[hover].label}</span>
-            <span className="font-bold text-gray-900">{points[hover].value.toFixed(2)} {unit}</span>
+            <span className="font-bold text-gray-900">{fmtValue(points[hover].value, 2)} {unit}</span>
             <span className={STATUS_META[points[hover].status]?.text}>
               {STATUS_META[points[hover].status]?.emoji} {STATUS_META[points[hover].status]?.label}
             </span>

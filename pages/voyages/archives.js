@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
 import { recalcOdometerChain } from '../../lib/services/voyage/updates'
+import { fmtMoney } from '../../lib/utils'
 
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
@@ -154,12 +155,12 @@ export default function VoyagesArchives() {
                         <div className="text-slate-400">enreg. supprimés</div>
                       </div>
                       <div className="text-center">
-                        <div className="font-black text-emerald-600">{fmt(s.revenu)}</div>
+                        <div className="font-black text-emerald-600">{fmtMoney(s.revenu)}</div>
                         <div className="text-slate-400">DHS revenu</div>
                       </div>
                       <div className="text-center">
                         <div className={`font-black ${s.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {s.profit >= 0 ? '+' : ''}{fmt(s.profit)}
+                          {s.profit >= 0 ? '+' : ''}{fmtMoney(s.profit)}
                         </div>
                         <div className="text-slate-400">DHS profit</div>
                       </div>
@@ -267,11 +268,11 @@ export default function VoyagesArchives() {
                           </div>
                         </td>
                         <td className="py-3 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">
-                          {fmt(s.revenu)} DHS
+                          {fmtMoney(s.revenu)} DHS
                         </td>
                         <td className="py-3 px-3 text-right whitespace-nowrap">
                           <span className={`font-black ${s.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {s.profit >= 0 ? '+' : ''}{fmt(s.profit)}
+                            {s.profit >= 0 ? '+' : ''}{fmtMoney(s.profit)}
                           </span>
                         </td>
                         <td className="py-3 px-3 text-slate-500 max-w-[120px] truncate">

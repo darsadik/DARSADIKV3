@@ -4,6 +4,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import * as XLSX from 'xlsx'
+import { fmtMoney } from '../../lib/utils'
 
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtD    = n => parseFloat(n || 0).toFixed(2)
@@ -238,7 +239,7 @@ export default function Livraisons() {
   }
 
   async function deleteVente(v) {
-    if (!confirm(`Supprimer cette vente — ${v.client_nom} — ${fmt(Math.abs(v.total_vente || v.montant_mdo || 0))} DHS ?`)) return
+    if (!confirm(`Supprimer cette vente — ${v.client_nom} — ${fmtMoney(Math.abs(v.total_vente || v.montant_mdo || 0))} DHS ?`)) return
     const { error } = await supabase.from('ventes').delete().eq('id', v.id)
     if (error) { alert('Erreur suppression: ' + error.message); return }
     const amount = ['mdo','gasoil','autre'].includes(v.type_entree) ? (v.montant_mdo || 0)
@@ -278,15 +279,15 @@ export default function Livraisons() {
           + '<td>' + (l.voyages?.reference||l.voyage_id||'—') + '</td>'
           + '<td>' + (l.type_brique||l.type_produit||'—') + '</td>'
           + '<td style="text-align:right">' + fmt(l.qte) + '</td>'
-          + '<td style="text-align:right">' + fmtD(l.prix_vente) + '</td>'
-          + '<td style="text-align:right"><b>' + fmt(l.total_vente) + ' DHS</b></td>'
-          + '<td style="text-align:right;color:#7c3aed">' + fmt(m) + ' DHS</td>'
+          + '<td style="text-align:right">' + fmtMoney(l.prix_vente) + '</td>'
+          + '<td style="text-align:right"><b>' + fmtMoney(l.total_vente) + ' DHS</b></td>'
+          + '<td style="text-align:right;color:#7c3aed">' + fmtMoney(m) + ' DHS</td>'
           + '<td>' + (l.note||'—') + '</td>'
           + '</tr>'
       }).join('')
       return '<div style="margin-bottom:20px;page-break-inside:avoid">'
         + '<div class="ch"><div style="font-size:13px;font-weight:800;color:#fff">👤 ' + cl.nom + '</div>'
-        + '<div style="color:#fff;font-size:11px">' + cl.ops.length + ' livraison(s) · CA: ' + fmt(cl.vente) + ' DHS · Marge: ' + fmt(marge) + ' DHS</div></div>'
+        + '<div style="color:#fff;font-size:11px">' + cl.ops.length + ' livraison(s) · CA: ' + fmtMoney(cl.vente) + ' DHS · Marge: ' + fmtMoney(marge) + ' DHS</div></div>'
         + '<table><thead><tr>'
         + '<th>Date</th><th>Voyage</th><th>Produit</th>'
         + '<th style="text-align:right">Qté</th><th style="text-align:right">Prix/u</th>'
@@ -294,8 +295,8 @@ export default function Livraisons() {
         + '</tr></thead><tbody>' + rows + '</tbody>'
         + '<tfoot><tr><td colspan="3">TOTAL ' + cl.nom + '</td>'
         + '<td style="text-align:right">' + fmt(cl.qte) + '</td><td></td>'
-        + '<td style="text-align:right">' + fmt(cl.vente) + ' DHS</td>'
-        + '<td style="text-align:right;color:#7c3aed">' + fmt(marge) + ' DHS</td><td></td>'
+        + '<td style="text-align:right">' + fmtMoney(cl.vente) + ' DHS</td>'
+        + '<td style="text-align:right;color:#7c3aed">' + fmtMoney(marge) + ' DHS</td><td></td>'
         + '</tr></tfoot></table></div>'
     }).join('')
 
@@ -312,7 +313,7 @@ export default function Livraisons() {
       + Object.keys(byClient).length + ' client(s) · ' + fmt(totalQte) + (tab==='grignon'?' kg':' u') + '</span></div>'
       + '<div style="text-align:right">'
       + '<div style="font-size:10px;opacity:0.7">CA / Coût / Marge</div>'
-      + '<div style="font-size:18px;font-weight:900">' + fmt(totalVente) + ' / ' + fmt(totalAchat) + ' / ' + fmt(totalMarge) + ' DHS</div>'
+      + '<div style="font-size:18px;font-weight:900">' + fmtMoney(totalVente) + ' / ' + fmtMoney(totalAchat) + ' / ' + fmtMoney(totalMarge) + ' DHS</div>'
       + '</div></div>'
       + (tab === 'brique' ? '<div class="footer">DAR SADIK — Selouane, Nador | Dar.sadik@hotmail.com | 06 61 97 87 47</div>' : '')
       + '</body></html>')
@@ -420,17 +421,17 @@ export default function Livraisons() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="stat-card border border-green-100 bg-green-50">
                   <div className="stat-label text-green-600">Chiffre d'affaires</div>
-                  <div className="stat-value text-green-700">{fmt(totalVente)} DHS</div>
+                  <div className="stat-value text-green-700">{fmtMoney(totalVente)} DHS</div>
                   <div className="stat-sub">{filtered.length} livraison(s)</div>
                 </div>
                 <div className="stat-card border border-red-100 bg-red-50">
                   <div className="stat-label text-red-600">Coût achats</div>
-                  <div className="stat-value text-red-600">{fmt(totalAchat)} DHS</div>
+                  <div className="stat-value text-red-600">{fmtMoney(totalAchat)} DHS</div>
                   <div className="stat-sub">{fmt(totalQte)} {tab==='grignon'?'kg':'u'}</div>
                 </div>
                 <div className="stat-card border border-purple-100 bg-purple-50">
                   <div className="stat-label text-purple-600">Marge brute</div>
-                  <div className="stat-value text-purple-700">{fmt(totalMarge)} DHS</div>
+                  <div className="stat-value text-purple-700">{fmtMoney(totalMarge)} DHS</div>
                   <div className="stat-sub">{totalVente>0?Math.round(totalMarge/totalVente*100):0}%</div>
                 </div>
                 <div className="stat-card border border-blue-100 bg-blue-50">
@@ -474,8 +475,8 @@ export default function Livraisons() {
                           <div className="text-xs text-gray-400">{cl.ops.length} livraison(s) · {fmt(cl.qte)} {tab==='grignon'?'kg':'u'}</div>
                         </div>
                         <div className="flex gap-4 text-center flex-wrap">
-                          <div><div className="text-xs text-gray-400">CA</div><div className="font-bold text-green-600">{fmt(cl.vente)} DHS</div></div>
-                          <div><div className="text-xs text-gray-400">Marge</div><div className="font-bold text-purple-600">{fmt(marge)} DHS</div></div>
+                          <div><div className="text-xs text-gray-400">CA</div><div className="font-bold text-green-600">{fmtMoney(cl.vente)} DHS</div></div>
+                          <div><div className="text-xs text-gray-400">Marge</div><div className="font-bold text-purple-600">{fmtMoney(marge)} DHS</div></div>
                           <div><div className="text-xs text-gray-400">%</div><div className="font-bold text-gray-700">{cl.vente>0?Math.round(marge/cl.vente*100):0}%</div></div>
                         </div>
                       </div>
@@ -502,9 +503,9 @@ export default function Livraisons() {
                                   </td>
                                   <td className="td text-xs"><span className="badge-gray">{l.type_brique||l.type_produit}</span></td>
                                   <td className="td text-right font-semibold">{fmt(l.qte)}</td>
-                                  <td className="td text-right text-gray-500">{fmtD(l.prix_vente)}</td>
-                                  <td className="td text-right font-bold text-green-600">{fmt(l.total_vente)} DHS</td>
-                                  <td className="td text-right font-semibold text-purple-600">{fmt(m)} DHS</td>
+                                  <td className="td text-right text-gray-500">{fmtMoney(l.prix_vente)}</td>
+                                  <td className="td text-right font-bold text-green-600">{fmtMoney(l.total_vente)} DHS</td>
+                                  <td className="td text-right font-semibold text-purple-600">{fmtMoney(m)} DHS</td>
                                   <td className="td text-gray-400 text-xs">{l.note||'—'}</td>
                                 </tr>
                               )
@@ -514,8 +515,8 @@ export default function Livraisons() {
                             <td className="tfoot-td" colSpan={3}>TOTAL {cl.nom}</td>
                             <td className="tfoot-td text-right">{fmt(cl.qte)}</td>
                             <td className="tfoot-td"></td>
-                            <td className="tfoot-td text-right text-green-700">{fmt(cl.vente)} DHS</td>
-                            <td className="tfoot-td text-right text-purple-700">{fmt(marge)} DHS</td>
+                            <td className="tfoot-td text-right text-green-700">{fmtMoney(cl.vente)} DHS</td>
+                            <td className="tfoot-td text-right text-purple-700">{fmtMoney(marge)} DHS</td>
                             <td className="tfoot-td"></td>
                           </tr></tfoot>
                         </table>
@@ -538,9 +539,9 @@ export default function Livraisons() {
                         <div className="text-blue-200 text-sm">{filtered.length} livraison(s) · {Object.keys(byClient).length} client(s) · {fmt(totalQte)} {tab==='grignon'?'kg':'u'}</div>
                       </div>
                       <div className="grid grid-cols-3 gap-4 text-center">
-                        <div><div className="text-blue-300 text-xs">CA</div><div className="font-bold text-xl">{fmt(totalVente)} DHS</div></div>
-                        <div><div className="text-blue-300 text-xs">Coût</div><div className="font-bold text-xl text-red-300">{fmt(totalAchat)} DHS</div></div>
-                        <div><div className="text-blue-300 text-xs">Marge</div><div className="font-bold text-xl text-green-300">{fmt(totalMarge)} DHS</div></div>
+                        <div><div className="text-blue-300 text-xs">CA</div><div className="font-bold text-xl">{fmtMoney(totalVente)} DHS</div></div>
+                        <div><div className="text-blue-300 text-xs">Coût</div><div className="font-bold text-xl text-red-300">{fmtMoney(totalAchat)} DHS</div></div>
+                        <div><div className="text-blue-300 text-xs">Marge</div><div className="font-bold text-xl text-green-300">{fmtMoney(totalMarge)} DHS</div></div>
                       </div>
                     </div>
                   </div>
@@ -555,7 +556,7 @@ export default function Livraisons() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 <div className="stat-card border border-green-100 bg-green-50">
                   <div className="stat-label text-green-600">Total ventes directes</div>
-                  <div className="stat-value text-green-700">{fmt(saisieTotal)} DHS</div>
+                  <div className="stat-value text-green-700">{fmtMoney(saisieTotal)} DHS</div>
                   <div className="stat-sub">{filteredSaisie.length} entrée(s)</div>
                 </div>
                 <div className="stat-card border border-blue-100 bg-blue-50">
@@ -591,7 +592,7 @@ export default function Livraisons() {
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-gray-400">
-                  {filteredSaisie.length} entrée(s) — {fmt(saisieTotal)} DHS
+                  {filteredSaisie.length} entrée(s) — {fmtMoney(saisieTotal)} DHS
                 </div>
               </div>
 
@@ -614,7 +615,7 @@ export default function Livraisons() {
                               <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(v.date)}</div>
                             </div>
                             <div className="card-amount" style={isRemise?{color:'#15803d'}:{}}>
-                              {isRemise ? `− ${fmt(v.montant_mdo)}` : fmt(v.total_vente)} DHS
+                              {isRemise ? `− ${fmtMoney(v.montant_mdo)}` : fmtMoney(v.total_vente)} DHS
                             </div>
                           </div>
                           <div className="card-meta">
@@ -672,10 +673,10 @@ export default function Livraisons() {
                                 {isMdo||isRemise ? <span className="text-gray-300">—</span> : fmt(v.qte)}
                               </td>
                               <td className="td text-right text-gray-500">
-                                {isMdo||isRemise ? <span className="text-gray-300">—</span> : fmtD(v.prix_vente)}
+                                {isMdo||isRemise ? <span className="text-gray-300">—</span> : fmtMoney(v.prix_vente)}
                               </td>
                               <td className="td text-right font-bold" style={isRemise?{color:'#15803d'}:{}}>
-                                {isRemise ? `− ${fmt(v.montant_mdo)}` : fmt(v.total_vente)}
+                                {isRemise ? `− ${fmtMoney(v.montant_mdo)}` : fmtMoney(v.total_vente)}
                               </td>
                               <td className="td text-xs text-gray-400" style={{maxWidth:140,wordBreak:'break-word'}}>
                                 {(isMdo||isRemise) && v.description_mdo ? v.description_mdo : (v.note||'—')}
@@ -698,7 +699,7 @@ export default function Livraisons() {
                             <td className="tfoot-td" colSpan={4}>TOTAL ({filteredSaisie.length} entrées)</td>
                             <td className="tfoot-td text-right">{fmt(saisieQte)}</td>
                             <td className="tfoot-td"></td>
-                            <td className="tfoot-td text-right">{fmt(saisieTotal)} DHS</td>
+                            <td className="tfoot-td text-right">{fmtMoney(saisieTotal)} DHS</td>
                             <td className="tfoot-td" colSpan={2}></td>
                           </tr>
                         </tfoot>
@@ -762,16 +763,16 @@ export default function Livraisons() {
                     <div className="bg-gray-50 rounded-xl p-3 text-sm grid grid-cols-3 gap-2 text-center">
                       <div>
                         <div className="text-xs text-gray-400">Total vente</div>
-                        <div className="font-bold text-green-600">{fmt(parseFloat(editForm.qte||0) * parseFloat(editForm.prix_vente||0))} DHS</div>
+                        <div className="font-bold text-green-600">{fmtMoney(parseFloat(editForm.qte||0) * parseFloat(editForm.prix_vente||0))} DHS</div>
                       </div>
                       <div>
                         <div className="text-xs text-gray-400">Total achat</div>
-                        <div className="font-bold text-red-500">{fmt(parseFloat(editForm.qte||0) * parseFloat(editForm.prix_achat||0))} DHS</div>
+                        <div className="font-bold text-red-500">{fmtMoney(parseFloat(editForm.qte||0) * parseFloat(editForm.prix_achat||0))} DHS</div>
                       </div>
                       <div>
                         <div className="text-xs text-gray-400">Marge</div>
                         <div className="font-bold text-purple-600">
-                          {fmt(parseFloat(editForm.qte||0) * parseFloat(editForm.prix_vente||0) - parseFloat(editForm.qte||0) * parseFloat(editForm.prix_achat||0))} DHS
+                          {fmtMoney(parseFloat(editForm.qte||0) * parseFloat(editForm.prix_vente||0) - parseFloat(editForm.qte||0) * parseFloat(editForm.prix_achat||0))} DHS
                         </div>
                       </div>
                     </div>

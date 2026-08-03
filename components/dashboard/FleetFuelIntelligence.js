@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useRouter } from 'next/router'
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 import { buildFuelCycles, enrichByCamion, buildFleetIntelligenceSummary } from '../../lib/services/fuelCycles'
 import KpiCard from '../profitability/KpiCard'
 import Section from './Section'
@@ -38,7 +38,7 @@ export default function FleetFuelIntelligence({ allGasoil, voyages, camions }) {
         <KpiCard label="Cycle le plus long" color="slate" onClick={goCarburant}
           value={intel.longestCycle ? `${fmt(intel.longestCycle.distance)} km` : '—'} sub={intel.longestCycle?.camionPlaque || 'Par distance'} />
         <KpiCard label="💸 + coûteux ce mois" color="amber" onClick={goCarburant}
-          value={intel.mostExpensiveTruckThisMonth?.camionPlaque || '—'} sub={intel.mostExpensiveTruckThisMonth ? `${fmt(intel.mostExpensiveTruckThisMonth.cost)} DHS` : 'Aucune donnée'} />
+          value={intel.mostExpensiveTruckThisMonth?.camionPlaque || '—'} sub={intel.mostExpensiveTruckThisMonth ? `${fmtMoney(intel.mostExpensiveTruckThisMonth.cost)} DHS` : 'Aucune donnée'} />
       </div>
     </Section>
   )

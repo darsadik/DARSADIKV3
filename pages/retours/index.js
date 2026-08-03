@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import { resolveRetourByMirrorId } from '../../lib/services/voyage/resolveSource'
@@ -81,9 +81,9 @@ export default function Retours() {
       return `<tr>
         <td>${fmtDate(r.date)}</td><td><b>${r.client_nom}</b></td>
         <td>${r.destination||'—'}</td><td>${r.camion_plaque||'—'}</td>
-        <td style="text-align:right"><b>${fmt(r.montant)} DHS</b></td>
-        <td style="text-align:right;color:#16a34a">${fmt(r.montant_paye||0)} DHS</td>
-        <td style="text-align:right;color:${(r.restant||0)>0?'#dc2626':'#16a34a'}">${fmt(r.restant||0)} DHS</td>
+        <td style="text-align:right"><b>${fmtMoney(r.montant)} DHS</b></td>
+        <td style="text-align:right;color:#16a34a">${fmtMoney(r.montant_paye||0)} DHS</td>
+        <td style="text-align:right;color:${(r.restant||0)>0?'#dc2626':'#16a34a'}">${fmtMoney(r.restant||0)} DHS</td>
         <td><span style="background:${s.bg};color:${s.color};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">${s.label}</span></td>
         <td>${r.note||'—'}</td>
       </tr>`
@@ -107,9 +107,9 @@ export default function Retours() {
     <tbody>${rows||'<tr><td colspan="9" style="text-align:center">Aucun retour</td></tr>'}</tbody>
     <tfoot><tr>
       <td colspan="4">TOTAL (${filtered.length})</td>
-      <td style="text-align:right">${fmt(totalMontant)} DHS</td>
-      <td style="text-align:right;color:#16a34a">${fmt(totalPaye)} DHS</td>
-      <td style="text-align:right;color:#dc2626">${fmt(totalRestant)} DHS</td>
+      <td style="text-align:right">${fmtMoney(totalMontant)} DHS</td>
+      <td style="text-align:right;color:#16a34a">${fmtMoney(totalPaye)} DHS</td>
+      <td style="text-align:right;color:#dc2626">${fmtMoney(totalRestant)} DHS</td>
       <td colspan="2"></td>
     </tr></tfoot>
     </table></body></html>`)
@@ -167,17 +167,17 @@ export default function Retours() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="stat-card border border-blue-100 bg-blue-50">
           <div className="stat-label text-blue-600">Total revenus</div>
-          <div className="stat-value text-blue-700">{fmt(totalMontant)} DHS</div>
+          <div className="stat-value text-blue-700">{fmtMoney(totalMontant)} DHS</div>
           <div className="stat-sub">{filtered.length} retour(s)</div>
         </div>
         <div className="stat-card border border-green-100 bg-green-50">
           <div className="stat-label text-green-600">Encaissé</div>
-          <div className="stat-value text-green-700">{fmt(totalPaye)} DHS</div>
+          <div className="stat-value text-green-700">{fmtMoney(totalPaye)} DHS</div>
           <div className="stat-sub">{paidCount} payé(s)</div>
         </div>
         <div className="stat-card border border-red-100 bg-red-50">
           <div className="stat-label text-red-600">Reste à encaisser</div>
-          <div className="stat-value text-red-600">{fmt(totalRestant)} DHS</div>
+          <div className="stat-value text-red-600">{fmtMoney(totalRestant)} DHS</div>
           <div className="stat-sub">{unpaidCount} impayé(s)</div>
         </div>
         <div className="stat-card border border-purple-100 bg-purple-50">
@@ -223,9 +223,9 @@ export default function Retours() {
           <div>
             <h3 className="font-bold text-gray-900">↩️ Retours Transport</h3>
             <div className="text-xs text-gray-400 mt-1">
-              {filtered.length} record(s) — Total: <b className="text-blue-700">{fmt(totalMontant)} DHS</b> ·
-              Collected: <b className="text-green-600">{fmt(totalPaye)} DHS</b> ·
-              Remaining: <b className="text-red-600">{fmt(totalRestant)} DHS</b>
+              {filtered.length} record(s) — Total: <b className="text-blue-700">{fmtMoney(totalMontant)} DHS</b> ·
+              Collected: <b className="text-green-600">{fmtMoney(totalPaye)} DHS</b> ·
+              Remaining: <b className="text-red-600">{fmtMoney(totalRestant)} DHS</b>
             </div>
           </div>
         </div>
@@ -247,9 +247,9 @@ export default function Retours() {
                     <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:s.bg,color:s.color}}>{s.label}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="bg-blue-50 rounded-lg p-2"><div className="text-gray-400">Total</div><div className="font-bold text-blue-700">{fmt(r.montant)} DHS</div></div>
-                    <div className="bg-green-50 rounded-lg p-2"><div className="text-gray-400">Paid</div><div className="font-bold text-green-600">{fmt(r.montant_paye||0)} DHS</div></div>
-                    <div className="bg-red-50 rounded-lg p-2"><div className="text-gray-400">Remaining</div><div className="font-bold text-red-600">{fmt(r.restant||0)} DHS</div></div>
+                    <div className="bg-blue-50 rounded-lg p-2"><div className="text-gray-400">Total</div><div className="font-bold text-blue-700">{fmtMoney(r.montant)} DHS</div></div>
+                    <div className="bg-green-50 rounded-lg p-2"><div className="text-gray-400">Paid</div><div className="font-bold text-green-600">{fmtMoney(r.montant_paye||0)} DHS</div></div>
+                    <div className="bg-red-50 rounded-lg p-2"><div className="text-gray-400">Remaining</div><div className="font-bold text-red-600">{fmtMoney(r.restant||0)} DHS</div></div>
                   </div>
                   {r.voyage_id && (
                     <button onClick={()=>router.push(`/voyages/${r.voyage_id}`)}
@@ -295,10 +295,10 @@ export default function Retours() {
                       <td className="td font-semibold">{r.client_nom}</td>
                       <td className="td text-gray-500 text-xs">{r.destination||'—'}</td>
                       <td className="td text-gray-500 text-xs">{r.camion_plaque||'—'}</td>
-                      <td className="td text-right font-bold text-blue-700">{fmt(r.montant)} DHS</td>
-                      <td className="td text-right font-bold text-green-600">{fmt(r.montant_paye||0)} DHS</td>
+                      <td className="td text-right font-bold text-blue-700">{fmtMoney(r.montant)} DHS</td>
+                      <td className="td text-right font-bold text-green-600">{fmtMoney(r.montant_paye||0)} DHS</td>
                       <td className="td text-right font-bold" style={{color:(r.restant||0)>0?'#dc2626':'#16a34a'}}>
-                        {fmt(r.restant||0)} DHS
+                        {fmtMoney(r.restant||0)} DHS
                       </td>
                       <td className="td">
                         <span className="text-xs font-bold px-2 py-1 rounded-full"
@@ -336,9 +336,9 @@ export default function Retours() {
               {filtered.length > 0 && (
                 <tfoot><tr>
                   <td className="tfoot-td" colSpan={4}>TOTAL ({filtered.length})</td>
-                  <td className="tfoot-td text-right text-blue-700">{fmt(totalMontant)} DHS</td>
-                  <td className="tfoot-td text-right text-green-600">{fmt(totalPaye)} DHS</td>
-                  <td className="tfoot-td text-right text-red-600">{fmt(totalRestant)} DHS</td>
+                  <td className="tfoot-td text-right text-blue-700">{fmtMoney(totalMontant)} DHS</td>
+                  <td className="tfoot-td text-right text-green-600">{fmtMoney(totalPaye)} DHS</td>
+                  <td className="tfoot-td text-right text-red-600">{fmtMoney(totalRestant)} DHS</td>
                   <td className="tfoot-td" colSpan={admin?3:2}></td>
                 </tr></tfoot>
               )}

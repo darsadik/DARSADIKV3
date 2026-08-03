@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
-import { fmt, fmtDate } from '../../lib/utils'
+import { fmt, fmtDate, fmtMoney } from '../../lib/utils'
 import { detectAnomalies } from '../../lib/services/review/anomalies'
 import { computeVoyageValidation, voyageValidationStatus } from '../../lib/services/voyage/validation'
 import { buildFuelCycles, historicalAverages, statusForCycle } from '../../lib/camionPerformance'
@@ -147,16 +147,16 @@ export default function OperationalAlerts({
               items: newFuelAlerts.map(a => ({ label: a.message, onClick: () => router.push('/carburant') })),
             })} />
           <AlertCard icon="🏭" label="Fournisseur impayé" count={unpaidSuppliers.length} tone="amber"
-            sub={`≥ ${fmt(SUPPLIER_UNPAID_THRESHOLD)} DHS`}
+            sub={`≥ ${fmtMoney(SUPPLIER_UNPAID_THRESHOLD)} DHS`}
             onClick={() => setDrill({
               title: '🏭 Fournisseur impayé',
-              items: unpaidSuppliers.map(f => ({ label: `${f.nom} — ${fmt(f.solde)} DHS`, onClick: () => router.push('/fournisseurs') })),
+              items: unpaidSuppliers.map(f => ({ label: `${f.nom} — ${fmtMoney(f.solde)} DHS`, onClick: () => router.push('/fournisseurs') })),
             })} />
           <AlertCard icon="🚨" label="Client dépasse le crédit" count={overLimitClients.length} tone="red"
-            sub={`≥ ${fmt(CLIENT_CREDIT_THRESHOLD)} DHS`}
+            sub={`≥ ${fmtMoney(CLIENT_CREDIT_THRESHOLD)} DHS`}
             onClick={() => setDrill({
               title: '🚨 Client dépasse le crédit',
-              items: overLimitClients.map(c => ({ label: `${c.nom} — ${fmt(c.solde)} DHS`, onClick: () => router.push('/clients') })),
+              items: overLimitClients.map(c => ({ label: `${c.nom} — ${fmtMoney(c.solde)} DHS`, onClick: () => router.push('/clients') })),
             })} />
         </div>
       )}

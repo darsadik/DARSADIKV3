@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, BarChart, Cell,
 } from 'recharts'
-import { fmt } from '../../lib/utils'
+import { fmtMoney } from '../../lib/utils'
 import { aggregateVoyageProfits, aggregateClientProfits } from '../../lib/services/profitability'
 import KpiCard from './KpiCard'
 
@@ -26,7 +26,7 @@ function TooltipBox({ active, payload, label }) {
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center gap-1.5" style={{ color: p.color }}>
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          {p.name}: <span className="font-bold">{fmt(p.value)} DHS</span>
+          {p.name}: <span className="font-bold">{fmtMoney(p.value)} DHS</span>
         </div>
       ))}
     </div>
@@ -72,13 +72,13 @@ export default function Overview({ results, camions }) {
     <div className="space-y-4">
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
-        <KpiCard label="Revenu"    icon="💰" color="slate" large value={fmt(global.revenue.total) + ' DHS'} />
-        <KpiCard label="Achats"    icon="📦" color="red"    value={fmt(global.cost.achatTotal) + ' DHS'} />
-        <KpiCard label="Carburant" icon="⛽" color="orange" value={fmt(global.cost.fuel) + ' DHS'} />
-        <KpiCard label="Charges"   icon="💸" color="red"    value={fmt(global.cost.chargesOperationnelles) + ' DHS'} />
-        <KpiCard label="Location"  icon="🔑" color="amber"  value={fmt(global.cost.rental) + ' DHS'} />
+        <KpiCard label="Revenu"    icon="💰" color="slate" large value={fmtMoney(global.revenue.total) + ' DHS'} />
+        <KpiCard label="Achats"    icon="📦" color="red"    value={fmtMoney(global.cost.achatTotal) + ' DHS'} />
+        <KpiCard label="Carburant" icon="⛽" color="orange" value={fmtMoney(global.cost.fuel) + ' DHS'} />
+        <KpiCard label="Charges"   icon="💸" color="red"    value={fmtMoney(global.cost.chargesOperationnelles) + ' DHS'} />
+        <KpiCard label="Location"  icon="🔑" color="amber"  value={fmtMoney(global.cost.rental) + ' DHS'} />
         <KpiCard label="Profit net" icon={global.profit >= 0 ? '✅' : '❌'} color={global.profit >= 0 ? 'green' : 'red'} large
-          value={(global.profit >= 0 ? '+' : '') + fmt(global.profit) + ' DHS'} />
+          value={(global.profit >= 0 ? '+' : '') + fmtMoney(global.profit) + ' DHS'} />
         <KpiCard label="Marge" icon="📈" color="blue" large value={global.marge + '%'} sub={`${results.length} voyages`} />
       </div>
 
@@ -88,7 +88,7 @@ export default function Overview({ results, camions }) {
         <ComposedChart data={monthly}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
           <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={70} tickFormatter={fmt} />
+          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={70} tickFormatter={fmtMoney} />
           <Tooltip content={<TooltipBox />} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Bar dataKey="revenue" name="Revenu" fill="#bfdbfe" radius={[4, 4, 0, 0]} maxBarSize={40} />
@@ -100,7 +100,7 @@ export default function Overview({ results, camions }) {
         <ChartCard title="Classement camions (profit)">
           <BarChart data={truckRanking} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={fmt} />
+            <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={fmtMoney} />
             <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} width={70} />
             <Tooltip content={<TooltipBox />} />
             <Bar dataKey="profit" name="Profit" radius={[0, 4, 4, 0]} maxBarSize={20}>
@@ -112,7 +112,7 @@ export default function Overview({ results, camions }) {
         <ChartCard title="Classement clients (profit)">
           <BarChart data={clientRanking} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={fmt} />
+            <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={fmtMoney} />
             <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} width={90} />
             <Tooltip content={<TooltipBox />} />
             <Bar dataKey="profit" name="Profit" radius={[0, 4, 4, 0]} maxBarSize={20}>

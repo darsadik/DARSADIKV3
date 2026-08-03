@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { fmt, fmtD, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 import { ADMIN_EMAIL } from '../../lib/config'
 
 const ADMIN = ADMIN_EMAIL
@@ -32,14 +32,14 @@ const PRINT_CSS = `
         <td>${a.voyages?.reference || a.voyage_id || '—'}</td>
         <td>${a.type_brique || tab}</td>
         <td style="text-align:right">${fmt(a.qte)}</td>
-        <td style="text-align:right">${fmtD(a.prix_achat)}</td>
-        <td style="text-align:right"><b>${fmt(a.total_achat)} DHS</b></td>
+        <td style="text-align:right">${fmtMoney(a.prix_achat)}</td>
+        <td style="text-align:right"><b>${fmtMoney(a.total_achat)} DHS</b></td>
         <td>${a.note||'—'}</td>
       </tr>`).join('')
       return `<div style="margin-bottom:20px;page-break-inside:avoid">
         <div class="fourn-header">
           <div class="fourn-title">🏭 ${f.nom}</div>
-          <div style="color:#fff;font-size:11px">${f.ops.length} achat(s) · ${fmt(f.qte)} ${tab==='grignon'?'kg':'u'} · ${fmt(f.total)} DHS</div>
+          <div style="color:#fff;font-size:11px">${f.ops.length} achat(s) · ${fmt(f.qte)} ${tab==='grignon'?'kg':'u'} · ${fmtMoney(f.total)} DHS</div>
         </div>
         <table><thead><tr>
           <th>Date</th><th>Voyage</th><th>Produit</th>
@@ -50,7 +50,7 @@ const PRINT_CSS = `
           <td colspan="3">TOTAL ${f.nom}</td>
           <td style="text-align:right">${fmt(f.qte)}</td>
           <td></td>
-          <td style="text-align:right">${fmt(f.total)} DHS</td>
+          <td style="text-align:right">${fmtMoney(f.total)} DHS</td>
           <td></td>
         </tr></tfoot></table>
       </div>`
@@ -64,7 +64,7 @@ const PRINT_CSS = `
     <div class="grand-total">
       <div><b>TOTAL GÉNÉRAL — ${tab === 'brique' ? 'ACHATS BRIQUES' : 'ACHATS GRIGNON'}</b><br>
       <span style="font-size:11px;opacity:0.8">${filteredVoy.length} opération(s) · ${Object.keys(byFourn).length} fournisseur(s) · ${fmt(totalQte)} ${tab==='grignon'?'kg':'u'}</span></div>
-      <div style="font-size:22px;font-weight:900">${fmt(totalAchat)} DHS</div>
+      <div style="font-size:22px;font-weight:900">${fmtMoney(totalAchat)} DHS</div>
     </div>
     <div class="footer">DAR SADIK — Selouane, Nador | Dar.sadik@hotmail.com | 06 61 97 87 47</div>
     </body></html>`)
@@ -233,7 +233,7 @@ export default function Achats() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <div className="stat-card border border-blue-100 bg-blue-50">
           <div className="stat-label text-blue-600">Total achats</div>
-          <div className="stat-value text-blue-700">{fmt(totalAchat)} DHS</div>
+          <div className="stat-value text-blue-700">{fmtMoney(totalAchat)} DHS</div>
           <div className="stat-sub">{filteredVoy.length} opération(s)</div>
         </div>
         <div className="stat-card border border-orange-100 bg-orange-50">
@@ -244,7 +244,7 @@ export default function Achats() {
         <div className="stat-card border border-gray-100 bg-gray-50">
           <div className="stat-label text-gray-600">Prix moyen</div>
           <div className="stat-value text-gray-700">
-            {totalQte > 0 ? fmtD(totalAchat/totalQte) : '0.00'} DHS/{tab==='grignon'?'kg':'u'}
+            {totalQte > 0 ? fmtMoney(totalAchat/totalQte) : '0,00'} DHS/{tab==='grignon'?'kg':'u'}
           </div>
           <div className="stat-sub">Moyenne pondérée</div>
         </div>
@@ -288,7 +288,7 @@ export default function Achats() {
                     {f.ops.length} achat(s) · {fmt(f.qte)} {tab==='grignon'?'kg':'u'}
                   </div>
                 </div>
-                <div className="font-bold text-lg text-blue-700">{fmt(f.total)} DHS</div>
+                <div className="font-bold text-lg text-blue-700">{fmtMoney(f.total)} DHS</div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -318,8 +318,8 @@ export default function Achats() {
                           <span className="badge-gray">{a.type_brique || tab}</span>
                         </td>
                         <td className="td text-right font-semibold">{fmt(a.qte)}</td>
-                        <td className="td text-right text-gray-500">{fmtD(a.prix_achat)}</td>
-                        <td className="td text-right font-bold text-blue-700">{fmt(a.total_achat)} DHS</td>
+                        <td className="td text-right text-gray-500">{fmtMoney(a.prix_achat)}</td>
+                        <td className="td text-right font-bold text-blue-700">{fmtMoney(a.total_achat)} DHS</td>
                         <td className="td text-gray-400 text-xs">{a.note||'—'}</td>
                         {admin && (
                           <td className="td">
@@ -333,7 +333,7 @@ export default function Achats() {
                     <td className="tfoot-td" colSpan={3}>TOTAL {f.nom}</td>
                     <td className="tfoot-td text-right">{fmt(f.qte)}</td>
                     <td className="tfoot-td"></td>
-                    <td className="tfoot-td text-right text-blue-700">{fmt(f.total)} DHS</td>
+                    <td className="tfoot-td text-right text-blue-700">{fmtMoney(f.total)} DHS</td>
                     <td className="tfoot-td" colSpan={admin?2:1}></td>
                   </tr></tfoot>
                 </table>
@@ -361,7 +361,7 @@ export default function Achats() {
                     {filteredVoy.length} opération(s) · {fmt(totalQte)} {tab==='grignon'?'kg':'unités'} · {Object.keys(byFourn).length} fournisseur(s)
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-white">{fmt(totalAchat)} DHS</div>
+                <div className="text-3xl font-bold text-white">{fmtMoney(totalAchat)} DHS</div>
               </div>
             </div>
           )}

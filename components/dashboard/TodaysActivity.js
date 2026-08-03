@@ -1,4 +1,4 @@
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 import Section from './Section'
 
 // Section 7 — everything here is a same-day filter of already-loaded arrays
@@ -10,7 +10,7 @@ function Row({ icon, label, amount, tone = 'slate' }) {
     <div className="flex items-center gap-3 px-5 py-2.5 border-b border-slate-50 last:border-0">
       <span className="text-base flex-shrink-0">{icon}</span>
       <span className="flex-1 text-sm text-slate-700 truncate">{label}</span>
-      {amount != null && <span className={`text-sm font-bold flex-shrink-0 ${toneCls}`}>{fmt(amount)} DHS</span>}
+      {amount != null && <span className={`text-sm font-bold flex-shrink-0 ${toneCls}`}>{fmtMoney(amount)} DHS</span>}
     </div>
   )
 }

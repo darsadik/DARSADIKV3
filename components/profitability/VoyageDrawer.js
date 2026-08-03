@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { fmt, fmtDate } from '../../lib/utils'
+import { fmt, fmtDate, fmtMoney } from '../../lib/utils'
 import MarginBadge from './MarginBadge'
 
 const FUEL_SOURCE_LABEL = {
@@ -67,16 +67,16 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white grid grid-cols-3 gap-3">
             <div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Revenu</div>
-              <div className="text-lg font-black text-emerald-400">{fmt(v.revenue.total)} DHS</div>
+              <div className="text-lg font-black text-emerald-400">{fmtMoney(v.revenue.total)} DHS</div>
             </div>
             <div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Coût</div>
-              <div className="text-lg font-black text-red-400">{fmt(v.cost.total)} DHS</div>
+              <div className="text-lg font-black text-red-400">{fmtMoney(v.cost.total)} DHS</div>
             </div>
             <div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Profit net</div>
               <div className={`text-lg font-black ${v.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {v.profit >= 0 ? '+' : ''}{fmt(v.profit)} DHS
+                {v.profit >= 0 ? '+' : ''}{fmtMoney(v.profit)} DHS
               </div>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
                       <>Coût d'achat indéterminé — {fmt(w.qte)} {w.type_brique} livré à <strong>{w.client_nom}</strong> sans achat correspondant sur ce voyage.</>
                     )}
                     {w.type === 'achat_without_delivery' && (
-                      <>{fmt(w.qte)} {w.type_brique} acheté ({fmt(w.total_achat)} DHS) sans livraison correspondante — coût non attribué à un client.</>
+                      <>{fmt(w.qte)} {w.type_brique} acheté ({fmtMoney(w.total_achat)} DHS) sans livraison correspondante — coût non attribué à un client.</>
                     )}
                   </div>
                 ))}
@@ -101,24 +101,24 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
 
           {/* Revenue detail */}
           <Section title="Revenu">
-            <Row label="Ventes briques" value={`+ ${fmt(v.revenue.briqueSales)} DHS`} />
-            <Row label="Ventes grignon" value={`+ ${fmt(v.revenue.grignonSales)} DHS`} />
-            <Row label="Retours" value={`+ ${fmt(v.revenue.retours)} DHS`} />
-            <Row label="Charges facturées clients" value={`+ ${fmt(v.revenue.chargesFacturees)} DHS`} />
-            <Row label="= Revenu total" value={`${fmt(v.revenue.total)} DHS`} bold />
+            <Row label="Ventes briques" value={`+ ${fmtMoney(v.revenue.briqueSales)} DHS`} />
+            <Row label="Ventes grignon" value={`+ ${fmtMoney(v.revenue.grignonSales)} DHS`} />
+            <Row label="Retours" value={`+ ${fmtMoney(v.revenue.retours)} DHS`} />
+            <Row label="Charges facturées clients" value={`+ ${fmtMoney(v.revenue.chargesFacturees)} DHS`} />
+            <Row label="= Revenu total" value={`${fmtMoney(v.revenue.total)} DHS`} bold />
           </Section>
 
           {/* Cost detail */}
           <Section title="Coût">
-            <Row label="Achat briques" value={`− ${fmt(v.cost.briqueAchat)} DHS`} />
-            <Row label="Achat grignon" value={`− ${fmt(v.cost.grignonAchat)} DHS`} />
+            <Row label="Achat briques" value={`− ${fmtMoney(v.cost.briqueAchat)} DHS`} />
+            <Row label="Achat grignon" value={`− ${fmtMoney(v.cost.grignonAchat)} DHS`} />
             {v.cost.achatUnallocated > 0 && (
-              <Row label="dont achat non livré (non attribué)" value={fmt(v.cost.achatUnallocated) + ' DHS'} indent color="text-amber-600" />
+              <Row label="dont achat non livré (non attribué)" value={fmtMoney(v.cost.achatUnallocated) + ' DHS'} indent color="text-amber-600" />
             )}
-            <Row label={`Carburant — ${FUEL_SOURCE_LABEL[v.cost.fuelSource] || v.cost.fuelSource}`} value={`− ${fmt(v.cost.fuel)} DHS`} />
-            <Row label="Location camion" value={`− ${fmt(v.cost.rental)} DHS`} />
-            <Row label="Charges opérationnelles" value={`− ${fmt(v.cost.chargesOperationnelles)} DHS`} />
-            <Row label="= Coût total" value={`${fmt(v.cost.total)} DHS`} bold />
+            <Row label={`Carburant — ${FUEL_SOURCE_LABEL[v.cost.fuelSource] || v.cost.fuelSource}`} value={`− ${fmtMoney(v.cost.fuel)} DHS`} />
+            <Row label="Location camion" value={`− ${fmtMoney(v.cost.rental)} DHS`} />
+            <Row label="Charges opérationnelles" value={`− ${fmtMoney(v.cost.chargesOperationnelles)} DHS`} />
+            <Row label="= Coût total" value={`${fmtMoney(v.cost.total)} DHS`} bold />
           </Section>
 
           {/* Per-client breakdown */}
@@ -150,13 +150,13 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
                         {c.hasUndeterminedCost && <span className="text-amber-500 ml-1" title="Coût indéterminé pour au moins une livraison">⚠</span>}
                       </td>
                       <td className="py-2 px-3 text-right text-slate-500">{fmt(c.qte)}</td>
-                      <td className="py-2 px-3 text-right font-semibold text-emerald-600">{fmt(c.revenue.total)}</td>
-                      <td className="py-2 px-3 text-right text-red-400">−{fmt(c.cost.achatWAC)}</td>
-                      <td className="py-2 px-3 text-right text-orange-400">{c.cost.fuelAllocated > 0 ? `−${fmt(c.cost.fuelAllocated)}` : '—'}</td>
-                      <td className="py-2 px-3 text-right text-amber-500">{c.cost.rentalAllocated > 0 ? `−${fmt(c.cost.rentalAllocated)}` : '—'}</td>
-                      <td className="py-2 px-3 text-right text-red-400">{c.cost.chargesAllocated > 0 ? `−${fmt(c.cost.chargesAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right font-semibold text-emerald-600">{fmtMoney(c.revenue.total)}</td>
+                      <td className="py-2 px-3 text-right text-red-400">−{fmtMoney(c.cost.achatWAC)}</td>
+                      <td className="py-2 px-3 text-right text-orange-400">{c.cost.fuelAllocated > 0 ? `−${fmtMoney(c.cost.fuelAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right text-amber-500">{c.cost.rentalAllocated > 0 ? `−${fmtMoney(c.cost.rentalAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right text-red-400">{c.cost.chargesAllocated > 0 ? `−${fmtMoney(c.cost.chargesAllocated)}` : '—'}</td>
                       <td className={`py-2 px-3 text-right font-black ${c.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {c.profit >= 0 ? '+' : ''}{fmt(c.profit)}
+                        {c.profit >= 0 ? '+' : ''}{fmtMoney(c.profit)}
                       </td>
                       <td className="py-2 px-3 text-right"><MarginBadge marge={c.marge} /></td>
                     </tr>

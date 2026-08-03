@@ -1,4 +1,4 @@
-import { fmt } from '../../lib/utils'
+import { fmtMoney } from '../../lib/utils'
 import Section from '../ui/Section'
 import DelBtn from '../ui/DelBtn'
 
@@ -44,7 +44,7 @@ export default function LocationSection({
           <div>
             <label className="text-[10px] font-semibold text-slate-500 block mb-1">Reste à payer</label>
             <div className="input w-full text-sm bg-slate-50 font-bold text-red-600 flex items-center">
-              {fmt(Math.max(0, (parseFloat(locForm.montant_location)||0) - (parseFloat(locForm.montant_paye)||0)))} DHS
+              {fmtMoney(Math.max(0, (parseFloat(locForm.montant_location)||0) - (parseFloat(locForm.montant_paye)||0)))} DHS
             </div>
           </div>
           <div className="col-span-2 md:col-span-3">
@@ -84,11 +84,11 @@ export default function LocationSection({
               {locations.map(loc => (
                 <tr key={loc.id} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="py-2 pr-3 font-semibold text-slate-700">{loc.loueur_nom || '—'}</td>
-                  <td className="py-2 pr-3 text-right font-bold text-purple-600">{fmt(loc.montant_location)} DHS</td>
-                  <td className="py-2 pr-3 text-right font-semibold text-emerald-600">{fmt(loc.montant_paye)} DHS</td>
+                  <td className="py-2 pr-3 text-right font-bold text-purple-600">{fmtMoney(loc.montant_location)} DHS</td>
+                  <td className="py-2 pr-3 text-right font-semibold text-emerald-600">{fmtMoney(loc.montant_paye)} DHS</td>
                   <td className="py-2 pr-3 text-right font-bold text-red-600">
                     {Math.max(0, (loc.montant_location||0) - (loc.montant_paye||0)) > 0
-                      ? `${fmt(Math.max(0, (loc.montant_location||0) - (loc.montant_paye||0)))} DHS`
+                      ? `${fmtMoney(Math.max(0, (loc.montant_location||0) - (loc.montant_paye||0)))} DHS`
                       : <span className="text-emerald-600">✓ Soldé</span>
                     }
                   </td>

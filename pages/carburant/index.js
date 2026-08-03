@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 import {
   buildFuelCycles, buildFleetFuelStats, enrichByCamion, buildFleetIntelligenceSummary, detectAlerts,
   detectMissingData, listMergeSuggestions, buildDataHealthScore,
@@ -184,7 +184,7 @@ export default function CarburantCycles() {
         <IntelWidget label="Alertes critiques" value={intel.criticalAlertsCount} sub="Cycles 🔴" tone="border-red-100 bg-red-50" />
         <IntelWidget label="🔧 À inspecter" value={intel.trucksNeedingInspection.length} sub="Camions" tone="border-orange-100 bg-orange-50" />
         <IntelWidget label="Cycle le plus long" value={intel.longestCycle ? `${fmt(intel.longestCycle.distance)} km` : '—'} sub={intel.longestCycle?.camionPlaque || 'Par distance'} tone="border-gray-100" />
-        <IntelWidget label="💸 Camion le + coûteux (mois)" value={intel.mostExpensiveTruckThisMonth?.camionPlaque || '—'} sub={intel.mostExpensiveTruckThisMonth ? `${fmt(intel.mostExpensiveTruckThisMonth.cost)} DHS` : 'Aucune donnée'} tone="border-amber-100 bg-amber-50" />
+        <IntelWidget label="💸 Camion le + coûteux (mois)" value={intel.mostExpensiveTruckThisMonth?.camionPlaque || '—'} sub={intel.mostExpensiveTruckThisMonth ? `${fmtMoney(intel.mostExpensiveTruckThisMonth.cost)} DHS` : 'Aucune donnée'} tone="border-amber-100 bg-amber-50" />
       </div>
 
       {/* ── FLEET TOTALS ── */}
@@ -206,7 +206,7 @@ export default function CarburantCycles() {
         </div>
         <div className="stat-card border border-orange-100 bg-orange-50">
           <div className="stat-label text-orange-600">Coût total</div>
-          <div className="stat-value text-orange-700">{fmt(globalTotals.coutTotal)}</div>
+          <div className="stat-value text-orange-700">{fmtMoney(globalTotals.coutTotal)}</div>
           <div className="stat-sub">DHS</div>
         </div>
         <div className="stat-card border border-gray-100">

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 
@@ -144,7 +144,7 @@ export default function Charges() {
       <td>${c.voyages?.reference||'—'}</td>
       <td>${c.description||c.categorie||'—'}</td>
       <td>${c.facture_client?`✓ ${c.client_nom||''}`:'—'}</td>
-      <td style="text-align:right"><b>${fmt(c.montant)} DHS</b></td>
+      <td style="text-align:right"><b>${fmtMoney(c.montant)} DHS</b></td>
     </tr>`).join('')
     openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <style>*{-webkit-print-color-adjust:exact !important}
@@ -164,7 +164,7 @@ export default function Charges() {
     <tbody>${rows||'<tr><td colspan="5" style="text-align:center">Aucune charge</td></tr>'}</tbody>
     <tfoot><tr>
       <td colspan="4">TOTAL (${filteredVoyage.length})</td>
-      <td style="text-align:right">${fmt(totalVoyage)} DHS</td>
+      <td style="text-align:right">${fmtMoney(totalVoyage)} DHS</td>
     </tr></tfoot></table></body></html>`)
   }
 
@@ -200,17 +200,17 @@ export default function Charges() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <div className="stat-card border border-red-100 bg-red-50">
           <div className="stat-label text-red-600">Total charges</div>
-          <div className="stat-value text-red-600">{fmt(totalVoyage)} DHS</div>
+          <div className="stat-value text-red-600">{fmtMoney(totalVoyage)} DHS</div>
           <div className="stat-sub">{filteredVoyage.length} opération(s)</div>
         </div>
         <div className="stat-card border border-orange-100 bg-orange-50">
           <div className="stat-label text-orange-600">Coûts entreprise</div>
-          <div className="stat-value text-orange-700">{fmt(totalEntrepr)} DHS</div>
+          <div className="stat-value text-orange-700">{fmtMoney(totalEntrepr)} DHS</div>
           <div className="stat-sub">Non facturées au client</div>
         </div>
         <div className="stat-card border border-amber-100 bg-amber-50">
           <div className="stat-label text-amber-600">Facturées client</div>
-          <div className="stat-value text-amber-700">{fmt(totalClient)} DHS</div>
+          <div className="stat-value text-amber-700">{fmtMoney(totalClient)} DHS</div>
           <div className="stat-sub">Charges récupérées</div>
         </div>
       </div>
@@ -291,7 +291,7 @@ export default function Charges() {
                             ? <span className="text-xs font-semibold text-amber-700">✓ {c.client_nom||'client'}</span>
                             : <span className="text-xs text-gray-400">—</span>}
                         </td>
-                        <td className="td text-right font-bold text-red-600">{fmt(c.montant)} DHS</td>
+                        <td className="td text-right font-bold text-red-600">{fmtMoney(c.montant)} DHS</td>
                         <td className="td whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <button onClick={()=>openVoyEdit('charge', c, c.voyages?.camion_id)}
@@ -311,7 +311,7 @@ export default function Charges() {
                   {filteredVoyage.length > 0 && (
                     <tfoot><tr>
                       <td className="tfoot-td" colSpan={5}>TOTAL ({filteredVoyage.length})</td>
-                      <td className="tfoot-td text-right text-red-600">{fmt(totalVoyage)} DHS</td>
+                      <td className="tfoot-td text-right text-red-600">{fmtMoney(totalVoyage)} DHS</td>
                       <td className="tfoot-td"></td>
                     </tr></tfoot>
                   )}
@@ -334,7 +334,7 @@ export default function Charges() {
                         <div className="text-xs text-gray-400">{cam.items.length} opération(s)</div>
                       </div>
                     </div>
-                    <div className="text-xl font-bold text-red-600">{fmt(cam.total)} DHS</div>
+                    <div className="text-xl font-bold text-red-600">{fmtMoney(cam.total)} DHS</div>
                   </div>
 
                   {/* Monthly breakdown */}
@@ -345,7 +345,7 @@ export default function Charges() {
                         <div className="flex items-center justify-between px-3 py-2 rounded-lg"
                           style={{background:'#f8fafc',borderLeft:'3px solid #dc2626'}}>
                           <span className="font-semibold text-gray-700 text-sm">📅 {fmtMonth(month)}</span>
-                          <span className="font-bold text-red-600">{fmt(mData.total)} DHS</span>
+                          <span className="font-bold text-red-600">{fmtMoney(mData.total)} DHS</span>
                         </div>
 
                         {/* Daily breakdown */}
@@ -354,7 +354,7 @@ export default function Charges() {
                             <div key={day} className="flex items-center justify-between px-3 py-1.5
                               text-xs text-gray-500 border-b border-gray-50 hover:bg-gray-50 rounded">
                               <span>{fmtDate(day)}</span>
-                              <span className="font-semibold text-gray-700">{fmt(total)} DHS</span>
+                              <span className="font-semibold text-gray-700">{fmtMoney(total)} DHS</span>
                             </div>
                           ))}
                         </div>
@@ -376,7 +376,7 @@ export default function Charges() {
                         return Object.values(catTotals).sort((a,b)=>b.total-a.total).map(cat => (
                           <div key={cat.key} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 text-xs">
                             <span>{cat.icon} {cat.label}</span>
-                            <span className="font-bold text-red-600">{fmt(cat.total)}</span>
+                            <span className="font-bold text-red-600">{fmtMoney(cat.total)}</span>
                           </div>
                         ))
                       })()}
@@ -403,7 +403,7 @@ export default function Charges() {
                         <div className="text-xs text-gray-400">{cat.count} opération(s)</div>
                       </div>
                     </div>
-                    <div className="text-lg font-bold text-red-600">{fmt(cat.total)} DHS</div>
+                    <div className="text-lg font-bold text-red-600">{fmtMoney(cat.total)} DHS</div>
                   </div>
                   <div className="space-y-1">
                     {cat.items.map(c => (
@@ -413,7 +413,7 @@ export default function Charges() {
                           <button onClick={()=>router.push(`/voyages/${c.voyage_id}`)}
                             className="text-blue-500 hover:underline">{c.voyages.reference}</button>
                         ) : '—'}</span>
-                        <span className="font-semibold text-red-600">{fmt(c.montant)} DHS</span>
+                        <span className="font-semibold text-red-600">{fmtMoney(c.montant)} DHS</span>
                       </div>
                     ))}
                   </div>

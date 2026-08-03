@@ -4,8 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate, saveRemiseCarburantRate } from '../../lib/services/settings'
-
-const fmt = n => Math.round(n || 0).toLocaleString('fr-MA')
+import { fmtMoney } from '../../lib/utils'
 
 function Section({ title, icon, children }) {
   return (
@@ -275,7 +274,7 @@ export default function Parametres() {
                             {c.loueurs?.nom || c.nom_proprietaire || '—'}
                             {c.telephone_proprietaire && <div className="text-gray-400">{c.telephone_proprietaire}</div>}
                           </td>
-                          <td className="td text-right font-semibold text-amber-600">{fmt(c.gasoil_dhs || 0)}</td>
+                          <td className="td text-right font-semibold text-amber-600">{fmtMoney(c.gasoil_dhs || 0)}</td>
                           <td className="td">
                             <button className="btn-danger" onClick={() => deleteCamion(c.id)}>✕</button>
                           </td>
@@ -482,7 +481,7 @@ export default function Parametres() {
                   {remiseMsg}
                 </div>
               )}
-              <div className="text-xs text-gray-400 mt-4">Taux par défaut : {DEFAULT_REMISE_CARBURANT_RATE} DH/L</div>
+              <div className="text-xs text-gray-400 mt-4">Taux par défaut : {fmtMoney(DEFAULT_REMISE_CARBURANT_RATE)} DH/L</div>
             </Section>
           </div>
         </div>

@@ -513,7 +513,7 @@ export default function Gasoil() {
       <td class="m">${e.bon}</td>
       <td class="m">${e.produit}</td>
       <td class="r">${e.quantite !== null ? fmtD(e.quantite) : '—'}</td>
-      <td class="r">${e.prixUnitaire !== null ? fmtD(e.prixUnitaire) : '—'}</td>
+      <td class="r">${e.prixUnitaire !== null ? fmtMoney(e.prixUnitaire) : '—'}</td>
       <td class="r">${e.km !== null ? fmt(e.km) : '—'}</td>
       <td class="r">${e.debit ? `<span class="debit">+ ${fmtMoney(e.debit)}</span>` : '<span class="dash">—</span>'}</td>
       <td class="r">${e.credit ? `<span class="credit">− ${fmtMoney(e.credit)}</span>` : '<span class="dash">—</span>'}</td>
@@ -660,7 +660,7 @@ export default function Gasoil() {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
         <div className="stat-card border border-amber-100 bg-amber-50">
           <div className="stat-label text-amber-600">Total gasoil</div>
-          <div className="stat-value text-amber-700">{fmt(totalGasoilAll)} DHS</div>
+          <div className="stat-value text-amber-700">{fmtMoney(totalGasoilAll)} DHS</div>
           <div className="stat-sub">Toutes périodes</div>
         </div>
         <div className="stat-card border border-blue-100 bg-blue-50">
@@ -675,24 +675,24 @@ export default function Gasoil() {
         </div>
         <div className="stat-card border border-cyan-100 bg-cyan-50">
           <div className="stat-label text-cyan-600">Total AdBlue</div>
-          <div className="stat-value text-cyan-700">{fmt(gasoil.reduce((s,g)=>s+(g.adblue_total||0),0))} DHS</div>
+          <div className="stat-value text-cyan-700">{fmtMoney(gasoil.reduce((s,g)=>s+(g.adblue_total||0),0))} DHS</div>
           <div className="stat-sub">Toutes périodes</div>
         </div>
         <div className="stat-card border border-green-100 bg-green-50">
           <div className="stat-label text-green-600">Prix moyen/L</div>
           <div className="stat-value text-green-700">
-            {gasoil.length > 0 ? fmtD(gasoil.reduce((s,g)=>s+(g.total||0),0) / gasoil.reduce((s,g)=>s+(g.qte||0),0)) : '0.00'} DHS
+            {gasoil.length > 0 ? fmtMoney(gasoil.reduce((s,g)=>s+(g.total||0),0) / gasoil.reduce((s,g)=>s+(g.qte||0),0)) : '0,00'} DHS
           </div>
           <div className="stat-sub">Moyenne</div>
         </div>
         <div className="stat-card border border-green-100 bg-green-50">
           <div className="stat-label text-green-600">Total payé</div>
-          <div className="stat-value text-green-700">{fmt(totalPaiements)} DHS</div>
+          <div className="stat-value text-green-700">{fmtMoney(totalPaiements)} DHS</div>
           <div className="stat-sub">Paiements fournisseur</div>
         </div>
         <div className={`stat-card border ${soldeGasoil > 0 ? 'border-purple-100 bg-purple-50' : 'border-green-100 bg-green-50'}`}>
           <div className={`stat-label ${soldeGasoil > 0 ? 'text-purple-600' : 'text-green-600'}`}>Solde restant</div>
-          <div className={`stat-value ${soldeGasoil > 0 ? 'text-purple-700' : 'text-green-700'}`}>{fmt(soldeGasoil)} DHS</div>
+          <div className={`stat-value ${soldeGasoil > 0 ? 'text-purple-700' : 'text-green-700'}`}>{fmtMoney(soldeGasoil)} DHS</div>
           <div className="stat-sub">{soldeGasoil > 0 ? 'À payer' : '✓ Soldé'}</div>
         </div>
       </div>
@@ -746,8 +746,8 @@ export default function Gasoil() {
               {qte > 0 && pu > 0 && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
                   <div className="text-xs text-amber-600 mb-1">Total à payer</div>
-                  <div className="text-2xl font-bold text-amber-700">{fmtD(total)} DHS</div>
-                  <div className="text-xs text-amber-500">{fmtD(qte)} L × {fmtD(pu)} DHS/L</div>
+                  <div className="text-2xl font-bold text-amber-700">{fmtMoney(total)} DHS</div>
+                  <div className="text-xs text-amber-500">{fmtD(qte)} L × {fmtMoney(pu)} DHS/L</div>
                 </div>
               )}
 
@@ -770,7 +770,7 @@ export default function Gasoil() {
                   </div>
                   {adblueQte > 0 && adbluePu > 0 && (
                     <div className="text-center text-xs text-cyan-700">
-                      {fmtD(adblueQte)} L × {fmtD(adbluePu)} = <span className="font-bold">{fmtD(adblueTotal)} DHS</span>
+                      {fmtD(adblueQte)} L × {fmtMoney(adbluePu)} = <span className="font-bold">{fmtMoney(adblueTotal)} DHS</span>
                     </div>
                   )}
                 </div>
@@ -788,7 +788,7 @@ export default function Gasoil() {
                     <div className="text-xs text-purple-800">
                       Ce plein clôture le cycle du <b>{fmtDate(cyclePreview.cycleClosing.dateDebut)}</b> :
                       {' '}<b>{fmt(cyclePreview.cycleClosing.distance)} km</b>
-                      {cyclePreview.cycleClosing.coutKm !== null && <> · <b>{cyclePreview.cycleClosing.coutKm.toFixed(2)} DHS/km</b></>}
+                      {cyclePreview.cycleClosing.coutKm !== null && <> · <b>{fmtMoney(cyclePreview.cycleClosing.coutKm)} DHS/km</b></>}
                       {' '}({cyclePreview.cycleClosing.nbVoyages} voyage{cyclePreview.cycleClosing.nbVoyages > 1 ? 's' : ''} concerné{cyclePreview.cycleClosing.nbVoyages > 1 ? 's' : ''})
                     </div>
                   ) : cyclePreview.extendsOpenCycle ? (
@@ -839,7 +839,7 @@ export default function Gasoil() {
                     <div className="text-sm font-semibold text-gray-900">{plaque}</div>
                     <div className="text-xs text-gray-400">{d.pleins} pleins · {fmt(d.litres)} L</div>
                   </div>
-                  <div className="text-sm font-bold text-amber-600">{fmt(d.total)} DHS</div>
+                  <div className="text-sm font-bold text-amber-600">{fmtMoney(d.total)} DHS</div>
                 </div>
               ))}
               {Object.keys(byCamion).length === 0 && <div className="text-center text-gray-400 text-sm py-4">Aucune donnée</div>}
@@ -934,10 +934,10 @@ export default function Gasoil() {
                           {fmt(c.cycleKm)} km
                         </span>
                         <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-lg">
-                          {c.costPerKm.toFixed(2)} DHS/km
+                          {fmtMoney(c.costPerKm)} DHS/km
                         </span>
                         <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-0.5 rounded-lg">
-                          {fmt(c.fuelCost)} DHS
+                          {fmtMoney(c.fuelCost)} DHS
                         </span>
                       </div>
                     </div>
@@ -952,22 +952,22 @@ export default function Gasoil() {
                       </div>
                       <div className="bg-orange-50 rounded-lg p-1.5">
                         <div className="text-[10px] text-orange-400">Alloué</div>
-                        <div className="text-xs font-bold text-orange-700">{fmt(c.allocatedTotal)} DHS</div>
+                        <div className="text-xs font-bold text-orange-700">{fmtMoney(c.allocatedTotal)} DHS</div>
                       </div>
                     </div>
                     {c.adblueCost > 0 && (
                       <div className="grid grid-cols-3 gap-2 text-center mb-2">
                         <div className="bg-red-50 rounded-lg p-1.5">
                           <div className="text-[10px] text-red-400">Diesel</div>
-                          <div className="text-xs font-bold text-red-700">{fmt(c.dieselCost)} DHS</div>
+                          <div className="text-xs font-bold text-red-700">{fmtMoney(c.dieselCost)} DHS</div>
                         </div>
                         <div className="bg-cyan-50 rounded-lg p-1.5">
                           <div className="text-[10px] text-cyan-400">AdBlue</div>
-                          <div className="text-xs font-bold text-cyan-700">{fmt(c.adblueCost)} DHS</div>
+                          <div className="text-xs font-bold text-cyan-700">{fmtMoney(c.adblueCost)} DHS</div>
                         </div>
                         <div className="bg-slate-100 rounded-lg p-1.5">
                           <div className="text-[10px] text-slate-500">Cycle Total</div>
-                          <div className="text-xs font-bold text-slate-800">{fmt(c.fuelCost)} DHS</div>
+                          <div className="text-xs font-bold text-slate-800">{fmtMoney(c.fuelCost)} DHS</div>
                         </div>
                       </div>
                     )}
@@ -985,7 +985,7 @@ export default function Gasoil() {
                             </div>
                             <div className="flex gap-3 text-right">
                               <span className="text-blue-600 font-semibold">{fmt(v.vKm)} km</span>
-                              <span className="text-amber-600 font-bold">{fmt(v.alloc)} DHS</span>
+                              <span className="text-amber-600 font-bold">{fmtMoney(v.alloc)} DHS</span>
                             </div>
                           </div>
                         ))}
@@ -1020,15 +1020,15 @@ export default function Gasoil() {
             <div className="grid grid-cols-3 gap-2 mb-4">
               <div className="text-center bg-amber-50 rounded-lg p-2">
                 <div className="text-xs text-amber-600 font-semibold">Total gasoil</div>
-                <div className="text-sm font-bold text-amber-700">{fmt(totalGasoilAll)}</div>
+                <div className="text-sm font-bold text-amber-700">{fmtMoney(totalGasoilAll)}</div>
               </div>
               <div className="text-center bg-green-50 rounded-lg p-2">
                 <div className="text-xs text-green-600 font-semibold">Payé</div>
-                <div className="text-sm font-bold text-green-700">{fmt(totalPaiements)}</div>
+                <div className="text-sm font-bold text-green-700">{fmtMoney(totalPaiements)}</div>
               </div>
               <div className={`text-center rounded-lg p-2 ${soldeGasoil > 0 ? 'bg-purple-50' : 'bg-green-50'}`}>
                 <div className={`text-xs font-semibold ${soldeGasoil > 0 ? 'text-purple-600' : 'text-green-600'}`}>Restant</div>
-                <div className={`text-sm font-bold ${soldeGasoil > 0 ? 'text-purple-700' : 'text-green-700'}`}>{fmt(soldeGasoil)}</div>
+                <div className={`text-sm font-bold ${soldeGasoil > 0 ? 'text-purple-700' : 'text-green-700'}`}>{fmtMoney(soldeGasoil)}</div>
               </div>
             </div>
 
@@ -1067,7 +1067,7 @@ export default function Gasoil() {
                 [...gasoilPaiements].sort((a,b) => (b.date || '').localeCompare(a.date || '')).map(p => (
                   <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                     <div>
-                      <div className="text-xs font-semibold text-gray-700">{fmt(p.montant)} DHS</div>
+                      <div className="text-xs font-semibold text-gray-700">{fmtMoney(p.montant)} DHS</div>
                       <div className="text-xs text-gray-400">{fmtDate(p.date)}{p.note ? ` · ${p.note}` : ''}</div>
                     </div>
                     <button onClick={() => deletePaiement(p.id)} className="btn-danger text-xs px-2 py-1">✕</button>
@@ -1079,7 +1079,7 @@ export default function Gasoil() {
             {gasoilPaiements.length > 0 && (
               <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between text-xs">
                 <span className="text-gray-500">{gasoilPaiements.length} paiements</span>
-                <span className="font-bold text-green-600">{fmt(totalPaiements)} DHS payés</span>
+                <span className="font-bold text-green-600">{fmtMoney(totalPaiements)} DHS payés</span>
               </div>
             )}
           </div>
@@ -1141,13 +1141,13 @@ export default function Gasoil() {
                         <td className="td text-gray-500">{g.chauffeur || '—'}</td>
                         <td className="td text-xs text-gray-500">{g.station}</td>
                         <td className="td text-right font-medium">{g.qte ? fmtD(g.qte) : '—'}</td>
-                        <td className="td text-right text-gray-500">{g.qte ? fmtD(g.prix_unitaire) : '—'}</td>
-                        <td className="td text-right font-bold text-amber-600">{g.qte ? fmtD(g.total) : '—'}</td>
+                        <td className="td text-right text-gray-500">{g.qte ? fmtMoney(g.prix_unitaire) : '—'}</td>
+                        <td className="td text-right font-bold text-amber-600">{g.qte ? fmtMoney(g.total) : '—'}</td>
                         <td className="td text-right text-cyan-600 text-xs">
                           {g.adblue_qte ? (
                             <>
-                              <div className="font-semibold">{fmtD(g.adblue_total)}</div>
-                              <div className="text-[10px] text-cyan-400">{fmtD(g.adblue_qte)}L × {fmtD(g.adblue_prix_unitaire)}</div>
+                              <div className="font-semibold">{fmtMoney(g.adblue_total)}</div>
+                              <div className="text-[10px] text-cyan-400">{fmtD(g.adblue_qte)}L × {fmtMoney(g.adblue_prix_unitaire)}</div>
                             </>
                           ) : '—'}
                         </td>
@@ -1171,18 +1171,18 @@ export default function Gasoil() {
                         <td className="tfoot-td" colSpan={4}>TOTAL</td>
                         <td className="tfoot-td text-right">{fmtD(totLitres)} L</td>
                         <td className="tfoot-td"></td>
-                        <td className="tfoot-td text-right text-amber-700">{fmt(totDHS)} DHS</td>
-                        <td className="tfoot-td text-right text-cyan-700">{totAdblue ? fmt(totAdblue) + ' DHS' : '—'}</td>
+                        <td className="tfoot-td text-right text-amber-700">{fmtMoney(totDHS)} DHS</td>
+                        <td className="tfoot-td text-right text-cyan-700">{totAdblue ? fmtMoney(totAdblue) + ' DHS' : '—'}</td>
                         <td className="tfoot-td" colSpan={3}></td>
                       </tr>
                       <tr>
                         <td className="tfoot-td" colSpan={6}>Remise Carburant</td>
-                        <td className="tfoot-td text-right text-green-600" colSpan={2}>− {fmt(remiseCarburant)} DHS</td>
+                        <td className="tfoot-td text-right text-green-600" colSpan={2}>− {fmtMoney(remiseCarburant)} DHS</td>
                         <td className="tfoot-td" colSpan={3}></td>
                       </tr>
                       <tr>
                         <td className="tfoot-td font-black" colSpan={6}>Net Supplier Total</td>
-                        <td className="tfoot-td text-right font-black" colSpan={2}>{fmt(netSupplierTotal)} DHS</td>
+                        <td className="tfoot-td text-right font-black" colSpan={2}>{fmtMoney(netSupplierTotal)} DHS</td>
                         <td className="tfoot-td" colSpan={3}></td>
                       </tr>
                     </tfoot>
@@ -1251,7 +1251,7 @@ export default function Gasoil() {
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
                   <div className="text-xs text-amber-600 mb-1">Total calculé</div>
                   <div className="text-xl font-bold text-amber-700">
-                    {fmtD((parseFloat(editForm.qte)||0) * (parseFloat(editForm.prix_unitaire)||0))} DHS
+                    {fmtMoney((parseFloat(editForm.qte)||0) * (parseFloat(editForm.prix_unitaire)||0))} DHS
                   </div>
                 </div>
               )}
@@ -1273,7 +1273,7 @@ export default function Gasoil() {
                 </div>
                 {editForm.adblue_qte && editForm.adblue_prix_unitaire && (
                   <div className="text-center text-xs text-cyan-700">
-                    {fmtD(editForm.adblue_qte)} L × {fmtD(editForm.adblue_prix_unitaire)} = <span className="font-bold">{fmtD((parseFloat(editForm.adblue_qte)||0) * (parseFloat(editForm.adblue_prix_unitaire)||0))} DHS</span>
+                    {fmtD(editForm.adblue_qte)} L × {fmtMoney(editForm.adblue_prix_unitaire)} = <span className="font-bold">{fmtMoney((parseFloat(editForm.adblue_qte)||0) * (parseFloat(editForm.adblue_prix_unitaire)||0))} DHS</span>
                   </div>
                 )}
               </div>

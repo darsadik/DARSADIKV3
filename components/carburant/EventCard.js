@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { fmt, fmtD } from '../../lib/utils'
+import { fmt, fmtD, fmtMoney } from '../../lib/utils'
 import { TIMELINE_STATUS } from '../../lib/services/voyageKmFuel'
 
 const BADGE_TONE = { ok: 'badge-green', warning: 'badge-amber', error: 'badge-red', info: 'badge-blue' }
@@ -101,8 +101,8 @@ function VoyageBlock({ e, onFixVoyage, onEditKm }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-100">
         <Tile label="Distance" value={e.distance !== null ? `${fmt(e.distance)} km` : '—'}
           tone={e.distance < 0 ? 'text-red-600' : e.distance === 0 ? 'text-amber-600' : undefined} />
-        <Tile label="Carburant assigné" value={e.fuelCost ? `${fmt(e.fuelCost)} DHS` : '—'} tone="text-amber-700" />
-        <Tile label="Coût / KM" value={e.costPerKm !== null ? `${fmtD(e.costPerKm)} DHS` : '—'} />
+        <Tile label="Carburant assigné" value={e.fuelCost ? `${fmtMoney(e.fuelCost)} DHS` : '—'} tone="text-amber-700" />
+        <Tile label="Coût / KM" value={e.costPerKm !== null ? `${fmtMoney(e.costPerKm)} DHS` : '—'} />
         <Tile label="Source" value={<span className="text-xs font-semibold text-slate-500">{e.fuelSourceLabel}{e.fillLabel ? ` · ${e.fillLabel}` : ''}</span>} />
       </div>
 
@@ -144,7 +144,7 @@ function PleinBlock({ e, onAssign, onFixGasoil }) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-100">
         <Tile label="Litres" value={`${fmtD(e.qte)} L`} />
-        <Tile label="Total" value={`${fmt(e.total)} DHS`} tone="text-amber-700" />
+        <Tile label="Total" value={`${fmtMoney(e.total)} DHS`} tone="text-amber-700" />
         <Tile label="Assigné à" value={
           e.links.length
             ? e.links.map(l => `V-${l.voyage_id}`).join(', ')
@@ -154,8 +154,8 @@ function PleinBlock({ e, onAssign, onFixGasoil }) {
         } />
         <Tile label="AdBlue" value={e.adblueTotal ? (
           <>
-            {fmt(e.adblueTotal)} DHS
-            {!!e.adblueQte && <span className="block text-[10px] font-semibold text-slate-400 normal-case">{fmtD(e.adblueQte)} L × {fmtD(e.adblueUnitPrice)} DHS</span>}
+            {fmtMoney(e.adblueTotal)} DHS
+            {!!e.adblueQte && <span className="block text-[10px] font-semibold text-slate-400 normal-case">{fmtD(e.adblueQte)} L × {fmtMoney(e.adblueUnitPrice)} DHS</span>}
           </>
         ) : '—'} />
       </div>

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { fmt, today } from '../../lib/utils'
+import { fmt, fmtMoney, today } from '../../lib/utils'
 import KpiCard from '../profitability/KpiCard'
 
 const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return d.toISOString().split('T')[0] }
@@ -32,7 +32,7 @@ export default function ExecutiveKpis({ results, clients, grignonClients, fourni
 
   const profitCard = (label, value) => (
     <KpiCard label={label} color={value >= 0 ? 'green' : 'red'} large
-      value={(value >= 0 ? '+' : '') + fmt(value) + ' DHS'} />
+      value={(value >= 0 ? '+' : '') + fmtMoney(value) + ' DHS'} />
   )
 
   return (
@@ -41,10 +41,10 @@ export default function ExecutiveKpis({ results, clients, grignonClients, fourni
       {profitCard('Profit · Semaine', kpis.week)}
       {profitCard('Profit · Mois', kpis.month)}
       {profitCard('Profit · Année', kpis.year)}
-      <KpiCard label="Clients à recevoir" color={receivable > 0 ? 'red' : 'green'} large value={fmt(receivable) + ' DHS'}
-        sub={`Briques ${fmt(receivableBrique)} · Grignon ${fmt(receivableGrignon)}`} />
-      <KpiCard label="Fournisseurs à payer" color={payable > 0 ? 'orange' : 'slate'} large value={fmt(payable) + ' DHS'}
-        sub={`Briques ${fmt(payableBrique)} · Grignon ${fmt(payableGrignon)}`} />
+      <KpiCard label="Clients à recevoir" color={receivable > 0 ? 'red' : 'green'} large value={fmtMoney(receivable) + ' DHS'}
+        sub={`Briques ${fmtMoney(receivableBrique)} · Grignon ${fmtMoney(receivableGrignon)}`} />
+      <KpiCard label="Fournisseurs à payer" color={payable > 0 ? 'orange' : 'slate'} large value={fmtMoney(payable) + ' DHS'}
+        sub={`Briques ${fmtMoney(payableBrique)} · Grignon ${fmtMoney(payableGrignon)}`} />
       <KpiCard label="Trésorerie" color="slate" large value="—" sub="Bientôt disponible" />
     </div>
   )

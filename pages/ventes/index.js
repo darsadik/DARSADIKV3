@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import * as XLSX from 'xlsx'
-import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { fmt, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import { resolveLivraisonByVenteId } from '../../lib/services/voyage/resolveSource'
@@ -341,7 +341,7 @@ export default function Ventes() {
     const tR = filtered.reduce((s,v)=>s+(v.retour_montant||0),0)
     const tRR = filtered.reduce((s,v)=>s+(v.retour_restant||0),0)
     const hasRetour = filtered.some(v => v.retour_client)
-    const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmt(v.retour_montant)}</td><td style="text-align:right">${fmt(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
+    const retourRows = hasRetour ? filtered.filter(v=>v.retour_client).map(v=>`<tr><td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td><td>${v.camion_plaque}</td><td>${v.retour_client}</td><td style="text-align:right">${fmtMoney(v.retour_montant)}</td><td style="text-align:right">${fmtMoney(v.retour_paye||0)}</td><td style="text-align:right" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmtMoney(v.retour_restant)+' ⚠':'Payé ✓'}</td></tr>`).join('') : ''
     const _now = new Date()
     const printDateTime = _now.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' à ' + String(_now.getHours()).padStart(2,'0') + ':' + String(_now.getMinutes()).padStart(2,'0')
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Ventes — DAR SADIK</title>
@@ -397,11 +397,11 @@ export default function Ventes() {
 </div>
 <div class="bdy">
 <div class="ttl">Ventes — ${fmtDate(filterFrom)} → ${fmtDate(filterTo)}</div>
-<div class="sub">${filtered.length} ventes &nbsp;·&nbsp; Total Qté : ${fmt(tQ)} briques &nbsp;·&nbsp; Total : ${fmt(tV)} DHS</div>
+<div class="sub">${filtered.length} ventes &nbsp;·&nbsp; Total Qté : ${fmt(tQ)} briques &nbsp;·&nbsp; Total : ${fmtMoney(tV)} DHS</div>
 <div class="kpi-g">
   <div class="kpi bl"><div class="lbl">Total quantité</div><div class="val">${fmt(tQ)}</div></div>
-  <div class="kpi gn"><div class="lbl">Total ventes</div><div class="val">${fmt(tV)} DHS</div></div>
-  <div class="kpi am"><div class="lbl">Retours transport</div><div class="val">${fmt(tR)} DHS</div></div>
+  <div class="kpi gn"><div class="lbl">Total ventes</div><div class="val">${fmtMoney(tV)} DHS</div></div>
+  <div class="kpi am"><div class="lbl">Retours transport</div><div class="val">${fmtMoney(tR)} DHS</div></div>
 </div>
 <div class="sec">Détail des ventes (${filtered.length})</div>
 <table><thead><tr>
@@ -413,14 +413,14 @@ export default function Ventes() {
   <td><span class="tag">${v.type_brique||'—'}</span></td>
   <td>${v.camion_plaque||'—'}</td>
   <td class="r">${fmt(v.qte)}</td>
-  <td class="r">${fmtD(v.prix_vente)}</td>
-  <td class="r num">${fmt(v.total_vente)}</td>
+  <td class="r">${fmtMoney(v.prix_vente)}</td>
+  <td class="r num">${fmtMoney(v.total_vente)}</td>
   <td class="m">${v.note||'—'}</td>
 </tr>`).join('')}</tbody>
 <tfoot><tr>
   <td colspan="4">TOTAL (${filtered.length} ventes)</td>
   <td class="r">${fmt(tQ)}</td><td></td>
-  <td class="r">${fmt(tV)} DHS</td><td></td>
+  <td class="r">${fmtMoney(tV)} DHS</td><td></td>
 </tr></tfoot>
 </table>
 ${hasRetour ? `<div class="sec">Retours Transport</div>
@@ -431,8 +431,8 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
 <tbody>${retourRows}</tbody>
 <tfoot><tr>
   <td colspan="4">TOTAL RETOURS</td>
-  <td class="r">${fmt(tR)} DHS</td><td></td>
-  <td class="r">${fmt(tRR)} DHS</td>
+  <td class="r">${fmtMoney(tR)} DHS</td><td></td>
+  <td class="r">${fmtMoney(tRR)} DHS</td>
 </tr></tfoot>
 </table>` : ''}
 <div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${printDateTime}</span></div>
@@ -537,7 +537,7 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
             <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(v.date)}</div>
           </div>
           <div className="card-amount" style={isRemise ? {color:'#15803d'} : {}}>
-            {isRemise ? `− ${fmt(v.montant_mdo)} DHS` : `${fmt(v.total_vente)} DHS`}
+            {isRemise ? `− ${fmtMoney(v.montant_mdo)} DHS` : `${fmtMoney(v.total_vente)} DHS`}
           </div>
         </div>
         <div className="card-meta">
@@ -558,7 +558,7 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
         {v.retour_client && (
           <div className="mt-2 p-2 rounded-lg text-xs" style={{background:'#f0fdf4',border:'1px solid #bbf7d0'}}>
             <span className="font-bold text-green-700">↩️ Retour:</span> {v.retour_client}
-            {v.retour_montant > 0 && <> — {fmt(v.retour_montant)} DHS {v.retour_restant > 0 ? <span className="text-orange-500">(reste {fmt(v.retour_restant)} DHS)</span> : <span className="text-green-600">(payé)</span>}</>}
+            {v.retour_montant > 0 && <> — {fmtMoney(v.retour_montant)} DHS {v.retour_restant > 0 ? <span className="text-orange-500">(reste {fmtMoney(v.retour_restant)} DHS)</span> : <span className="text-green-600">(payé)</span>}</>}
           </div>
         )}
       </div>
@@ -601,17 +601,17 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
                 </div>
                 <div className="bg-brand-50 rounded-xl p-3 text-center">
                   <div className="text-xs text-gray-400">Total DHS</div>
-                  <div className="text-lg font-bold text-brand-600">{fmt(tV)}</div>
+                  <div className="text-lg font-bold text-brand-600">{fmtMoney(tV)}</div>
                 </div>
                 {hasRetour && (
                   <>
                     <div className="bg-green-50 rounded-xl p-3 text-center col-span-1">
                       <div className="text-xs text-gray-400">↩️ Retour total</div>
-                      <div className="text-lg font-bold text-green-600">{fmt(tR)} DHS</div>
+                      <div className="text-lg font-bold text-green-600">{fmtMoney(tR)} DHS</div>
                     </div>
                     <div className="bg-orange-50 rounded-xl p-3 text-center col-span-1">
                       <div className="text-xs text-gray-400">Retour restant</div>
-                      <div className="text-lg font-bold text-orange-500">{fmt(tRR)} DHS</div>
+                      <div className="text-lg font-bold text-orange-500">{fmtMoney(tRR)} DHS</div>
                     </div>
                   </>
                 )}
@@ -655,9 +655,9 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
                       {v.voyage_id && <span className="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 border border-blue-200" title={`Lié au voyage #${v.voyage_id}`}>V#{v.voyage_id}</span>}
                     </td>
                     <td className="td text-right">{['mdo','gasoil','autre'].includes(v.type_entree) || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmt(v.qte)}</td>
-                    <td className="td text-right">{['mdo','gasoil','autre'].includes(v.type_entree) || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmtD(v.prix_vente)}</td>
+                    <td className="td text-right">{['mdo','gasoil','autre'].includes(v.type_entree) || v.type_entree === 'remise' ? <span className="text-gray-300">—</span> : fmtMoney(v.prix_vente)}</td>
                     <td className="td text-right font-bold" style={v.type_entree==='remise' ? {color:'#15803d'} : {}}>
-                      {v.type_entree === 'remise' ? `− ${fmt(v.montant_mdo)}` : fmt(v.total_vente)}
+                      {v.type_entree === 'remise' ? `− ${fmtMoney(v.montant_mdo)}` : fmtMoney(v.total_vente)}
                     </td>
                     <td className="td text-xs text-gray-400" style={{maxWidth:'160px',wordBreak:'break-word',whiteSpace:'pre-wrap'}}>
                       {v.type_entree === 'mdo' && v.description_mdo
@@ -671,9 +671,9 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
                         {v.retour_client ? (
                           <div>
                             <div className="font-semibold text-green-700">{v.retour_client}</div>
-                            <div className="text-gray-500">{fmt(v.retour_montant)} DHS</div>
+                            <div className="text-gray-500">{fmtMoney(v.retour_montant)} DHS</div>
                             {v.retour_restant > 0
-                              ? <div className="text-orange-500">reste {fmt(v.retour_restant)}</div>
+                              ? <div className="text-orange-500">reste {fmtMoney(v.retour_restant)}</div>
                               : <div className="text-green-600">✓ payé</div>}
                           </div>
                         ) : <span className="text-gray-200">—</span>}
@@ -695,9 +695,9 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
                     <td className="tfoot-td" colSpan={4}>TOTAL ({filtered.length})</td>
                     <td className="tfoot-td text-right">{fmt(tQ)}</td>
                     <td className="tfoot-td"></td>
-                    <td className="tfoot-td text-right">{fmt(tV)} DHS</td>
+                    <td className="tfoot-td text-right">{fmtMoney(tV)} DHS</td>
                     <td className="tfoot-td"></td>
-                    {hasRetour && <td className="tfoot-td text-right text-xs">{fmt(tR)} DHS <span className="text-orange-400">({fmt(tRR)} reste)</span></td>}
+                    {hasRetour && <td className="tfoot-td text-right text-xs">{fmtMoney(tR)} DHS <span className="text-orange-400">({fmtMoney(tRR)} reste)</span></td>}
                     {admin && <td className="tfoot-td"></td>}
                   </tr>
                 </tfoot>
@@ -819,8 +819,8 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
           <td>${fmtDate(v.date_fournisseur || v.date)}</td>
           <td>${v.type_brique||'—'}</td>
           <td style="text-align:right">${fmt(v.qte)}</td>
-          <td style="text-align:right">${fmtD(v.prix_achat)}</td>
-          <td style="text-align:right"><b>${fmt(v.total_achat)}</b></td>
+          <td style="text-align:right">${fmtMoney(v.prix_achat)}</td>
+          <td style="text-align:right"><b>${fmtMoney(v.total_achat)}</b></td>
         </tr>`).join('')
       const typeRows = Object.entries(data.byType)
         .sort(([a],[b])=>a.localeCompare(b))
@@ -828,13 +828,13 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
           <td colspan="2" style="font-weight:800;color:#92400e">📦 ${tb}</td>
           <td style="text-align:right;font-weight:800;color:#1d4ed8">${fmt(td.qte)}</td>
           <td></td>
-          <td style="text-align:right;font-weight:800;color:#b45309">${fmt(td.total)} DHS</td>
+          <td style="text-align:right;font-weight:800;color:#b45309">${fmtMoney(td.total)} DHS</td>
         </tr>`).join('')
       return `
         <div class="fourn-block">
           <div class="fourn-header">
             <div class="fourn-title">${fourn}</div>
-            <div class="fourn-sub">${data.ops.length} op. &nbsp;·&nbsp; ${fmt(totQte)} briques &nbsp;·&nbsp; ${fmt(totAchat)} DHS</div>
+            <div class="fourn-sub">${data.ops.length} op. &nbsp;·&nbsp; ${fmt(totQte)} briques &nbsp;·&nbsp; ${fmtMoney(totAchat)} DHS</div>
           </div>
           <table>
             <thead><tr>
@@ -852,7 +852,7 @@ ${hasRetour ? `<div class="sec">Retours Transport</div>
               <td colspan="2">TOTAL GÉNÉRAL (${data.ops.length} opérations)</td>
               <td class="r">${fmt(totQte)}</td>
               <td></td>
-              <td class="r">${fmt(totAchat)} DHS</td>
+              <td class="r">${fmtMoney(totAchat)} DHS</td>
             </tr></tfoot>
           </table>
         </div>`
@@ -1009,7 +1009,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
             </div>
             <div className="stat-card border border-amber-100 bg-amber-50 col-span-2">
               <div className="stat-label text-amber-600">Total achat global</div>
-              <div className="stat-value text-amber-700">{fmt(grandTotalAchat)} DHS</div>
+              <div className="stat-value text-amber-700">{fmtMoney(grandTotalAchat)} DHS</div>
               <div className="stat-sub">Tous produits confondus</div>
             </div>
           </div>
@@ -1033,7 +1033,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                   </div>
                   <div>
                     <div className="opacity-70 text-xs">Total achat</div>
-                    <div className="font-bold text-base">{fmt(data.totalAchat)} DHS</div>
+                    <div className="font-bold text-base">{fmtMoney(data.totalAchat)} DHS</div>
                   </div>
                 </div>
               </div>
@@ -1048,11 +1048,11 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                     <div key={day} className="flex items-center justify-between py-2 border-b border-gray-50">
                       <div>
                         <div className="font-semibold text-gray-900">{fmtDate(day)}</div>
-                        <div className="text-xs text-gray-400">{fmtD(d.prix)} DHS/u</div>
+                        <div className="text-xs text-gray-400">{fmtMoney(d.prix)} DHS/u</div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-blue-700">{fmt(d.qte)} briques</div>
-                        <div className="text-xs text-amber-600">{fmt(d.total)} DHS</div>
+                        <div className="text-xs text-amber-600">{fmtMoney(d.total)} DHS</div>
                       </div>
                     </div>
                   ))}
@@ -1077,8 +1077,8 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                           <td className="td font-semibold text-gray-700">{fmtDate(day)}</td>
                           <td className="td"><span className="badge-blue">{prod}</span></td>
                           <td className="td text-right font-bold text-blue-700">{fmt(d.qte)}</td>
-                          <td className="td text-right text-gray-500">{fmtD(d.prix)}</td>
-                          <td className="td text-right font-bold text-amber-700">{fmt(d.total)}</td>
+                          <td className="td text-right text-gray-500">{fmtMoney(d.prix)}</td>
+                          <td className="td text-right font-bold text-amber-700">{fmtMoney(d.total)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1087,7 +1087,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                         <td className="tfoot-td" colSpan={2}>TOTAL {prod} ({Object.keys(data.days).length} jour(s))</td>
                         <td className="tfoot-td text-right">{fmt(data.totalQte)}</td>
                         <td className="tfoot-td"></td>
-                        <td className="tfoot-td text-right">{fmt(data.totalAchat)} DHS</td>
+                        <td className="tfoot-td text-right">{fmtMoney(data.totalAchat)} DHS</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -1108,7 +1108,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-amber-600">Total achat DHS</div>
-                    <div className="text-2xl font-bold text-amber-800">{fmt(grandTotalAchat)}</div>
+                    <div className="text-2xl font-bold text-amber-800">{fmtMoney(grandTotalAchat)}</div>
                   </div>
                 </div>
               </div>
@@ -1152,7 +1152,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
               className="btn-secondary text-xs">↺ Réinitialiser</button>
           </div>
           <div className="mt-2 text-xs text-gray-400">
-            {fFiltered.length} opération(s) — {fmt(fFiltered.reduce((s,v)=>s+(v.qte||0),0))} briques — {fmt(fFiltered.reduce((s,v)=>s+(v.total_achat||0),0))} DHS achat
+            {fFiltered.length} opération(s) — {fmt(fFiltered.reduce((s,v)=>s+(v.qte||0),0))} briques — {fmtMoney(fFiltered.reduce((s,v)=>s+(v.total_achat||0),0))} DHS achat
           </div>
         </div>
 
@@ -1191,7 +1191,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
               <h3 className="font-bold text-lg text-brand-700">🏭 {fourn}</h3>
               <div className="flex gap-4 text-sm">
                 <span className="text-gray-500">Qté: <b className="text-gray-900">{fmt(data.totQte)} briques</b></span>
-                <span className="text-gray-500">Achat: <b className="text-amber-700">{fmt(data.totAchat)} DHS</b></span>
+                <span className="text-gray-500">Achat: <b className="text-amber-700">{fmtMoney(data.totAchat)} DHS</b></span>
               </div>
             </div>
 
@@ -1204,11 +1204,11 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                         <div className="card-title">{v.type_brique||'—'}</div>
                         <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(v.date)}</div>
                       </div>
-                      <div className="card-amount">{fmt(v.total_achat)} DHS</div>
+                      <div className="card-amount">{fmtMoney(v.total_achat)} DHS</div>
                     </div>
                     <div className="card-meta">
                       <span>📏 {fmt(v.qte)} briques</span>
-                      <span>💲 {fmtD(v.prix_achat)} DHS/u</span>
+                      <span>💲 {fmtMoney(v.prix_achat)} DHS/u</span>
                     </div>
                   </div>
                 ))}
@@ -1218,7 +1218,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                   {Object.entries(data.byType).sort().map(([tb, td]) => (
                     <div key={tb} className="flex justify-between py-1 border-b border-amber-100 last:border-0">
                       <span className="font-semibold text-sm text-gray-800">{tb}</span>
-                      <span className="text-sm"><b className="text-blue-700">{fmt(td.qte)}</b> <span className="text-gray-400">briques</span> — <b className="text-amber-700">{fmt(td.total)} DHS</b></span>
+                      <span className="text-sm"><b className="text-blue-700">{fmt(td.qte)}</b> <span className="text-gray-400">briques</span> — <b className="text-amber-700">{fmtMoney(td.total)} DHS</b></span>
                     </div>
                   ))}
                 </div>
@@ -1244,8 +1244,8 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                         <td className="td text-gray-500">{fmtDate(v.date_fournisseur || v.date)}</td>
                         <td className="td"><span className="badge-blue">{v.type_brique||'—'}</span></td>
                         <td className="td text-right">{fmt(v.qte)}</td>
-                        <td className="td text-right text-gray-500">{fmtD(v.prix_achat)}</td>
-                        <td className="td text-right font-bold text-amber-700">{fmt(v.total_achat)}</td>
+                        <td className="td text-right text-gray-500">{fmtMoney(v.prix_achat)}</td>
+                        <td className="td text-right font-bold text-amber-700">{fmtMoney(v.total_achat)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1254,7 +1254,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                       <td className="tfoot-td" colSpan={2}>TOTAL ({data.ops.length} opérations)</td>
                       <td className="tfoot-td text-right">{fmt(data.totQte)}</td>
                       <td className="tfoot-td"></td>
-                      <td className="tfoot-td text-right">{fmt(data.totAchat)} DHS</td>
+                      <td className="tfoot-td text-right">{fmtMoney(data.totAchat)} DHS</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1277,7 +1277,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                         <tr key={tb} className="hover:bg-amber-50">
                           <td className="td font-bold text-gray-800">📦 {tb}</td>
                           <td className="td text-right font-bold text-blue-700">{fmt(td.qte)}</td>
-                          <td className="td text-right font-bold text-amber-700">{fmt(td.total)} DHS</td>
+                          <td className="td text-right font-bold text-amber-700">{fmtMoney(td.total)} DHS</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1285,7 +1285,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                       <tr>
                         <td className="tfoot-td">TOTAL GÉNÉRAL</td>
                         <td className="tfoot-td text-right">{fmt(data.totQte)}</td>
-                        <td className="tfoot-td text-right">{fmt(data.totAchat)} DHS</td>
+                        <td className="tfoot-td text-right">{fmtMoney(data.totAchat)} DHS</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -1381,13 +1381,13 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                 ${data.chauffeur ? `<div class="camion-sub-txt">${data.chauffeur}</div>` : ''}
               </div>
               <div class="camion-info">
-                ${data.voyages} voyage(s) &nbsp;·&nbsp; ${fmt(data.qte)} briques &nbsp;·&nbsp; ${fmt(data.vente)} DHS
+                ${data.voyages} voyage(s) &nbsp;·&nbsp; ${fmt(data.qte)} briques &nbsp;·&nbsp; ${fmtMoney(data.vente)} DHS
               </div>
             </div>
             <div class="kpi-g">
               <div class="kpi bl"><div class="lbl">Voyages</div><div class="val">${data.voyages}</div></div>
               <div class="kpi gn"><div class="lbl">Briques</div><div class="val">${fmt(data.qte)}</div></div>
-              <div class="kpi am"><div class="lbl">Total DHS</div><div class="val">${fmt(data.vente)}</div></div>
+              <div class="kpi am"><div class="lbl">Total DHS</div><div class="val">${fmtMoney(data.vente)}</div></div>
             </div>
             <table>
               <thead><tr>
@@ -1402,7 +1402,7 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
             </table>
             ${data.retours.length > 0 ? `
             <div class="retour-blk">
-              <div class="retour-ttl">Retours Transport (${data.retours.length}) — Total: ${fmt(data.retourTotal)} DHS &nbsp;·&nbsp; Restant: ${fmt(data.retourRestant)} DHS</div>
+              <div class="retour-ttl">Retours Transport (${data.retours.length}) — Total: ${fmtMoney(data.retourTotal)} DHS &nbsp;·&nbsp; Restant: ${fmtMoney(data.retourRestant)} DHS</div>
               <table>
                 <thead><tr>
                   <th>Date</th><th>Client retour</th>
@@ -1410,9 +1410,9 @@ ${sections || '<p style="color:#aaa;text-align:center;padding:40px">Aucune donn�
                 </tr></thead>
                 <tbody>${data.retours.map(v=>`<tr>
                   <td>${fmtDate(v.date)}</td><td><b>${v.retour_client}</b></td>
-                  <td class="r">${fmt(v.retour_montant)}</td>
-                  <td class="r" style="color:#16a34a">${fmt(v.retour_paye||0)}</td>
-                  <td class="r" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmt(v.retour_restant):'Payé'}</td>
+                  <td class="r">${fmtMoney(v.retour_montant)}</td>
+                  <td class="r" style="color:#16a34a">${fmtMoney(v.retour_paye||0)}</td>
+                  <td class="r" style="color:${v.retour_restant>0?'#f97316':'#16a34a'}">${v.retour_restant>0?fmtMoney(v.retour_restant):'Payé'}</td>
                   <td>${v.retour_note||'—'}</td>
                 </tr>`).join('')}</tbody>
               </table>
@@ -1585,7 +1585,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                 </div>
                 <div className="bg-brand-50 rounded-xl p-3 text-center">
                   <div className="text-xs text-gray-400">DHS</div>
-                  <div className="text-xl font-bold text-brand-600">{fmt(data.vente)}</div>
+                  <div className="text-xl font-bold text-brand-600">{fmtMoney(data.vente)}</div>
                 </div>
               </div>
             </div>
@@ -1608,13 +1608,13 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
               <div className="mt-3 p-3 rounded-xl border border-green-200" style={{background:'#f0fdf4'}}>
                 <div className="text-xs font-bold text-green-700 uppercase mb-2">↩️ Retours Transport ({data.retours.length})</div>
                 <div className="grid grid-cols-2 gap-2 text-xs mb-2">
-                  <div><span className="text-gray-400">Total retour:</span> <b className="text-green-700">{fmt(data.retourTotal)} DHS</b></div>
-                  <div><span className="text-gray-400">Restant:</span> <b className="text-orange-500">{fmt(data.retourRestant)} DHS</b></div>
+                  <div><span className="text-gray-400">Total retour:</span> <b className="text-green-700">{fmtMoney(data.retourTotal)} DHS</b></div>
+                  <div><span className="text-gray-400">Restant:</span> <b className="text-orange-500">{fmtMoney(data.retourRestant)} DHS</b></div>
                 </div>
                 {data.retours.map(v => (
                   <div key={v.id} className="text-xs py-1 border-t border-green-100 flex justify-between">
                     <span>{fmtDate(v.date)} — <b>{v.retour_client}</b></span>
-                    <span>{fmt(v.retour_montant)} DHS {v.retour_restant > 0 ? <span className="text-orange-500">(reste {fmt(v.retour_restant)})</span> : <span className="text-green-600">✓</span>}</span>
+                    <span>{fmtMoney(v.retour_montant)} DHS {v.retour_restant > 0 ? <span className="text-orange-500">(reste {fmtMoney(v.retour_restant)})</span> : <span className="text-green-600">✓</span>}</span>
                   </div>
                 ))}
               </div>
@@ -1669,7 +1669,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                 className="btn-secondary w-full justify-center text-xs">↺ Réinitialiser</button>
             </div>
           )}
-          <div className="text-xs text-gray-400 mt-2 px-1">{filtered.length} vente(s) — {fmt(filtered.reduce((s,v)=>s+(v.total_vente||0),0))} DHS</div>
+          <div className="text-xs text-gray-400 mt-2 px-1">{filtered.length} vente(s) — {fmtMoney(filtered.reduce((s,v)=>s+(v.total_vente||0),0))} DHS</div>
         </div>
       ) : (
         <div className="card mb-4">
@@ -1694,7 +1694,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
             <button onClick={()=>{setFilterClient('');setFilterFourn('');setFilterCamion('');setFilterFrom(startOfMonth());setFilterTo(today())}}
               className="btn-secondary text-xs">↺ Réinitialiser</button>
           </div>
-          <div className="mt-2 text-xs text-gray-400">{filtered.length} vente(s) — {fmt(filtered.reduce((s,v)=>s+(v.qte||0),0))} briques — {fmt(filtered.reduce((s,v)=>s+(v.total_vente||0),0))} DHS</div>
+          <div className="mt-2 text-xs text-gray-400">{filtered.length} vente(s) — {fmt(filtered.reduce((s,v)=>s+(v.qte||0),0))} briques — {fmtMoney(filtered.reduce((s,v)=>s+(v.total_vente||0),0))} DHS</div>
         </div>
       )}
 
@@ -1773,11 +1773,11 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                     </div>
                     {form.retour_montant && (
                       <div className="grid grid-cols-3 gap-3 bg-green-50 rounded-xl p-3 text-center">
-                        <div><div className="text-xs text-gray-400">Montant</div><div className="font-bold text-green-700">{fmt(parseFloat(form.retour_montant)||0)} DHS</div></div>
-                        <div><div className="text-xs text-gray-400">Payé</div><div className="font-bold text-blue-700">{fmt(parseFloat(form.retour_paye)||0)} DHS</div></div>
+                        <div><div className="text-xs text-gray-400">Montant</div><div className="font-bold text-green-700">{fmtMoney(parseFloat(form.retour_montant)||0)} DHS</div></div>
+                        <div><div className="text-xs text-gray-400">Payé</div><div className="font-bold text-blue-700">{fmtMoney(parseFloat(form.retour_paye)||0)} DHS</div></div>
                         <div><div className="text-xs text-gray-400">Restant</div>
                           <div className={`font-bold ${((parseFloat(form.retour_montant)||0)-(parseFloat(form.retour_paye)||0))>0?'text-orange-500':'text-green-600'}`}>
-                            {fmt(Math.max(0,(parseFloat(form.retour_montant)||0)-(parseFloat(form.retour_paye)||0)))} DHS
+                            {fmtMoney(Math.max(0,(parseFloat(form.retour_montant)||0)-(parseFloat(form.retour_paye)||0)))} DHS
                           </div>
                         </div>
                       </div>
@@ -1787,9 +1787,9 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
               </div>
               {form.qte && form.prix_vente && (
                 <div className="grid grid-cols-3 gap-3 bg-brand-50 rounded-xl p-4 mb-4 text-center">
-                  <div><div className="text-xs text-gray-400">Total vente</div><div className="text-lg font-bold text-brand-600">{fmt(tv)} DHS</div></div>
-                  <div><div className="text-xs text-gray-400">Total achat</div><div className="text-lg font-bold text-gray-500">{fmt(ta)} DHS</div></div>
-                  <div><div className="text-xs text-gray-400">Marge</div><div className={`text-lg font-bold ${mg>=0?'text-green-600':'text-red-600'}`}>{fmt(mg)} DHS</div></div>
+                  <div><div className="text-xs text-gray-400">Total vente</div><div className="text-lg font-bold text-brand-600">{fmtMoney(tv)} DHS</div></div>
+                  <div><div className="text-xs text-gray-400">Total achat</div><div className="text-lg font-bold text-gray-500">{fmtMoney(ta)} DHS</div></div>
+                  <div><div className="text-xs text-gray-400">Marge</div><div className={`text-lg font-bold ${mg>=0?'text-green-600':'text-red-600'}`}>{fmtMoney(mg)} DHS</div></div>
                 </div>
               )}
               <button type="submit" disabled={saving} className={`btn-primary ${isMobile ? 'w-full justify-center' : ''}`}>
@@ -1824,7 +1824,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                 <td>${v.type_entree==='gasoil'?'⛽ Frais Gasoil':v.type_entree==='autre'?'📌 Autre':'🔧 Main d\'oeuvre'}</td>
                 <td>${v.description_mdo || '—'}</td>
                 <td>${v.camion_plaque || '—'}</td>
-                <td style="text-align:right"><b>${fmt(v.montant_mdo)} DHS</b></td>
+                <td style="text-align:right"><b>${fmtMoney(v.montant_mdo)} DHS</b></td>
                 <td>${v.note || '—'}</td>
               </tr>`).join('')
               const _mn = new Date(); const _mdt = _mn.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(_mn.getHours()).padStart(2,'0')+':'+String(_mn.getMinutes()).padStart(2,'0')
@@ -1861,13 +1861,13 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
 </div>
 <div class="bdy">
 <div class="ttl">MDO / Frais Gasoil / Autre</div>
-<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${mdoFiltered.length} entrée(s) &nbsp;·&nbsp; Total : ${fmt(totalMdo)} DHS</div>
+<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${mdoFiltered.length} entrée(s) &nbsp;·&nbsp; Total : ${fmtMoney(totalMdo)} DHS</div>
 <div class="sec">Détail (${mdoFiltered.length})</div>
 <table><thead><tr>
   <th>Date</th><th>Client</th><th>Type</th><th>Description</th><th>Camion</th><th class="r">Montant DHS</th><th>Note</th>
 </tr></thead>
 <tbody>${rows}</tbody>
-<tfoot><tr><td colspan="5">TOTAL (${mdoFiltered.length})</td><td class="r">${fmt(totalMdo)} DHS</td><td></td></tr></tfoot>
+<tfoot><tr><td colspan="5">TOTAL (${mdoFiltered.length})</td><td class="r">${fmtMoney(totalMdo)} DHS</td><td></td></tr></tfoot>
 </table>
 <div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_mdt}</span></div>
 </div></body></html>`)
@@ -1924,7 +1924,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="font-bold text-gray-900">📋 Historique MDO / Gasoil / Autre</h3>
-                      <div className="text-xs text-gray-400 mt-1">{mdoFiltered.length} entrée(s) — Total: <b className="text-amber-700">{fmt(totalMdo)} DHS</b></div>
+                      <div className="text-xs text-gray-400 mt-1">{mdoFiltered.length} entrée(s) — Total: <b className="text-amber-700">{fmtMoney(totalMdo)} DHS</b></div>
                     </div>
                     <button onClick={printMdo} className="btn-primary text-xs px-3 py-1.5" style={{background:'#92400e'}}>🖨️ PDF</button>
                   </div>
@@ -1954,7 +1954,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                             </td>
                             <td className="td text-amber-700">{v.type_entree === 'gasoil' ? <span className="text-gray-300">—</span> : (v.description_mdo || '—')}</td>
                             <td className="td text-gray-500">{v.camion_plaque || '—'}</td>
-                            <td className="td text-right font-bold text-amber-700">{fmt(v.montant_mdo)} DHS</td>
+                            <td className="td text-right font-bold text-amber-700">{fmtMoney(v.montant_mdo)} DHS</td>
                             <td className="td text-gray-400 text-xs">{v.type_entree === 'gasoil' ? <span className="text-gray-300">—</span> : (v.note || '—')}</td>
                             {admin && <td className="td">
                               <button onClick={() => deleteVente(v)} className="btn-danger text-xs">✕</button>
@@ -1967,7 +1967,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
                         <tfoot>
                           <tr>
                             <td className="tfoot-td" colSpan={5}>TOTAL ({mdoFiltered.length})</td>
-                            <td className="tfoot-td text-right">{fmt(totalMdo)} DHS</td>
+                            <td className="tfoot-td text-right">{fmtMoney(totalMdo)} DHS</td>
                             <td className="tfoot-td" colSpan={admin ? 2 : 1}></td>
                           </tr>
                         </tfoot>
@@ -1991,7 +1991,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
             function printRemises() {
                             const rows = remisesFiltered.map(v => `<tr>
                 <td>${fmtDate(v.date)}</td><td><b>${v.client_nom}</b></td>
-                <td style="text-align:right;color:#15803d"><b>− ${fmt(v.montant_mdo)} DHS</b></td>
+                <td style="text-align:right;color:#15803d"><b>− ${fmtMoney(v.montant_mdo)} DHS</b></td>
                 <td>${v.description_mdo||v.note||'—'}</td></tr>`).join('')
               const _rn = new Date(); const _rdt = _rn.toLocaleDateString('fr-MA',{day:'2-digit',month:'2-digit',year:'numeric'})+' à '+String(_rn.getHours()).padStart(2,'0')+':'+String(_rn.getMinutes()).padStart(2,'0')
               openPrintWindow(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Remises — DAR SADIK</title>
@@ -2027,7 +2027,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
 </div>
 <div class="bdy">
 <div class="ttl">Remises Clients</div>
-<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${remisesFiltered.length} remise(s) &nbsp;·&nbsp; Total : − ${fmt(totalRemises)} DHS</div>
+<div class="sub">Période : ${fmtDate(filterFrom)} → ${fmtDate(filterTo)} &nbsp;·&nbsp; ${remisesFiltered.length} remise(s) &nbsp;·&nbsp; Total : − ${fmtMoney(totalRemises)} DHS</div>
 <div class="sec">Détail des remises (${remisesFiltered.length})</div>
 <table><thead><tr>
   <th>Date</th><th>Client</th><th class="r">Remise DHS</th><th>Note / Motif</th>
@@ -2035,7 +2035,7 @@ ${camionBlocks || '<p style="color:#aaa;text-align:center;padding:40px">Aucune d
 <tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#aaa;padding:14px;font-style:italic">Aucune remise</td></tr>'}</tbody>
 ${remisesFiltered.length > 0 ? `<tfoot><tr>
   <td colspan="2">TOTAL (${remisesFiltered.length})</td>
-  <td class="r gv num">− ${fmt(totalRemises)} DHS</td><td></td>
+  <td class="r gv num">− ${fmtMoney(totalRemises)} DHS</td><td></td>
 </tr></tfoot>` : ''}
 </table>
 <div class="foot"><span>DAR SADIK — دار صديق — Selouane, Nador</span><span>Généré le ${_rdt}</span></div>
@@ -2057,7 +2057,7 @@ ${remisesFiltered.length > 0 ? `<tfoot><tr>
                         <select className="input" value={remiseForm.client_id}
                           onChange={e=>setRemiseForm({...remiseForm,client_id:e.target.value})} required>
                           <option value="">Sélectionner...</option>
-                          {clients.map(c=><option key={c.id} value={c.id}>{c.nom} — solde: {fmt(c.solde||0)} DHS</option>)}
+                          {clients.map(c=><option key={c.id} value={c.id}>{c.nom} — solde: {fmtMoney(c.solde||0)} DHS</option>)}
                         </select></div>
                       <div><label className="label">Montant remise (DHS)</label>
                         <input type="text" inputMode="decimal" className="input" placeholder="ex: 500"
@@ -2075,16 +2075,16 @@ ${remisesFiltered.length > 0 ? `<tfoot><tr>
                           style={{background:'#f0fdf4',border:'1px solid #bbf7d0'}}>
                           <div className="text-center">
                             <div className="text-xs text-gray-400">Solde actuel</div>
-                            <div className="font-bold text-gray-700">{fmt(cl?.solde||0)} DHS</div>
+                            <div className="font-bold text-gray-700">{fmtMoney(cl?.solde||0)} DHS</div>
                           </div>
                           <div className="text-center">
                             <div className="text-xs text-green-500">🎁 Remise</div>
-                            <div className="font-bold text-green-600">− {fmt(montant)} DHS</div>
+                            <div className="font-bold text-green-600">− {fmtMoney(montant)} DHS</div>
                           </div>
                           <div className="text-center">
                             <div className="text-xs text-gray-400">Solde après</div>
                             <div className="font-bold" style={{color: soldeApres > 0 ? '#92400e' : '#15803d'}}>
-                              {fmt(soldeApres)} DHS
+                              {fmtMoney(soldeApres)} DHS
                             </div>
                           </div>
                         </div>
@@ -2109,7 +2109,7 @@ ${remisesFiltered.length > 0 ? `<tfoot><tr>
                     <div>
                       <h3 className="font-bold text-gray-900">📋 Historique des remises</h3>
                       <div className="text-xs text-gray-400 mt-1">
-                        {remisesFiltered.length} remise(s) — Total: <b className="text-green-700">− {fmt(totalRemises)} DHS</b>
+                        {remisesFiltered.length} remise(s) — Total: <b className="text-green-700">− {fmtMoney(totalRemises)} DHS</b>
                       </div>
                     </div>
                     <button onClick={printRemises} className="btn-primary text-xs px-3 py-1.5"
@@ -2129,7 +2129,7 @@ ${remisesFiltered.length > 0 ? `<tfoot><tr>
                           <tr key={v.id} className="hover:bg-green-50">
                             <td className="td text-gray-500">{fmtDate(v.date)}</td>
                             <td className="td font-semibold">{v.client_nom}</td>
-                            <td className="td text-right font-bold text-green-700">− {fmt(v.montant_mdo)} DHS</td>
+                            <td className="td text-right font-bold text-green-700">− {fmtMoney(v.montant_mdo)} DHS</td>
                             <td className="td text-gray-500 text-xs">{v.description_mdo||v.note||'—'}</td>
                             {admin && <td className="td">
                               <button onClick={()=>deleteVente(v)} className="btn-danger text-xs">✕</button>
@@ -2143,7 +2143,7 @@ ${remisesFiltered.length > 0 ? `<tfoot><tr>
                       {remisesFiltered.length > 0 && (
                         <tfoot><tr>
                           <td className="tfoot-td" colSpan={2}>TOTAL ({remisesFiltered.length})</td>
-                          <td className="tfoot-td text-right text-green-700">− {fmt(totalRemises)} DHS</td>
+                          <td className="tfoot-td text-right text-green-700">− {fmtMoney(totalRemises)} DHS</td>
                           <td className="tfoot-td" colSpan={admin ? 2 : 1}></td>
                         </tr></tfoot>
                       )}
@@ -2248,15 +2248,15 @@ ${remisesFiltered.length > 0 ? `<tfoot><tr>
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 grid grid-cols-3 gap-2 text-center text-xs">
                   <div>
                     <div className="text-blue-400">Total vente</div>
-                    <div className="font-bold text-blue-700">{fmt(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_vente)||0)))} DHS</div>
+                    <div className="font-bold text-blue-700">{fmtMoney(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_vente)||0)))} DHS</div>
                   </div>
                   <div>
                     <div className="text-gray-400">Total achat</div>
-                    <div className="font-bold text-gray-600">{fmt(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_achat)||0)))} DHS</div>
+                    <div className="font-bold text-gray-600">{fmtMoney(Math.round((parseFloat(editForm.qte)||0)*(parseFloat(editForm.prix_achat)||0)))} DHS</div>
                   </div>
                   <div>
                     <div className="text-green-400">Marge</div>
-                    <div className="font-bold text-green-600">{fmt(Math.round((parseFloat(editForm.qte)||0)*((parseFloat(editForm.prix_vente)||0)-(parseFloat(editForm.prix_achat)||0))))} DHS</div>
+                    <div className="font-bold text-green-600">{fmtMoney(Math.round((parseFloat(editForm.qte)||0)*((parseFloat(editForm.prix_vente)||0)-(parseFloat(editForm.prix_achat)||0))))} DHS</div>
                   </div>
                 </div>
               )}

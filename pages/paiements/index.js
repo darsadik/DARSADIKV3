@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
 
 const MODES = ['Espèce', 'Chèque', 'Virement', 'Paiement fournisseur']
 const CHEQUE_STATUSES = ['pending', 'validated', 'rejected']
@@ -609,7 +609,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
         <select className="input" value={form.client_id}
           onChange={e => setForm({...form, client_id: e.target.value})} required>
           <option value="">Sélectionner...</option>
-          {clients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmt(c.solde||0)} DHS</option>)}
+          {clients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmtMoney(c.solde||0)} DHS</option>)}
         </select>
       </div>
 
@@ -686,23 +686,23 @@ ${filtered.length > 0 ? `<div class="totals-row">
         <div className="bg-gray-50 rounded-xl p-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">Solde actuel</span>
-            <span className="font-bold text-red-600">{fmt(selectedClient.solde||0)} DHS</span>
+            <span className="font-bold text-red-600">{fmtMoney(selectedClient.solde||0)} DHS</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">Paiement</span>
-            <span className="font-bold text-green-600">− {fmt(montant)} DHS</span>
+            <span className="font-bold text-green-600">− {fmtMoney(montant)} DHS</span>
           </div>
           <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
             <span className="text-gray-700 font-semibold">
               {soldeApres < 0 ? '🟢 Avance client (crédit)' : 'Solde après'}
             </span>
             <span className={`font-bold text-lg ${soldeApres > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-              {soldeApres < 0 ? `+${fmt(Math.abs(soldeApres))} DHS` : `${fmt(soldeApres)} DHS`}
+              {soldeApres < 0 ? `+${fmtMoney(Math.abs(soldeApres))} DHS` : `${fmtMoney(soldeApres)} DHS`}
             </span>
           </div>
           {soldeApres < 0 && (
             <div className="text-xs text-green-700 bg-green-50 rounded-lg p-2">
-              ✅ Ce client aura une avance de <b>{fmt(Math.abs(soldeApres))} DHS</b> déduite des prochaines ventes.
+              ✅ Ce client aura une avance de <b>{fmtMoney(Math.abs(soldeApres))} DHS</b> déduite des prochaines ventes.
             </div>
           )}
         </div>
@@ -747,7 +747,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
               <div><label className="label">{OUT_TYPES[outForm.type].icon} {OUT_TYPES[outForm.type].label}</label>
                 <select className="input" value={outForm.tiers_id} onChange={e=>setOutForm({...outForm,tiers_id:e.target.value})} required>
                   <option value="">Sélectionner...</option>
-                  {outTiersOptions(outForm.type).map(t=><option key={t.id} value={t.id}>{t.nom} — {fmt(t.solde||0)} DHS</option>)}
+                  {outTiersOptions(outForm.type).map(t=><option key={t.id} value={t.id}>{t.nom} — {fmtMoney(t.solde||0)} DHS</option>)}
                 </select>
               </div>
             ) : (
@@ -763,7 +763,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                 <div className="text-xs text-amber-600">Ex: Nova Brique. Le paiement réduira aussi le compte fournisseur brique sélectionné.</div>
                 <select className="input text-xs" value={outForm.also_fourn_brique_id} onChange={e=>setOutForm({...outForm,also_fourn_brique_id:e.target.value})}>
                   <option value="">— Aucun (grignon seulement) —</option>
-                  {fournisseurs.map(f=><option key={f.id} value={f.id}>{f.nom} — {fmt(f.solde||0)} DHS</option>)}
+                  {fournisseurs.map(f=><option key={f.id} value={f.id}>{f.nom} — {fmtMoney(f.solde||0)} DHS</option>)}
                 </select>
               </div>
             )}
@@ -808,7 +808,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
         <div className="card">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h2 className="font-semibold text-gray-900">Paiements émis</h2>
-            <span className="font-bold text-red-600">Total: {fmt(totalOutgoing)} DHS</span>
+            <span className="font-bold text-red-600">Total: {fmtMoney(totalOutgoing)} DHS</span>
           </div>
           {/* Out tabs */}
           <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 flex-wrap">
@@ -838,7 +838,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                       <td className="td font-semibold">{p.client_nom || p.fournisseur_nom || '—'}</td>
                       <td className="td"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span></td>
                       <td className="td text-xs font-mono text-gray-600">{p.cheque_number||'—'}</td>
-                      <td className="td text-right font-bold text-red-600">− {fmt(p.montant)} DHS</td>
+                      <td className="td text-right font-bold text-red-600">− {fmtMoney(p.montant)} DHS</td>
                       <td className="td text-gray-400 text-xs">{p.note||'—'}</td>
                       <td className="td">
                         <div className="flex gap-1">
@@ -856,7 +856,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
               {outgoingPayments.length > 0 && (
                 <tfoot><tr>
                   <td className="tfoot-td" colSpan={5}>TOTAL ({outgoingPayments.length})</td>
-                  <td className="tfoot-td text-right text-red-600">− {fmt(totalOutgoing)} DHS</td>
+                  <td className="tfoot-td text-right text-red-600">− {fmtMoney(totalOutgoing)} DHS</td>
                   <td className="tfoot-td" colSpan={2}></td>
                 </tr></tfoot>
               )}
@@ -891,7 +891,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="stat-card border border-green-100 bg-green-50 text-center">
               <div className="stat-label text-green-600">Total reçu</div>
-              <div className="stat-value text-green-700" style={{fontSize:18}}>{fmt(total)} DHS</div>
+              <div className="stat-value text-green-700" style={{fontSize:18}}>{fmtMoney(total)} DHS</div>
             </div>
             <div className="stat-card border border-blue-100 bg-blue-50 text-center">
               <div className="stat-label text-blue-600">Paiements</div>
@@ -991,7 +991,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                   <div><label className="label">Client grignon</label>
                     <select className="input" value={grignonForm.client_id} onChange={e => setGrignonForm({...grignonForm, client_id: e.target.value})} required>
                       <option value="">Sélectionner...</option>
-                      {grignonClients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmt(c.solde||0)} DHS</option>)}
+                      {grignonClients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmtMoney(c.solde||0)} DHS</option>)}
                     </select>
                   </div>
                   <div><label className="label">Mode</label>
@@ -1022,7 +1022,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                         <div className="card-title">{p.client_nom}{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginLeft:6,fontSize:14}}>✓</span>}</div>
                         <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(p.date)}</div>
                       </div>
-                      <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
+                      <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmtMoney(p.montant)} DHS</div>
                     </div>
                     <div className="card-meta">
                       <span>{p.mode}</span>
@@ -1050,7 +1050,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                       <div className="card-title">{p.client_nom}{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginLeft:6,fontSize:14}}>✓</span>}</div>
                       <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{fmtDate(p.date)}</div>
                     </div>
-                    <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmt(p.montant)} DHS</div>
+                    <div style={{color:'#16a34a',fontWeight:700,fontSize:16}}>− {fmtMoney(p.montant)} DHS</div>
                   </div>
                   <div className="card-meta">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span>
@@ -1119,7 +1119,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                           <div className="font-medium text-gray-800">{f.nom}</div>
                           <div className="text-xs text-gray-400">{nb} paiement(s)</div>
                         </div>
-                        <span className="font-bold text-purple-700">{fmt(tf)} DHS</span>
+                        <span className="font-bold text-purple-700">{fmtMoney(tf)} DHS</span>
                       </div>
                     )
                   })}
@@ -1189,7 +1189,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
 
               {/* Summary bar */}
               <div className="flex gap-4 mb-3 text-sm flex-wrap items-center">
-                <span className="font-bold text-green-600">Total : {fmt(total)} DHS</span>
+                <span className="font-bold text-green-600">Total : {fmtMoney(total)} DHS</span>
                 <span className="text-gray-300">|</span>
                 <span className="text-gray-500">{filtered.length} paiement(s)</span>
                 {chequesPending>0 && <span className="text-amber-600 font-semibold">⏳ {chequesPending} en attente</span>}
@@ -1202,7 +1202,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                   <div className="flex items-center justify-between mb-4">
                     <div className="text-sm font-semibold text-slate-700">
                       🫒 Paiements clients Grignon — Total: <span className="text-emerald-600">
-                        {fmt(grignonPaiements.filter(p => (!filterFrom||p.date>=filterFrom)&&(!filterTo||p.date<=filterTo)).reduce((s,p)=>s+(p.montant||0),0))} DHS
+                        {fmtMoney(grignonPaiements.filter(p => (!filterFrom||p.date>=filterFrom)&&(!filterTo||p.date<=filterTo)).reduce((s,p)=>s+(p.montant||0),0))} DHS
                       </span>
                     </div>
                     <button onClick={() => setShowGrignonForm(!showGrignonForm)}
@@ -1218,7 +1218,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                       <div><label className="label">Client grignon</label>
                         <select className="input" value={grignonForm.client_id} onChange={e => setGrignonForm({...grignonForm, client_id: e.target.value})} required>
                           <option value="">Sélectionner...</option>
-                          {grignonClients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmt(c.solde||0)} DHS</option>)}
+                          {grignonClients.map(c => <option key={c.id} value={c.id}>{c.nom} — {fmtMoney(c.solde||0)} DHS</option>)}
                         </select>
                       </div>
                       <div><label className="label">Mode</label>
@@ -1261,7 +1261,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                             <td className="td text-gray-500">{verifiedPmt.has(p.id) && <span style={{color:'#16a34a',fontWeight:900,marginRight:4}}>✓</span>}{fmtDate(p.date)}</td>
                             <td className="td font-semibold">{p.client_nom}</td>
                             <td className="td"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${modeBadgeColor(p.mode)}`}>{p.mode}</span></td>
-                            <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
+                            <td className="td text-right font-bold text-green-600">− {fmtMoney(p.montant)}</td>
                             <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
                             <td className="td">
                               <div className="flex gap-1">
@@ -1331,7 +1331,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                               ? <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{p.fournisseur_nom}</span>
                               : <span className="text-gray-300">—</span>}
                           </td>
-                          <td className="td text-right font-bold text-green-600">− {fmt(p.montant)}</td>
+                          <td className="td text-right font-bold text-green-600">− {fmtMoney(p.montant)}</td>
                           <td className="td text-gray-400 text-xs">{p.note || '—'}</td>
                           <td className="td">
                             <div className="flex gap-1">
@@ -1348,7 +1348,7 @@ ${filtered.length > 0 ? `<div class="totals-row">
                     {filtered.length > 0 && (
                       <tfoot><tr>
                         <td className="tfoot-td" colSpan={7}>TOTAL REÇU ({filtered.length})</td>
-                        <td className="tfoot-td text-right text-green-700">− {fmt(total)} DHS</td>
+                        <td className="tfoot-td text-right text-green-700">− {fmtMoney(total)} DHS</td>
                         <td className="tfoot-td" colSpan={2}></td>
                       </tr></tfoot>
                     )}

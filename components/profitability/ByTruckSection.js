@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { fmt } from '../../lib/utils'
+import { fmtMoney } from '../../lib/utils'
 import { aggregateVoyageProfits } from '../../lib/services/profitability'
 import DataTable from './DataTable'
 import MarginBadge, { marginRowClass } from './MarginBadge'
@@ -32,13 +32,13 @@ export default function ByTruckSection({ results, camions, onOpenVoyage }) {
     { key: 'nbVoyages', label: 'Voyages', center: true, sortValue: r => r.nbVoyages, render: r => (
       <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{r.nbVoyages}</span>
     ) },
-    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => r.revenue.total, exportValue: r => Math.round(r.revenue.total), render: r => <span className="font-bold text-emerald-600">{fmt(r.revenue.total)}</span> },
+    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => r.revenue.total, exportValue: r => Math.round(r.revenue.total), render: r => <span className="font-bold text-emerald-600">{fmtMoney(r.revenue.total)}</span> },
     { key: 'profit', label: '= Profit', right: true, sortValue: r => r.profit, exportValue: r => Math.round(r.profit), render: r => (
-      <span className={`font-black ${r.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{r.profit >= 0 ? '+' : ''}{fmt(r.profit)}</span>
+      <span className={`font-black ${r.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{r.profit >= 0 ? '+' : ''}{fmtMoney(r.profit)}</span>
     ) },
     { key: 'marge', label: 'Marge', right: true, sortValue: r => r.marge, exportValue: r => r.marge, render: r => <MarginBadge marge={r.marge} /> },
     { key: 'avgProfit', label: 'Moy. / voyage', right: true, sortValue: r => r.avgProfit, exportValue: r => Math.round(r.avgProfit), render: r => (
-      <span className={r.avgProfit >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-500 font-semibold'}>{fmt(r.avgProfit)}</span>
+      <span className={r.avgProfit >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-500 font-semibold'}>{fmtMoney(r.avgProfit)}</span>
     ) },
   ]
 

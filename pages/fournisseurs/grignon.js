@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtD, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow, sortGrignonRecords } from '../../lib/utils'
+import { fmt, fmtD, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow, sortGrignonRecords } from '../../lib/utils'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import { resolveAchatByGrignonOpId } from '../../lib/services/voyage/resolveSource'
@@ -163,15 +163,15 @@ export default function FournisseursGrignon() {
       <td>${fmtDate(a.date)}</td>
       <td>${a.camion_plaque||'—'}</td>
       <td style="text-align:right">${fmt(a.qte)} kg</td>
-      <td style="text-align:right">${fmtD(a.prix_achat)}</td>
-      <td style="text-align:right"><b>${fmt(a.total_achat)} DHS</b></td>
+      <td style="text-align:right">${fmtMoney(a.prix_achat)}</td>
+      <td style="text-align:right"><b>${fmtMoney(a.total_achat)} DHS</b></td>
       <td>${a.note||'—'}</td>
     </tr>`).join('')
     const paiRows = filteredPai.map(p => `<tr>
       <td>${fmtDate(p.date)}</td>
       <td>${p.mode||'—'}</td>
       <td>${p.cheque_number||'—'}</td>
-      <td style="text-align:right;color:#16a34a"><b>− ${fmt(p.montant)} DHS</b></td>
+      <td style="text-align:right;color:#16a34a"><b>− ${fmtMoney(p.montant)} DHS</b></td>
       <td>${p.note||'—'}</td>
     </tr>`).join('')
 
@@ -191,22 +191,22 @@ export default function FournisseursGrignon() {
     @media print{button{display:none !important}}</style></head><body>
     <div class="hdr">
       <div><div style="font-size:20px;font-weight:900">🌿 ${selected.nom}</div><div style="opacity:0.8;font-size:11px">Fournisseur Grignon — DAR SADIK</div></div>
-      <div style="text-align:right;font-size:11px;opacity:0.9">Solde dû: <b style="font-size:16px">${fmt(selected.solde||0)} DHS</b></div>
+      <div style="text-align:right;font-size:11px;opacity:0.9">Solde dû: <b style="font-size:16px">${fmtMoney(selected.solde||0)} DHS</b></div>
     </div>
     <div class="kpi">
-      <div class="k"><div class="kl">Achats période</div><div class="kv" style="color:#15803d">${fmt(totalAchats)} DHS</div></div>
-      <div class="k"><div class="kl">Payé période</div><div class="kv" style="color:#16a34a">${fmt(totalPaiements)} DHS</div></div>
-      <div class="k"><div class="kl">Solde total dû</div><div class="kv" style="color:#dc2626">${fmt(selected.solde||0)} DHS</div></div>
+      <div class="k"><div class="kl">Achats période</div><div class="kv" style="color:#15803d">${fmtMoney(totalAchats)} DHS</div></div>
+      <div class="k"><div class="kl">Payé période</div><div class="kv" style="color:#16a34a">${fmtMoney(totalPaiements)} DHS</div></div>
+      <div class="k"><div class="kl">Solde total dû</div><div class="kv" style="color:#dc2626">${fmtMoney(selected.solde||0)} DHS</div></div>
     </div>
     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#15803d;border-bottom:2px solid #15803d;padding-bottom:4px;margin-bottom:8px">Achats Grignon</h3>
     <table><thead><tr><th>Date</th><th>Camion</th><th style="text-align:right">Qté kg</th><th style="text-align:right">Prix/kg</th><th style="text-align:right">Total DHS</th><th>Note</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="6" style="text-align:center;color:#aaa">Aucun achat</td></tr>'}</tbody>
-    ${filteredAchats.length>0?`<tfoot><tr><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmt(totalAchats)} DHS</td><td></td></tr></tfoot>`:''}
+    ${filteredAchats.length>0?`<tfoot><tr><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td><td></td><td style="text-align:right">${fmtMoney(totalAchats)} DHS</td><td></td></tr></tfoot>`:''}
     </table>
     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;color:#16a34a;border-bottom:2px solid #16a34a;padding-bottom:4px;margin-bottom:8px">Paiements effectués</h3>
     <table><thead><tr><th>Date</th><th>Mode</th><th>Chèque</th><th style="text-align:right">Montant</th><th>Note</th></tr></thead>
     <tbody>${paiRows||'<tr><td colspan="5" style="text-align:center;color:#aaa">Aucun paiement</td></tr>'}</tbody>
-    ${filteredPai.length>0?`<tfoot><tr><td colspan="3">TOTAL payé</td><td style="text-align:right">− ${fmt(totalPaiements)} DHS</td><td></td></tr></tfoot>`:''}
+    ${filteredPai.length>0?`<tfoot><tr><td colspan="3">TOTAL payé</td><td style="text-align:right">− ${fmtMoney(totalPaiements)} DHS</td><td></td></tr></tfoot>`:''}
     </table>
     <div style="margin-top:20px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;display:flex;justify-content:space-between">
       <span>DAR SADIK — Selouane, Nador | Dar.sadik@hotmail.com</span>
@@ -231,7 +231,7 @@ export default function FournisseursGrignon() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <div className="font-bold text-gray-900">🌿 Fournisseurs Grignon</div>
-                <div className="text-xs text-red-500 mt-0.5">Total dû: <b>{fmt(totalDettes)} DHS</b></div>
+                <div className="text-xs text-red-500 mt-0.5">Total dû: <b>{fmtMoney(totalDettes)} DHS</b></div>
               </div>
               {admin && <button onClick={()=>setShowAdd(!showAdd)} className="btn-primary text-xs px-3 py-1.5" style={{background:'#15803d'}}>+ Fournisseur</button>}
             </div>
@@ -250,7 +250,7 @@ export default function FournisseursGrignon() {
                     className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all ${selected?.id===f.id?'bg-green-50 border border-green-200':'hover:bg-gray-50 border border-transparent'}`}>
                     <div className="font-semibold text-sm text-gray-900">{f.nom}</div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-bold ${(f.solde||0)>0?'text-red-600':'text-green-600'}`}>{fmt(f.solde||0)} DHS</span>
+                      <span className={`text-sm font-bold ${(f.solde||0)>0?'text-red-600':'text-green-600'}`}>{fmtMoney(f.solde||0)} DHS</span>
                       {admin && <button onClick={e=>{e.stopPropagation();deleteFournisseur(f.id)}} className="text-red-300 hover:text-red-500 text-xs">✕</button>}
                     </div>
                   </div>
@@ -286,15 +286,15 @@ export default function FournisseursGrignon() {
                 <div className="grid grid-cols-3 gap-3 mt-4">
                   <div className="text-center p-3 rounded-xl bg-green-50 border border-green-100">
                     <div className="text-xs text-green-600 font-semibold">Achats période</div>
-                    <div className="font-bold text-green-700 text-lg">{fmt(totalAchats)} DHS</div>
+                    <div className="font-bold text-green-700 text-lg">{fmtMoney(totalAchats)} DHS</div>
                   </div>
                   <div className="text-center p-3 rounded-xl" style={{background:'#f0fdf4',border:'1px solid #bbf7d0'}}>
                     <div className="text-xs text-green-600 font-semibold">Payé période</div>
-                    <div className="font-bold text-green-700 text-lg">{fmt(totalPaiements)} DHS</div>
+                    <div className="font-bold text-green-700 text-lg">{fmtMoney(totalPaiements)} DHS</div>
                   </div>
                   <div className="text-center p-3 rounded-xl bg-red-50 border border-red-100">
                     <div className="text-xs text-red-600 font-semibold">Solde dû total</div>
-                    <div className="font-bold text-red-700 text-lg">{fmt(selected.solde||0)} DHS</div>
+                    <div className="font-bold text-red-700 text-lg">{fmtMoney(selected.solde||0)} DHS</div>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4 flex-wrap">
@@ -336,8 +336,8 @@ export default function FournisseursGrignon() {
                               <td className="td py-3.5 text-gray-600 font-medium">{fmtDate(a.date)}</td>
                               <td className="td py-3.5 text-gray-600 font-medium">{a.camion_plaque||'—'}</td>
                               <td className="td py-3.5 text-right font-bold">{fmt(a.qte)} kg</td>
-                              <td className="td py-3.5 text-right text-gray-600 font-medium">{fmtD(a.prix_achat)}</td>
-                              <td className="td py-3.5 text-right font-bold text-green-700">{fmt(a.total_achat)} DHS</td>
+                              <td className="td py-3.5 text-right text-gray-600 font-medium">{fmtMoney(a.prix_achat)}</td>
+                              <td className="td py-3.5 text-right font-bold text-green-700">{fmtMoney(a.total_achat)} DHS</td>
                               <td className="td py-3.5 text-gray-500">{a.note||'—'}</td>
                               <td className="td py-3.5 whitespace-nowrap">
                                 {a.voyage_id && (
@@ -358,7 +358,7 @@ export default function FournisseursGrignon() {
                             <td className="tfoot-td py-3.5" colSpan={2}>TOTAL ({filteredAchats.length})</td>
                             <td className="tfoot-td py-3.5 text-right">{fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))} kg</td>
                             <td className="tfoot-td py-3.5"></td>
-                            <td className="tfoot-td py-3.5 text-right text-green-700">{fmt(totalAchats)} DHS</td>
+                            <td className="tfoot-td py-3.5 text-right text-green-700">{fmtMoney(totalAchats)} DHS</td>
                             <td className="tfoot-td py-3.5"></td>
                             <td className="tfoot-td py-3.5"></td>
                           </tr></tfoot>
@@ -384,7 +384,7 @@ export default function FournisseursGrignon() {
                               <td className="td py-3.5 text-gray-600 font-medium">{fmtDate(p.date)}</td>
                               <td className="td py-3.5 font-medium">{p.mode||'—'}</td>
                               <td className="td py-3.5 font-mono text-blue-600">{p.cheque_number||'—'}</td>
-                              <td className="td py-3.5 text-right font-bold text-green-600">− {fmt(p.montant)} DHS</td>
+                              <td className="td py-3.5 text-right font-bold text-green-600">− {fmtMoney(p.montant)} DHS</td>
                               <td className="td py-3.5 text-gray-500">{p.note||'—'}</td>
                             </tr>
                           ))}
@@ -393,7 +393,7 @@ export default function FournisseursGrignon() {
                         {filteredPai.length > 0 && (
                           <tfoot><tr>
                             <td className="tfoot-td py-3.5" colSpan={3}>TOTAL payé</td>
-                            <td className="tfoot-td py-3.5 text-right text-green-700">− {fmt(totalPaiements)} DHS</td>
+                            <td className="tfoot-td py-3.5 text-right text-green-700">− {fmtMoney(totalPaiements)} DHS</td>
                             <td className="tfoot-td py-3.5"></td>
                           </tr></tfoot>
                         )}

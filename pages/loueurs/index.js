@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
-import { fmt, fmtDate, today } from '../../lib/utils'
+import { fmtMoney, fmtDate, today } from '../../lib/utils'
 
 export default function Loueurs() {
   useAuth()
@@ -109,7 +109,7 @@ export default function Loueurs() {
                   </div>
                   {totalReste > 0 && (
                     <div className={`text-xs font-bold px-2 py-1 rounded-lg ${isSel ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                      −{fmt(totalReste)}
+                      −{fmtMoney(totalReste)}
                     </div>
                   )}
                   {totalReste === 0 && nbVoyages > 0 && (
@@ -177,17 +177,17 @@ export default function Loueurs() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
                   <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Total locations</div>
-                  <div className="text-xl font-black text-slate-800">{fmt(stats.totalLocation)} <span className="text-xs font-normal text-slate-400">DHS</span></div>
+                  <div className="text-xl font-black text-slate-800">{fmtMoney(stats.totalLocation)} <span className="text-xs font-normal text-slate-400">DHS</span></div>
                   <div className="text-[10px] text-slate-400 mt-1">{stats.nbVoyages} voyage{stats.nbVoyages !== 1 ? 's' : ''}</div>
                 </div>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
                   <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Montant payé</div>
-                  <div className="text-xl font-black text-emerald-600">{fmt(stats.totalPaye)} <span className="text-xs font-normal text-slate-400">DHS</span></div>
+                  <div className="text-xl font-black text-emerald-600">{fmtMoney(stats.totalPaye)} <span className="text-xs font-normal text-slate-400">DHS</span></div>
                 </div>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
                   <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Reste à payer</div>
                   <div className={`text-xl font-black ${stats.totalReste > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {stats.totalReste > 0 ? fmt(stats.totalReste) : '✓ Soldé'}
+                    {stats.totalReste > 0 ? fmtMoney(stats.totalReste) : '✓ Soldé'}
                     {stats.totalReste > 0 && <span className="text-xs font-normal text-slate-400"> DHS</span>}
                   </div>
                 </div>
@@ -235,11 +235,11 @@ export default function Loueurs() {
                               {v?.reference && <div className="text-xs text-slate-400">{v.reference}</div>}
                             </td>
                             <td className="py-3 px-4 text-sm text-slate-600">{v?.camion_plaque || '—'}</td>
-                            <td className="py-3 px-4 text-right font-bold text-slate-800">{fmt(loc.montant_location)} DHS</td>
-                            <td className="py-3 px-4 text-right font-semibold text-emerald-600">{fmt(loc.montant_paye)} DHS</td>
+                            <td className="py-3 px-4 text-right font-bold text-slate-800">{fmtMoney(loc.montant_location)} DHS</td>
+                            <td className="py-3 px-4 text-right font-semibold text-emerald-600">{fmtMoney(loc.montant_paye)} DHS</td>
                             <td className="py-3 px-4 text-right">
                               <span className={`font-bold text-sm ${reste > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                {reste > 0 ? `${fmt(reste)} DHS` : '✓'}
+                                {reste > 0 ? `${fmtMoney(reste)} DHS` : '✓'}
                               </span>
                             </td>
                             <td className="py-3 px-4 text-center">
@@ -262,10 +262,10 @@ export default function Loueurs() {
                     <tfoot>
                       <tr className="bg-gradient-to-r from-slate-800 to-slate-900 text-white">
                         <td colSpan={3} className="py-3 px-4 font-black text-sm uppercase tracking-wide">Total</td>
-                        <td className="py-3 px-4 text-right font-black text-amber-300">{fmt(stats?.totalLocation || 0)} DHS</td>
-                        <td className="py-3 px-4 text-right font-black text-emerald-400">{fmt(stats?.totalPaye || 0)} DHS</td>
+                        <td className="py-3 px-4 text-right font-black text-amber-300">{fmtMoney(stats?.totalLocation || 0)} DHS</td>
+                        <td className="py-3 px-4 text-right font-black text-emerald-400">{fmtMoney(stats?.totalPaye || 0)} DHS</td>
                         <td className={`py-3 px-4 text-right font-black text-lg ${(stats?.totalReste || 0) > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                          {(stats?.totalReste || 0) > 0 ? `${fmt(stats?.totalReste)} DHS` : '✓ Soldé'}
+                          {(stats?.totalReste || 0) > 0 ? `${fmtMoney(stats?.totalReste)} DHS` : '✓ Soldé'}
                         </td>
                         <td />
                       </tr>

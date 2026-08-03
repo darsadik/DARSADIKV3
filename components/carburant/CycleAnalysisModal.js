@@ -1,4 +1,4 @@
-import { fmt, fmtD, fmtDate } from '../../lib/utils'
+import { fmt, fmtD, fmtDate, fmtMoney } from '../../lib/utils'
 import { CYCLE_STATUS_META, generateCycleConclusion } from '../../lib/services/fuelCycles'
 
 export default function CycleAnalysisModal({ cycle, camionPlaque, onClose }) {
@@ -35,7 +35,7 @@ export default function CycleAnalysisModal({ cycle, camionPlaque, onClose }) {
             </div>
             <div className="bg-red-50 rounded-lg p-2 text-center">
               <div className="text-[10px] text-red-400">Coût carburant</div>
-              <div className="text-sm font-bold text-red-700">{fmt(cycle.coutTotal)} DHS</div>
+              <div className="text-sm font-bold text-red-700">{fmtMoney(cycle.coutTotal)} DHS</div>
             </div>
             <div className="bg-purple-50 rounded-lg p-2 text-center">
               <div className="text-[10px] text-purple-400">Consommation</div>
@@ -43,7 +43,7 @@ export default function CycleAnalysisModal({ cycle, camionPlaque, onClose }) {
             </div>
             <div className="bg-amber-50 rounded-lg p-2 text-center">
               <div className="text-[10px] text-amber-400">Coût/km</div>
-              <div className="text-sm font-bold text-amber-700">{cycle.coutKm !== null ? `${cycle.coutKm.toFixed(2)} DHS` : '—'}</div>
+              <div className="text-sm font-bold text-amber-700">{cycle.coutKm !== null ? `${fmtMoney(cycle.coutKm)} DHS` : '—'}</div>
             </div>
           </div>
 

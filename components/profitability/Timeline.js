@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
-import { fmt } from '../../lib/utils'
+import { fmtMoney } from '../../lib/utils'
 import { aggregateVoyageProfits } from '../../lib/services/profitability'
 
 function isoWeekKey(d) {
@@ -20,7 +20,7 @@ function TooltipBox({ active, payload, label }) {
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center gap-1.5" style={{ color: p.color }}>
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          {p.name}: <span className="font-bold">{p.dataKey === 'marge' ? p.value + '%' : fmt(p.value) + ' DHS'}</span>
+          {p.name}: <span className="font-bold">{p.dataKey === 'marge' ? p.value + '%' : fmtMoney(p.value) + ' DHS'}</span>
         </div>
       ))}
     </div>
@@ -63,7 +63,7 @@ export default function Timeline({ results, from, to }) {
           <ComposedChart data={bucketed.data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={70} tickFormatter={fmt} />
+            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={70} tickFormatter={fmtMoney} />
             <Tooltip content={<TooltipBox />} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="revenue" name="Revenu" fill="#bfdbfe" radius={[4, 4, 0, 0]} maxBarSize={28} />

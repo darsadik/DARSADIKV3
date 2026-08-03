@@ -4,7 +4,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import PerfChart from '../../components/camions/PerfChart'
 import { supabase } from '../../lib/supabase'
-import { fmt, fmtD, fmtDate, today } from '../../lib/utils'
+import { fmt, fmtD, fmtDate, fmtMoney, today } from '../../lib/utils'
 import {
   buildFuelCycles, historicalAverages, buildPeriodStats,
   statusForCycle, periodRange, STATUS_META,
@@ -147,7 +147,7 @@ export default function FicheCamion() {
         </div>
         <div className="stat-card border border-orange-100 bg-orange-50">
           <div className="stat-label text-orange-600">DH consommés</div>
-          <div className="stat-value text-orange-700">{fmt(topStats.dhTotal)}</div>
+          <div className="stat-value text-orange-700">{fmtMoney(topStats.dhTotal)}</div>
           <div className="stat-sub">Total carburant</div>
         </div>
         <div className="stat-card border border-purple-100 bg-purple-50">
@@ -157,7 +157,7 @@ export default function FicheCamion() {
         </div>
         <div className="stat-card border border-blue-100 bg-blue-50">
           <div className="stat-label text-blue-600">Coût moyen/km</div>
-          <div className="stat-value text-blue-700">{topStats.coutKm !== null ? topStats.coutKm.toFixed(2) : '—'}</div>
+          <div className="stat-value text-blue-700">{topStats.coutKm !== null ? fmtMoney(topStats.coutKm) : '—'}</div>
           <div className="stat-sub">DH/km</div>
         </div>
         <div className={`stat-card border ${topStats.alertCycles > 0 ? 'border-rose-100 bg-rose-50' : 'border-emerald-100 bg-emerald-50'}`}>
@@ -240,9 +240,9 @@ export default function FicheCamion() {
                     <td className="td text-right text-gray-400">{fmt(c.kmFin)}</td>
                     <td className="td text-right font-medium">{fmt(c.kmParcourus)}</td>
                     <td className="td text-right">{fmtD(c.litres)}</td>
-                    <td className="td text-right font-semibold text-amber-600">{fmt(c.dh)}</td>
+                    <td className="td text-right font-semibold text-amber-600">{fmtMoney(c.dh)}</td>
                     <td className="td text-right font-bold">{c.consoL100.toFixed(1)}</td>
-                    <td className="td text-right font-bold">{c.coutKm.toFixed(2)}</td>
+                    <td className="td text-right font-bold">{fmtMoney(c.coutKm)}</td>
                     <td className="td"><StatBadge status={statusForCycle(c, hist, thresholdPct)} /></td>
                   </tr>
                 ))}

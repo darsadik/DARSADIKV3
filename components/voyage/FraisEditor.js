@@ -1,4 +1,4 @@
-import { fmt } from '../../lib/utils'
+import { fmtMoney } from '../../lib/utils'
 import { FRAIS_LABELS, DEDUCTION_LABELS } from '../../lib/voyage-constants'
 
 // Shared editor for a livraison's child rows: "Frais supplémentaires" (kind='charge',
@@ -53,7 +53,7 @@ export default function FraisEditor({ items, onChange }) {
         ))}
         {chargesTotal > 0 && (
           <div className="text-[10px] text-amber-600 font-semibold mt-1">
-            Total frais : + {fmt(chargesTotal)} DHS
+            Total frais : + {fmtMoney(chargesTotal)} DHS
           </div>
         )}
       </div>
@@ -84,7 +84,7 @@ export default function FraisEditor({ items, onChange }) {
         ))}
         {deductionsTotal > 0 && (
           <div className="text-[10px] text-rose-600 font-semibold mt-1">
-            Total déductions : − {fmt(deductionsTotal)} DHS
+            Total déductions : − {fmtMoney(deductionsTotal)} DHS
           </div>
         )}
       </div>

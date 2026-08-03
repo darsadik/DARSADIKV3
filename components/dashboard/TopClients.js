@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { fmt } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 import { aggregateClientProfits } from '../../lib/services/profitability'
 import MarginBadge from '../profitability/MarginBadge'
 import Section from './Section'
@@ -16,7 +16,7 @@ function ClientRow({ c, tone }) {
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className={`font-black text-sm ${tone === 'bad' ? 'text-red-500' : 'text-emerald-600'}`}>
-          {c.profit >= 0 ? '+' : ''}{fmt(c.profit)}
+          {c.profit >= 0 ? '+' : ''}{fmtMoney(c.profit)}
         </span>
         <MarginBadge marge={c.marge} />
       </div>
