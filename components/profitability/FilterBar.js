@@ -1,7 +1,11 @@
 // ── Global filter bar — the ONE filter surface for the whole Profitability
 // Center. Every section reads the same `filters` object; changing anything
 // here re-scopes every KPI/table/chart at once (see pages/rentabilite/index.js).
-const isoDate = d => d.toISOString().split('T')[0]
+// Local calendar date as YYYY-MM-DD — NOT d.toISOString(), which converts to
+// UTC first and shifts the date by one day for any timezone ahead of UTC
+// (e.g. Morocco, UTC+1), silently moving month-boundary voyages across
+// months in every quick-select preset below.
+const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 const startOfWeek = d => { const dow = d.getDay(); const diff = dow === 0 ? -6 : 1 - dow; return addDays(d, diff) }
 
