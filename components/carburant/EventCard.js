@@ -152,7 +152,12 @@ function PleinBlock({ e, onAssign, onFixGasoil }) {
               ? <Link href={`/voyages/${e.estimatedPosition.anchorVoyageId}`} className="text-slate-500 hover:underline">{e.estimatedPosition.position === 'before' ? 'avant' : 'après'} {e.estimatedPosition.anchorReference}</Link>
               : '—')
         } />
-        <Tile label="AdBlue" value={e.adblueTotal ? `${fmt(e.adblueTotal)} DHS` : '—'} />
+        <Tile label="AdBlue" value={e.adblueTotal ? (
+          <>
+            {fmt(e.adblueTotal)} DHS
+            {!!e.adblueQte && <span className="block text-[10px] font-semibold text-slate-400 normal-case">{fmtD(e.adblueQte)} L × {fmtD(e.adblueUnitPrice)} DHS</span>}
+          </>
+        ) : '—'} />
       </div>
 
       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">

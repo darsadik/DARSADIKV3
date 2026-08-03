@@ -768,7 +768,7 @@ export default function Gasoil() {
                   </div>
                   {adblueQte > 0 && adbluePu > 0 && (
                     <div className="text-center text-xs text-cyan-700">
-                      Total AdBlue : <span className="font-bold">{fmtD(adblueTotal)} DHS</span>
+                      {fmtD(adblueQte)} L × {fmtD(adbluePu)} = <span className="font-bold">{fmtD(adblueTotal)} DHS</span>
                     </div>
                   )}
                 </div>
@@ -1141,7 +1141,14 @@ export default function Gasoil() {
                         <td className="td text-right font-medium">{g.qte ? fmtD(g.qte) : '—'}</td>
                         <td className="td text-right text-gray-500">{g.qte ? fmtD(g.prix_unitaire) : '—'}</td>
                         <td className="td text-right font-bold text-amber-600">{g.qte ? fmtD(g.total) : '—'}</td>
-                        <td className="td text-right text-cyan-600 text-xs">{g.adblue_total ? fmtD(g.adblue_total) : '—'}</td>
+                        <td className="td text-right text-cyan-600 text-xs">
+                          {g.adblue_qte ? (
+                            <>
+                              <div className="font-semibold">{fmtD(g.adblue_total)}</div>
+                              <div className="text-[10px] text-cyan-400">{fmtD(g.adblue_qte)}L × {fmtD(g.adblue_prix_unitaire)}</div>
+                            </>
+                          ) : '—'}
+                        </td>
                         <td className="td text-right text-gray-400 text-xs">{g.km ? fmt(g.km) : '—'}</td>
                         <td className="td text-gray-400 text-xs">{g.bon || '—'}</td>
                         <td className="td">
@@ -1264,7 +1271,7 @@ export default function Gasoil() {
                 </div>
                 {editForm.adblue_qte && editForm.adblue_prix_unitaire && (
                   <div className="text-center text-xs text-cyan-700">
-                    Total AdBlue : <span className="font-bold">{fmtD((parseFloat(editForm.adblue_qte)||0) * (parseFloat(editForm.adblue_prix_unitaire)||0))} DHS</span>
+                    {fmtD(editForm.adblue_qte)} L × {fmtD(editForm.adblue_prix_unitaire)} = <span className="font-bold">{fmtD((parseFloat(editForm.adblue_qte)||0) * (parseFloat(editForm.adblue_prix_unitaire)||0))} DHS</span>
                   </div>
                 )}
               </div>

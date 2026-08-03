@@ -53,7 +53,7 @@ export default function VoyageKmCarburant() {
       // gasoil. Selecting a nonexistent column fails the WHOLE query (not
       // just that field), which previously emptied the entire fuel timeline
       // silently.
-      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,date,station'),
+      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,adblue_qte,adblue_prix_unitaire,date,station'),
       supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total,is_split'),
     ])
     // Surface query failures instead of silently rendering empty data —
