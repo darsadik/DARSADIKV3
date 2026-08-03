@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
-import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards, soldeFinal, printFooter } from '../../lib/printLayout'
+import { fmt, fmtD, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
+import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards, printFooter } from '../../lib/printLayout'
+import { fetchRemiseCarburantRate } from '../../lib/services/settings'
+import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 
@@ -29,8 +31,9 @@ export default function FournisseursGasoil() {
   const [filterType,   setFilterType]   = useState('all')
   const [showAdd,      setShowAdd]      = useState(false)
   const [newNom,       setNewNom]       = useState('')
+  const [remiseRate,   setRemiseRate]   = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
-  useEffect(() => { loadFournisseurs() }, [])
+  useEffect(() => { loadFournisseurs(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
   async function loadFournisseurs() {
     setLoading(true)
@@ -83,6 +86,10 @@ export default function FournisseursGasoil() {
       type: 'purchase', label: a.adblue_qte ? 'Achat Carburant + AdBlue' : 'Achat Carburant',
       debit: (a.total || 0) + (a.adblue_total || 0), credit: 0,
       camion: a.camion_plaque || '—', bon: a.bon || '—', note: a.note || '',
+      // Presentation-only enrichment (§ Unit Price / Liters) — never read by
+      // the debit/credit/solde math above, so the ledger stays identical.
+      qte: a.qte || 0, prixUnitaire: a.prix_unitaire || 0,
+      adblueQte: a.adblue_qte || 0, adbluePrixUnitaire: a.adblue_prix_unitaire || 0,
     })),
     ...paiements.map(p => ({
       id: `c-${p.id}`, date: p.date, seq: `${p.date}_1_${String(p.id).padStart(10,'0')}`,
@@ -106,6 +113,15 @@ export default function FournisseursGasoil() {
   const totalAchats    = periodEntries.reduce((s, e) => s + e.debit, 0)
   const totalPaiements = periodEntries.reduce((s, e) => s + e.credit, 0)
 
+  // ── FUEL DISCOUNT — informational only, exactly like /gasoil's own Grand
+  // Livre report: litres × remiseRate, gasoil only (never AdBlue). Restored
+  // here as a presentation figure; it does NOT feed into the ledger's
+  // debit/credit/solde columns or into gasoil_fournisseurs.solde above.
+  const totalFuelLitres   = periodEntries.reduce((s, e) => s + (e.qte || 0), 0)
+  const totalAdblueLitres = periodEntries.reduce((s, e) => s + (e.adblueQte || 0), 0)
+  const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
+  const netSupplierTotal  = Math.round((totalAchats - fuelDiscount) * 100) / 100
+
   function printFournisseur() {
     if (!selected) return
     const accent = '#f97316'
@@ -113,15 +129,23 @@ export default function FournisseursGasoil() {
     const periode = filterType === 'all' ? 'Toutes dates' : `${fmtDate(from)} → ${fmtDate(to)}`
     const rows = (from && openingBalance !== 0 ? [{
       date: from, type: 'opening', label: "Solde d'ouverture", debit: 0, credit: 0, camion: '—', bon: '—', note: '', solde: openingBalance,
-    }] : []).concat(ledger).map(e => `<tr>
+    }] : []).concat(ledger).map(e => {
+      // ── unit price + liters subtext (§ Unit Price / Liters) — a compact
+      // two-line addition under the label, purchase rows only, never a new
+      // column, so nothing about the table's structure changes.
+      const priceLines = e.type === 'purchase' && (e.qte || e.adblueQte) ? `<div style="font-size:9.5px;color:#94a3b8;margin-top:2px;font-weight:400;font-family:'Courier New',monospace">${
+        e.qte ? `${fmtD(e.qte)} L × ${fmtMoney(e.prixUnitaire)} DH/L` : ''
+      }${e.adblueQte ? `${e.qte ? '<br>' : ''}AdBlue: ${fmtD(e.adblueQte)} L × ${fmtMoney(e.adbluePrixUnitaire)} DH/L` : ''}</div>` : ''
+      return `<tr>
       <td class="m" style="white-space:nowrap">${fmtDate(e.date)}</td>
-      <td>${e.label}</td>
+      <td>${e.label}${priceLines}</td>
       <td class="m">${e.camion}</td>
       <td class="m">${e.bon}</td>
       <td class="r" style="color:${accent}">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
       <td class="r" style="color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
       <td class="r" style="font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
-    </tr>`).join('')
+    </tr>`
+    }).join('')
 
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Fournisseur Carburant — ${selected.nom}</title>
@@ -145,7 +169,23 @@ ${summaryCards([
   <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>Bon / Mode</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
 </table>
-${soldeFinal({ label: 'Solde total dû', amountFormatted: fmtMoney(selected.solde||0), amount: selected.solde||0, sub: periode })}
+<div class="sec-title" style="margin-top:20px">Résumé</div>
+<table style="width:100%;border-collapse:collapse">
+  <tbody>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Litres Gasoil</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmt(totalFuelLitres)} L</td></tr>
+    ${totalAdblueLitres > 0 ? `<tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Litres AdBlue</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmt(totalAdblueLitres)} L</td></tr>` : ''}
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Achats</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmtMoney(totalAchats)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(fuelDiscount)} DHS</td></tr>
+    <tr style="border-top:1.5px solid #e2e8f0"><td style="padding:8px 4px;font-size:12.5px;font-weight:800;color:#1e293b">Total Net Fournisseur</td><td style="padding:8px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:900;color:${accent}">${fmtMoney(netSupplierTotal)} DHS</td></tr>
+  </tbody>
+</table>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
+  <div>
+    <div style="font-size:11.5px;font-weight:700;color:#9a3412">Solde total dû</div>
+    <div style="font-size:9.5px;color:#c2703d;margin-top:2px">${periode}</div>
+  </div>
+  <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(selected.solde||0)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
+</div>
 ${printFooter(printDate)}
 </div></body></html>`)
   }
@@ -284,6 +324,12 @@ ${printFooter(printDate)}
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${e.type==='purchase'?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700'}`}>
                                 {e.type==='purchase' ? '⛽' : '💸'} {e.label}
                               </span>
+                              {e.type === 'purchase' && (e.qte > 0 || e.adblueQte > 0) && (
+                                <div className="text-[10px] text-gray-400 mt-1 leading-tight">
+                                  {e.qte > 0 && <div>{fmtD(e.qte)} L × {fmtMoney(e.prixUnitaire)} DH/L</div>}
+                                  {e.adblueQte > 0 && <div>AdBlue: {fmtD(e.adblueQte)} L × {fmtMoney(e.adbluePrixUnitaire)} DH/L</div>}
+                                </div>
+                              )}
                             </td>
                             <td className="td text-xs text-gray-600">{e.camion}</td>
                             <td className="td text-xs text-gray-600">{e.bon}</td>
@@ -309,6 +355,28 @@ ${printFooter(printDate)}
                       )}
                     </table>
                   </div>
+                  {ledger.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                        <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres Gasoil</div>
+                        <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalFuelLitres)} L</div>
+                      </div>
+                      {totalAdblueLitres > 0 && (
+                        <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres AdBlue</div>
+                          <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalAdblueLitres)} L</div>
+                        </div>
+                      )}
+                      <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
+                        <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Remise Carburant</div>
+                        <div className="font-bold text-orange-700 text-sm mt-0.5">− {fmtMoney(fuelDiscount)} DHS</div>
+                      </div>
+                      <div className="text-center p-2.5 rounded-lg bg-gray-100 border border-gray-200">
+                        <div className="text-[10px] text-gray-600 font-semibold uppercase tracking-wide">Total Net Fournisseur</div>
+                        <div className="font-bold text-gray-800 text-sm mt-0.5">{fmtMoney(netSupplierTotal)} DHS</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
