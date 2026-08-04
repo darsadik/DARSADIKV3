@@ -183,6 +183,31 @@ export default function FournisseursGasoil() {
   const ledger = periodEntries.map(e => { running += e.debit - e.credit; return { ...e, solde: running } })
   const closingBalance = running
 
+  // ── DISPLAY LEDGER — presentation-only split of a combined Fuel+AdBlue
+  // purchase into two single-product rows (Achat Carburant / Achat AdBlue),
+  // so the merged "Litres"/"Prix U." columns are never ambiguous (every row
+  // shows exactly one product). Derived purely from `ledger`, whose solde is
+  // already correct: the split row's own solde is back-derived algebraically
+  // (e.solde − e.adblueAmount) rather than recomputed, so this can never
+  // disagree with the real running balance above — no new math, same debit
+  // total (fuelAmount + adblueAmount === e.debit), same final balance. Used
+  // ONLY for rendering the chronological table (screen + PDF) below;
+  // `ledger`/`closingBalance`/totals/truckSummary above stay untouched, and
+  // Presentation Mode keeps reading the original, unsplit `allEntries`.
+  function splitLedgerRow(e) {
+    if (e.type !== 'purchase') return [e]
+    const hasFuel = e.qte > 0, hasAdblue = e.adblueQte > 0
+    if (hasFuel && hasAdblue) {
+      return [
+        { ...e, id: `${e.id}-f`, label: 'Achat Carburant', debit: e.fuelAmount, solde: e.solde - e.adblueAmount },
+        { ...e, id: `${e.id}-a`, label: 'Achat AdBlue', debit: e.adblueAmount, qte: e.adblueQte, prixUnitaire: e.adbluePrixUnitaire },
+      ]
+    }
+    if (hasAdblue) return [{ ...e, label: 'Achat AdBlue', qte: e.adblueQte, prixUnitaire: e.adbluePrixUnitaire }]
+    return [{ ...e, label: 'Achat Carburant' }]
+  }
+  const displayLedger = ledger.flatMap(splitLedgerRow)
+
   const totalAchats    = periodEntries.reduce((s, e) => s + e.debit, 0)
   const totalPaiements = periodEntries.reduce((s, e) => s + e.credit, 0)
 
@@ -331,17 +356,15 @@ export default function FournisseursGasoil() {
     const periode = filterType === 'all' ? 'Toutes dates' : `${fmtDate(from)} → ${fmtDate(to)}`
     const rows = (openingBalance !== 0 ? [{
       date: from, type: 'opening', label: "Solde d'ouverture", debit: 0, credit: 0, camion: '—', bon: '—', note: '', solde: openingBalance,
-    }] : []).concat(ledger).map(e => {
+    }] : []).concat(displayLedger).map(e => {
       const isPurchase = e.type === 'purchase'
       return `<tr>
-      <td class="m" style="white-space:nowrap">${fmtDate(e.date)}</td>
-      <td>${e.label}</td>
-      <td class="m">${e.camion}</td>
-      <td class="m">${e.bon}</td>
-      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.qte ? `<b>${fmtD(e.qte)} L</b>` : '—'}</td>
-      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.qte ? `<b>${fmtMoney(e.prixUnitaire)} DH</b>` : '—'}</td>
-      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.adblueQte ? `<b>${fmtD(e.adblueQte)} L</b>` : '—'}</td>
-      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.adblueQte ? `<b>${fmtMoney(e.adbluePrixUnitaire)} DH</b>` : '—'}</td>
+      <td class="m2" style="white-space:nowrap">${fmtDate(e.date)}</td>
+      <td class="opn">${e.label}</td>
+      <td class="m2">${e.camion}</td>
+      <td class="m2">${e.bon}</td>
+      <td class="r" style="color:#0f172a;font-size:14.5px">${isPurchase && e.qte ? `<b>${fmtD(e.qte)} L</b>` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14.5px">${isPurchase && e.qte ? `<b>${fmtMoney(e.prixUnitaire)} DH</b>` : '—'}</td>
       <td class="r" style="color:${accent}">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
       <td class="r" style="color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
       <td class="r" style="font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
@@ -360,6 +383,12 @@ export default function FournisseursGasoil() {
 <meta charset="UTF-8"><title>Fournisseur Carburant — ${selected.nom}</title>
 <style>
 ${printBaseCss(accent)}
+/* ── Tighter horizontal spacing + heavier, darker text for the ledger
+   table only — makes better use of page width and improves readability
+   without touching printBaseCss (shared by every other statement page). ── */
+.bdy table td, .bdy table th { padding-left: 9px; padding-right: 9px; }
+.m2 { color: #1e293b; font-size: 13.5px; font-weight: 600; }
+.opn { font-size: 13.5px; font-weight: 700; color: #1e293b; }
 </style></head><body>
 ${printHeader({ date: printDate })}
 ${entityCard({
@@ -375,8 +404,8 @@ ${summaryCards([
 <div class="bdy">
 <div class="sec-title">Relevé Chronologique</div>
 <table>
-  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres Gasoil</th><th class="r">Prix U. Gasoil</th><th class="r">Litres AdBlue</th><th class="r">Prix U. AdBlue</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
-  <tbody>${rows||'<tr><td colspan="11" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres</th><th class="r">Prix U.</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
 </table>
 <div class="sec-title" style="margin-top:20px">Résumé Consommation par Camion</div>
 <table>
@@ -881,7 +910,7 @@ ${printFooter(printDate)}
                     <h3 className="font-bold text-gray-900" style={{fontSize:14}}>
                       {stmtMode === 'presentation' ? '↕ Relevé Présentation' : '📒 Relevé Chronologique'}
                       <span className="text-gray-400 font-normal text-sm ml-2">
-                        ({stmtMode === 'presentation' ? buildPresentationLedger().entries.length : ledger.length})
+                        ({stmtMode === 'presentation' ? buildPresentationLedger().entries.length : displayLedger.length})
                       </span>
                     </h3>
                     <div style={{display:'flex',borderRadius:6,overflow:'hidden',border:'1px solid #e2e8f0',flexShrink:0}}>
@@ -911,10 +940,8 @@ ${printFooter(printDate)}
                             <th className="th">Opération</th>
                             <th className="th">Camion</th>
                             <th className="th">N° BON</th>
-                            <th className="th text-right">Litres Gasoil</th>
-                            <th className="th text-right">Prix U. Gasoil</th>
-                            <th className="th text-right">Litres AdBlue</th>
-                            <th className="th text-right">Prix U. AdBlue</th>
+                            <th className="th text-right">Litres</th>
+                            <th className="th text-right">Prix U.</th>
                             <th className="th text-right">Débit (+)</th>
                             <th className="th text-right">Crédit (−)</th>
                             <th className="th text-right">Solde</th>
@@ -922,12 +949,10 @@ ${printFooter(printDate)}
                           <tbody>
                             {openingBalance !== 0 && (
                               <tr className="bg-gray-50">
-                                <td className="td text-gray-500">{fmtDate(from)}</td>
-                                <td className="td font-semibold text-gray-600">Solde d'ouverture</td>
+                                <td className="td text-sm font-semibold text-gray-700">{fmtDate(from)}</td>
+                                <td className="td text-sm font-bold text-gray-700">Solde d'ouverture</td>
                                 <td className="td text-gray-400">—</td>
                                 <td className="td text-gray-400">—</td>
-                                <td className="td text-right text-gray-400">—</td>
-                                <td className="td text-right text-gray-400">—</td>
                                 <td className="td text-right text-gray-400">—</td>
                                 <td className="td text-right text-gray-400">—</td>
                                 <td className="td text-right text-gray-400">—</td>
@@ -937,32 +962,30 @@ ${printFooter(printDate)}
                                 </td>
                               </tr>
                             )}
-                            {ledger.map(e => (
+                            {displayLedger.map(e => (
                               <tr key={e.id} className={e.type==='purchase' ? 'hover:bg-orange-50' : 'hover:bg-green-50'}>
-                                <td className="td text-gray-500">{fmtDate(e.date)}</td>
+                                <td className="td text-sm font-semibold text-gray-700">{fmtDate(e.date)}</td>
                                 <td className="td">
                                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${e.type==='purchase'?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700'}`}>
                                     {e.type==='purchase' ? '⛽' : '💸'} {e.label}
                                   </span>
                                 </td>
-                                <td className="td text-xs text-gray-600">{e.camion}</td>
-                                <td className="td text-xs text-gray-600">{e.bon}</td>
+                                <td className="td text-sm font-medium text-gray-700">{e.camion}</td>
+                                <td className="td text-sm font-medium text-gray-700">{e.bon}</td>
                                 <td className="td text-right text-sm font-semibold text-gray-900">{e.type==='purchase' && e.qte ? `${fmtD(e.qte)} L` : <span className="text-gray-300 font-normal">—</span>}</td>
                                 <td className="td text-right text-sm font-semibold text-gray-900">{e.type==='purchase' && e.qte ? `${fmtMoney(e.prixUnitaire)} DH` : <span className="text-gray-300 font-normal">—</span>}</td>
-                                <td className="td text-right text-sm font-semibold text-gray-900">{e.type==='purchase' && e.adblueQte ? `${fmtD(e.adblueQte)} L` : <span className="text-gray-300 font-normal">—</span>}</td>
-                                <td className="td text-right text-sm font-semibold text-gray-900">{e.type==='purchase' && e.adblueQte ? `${fmtMoney(e.adbluePrixUnitaire)} DH` : <span className="text-gray-300 font-normal">—</span>}</td>
-                                <td className="td text-right font-bold text-orange-700">{e.debit ? `+ ${fmtMoney(e.debit)}` : '—'}</td>
-                                <td className="td text-right font-bold text-green-600">{e.credit ? `− ${fmtMoney(e.credit)}` : '—'}</td>
+                                <td className="td text-right text-sm font-bold text-orange-700">{e.debit ? `+ ${fmtMoney(e.debit)}` : '—'}</td>
+                                <td className="td text-right text-sm font-bold text-green-600">{e.credit ? `− ${fmtMoney(e.credit)}` : '—'}</td>
                                 <td className={`td text-right font-bold ${e.solde>=0?'text-red-600':'text-green-600'}`}>
                                   {e.solde>=0?'+ ':'− '}{fmtMoney(Math.abs(e.solde))}
                                 </td>
                               </tr>
                             ))}
-                            {ledger.length === 0 && <tr><td colSpan={11} className="td text-center text-gray-400 py-8">Aucune opération pour cette période</td></tr>}
+                            {displayLedger.length === 0 && <tr><td colSpan={9} className="td text-center text-gray-400 py-8">Aucune opération pour cette période</td></tr>}
                           </tbody>
-                          {ledger.length > 0 && (
+                          {displayLedger.length > 0 && (
                             <tfoot><tr>
-                              <td className="tfoot-td" colSpan={8}>TOTAL période</td>
+                              <td className="tfoot-td" colSpan={6}>TOTAL période</td>
                               <td className="tfoot-td text-right text-orange-700">+ {fmtMoney(totalAchats)} DHS</td>
                               <td className="tfoot-td text-right text-green-700">− {fmtMoney(totalPaiements)} DHS</td>
                               <td className={`tfoot-td text-right ${closingBalance>=0?'text-red-600':'text-green-600'}`}>
