@@ -411,10 +411,16 @@ ${printFooter(printDate)}
 </div></body></html>`)
   }
 
-  // ── PRINT: PRESENTATION MODE — same structure/behavior as
-  // printPresentationClient in pages/clients/index.js: prints the full
-  // presentation-ordered ledger, or just the selected rows + a "Report"
-  // carry-forward row when a subset is selected. ──
+  // ── PRINT: PRESENTATION MODE — visually identical to the chronological
+  // print (same accent, header, cards, table style, typography, footer):
+  // the only differences are (1) it prints only the presentation selection
+  // (or the full presentation order when nothing is selected) and (2) it
+  // keeps a Report carry-forward row when the selection doesn't start at
+  // the top. pFinalBalance is the same running-balance figure the screen
+  // already computes (buildPresentationLedger) — untouched. The only new
+  // number is the Fuel Discount, computed the same way as everywhere else
+  // (litres × remiseRate) but restricted to the purchase rows being
+  // printed, exactly like the summary below it. ──
   function printPresentationFournisseur() {
     if (!selected) return
     const pLedger = buildPresentationLedger()
@@ -430,25 +436,35 @@ ${printFooter(printDate)}
       if (firstSelIdxInFull > 0) selectionCarryForward = pLedger.entries[firstSelIdxInFull - 1].solde
     }
 
-    const accent = '#7c3aed'
+    const accent = '#f97316'
     const printDate = printGeneratedDate()
+
+    // ── Fuel Discount summary — purchase rows only, payments contribute 0,
+    // same litres × remiseRate formula used everywhere else in the app.
+    const selectedAchats       = pEntries.reduce((s, e) => s + (e.debit || 0), 0)
+    const selectedPaiements    = pEntries.reduce((s, e) => s + (e.credit || 0), 0)
+    const selectedFuelLitres   = pEntries.filter(e => e.type === 'purchase').reduce((s, e) => s + (e.qte || 0), 0)
+    const selectedFuelDiscount = Math.round(selectedFuelLitres * remiseRate * 100) / 100
+    const selectedNetTotal     = Math.round((selectedAchats - selectedFuelDiscount) * 100) / 100
 
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
       const cfAmt = fmtMoney(Math.abs(selectionCarryForward))
-      return `<tr style="background:#fef3c7"><td class="m" style="color:#92400e">—</td><td style="font-size:12px;font-weight:700;color:#92400e">Report</td><td class="m">—</td><td class="m">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15.5px;color:#b45309;white-space:nowrap">${cfSign}${cfAmt}</td></tr>`
+      return `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap;color:#92400e">—</td><td style="font-size:12px;font-weight:600;color:#92400e">Report</td><td class="m">—</td><td class="m">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15.5px;color:#b45309;white-space:nowrap">${cfSign}${cfAmt}</td></tr>`
     })() : ''
 
     const rows = reportRowHtml + pEntries.map(e => {
+      const isPurchase = e.type === 'purchase'
       const isMoved = !!presentationOrder[eKey(e)]
-      const priceLines = e.type === 'purchase' && (e.qte || e.adblueQte) ? `<div style="font-size:9.5px;color:#94a3b8;margin-top:2px;font-weight:400;font-family:'Courier New',monospace">${
-        e.qte ? `${fmtD(e.qte)} L × ${fmtMoney(e.prixUnitaire)} DH/L` : ''
-      }${e.adblueQte ? `${e.qte ? '<br>' : ''}AdBlue: ${fmtD(e.adblueQte)} L × ${fmtMoney(e.adbluePrixUnitaire)} DH/L` : ''}</div>` : ''
       return `<tr>
-      <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>
-      <td>${e.label}${priceLines}</td>
+      <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:${accent}">↕ Déplacé</span>`:''}</td>
+      <td>${e.label}</td>
       <td class="m">${e.camion}</td>
       <td class="m">${e.bon}</td>
+      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.qte ? `<b>${fmtD(e.qte)} L</b>` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.qte ? `<b>${fmtMoney(e.prixUnitaire)} DH</b>` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.adblueQte ? `<b>${fmtD(e.adblueQte)} L</b>` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.adblueQte ? `<b>${fmtMoney(e.adbluePrixUnitaire)} DH</b>` : '—'}</td>
       <td class="r" style="color:${accent}">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
       <td class="r" style="color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
       <td class="r" style="font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
@@ -459,19 +475,32 @@ ${printFooter(printDate)}
 <meta charset="UTF-8"><title>Relevé Présentation — ${selected.nom}</title>
 <style>
 ${printBaseCss(accent)}
-.mode-badge{display:inline-block;background:#ede9fe;color:#7c3aed;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #ddd6fe;margin-bottom:6px}
 </style></head><body>
-${printHeader({ date: printDate, extraRight: '<div class="mode-badge">↕ Vue Présentation</div>&nbsp;' })}
+${printHeader({ date: printDate })}
 ${entityCard({
   avatarText: '⛽',
   name: selected.nom,
-  metaHtml: `<strong>Fournisseur Carburant</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(selected.solde||0)} DHS`,
+  metaHtml: `<strong>Fournisseur Carburant</strong> &nbsp;·&nbsp; <strong>Vue:</strong> Présentation${isSelectionPrint ? ` — Sélection (${pEntries.length})` : ''}`,
 })}
+${summaryCards([
+  { label: 'Achats sélection', value: `${fmtMoney(selectedAchats)} DHS`, color: accent },
+  ...(selectedPaiements > 0 ? [{ label: 'Payé sélection', value: `${fmtMoney(selectedPaiements)} DHS`, color: '#16a34a' }] : []),
+  { label: 'Solde à payer', value: `${fmtMoney(pFinalBalance)} DHS`, color: '#dc2626' },
+])}
 <div class="bdy">
 <div class="sec-title">Relevé Présentation${isSelectionPrint ? ` — Sélection (${pEntries.length})` : ''}</div>
 <table>
-  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>Bon / Mode</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
-  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres Gasoil</th><th class="r">Prix U. Gasoil</th><th class="r">Litres AdBlue</th><th class="r">Prix U. AdBlue</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="11" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+</table>
+<div class="sec-title" style="margin-top:20px">Résumé</div>
+<table style="width:100%;border-collapse:collapse">
+  <tbody>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Achats</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmtMoney(selectedAchats)} DHS</td></tr>
+    ${selectedPaiements > 0 ? `<tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Payé</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedPaiements)} DHS</td></tr>` : ''}
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedFuelDiscount)} DHS</td></tr>
+    <tr style="border-top:1.5px solid #e2e8f0"><td style="padding:8px 4px;font-size:12.5px;font-weight:800;color:#1e293b">Total Net</td><td style="padding:8px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:900;color:${accent}">${fmtMoney(selectedNetTotal)} DHS</td></tr>
+  </tbody>
 </table>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
   <div>
