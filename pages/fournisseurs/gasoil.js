@@ -128,6 +128,7 @@ export default function FournisseursGasoil() {
       // the debit/credit/solde math above, so the ledger stays identical.
       qte: a.qte || 0, prixUnitaire: a.prix_unitaire || 0,
       adblueQte: a.adblue_qte || 0, adbluePrixUnitaire: a.adblue_prix_unitaire || 0,
+      fuelAmount: a.total || 0, adblueAmount: a.adblue_total || 0,
     })),
     ...paiements.map(p => ({
       id: `c-${p.id}`, date: p.date, seq: `${p.date}_1_${String(p.id).padStart(10,'0')}`,
@@ -159,6 +160,26 @@ export default function FournisseursGasoil() {
   const totalAdblueLitres = periodEntries.reduce((s, e) => s + (e.adblueQte || 0), 0)
   const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
   const netSupplierTotal  = Math.round((totalAchats - fuelDiscount) * 100) / 100
+
+  // ── TRUCK CONSUMPTION SUMMARY — purchases only (period-filtered, same as
+  // the figures above), grouped by camion. Purely additive reporting; never
+  // read by debit/credit/solde math or gasoil_fournisseurs.solde. ──
+  const truckSummaryMap = {}
+  periodEntries.filter(e => e.type === 'purchase').forEach(e => {
+    const key = e.camion || '—'
+    if (!truckSummaryMap[key]) truckSummaryMap[key] = { camion: key, fuelLitres: 0, fuelAmount: 0, adblueLitres: 0, adblueAmount: 0 }
+    truckSummaryMap[key].fuelLitres   += e.qte || 0
+    truckSummaryMap[key].fuelAmount   += e.fuelAmount || 0
+    truckSummaryMap[key].adblueLitres += e.adblueQte || 0
+    truckSummaryMap[key].adblueAmount += e.adblueAmount || 0
+  })
+  const truckSummary = Object.values(truckSummaryMap).sort((a, b) => a.camion.localeCompare(b.camion))
+  const truckSummaryTotals = truckSummary.reduce((acc, t) => ({
+    fuelLitres: acc.fuelLitres + t.fuelLitres,
+    fuelAmount: acc.fuelAmount + t.fuelAmount,
+    adblueLitres: acc.adblueLitres + t.adblueLitres,
+    adblueAmount: acc.adblueAmount + t.adblueAmount,
+  }), { fuelLitres: 0, fuelAmount: 0, adblueLitres: 0, adblueAmount: 0 })
 
   // ── PRESENTATION HELPERS — same shape as pages/clients/index.js ──
   function eKey(e) { return e.id }
@@ -253,22 +274,29 @@ export default function FournisseursGasoil() {
     const rows = (from && openingBalance !== 0 ? [{
       date: from, type: 'opening', label: "Solde d'ouverture", debit: 0, credit: 0, camion: '—', bon: '—', note: '', solde: openingBalance,
     }] : []).concat(ledger).map(e => {
-      // ── unit price + liters subtext (§ Unit Price / Liters) — a compact
-      // two-line addition under the label, purchase rows only, never a new
-      // column, so nothing about the table's structure changes.
-      const priceLines = e.type === 'purchase' && (e.qte || e.adblueQte) ? `<div style="font-size:9.5px;color:#94a3b8;margin-top:2px;font-weight:400;font-family:'Courier New',monospace">${
-        e.qte ? `${fmtD(e.qte)} L × ${fmtMoney(e.prixUnitaire)} DH/L` : ''
-      }${e.adblueQte ? `${e.qte ? '<br>' : ''}AdBlue: ${fmtD(e.adblueQte)} L × ${fmtMoney(e.adbluePrixUnitaire)} DH/L` : ''}</div>` : ''
+      const isPurchase = e.type === 'purchase'
       return `<tr>
       <td class="m" style="white-space:nowrap">${fmtDate(e.date)}</td>
-      <td>${e.label}${priceLines}</td>
+      <td>${e.label}</td>
       <td class="m">${e.camion}</td>
       <td class="m">${e.bon}</td>
+      <td class="r">${isPurchase && e.qte ? `${fmtD(e.qte)} L` : '—'}</td>
+      <td class="r">${isPurchase && e.qte ? `${fmtMoney(e.prixUnitaire)} DH` : '—'}</td>
+      <td class="r">${isPurchase && e.adblueQte ? `${fmtD(e.adblueQte)} L` : '—'}</td>
+      <td class="r">${isPurchase && e.adblueQte ? `${fmtMoney(e.adbluePrixUnitaire)} DH` : '—'}</td>
       <td class="r" style="color:${accent}">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
       <td class="r" style="color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
       <td class="r" style="font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
     </tr>`
     }).join('')
+
+    const truckRows = truckSummary.map(t => `<tr>
+      <td class="m">${t.camion}</td>
+      <td class="r">${fmtD(t.fuelLitres)} L</td>
+      <td class="r">${fmtMoney(t.fuelAmount)} DH</td>
+      <td class="r">${t.adblueLitres > 0 ? `${fmtD(t.adblueLitres)} L` : '—'}</td>
+      <td class="r">${t.adblueAmount > 0 ? `${fmtMoney(t.adblueAmount)} DH` : '—'}</td>
+    </tr>`).join('')
 
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Fournisseur Carburant — ${selected.nom}</title>
@@ -289,8 +317,20 @@ ${summaryCards([
 <div class="bdy">
 <div class="sec-title">Relevé Chronologique</div>
 <table>
-  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>Bon / Mode</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
-  <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres Gasoil</th><th class="r">Prix U. Gasoil</th><th class="r">Litres AdBlue</th><th class="r">Prix U. AdBlue</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="11" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+</table>
+<div class="sec-title" style="margin-top:20px">Résumé Consommation par Camion</div>
+<table>
+  <thead><tr><th>Camion</th><th class="r">Litres Gasoil</th><th class="r">Montant Gasoil</th><th class="r">Litres AdBlue</th><th class="r">Montant AdBlue</th></tr></thead>
+  <tbody>${truckRows||'<tr><td colspan="5" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+  <tfoot><tr>
+    <td>TOTAL</td>
+    <td style="text-align:right">${fmtD(truckSummaryTotals.fuelLitres)} L</td>
+    <td style="text-align:right">${fmtMoney(truckSummaryTotals.fuelAmount)} DH</td>
+    <td style="text-align:right">${truckSummaryTotals.adblueLitres > 0 ? `${fmtD(truckSummaryTotals.adblueLitres)} L` : '—'}</td>
+    <td style="text-align:right">${truckSummaryTotals.adblueAmount > 0 ? `${fmtMoney(truckSummaryTotals.adblueAmount)} DH` : '—'}</td>
+  </tr></tfoot>
 </table>
 <div class="sec-title" style="margin-top:20px">Résumé</div>
 <table style="width:100%;border-collapse:collapse">
@@ -776,8 +816,11 @@ ${printFooter(printDate)}
                             <th className="th">Date</th>
                             <th className="th">Opération</th>
                             <th className="th">Camion</th>
-                            <th className="th">Bon / Mode</th>
-                            <th className="th">Note</th>
+                            <th className="th">N° BON</th>
+                            <th className="th text-right">Litres Gasoil</th>
+                            <th className="th text-right">Prix U. Gasoil</th>
+                            <th className="th text-right">Litres AdBlue</th>
+                            <th className="th text-right">Prix U. AdBlue</th>
                             <th className="th text-right">Débit (+)</th>
                             <th className="th text-right">Crédit (−)</th>
                             <th className="th text-right">Solde</th>
@@ -789,7 +832,10 @@ ${printFooter(printDate)}
                                 <td className="td font-semibold text-gray-600">Solde d'ouverture</td>
                                 <td className="td text-gray-400">—</td>
                                 <td className="td text-gray-400">—</td>
-                                <td className="td text-gray-400">—</td>
+                                <td className="td text-right text-gray-400">—</td>
+                                <td className="td text-right text-gray-400">—</td>
+                                <td className="td text-right text-gray-400">—</td>
+                                <td className="td text-right text-gray-400">—</td>
                                 <td className="td text-right text-gray-400">—</td>
                                 <td className="td text-right text-gray-400">—</td>
                                 <td className={`td text-right font-bold ${openingBalance>=0?'text-red-600':'text-green-600'}`}>
@@ -804,16 +850,13 @@ ${printFooter(printDate)}
                                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${e.type==='purchase'?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700'}`}>
                                     {e.type==='purchase' ? '⛽' : '💸'} {e.label}
                                   </span>
-                                  {e.type === 'purchase' && (e.qte > 0 || e.adblueQte > 0) && (
-                                    <div className="text-[10px] text-gray-400 mt-1 leading-tight">
-                                      {e.qte > 0 && <div>{fmtD(e.qte)} L × {fmtMoney(e.prixUnitaire)} DH/L</div>}
-                                      {e.adblueQte > 0 && <div>AdBlue: {fmtD(e.adblueQte)} L × {fmtMoney(e.adbluePrixUnitaire)} DH/L</div>}
-                                    </div>
-                                  )}
                                 </td>
                                 <td className="td text-xs text-gray-600">{e.camion}</td>
                                 <td className="td text-xs text-gray-600">{e.bon}</td>
-                                <td className="td text-xs text-gray-400">{e.note || '—'}</td>
+                                <td className="td text-right text-xs text-gray-700">{e.type==='purchase' && e.qte ? `${fmtD(e.qte)} L` : <span className="text-gray-300">—</span>}</td>
+                                <td className="td text-right text-xs text-gray-700">{e.type==='purchase' && e.qte ? `${fmtMoney(e.prixUnitaire)} DH` : <span className="text-gray-300">—</span>}</td>
+                                <td className="td text-right text-xs text-gray-700">{e.type==='purchase' && e.adblueQte ? `${fmtD(e.adblueQte)} L` : <span className="text-gray-300">—</span>}</td>
+                                <td className="td text-right text-xs text-gray-700">{e.type==='purchase' && e.adblueQte ? `${fmtMoney(e.adbluePrixUnitaire)} DH` : <span className="text-gray-300">—</span>}</td>
                                 <td className="td text-right font-bold text-orange-700">{e.debit ? `+ ${fmtMoney(e.debit)}` : '—'}</td>
                                 <td className="td text-right font-bold text-green-600">{e.credit ? `− ${fmtMoney(e.credit)}` : '—'}</td>
                                 <td className={`td text-right font-bold ${e.solde>=0?'text-red-600':'text-green-600'}`}>
@@ -821,11 +864,11 @@ ${printFooter(printDate)}
                                 </td>
                               </tr>
                             ))}
-                            {ledger.length === 0 && <tr><td colSpan={8} className="td text-center text-gray-400 py-8">Aucune opération pour cette période</td></tr>}
+                            {ledger.length === 0 && <tr><td colSpan={11} className="td text-center text-gray-400 py-8">Aucune opération pour cette période</td></tr>}
                           </tbody>
                           {ledger.length > 0 && (
                             <tfoot><tr>
-                              <td className="tfoot-td" colSpan={5}>TOTAL période</td>
+                              <td className="tfoot-td" colSpan={8}>TOTAL période</td>
                               <td className="tfoot-td text-right text-orange-700">+ {fmtMoney(totalAchats)} DHS</td>
                               <td className="tfoot-td text-right text-green-700">− {fmtMoney(totalPaiements)} DHS</td>
                               <td className={`tfoot-td text-right ${closingBalance>=0?'text-red-600':'text-green-600'}`}>
@@ -835,6 +878,40 @@ ${printFooter(printDate)}
                           )}
                         </table>
                       </div>
+                      {truckSummary.length > 0 && (
+                        <div className="mt-5 pt-4 border-t border-gray-100">
+                          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">🚚 Résumé Consommation par Camion</h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead><tr>
+                                <th className="th">Camion</th>
+                                <th className="th text-right">Litres Gasoil</th>
+                                <th className="th text-right">Montant Gasoil</th>
+                                <th className="th text-right">Litres AdBlue</th>
+                                <th className="th text-right">Montant AdBlue</th>
+                              </tr></thead>
+                              <tbody>
+                                {truckSummary.map(t => (
+                                  <tr key={t.camion}>
+                                    <td className="td text-gray-700 font-semibold">{t.camion}</td>
+                                    <td className="td text-right">{fmtD(t.fuelLitres)} L</td>
+                                    <td className="td text-right font-bold text-orange-700">{fmtMoney(t.fuelAmount)} DHS</td>
+                                    <td className="td text-right">{t.adblueLitres > 0 ? `${fmtD(t.adblueLitres)} L` : <span className="text-gray-300">—</span>}</td>
+                                    <td className="td text-right font-bold text-blue-700">{t.adblueAmount > 0 ? `${fmtMoney(t.adblueAmount)} DHS` : <span className="text-gray-300">—</span>}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot><tr>
+                                <td className="tfoot-td">TOTAL</td>
+                                <td className="tfoot-td text-right">{fmtD(truckSummaryTotals.fuelLitres)} L</td>
+                                <td className="tfoot-td text-right text-orange-700">{fmtMoney(truckSummaryTotals.fuelAmount)} DHS</td>
+                                <td className="tfoot-td text-right">{truckSummaryTotals.adblueLitres > 0 ? `${fmtD(truckSummaryTotals.adblueLitres)} L` : '—'}</td>
+                                <td className="tfoot-td text-right text-blue-700">{truckSummaryTotals.adblueAmount > 0 ? `${fmtMoney(truckSummaryTotals.adblueAmount)} DHS` : '—'}</td>
+                              </tr></tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                       {ledger.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
