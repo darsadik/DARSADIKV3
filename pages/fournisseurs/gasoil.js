@@ -248,23 +248,29 @@ export default function FournisseursGasoil() {
 
   // ── TRUCK CONSUMPTION SUMMARY — purchases only (period-filtered, same as
   // the figures above), grouped by camion. Purely additive reporting; never
-  // read by debit/credit/solde math or gasoil_fournisseurs.solde. ──
+  // read by debit/credit/solde math or gasoil_fournisseurs.solde. fuelCount/
+  // adblueCount are simple fill-up counts (one purchase row can carry both
+  // a fuel and an AdBlue fill, counted independently). ──
   const truckSummaryMap = {}
   periodEntries.filter(e => e.type === 'purchase').forEach(e => {
     const key = e.camion || '—'
-    if (!truckSummaryMap[key]) truckSummaryMap[key] = { camion: key, fuelLitres: 0, fuelAmount: 0, adblueLitres: 0, adblueAmount: 0 }
+    if (!truckSummaryMap[key]) truckSummaryMap[key] = { camion: key, fuelCount: 0, fuelLitres: 0, fuelAmount: 0, adblueCount: 0, adblueLitres: 0, adblueAmount: 0 }
+    if (e.qte > 0) truckSummaryMap[key].fuelCount++
     truckSummaryMap[key].fuelLitres   += e.qte || 0
     truckSummaryMap[key].fuelAmount   += e.fuelAmount || 0
+    if (e.adblueQte > 0) truckSummaryMap[key].adblueCount++
     truckSummaryMap[key].adblueLitres += e.adblueQte || 0
     truckSummaryMap[key].adblueAmount += e.adblueAmount || 0
   })
   const truckSummary = Object.values(truckSummaryMap).sort((a, b) => a.camion.localeCompare(b.camion))
   const truckSummaryTotals = truckSummary.reduce((acc, t) => ({
+    fuelCount: acc.fuelCount + t.fuelCount,
     fuelLitres: acc.fuelLitres + t.fuelLitres,
     fuelAmount: acc.fuelAmount + t.fuelAmount,
+    adblueCount: acc.adblueCount + t.adblueCount,
     adblueLitres: acc.adblueLitres + t.adblueLitres,
     adblueAmount: acc.adblueAmount + t.adblueAmount,
-  }), { fuelLitres: 0, fuelAmount: 0, adblueLitres: 0, adblueAmount: 0 })
+  }), { fuelCount: 0, fuelLitres: 0, fuelAmount: 0, adblueCount: 0, adblueLitres: 0, adblueAmount: 0 })
 
   // ── PRESENTATION HELPERS — same shape as pages/clients/index.js ──
   function eKey(e) { return e.id }
@@ -379,8 +385,10 @@ export default function FournisseursGasoil() {
 
     const truckRows = truckSummary.map(t => `<tr>
       <td class="m">${t.camion}</td>
+      <td class="r">${t.fuelCount || '—'}</td>
       <td class="r">${fmtD(t.fuelLitres)} L</td>
       <td class="r">${fmtMoney(t.fuelAmount)} DH</td>
+      <td class="r">${t.adblueCount || '—'}</td>
       <td class="r">${t.adblueLitres > 0 ? `${fmtD(t.adblueLitres)} L` : '—'}</td>
       <td class="r">${t.adblueAmount > 0 ? `${fmtMoney(t.adblueAmount)} DH` : '—'}</td>
     </tr>`).join('')
@@ -413,18 +421,6 @@ ${summaryCards([
   <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres</th><th class="r">Prix U.</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
 </table>
-<div class="sec-title" style="margin-top:20px">Résumé Consommation par Camion</div>
-<table>
-  <thead><tr><th>Camion</th><th class="r">Litres Gasoil</th><th class="r">Montant Gasoil</th><th class="r">Litres AdBlue</th><th class="r">Montant AdBlue</th></tr></thead>
-  <tbody>${truckRows||'<tr><td colspan="5" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
-  <tfoot><tr>
-    <td>TOTAL</td>
-    <td style="text-align:right">${fmtD(truckSummaryTotals.fuelLitres)} L</td>
-    <td style="text-align:right">${fmtMoney(truckSummaryTotals.fuelAmount)} DH</td>
-    <td style="text-align:right">${truckSummaryTotals.adblueLitres > 0 ? `${fmtD(truckSummaryTotals.adblueLitres)} L` : '—'}</td>
-    <td style="text-align:right">${truckSummaryTotals.adblueAmount > 0 ? `${fmtMoney(truckSummaryTotals.adblueAmount)} DH` : '—'}</td>
-  </tr></tfoot>
-</table>
 <div class="sec-title" style="margin-top:20px">Résumé</div>
 <table style="width:100%;border-collapse:collapse">
   <tbody>
@@ -442,6 +438,20 @@ ${summaryCards([
   </div>
   <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(soldeAPayer)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
 </div>
+<div class="sec-title" style="margin-top:20px">Résumé Consommation par Camion</div>
+<table>
+  <thead><tr><th>Camion</th><th class="r">Nb. Pleins Gasoil</th><th class="r">Litres Gasoil</th><th class="r">Montant Gasoil</th><th class="r">Nb. Pleins AdBlue</th><th class="r">Litres AdBlue</th><th class="r">Montant AdBlue</th></tr></thead>
+  <tbody>${truckRows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+  <tfoot><tr>
+    <td>TOTAL</td>
+    <td style="text-align:right">${truckSummaryTotals.fuelCount || '—'}</td>
+    <td style="text-align:right">${fmtD(truckSummaryTotals.fuelLitres)} L</td>
+    <td style="text-align:right">${fmtMoney(truckSummaryTotals.fuelAmount)} DH</td>
+    <td style="text-align:right">${truckSummaryTotals.adblueCount || '—'}</td>
+    <td style="text-align:right">${truckSummaryTotals.adblueLitres > 0 ? `${fmtD(truckSummaryTotals.adblueLitres)} L` : '—'}</td>
+    <td style="text-align:right">${truckSummaryTotals.adblueAmount > 0 ? `${fmtMoney(truckSummaryTotals.adblueAmount)} DH` : '—'}</td>
+  </tr></tfoot>
+</table>
 ${printFooter(printDate)}
 </div></body></html>`)
   }
