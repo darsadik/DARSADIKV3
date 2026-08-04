@@ -33,6 +33,14 @@ export default function FournisseursGasoil() {
   const [newNom,       setNewNom]       = useState('')
   const [remiseRate,   setRemiseRate]   = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
+  // ── OPENING BALANCE (single source of truth: gasoil_fournisseurs.opening_balance,
+  // sql/21) — distinct from the global app_settings.fuel_opening_balance edited
+  // on /parametres (that one is a whole-module figure, not per-supplier; see
+  // sql/21 header comment). Edited here, read live everywhere below. ──
+  const [openingModal,  setOpeningModal]  = useState(null)
+  const [openingInput,  setOpeningInput]  = useState('')
+  const [openingSaving, setOpeningSaving] = useState(false)
+
   // ── STATEMENT MODE (Chronologique / Présentation) — same architecture,
   // components and UX as the Brick Client Statement (pages/clients/index.js).
   // Presentation mode is a pure visual reordering layer: it never touches
@@ -107,6 +115,30 @@ export default function FournisseursGasoil() {
     loadFournisseurs()
   }
 
+  function openOpeningBalance(f) {
+    setOpeningInput(String(f.opening_balance || ''))
+    setOpeningModal(f)
+  }
+
+  // Recomputes .solde from scratch (opening_balance + all-time purchases −
+  // all-time payments) so the stored balance — read everywhere else on this
+  // page (list, KPI cards, PDF) — never drifts from the new opening balance.
+  // Single write path: no other place stores or duplicates this figure.
+  async function saveOpeningBalance(e) {
+    e.preventDefault()
+    if (!openingModal) return
+    setOpeningSaving(true)
+    const n = parseFloat(openingInput) || 0
+    const totalAchatsAll    = achats.reduce((s, a) => s + (a.total || 0) + (a.adblue_total || 0), 0)
+    const totalPaiementsAll = paiements.reduce((s, p) => s + (p.montant || 0), 0)
+    const newSolde = n + totalAchatsAll - totalPaiementsAll
+    await supabase.from('gasoil_fournisseurs').update({ opening_balance: n, solde: newSolde }).eq('id', openingModal.id)
+    setOpeningSaving(false)
+    setOpeningModal(null)
+    loadFournisseurs()
+    if (selected?.id === openingModal.id) setSelected({ ...selected, opening_balance: n, solde: newSolde })
+  }
+
   function getDateRange() {
     if (filterType === 'all') return { from: null, to: null }
     if (filterType === 'month') {
@@ -138,11 +170,13 @@ export default function FournisseursGasoil() {
     })),
   ].sort((a, b) => a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0)
 
-  // Opening balance = every entry before the period start, so the displayed
-  // running balance stays correct no matter which period is selected — same
-  // approach as the Grand Livre Fournisseur report on /gasoil.
+  // Opening balance = the supplier's own opening_balance (single source of
+  // truth — sql/21, read live from `selected`) plus every entry before the
+  // period start, so the displayed running balance stays correct no matter
+  // which period is selected — same approach as getCarryOver() on the Brick
+  // Client Statement and the Grand Livre Fournisseur report on /gasoil.
   const beforeEntries = from ? allEntries.filter(e => e.date < from) : []
-  const openingBalance = beforeEntries.reduce((s, e) => s + e.debit - e.credit, 0)
+  const openingBalance = (selected?.opening_balance || 0) + beforeEntries.reduce((s, e) => s + e.debit - e.credit, 0)
   const periodEntries = allEntries.filter(e => (!from || e.date >= from) && (!to || e.date <= to))
 
   let running = openingBalance
@@ -200,7 +234,11 @@ export default function FournisseursGasoil() {
       return a.effectiveSeq - b.effectiveSeq
     })
 
-    let balance = 0
+    // Same opening_balance starting point as the chronological ledger (single
+    // source of truth) — otherwise Presentation Mode's running Solde would
+    // silently disagree with Chronological Mode's for any supplier with a
+    // nonzero opening balance. UI/interactions here are unchanged.
+    let balance = selected?.opening_balance || 0
     entries.forEach(e => { balance += e.debit - e.credit; e.solde = balance })
     return { entries, finalBalance: balance }
   }
@@ -271,7 +309,7 @@ export default function FournisseursGasoil() {
     const accent = '#f97316'
     const printDate = printGeneratedDate()
     const periode = filterType === 'all' ? 'Toutes dates' : `${fmtDate(from)} → ${fmtDate(to)}`
-    const rows = (from && openingBalance !== 0 ? [{
+    const rows = (openingBalance !== 0 ? [{
       date: from, type: 'opening', label: "Solde d'ouverture", debit: 0, credit: 0, camion: '—', bon: '—', note: '', solde: openingBalance,
     }] : []).concat(ledger).map(e => {
       const isPurchase = e.type === 'purchase'
@@ -746,7 +784,14 @@ ${printFooter(printDate)}
                       <div className="text-xs text-orange-700 font-semibold mt-0.5">Fournisseur Carburant</div>
                     </div>
                   </div>
-                  <button onClick={printFournisseur} className="btn-primary text-xs px-3 py-1.5" style={{background:'#f97316'}}>🖨️ PDF</button>
+                  <div className="flex items-center gap-2">
+                    {admin && (
+                      <button onClick={() => openOpeningBalance(selected)} className="btn-secondary text-xs" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>
+                        🏦 Solde initial
+                      </button>
+                    )}
+                    <button onClick={printFournisseur} className="btn-primary text-xs px-3 py-1.5" style={{background:'#f97316'}}>🖨️ PDF</button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3 mt-4">
                   <div className="text-center p-3 rounded-xl bg-orange-50 border border-orange-100">
@@ -826,7 +871,7 @@ ${printFooter(printDate)}
                             <th className="th text-right">Solde</th>
                           </tr></thead>
                           <tbody>
-                            {from && openingBalance !== 0 && (
+                            {openingBalance !== 0 && (
                               <tr className="bg-gray-50">
                                 <td className="td text-gray-500">{fmtDate(from)}</td>
                                 <td className="td font-semibold text-gray-600">Solde d'ouverture</td>
@@ -942,6 +987,42 @@ ${printFooter(printDate)}
           )}
         </div>
       </div>
+
+      {openingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">🏦 Solde Initial</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{openingModal.nom}</p>
+              </div>
+              <button onClick={() => setOpeningModal(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={saveOpeningBalance} className="p-5 space-y-4">
+              <div>
+                <label className="label">Montant (DHS)</label>
+                <input type="text" inputMode="decimal" className="input" placeholder="ex: 45000"
+                  value={openingInput} onChange={e => setOpeningInput(e.target.value)}
+                  required autoFocus />
+                <p className="text-xs text-gray-400 mt-1">Le total dû à ce fournisseur avant cette app — source unique utilisée par le relevé chronologique et le mode présentation.</p>
+              </div>
+              {openingInput && (
+                <div className="p-3 rounded-xl text-sm" style={{background:'#fffbeb', border:'1px solid #fde68a'}}>
+                  <div className="font-bold text-amber-700 mb-1">🏦 Solde Initial</div>
+                  <div className="text-gray-700">{openingModal.nom}</div>
+                  <div className="text-xl font-bold text-amber-700">{fmtMoney(parseFloat(openingInput)||0)} DHS</div>
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={openingSaving} className="btn-primary flex-1 justify-center" style={{background:'#92400e'}}>
+                  {openingSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+                <button type="button" onClick={() => setOpeningModal(null)} className="btn-secondary">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }

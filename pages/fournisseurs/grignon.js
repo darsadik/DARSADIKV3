@@ -34,6 +34,14 @@ export default function FournisseursGrignon() {
   const [showAdd,      setShowAdd]      = useState(false)
   const [newNom,       setNewNom]       = useState('')
 
+  // ── OPENING BALANCE (single source of truth: grignon_fournisseurs.opening_balance,
+  // sql/21) — same pattern as pages/fournisseurs/gasoil.js. Distinct from the
+  // global app_settings.fuel_opening_balance on /parametres, which is a Fuel-only,
+  // whole-module figure and has no relation to Grignon suppliers. ──
+  const [openingModal,  setOpeningModal]  = useState(null)
+  const [openingInput,  setOpeningInput]  = useState('')
+  const [openingSaving, setOpeningSaving] = useState(false)
+
   useEffect(() => { loadFournisseurs() }, [])
 
   async function loadFournisseurs() {
@@ -133,6 +141,30 @@ export default function FournisseursGrignon() {
     loadFournisseurs()
   }
 
+  function openOpeningBalance(f) {
+    setOpeningInput(String(f.opening_balance || ''))
+    setOpeningModal(f)
+  }
+
+  // Recomputes .solde from scratch (opening_balance + all-time purchases −
+  // all-time payments) so the stored balance — read everywhere else on this
+  // page (list, KPI cards, PDF) — never drifts from the new opening balance.
+  // Single write path: no other place stores or duplicates this figure.
+  async function saveOpeningBalance(e) {
+    e.preventDefault()
+    if (!openingModal) return
+    setOpeningSaving(true)
+    const n = parseFloat(openingInput) || 0
+    const totalAchatsAll    = achats.reduce((s, a) => s + (a.total_achat || 0), 0)
+    const totalPaiementsAll = paiements.reduce((s, p) => s + (p.montant || 0), 0)
+    const newSolde = n + totalAchatsAll - totalPaiementsAll
+    await supabase.from('grignon_fournisseurs').update({ opening_balance: n, solde: newSolde }).eq('id', openingModal.id)
+    setOpeningSaving(false)
+    setOpeningModal(null)
+    loadFournisseurs()
+    if (selected?.id === openingModal.id) setSelected({ ...selected, opening_balance: n, solde: newSolde })
+  }
+
   function getDateRange() {
     if (filterType === 'all') return { from: null, to: null }
     if (filterType === 'month') {
@@ -188,9 +220,10 @@ ${printHeader({ date: printDate })}
 ${entityCard({
   avatarText: '🌿',
   name: selected.nom,
-  metaHtml: `<strong>Fournisseur Grignon</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(selected.solde||0)} DHS &nbsp;·&nbsp; <strong>Période:</strong> ${periode}`,
+  metaHtml: `<strong>Fournisseur Grignon</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(selected.solde||0)} DHS &nbsp;·&nbsp; <strong>Période:</strong> ${periode}${(selected.opening_balance||0) !== 0 ? ` &nbsp;·&nbsp; <strong>Solde d'ouverture:</strong> ${fmtMoney(selected.opening_balance||0)} DHS` : ''}`,
 })}
 ${summaryCards([
+  ...((selected.opening_balance||0) !== 0 ? [{ label: "Solde d'ouverture", value: `${fmtMoney(selected.opening_balance||0)} DHS`, color: '#92400e' }] : []),
   { label: 'Achats période', value: `${fmtMoney(totalAchats)} DHS`, color: accent },
   { label: 'Payé période', value: `${fmtMoney(totalPaiements)} DHS`, color: '#16a34a' },
   { label: 'Solde total dû', value: `${fmtMoney(selected.solde||0)} DHS`, color: '#dc2626' },
@@ -280,9 +313,22 @@ ${printFooter(printDate)}
                       <div className="text-xs text-green-700 font-semibold mt-0.5">Fournisseur Grignon</div>
                     </div>
                   </div>
-                  <button onClick={printFournisseur} className="btn-primary text-xs px-3 py-1.5" style={{background:'#15803d'}}>🖨️ PDF</button>
+                  <div className="flex items-center gap-2">
+                    {admin && (
+                      <button onClick={() => openOpeningBalance(selected)} className="btn-secondary text-xs" style={{background:'#fef3c7',color:'#92400e',borderColor:'#fde68a'}}>
+                        🏦 Solde initial
+                      </button>
+                    )}
+                    <button onClick={printFournisseur} className="btn-primary text-xs px-3 py-1.5" style={{background:'#15803d'}}>🖨️ PDF</button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3 mt-4">
+                <div className={`grid gap-3 mt-4 ${(selected.opening_balance || 0) !== 0 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}>
+                  {(selected.opening_balance || 0) !== 0 && (
+                    <div className="text-center p-3 rounded-xl" style={{background:'#fffbeb',border:'1px solid #fde68a'}}>
+                      <div className="text-xs font-semibold" style={{color:'#92400e'}}>Solde d'ouverture</div>
+                      <div className="font-bold text-lg" style={{color:'#92400e'}}>{fmtMoney(selected.opening_balance||0)} DHS</div>
+                    </div>
+                  )}
                   <div className="text-center p-3 rounded-xl bg-green-50 border border-green-100">
                     <div className="text-xs text-green-600 font-semibold">Achats période</div>
                     <div className="font-bold text-green-700 text-lg">{fmtMoney(totalAchats)} DHS</div>
@@ -405,6 +451,42 @@ ${printFooter(printDate)}
           )}
         </div>
       </div>
+
+      {openingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.5)'}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">🏦 Solde Initial</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{openingModal.nom}</p>
+              </div>
+              <button onClick={() => setOpeningModal(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={saveOpeningBalance} className="p-5 space-y-4">
+              <div>
+                <label className="label">Montant (DHS)</label>
+                <input type="text" inputMode="decimal" className="input" placeholder="ex: 45000"
+                  value={openingInput} onChange={e => setOpeningInput(e.target.value)}
+                  required autoFocus />
+                <p className="text-xs text-gray-400 mt-1">Le total dû à ce fournisseur avant cette app — source unique utilisée par les cartes de solde et le PDF.</p>
+              </div>
+              {openingInput && (
+                <div className="p-3 rounded-xl text-sm" style={{background:'#fffbeb', border:'1px solid #fde68a'}}>
+                  <div className="font-bold text-amber-700 mb-1">🏦 Solde Initial</div>
+                  <div className="text-gray-700">{openingModal.nom}</div>
+                  <div className="text-xl font-bold text-amber-700">{fmtMoney(parseFloat(openingInput)||0)} DHS</div>
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={openingSaving} className="btn-primary flex-1 justify-center" style={{background:'#92400e'}}>
+                  {openingSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+                <button type="button" onClick={() => setOpeningModal(null)} className="btn-secondary">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }
