@@ -195,6 +195,26 @@ export default function FournisseursGasoil() {
   const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
   const netSupplierTotal  = Math.round((totalAchats - fuelDiscount) * 100) / 100
 
+  // ── SOLDE DÛ (BALANCE DUE) — single source of truth for "how much this
+  // supplier is currently owed": opening balance + ALL-TIME purchases −
+  // ALL-TIME payments − ALL-TIME fuel discount (never period-filtered, since
+  // "amount owed right now" isn't scoped to whatever date filter is active —
+  // same reasoning as gasoil_fournisseurs.solde itself). The discount is a
+  // real reduction of what's owed, so it must net out of this figure exactly
+  // like it already nets out of "Total Net Fournisseur" below — previously
+  // it didn't, which is what made the two totals on this page disagree.
+  // Computed once here and reused everywhere "Solde dû" is shown (KPI card,
+  // PDF) so there is only ever one number. This does NOT rewrite
+  // gasoil_fournisseurs.solde (still the gross, stored figure used by the
+  // supplier list and by /gasoil, /paiements elsewhere in the app) and does
+  // NOT touch the ledger's own per-row/period totals below, which stay
+  // exactly as recorded — only the all-time balance-due figure is corrected.
+  const totalAchatsAllTime     = allEntries.reduce((s, e) => s + e.debit, 0)
+  const totalPaiementsAllTime  = allEntries.reduce((s, e) => s + e.credit, 0)
+  const totalFuelLitresAllTime = allEntries.reduce((s, e) => s + (e.qte || 0), 0)
+  const totalDiscountAllTime   = Math.round(totalFuelLitresAllTime * remiseRate * 100) / 100
+  const soldeDuNet = (selected?.opening_balance || 0) + totalAchatsAllTime - totalPaiementsAllTime - totalDiscountAllTime
+
   // ── TRUCK CONSUMPTION SUMMARY — purchases only (period-filtered, same as
   // the figures above), grouped by camion. Purely additive reporting; never
   // read by debit/credit/solde math or gasoil_fournisseurs.solde. ──
@@ -318,10 +338,10 @@ export default function FournisseursGasoil() {
       <td>${e.label}</td>
       <td class="m">${e.camion}</td>
       <td class="m">${e.bon}</td>
-      <td class="r">${isPurchase && e.qte ? `${fmtD(e.qte)} L` : '—'}</td>
-      <td class="r">${isPurchase && e.qte ? `${fmtMoney(e.prixUnitaire)} DH` : '—'}</td>
-      <td class="r">${isPurchase && e.adblueQte ? `${fmtD(e.adblueQte)} L` : '—'}</td>
-      <td class="r">${isPurchase && e.adblueQte ? `${fmtMoney(e.adbluePrixUnitaire)} DH` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.qte ? `<b>${fmtD(e.qte)} L</b>` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.qte ? `<b>${fmtMoney(e.prixUnitaire)} DH</b>` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.adblueQte ? `<b>${fmtD(e.adblueQte)} L</b>` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.adblueQte ? `<b>${fmtMoney(e.adbluePrixUnitaire)} DH</b>` : '—'}</td>
       <td class="r" style="color:${accent}">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
       <td class="r" style="color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
       <td class="r" style="font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
@@ -345,12 +365,12 @@ ${printHeader({ date: printDate })}
 ${entityCard({
   avatarText: '⛽',
   name: selected.nom,
-  metaHtml: `<strong>Fournisseur Carburant</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(selected.solde||0)} DHS &nbsp;·&nbsp; <strong>Période:</strong> ${periode}`,
+  metaHtml: `<strong>Fournisseur Carburant</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(soldeDuNet)} DHS &nbsp;·&nbsp; <strong>Période:</strong> ${periode}`,
 })}
 ${summaryCards([
   { label: 'Achats période', value: `${fmtMoney(totalAchats)} DHS`, color: accent },
   { label: 'Payé période', value: `${fmtMoney(totalPaiements)} DHS`, color: '#16a34a' },
-  { label: 'Solde total dû', value: `${fmtMoney(selected.solde||0)} DHS`, color: '#dc2626' },
+  { label: 'Solde total dû', value: `${fmtMoney(soldeDuNet)} DHS`, color: '#dc2626' },
 ])}
 <div class="bdy">
 <div class="sec-title">Relevé Chronologique</div>
@@ -385,7 +405,7 @@ ${summaryCards([
     <div style="font-size:11.5px;font-weight:700;color:#9a3412">Solde total dû</div>
     <div style="font-size:9.5px;color:#c2703d;margin-top:2px">${periode}</div>
   </div>
-  <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(selected.solde||0)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
+  <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(soldeDuNet)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
 </div>
 ${printFooter(printDate)}
 </div></body></html>`)
@@ -804,7 +824,7 @@ ${printFooter(printDate)}
                   </div>
                   <div className="text-center p-3 rounded-xl bg-red-50 border border-red-100">
                     <div className="text-xs text-red-600 font-semibold">Solde dû total</div>
-                    <div className="font-bold text-red-700 text-lg">{fmtMoney(selected.solde||0)} DHS</div>
+                    <div className="font-bold text-red-700 text-lg">{fmtMoney(soldeDuNet)} DHS</div>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4 flex-wrap">
@@ -898,10 +918,10 @@ ${printFooter(printDate)}
                                 </td>
                                 <td className="td text-xs text-gray-600">{e.camion}</td>
                                 <td className="td text-xs text-gray-600">{e.bon}</td>
-                                <td className="td text-right text-xs text-gray-700">{e.type==='purchase' && e.qte ? `${fmtD(e.qte)} L` : <span className="text-gray-300">—</span>}</td>
-                                <td className="td text-right text-xs text-gray-700">{e.type==='purchase' && e.qte ? `${fmtMoney(e.prixUnitaire)} DH` : <span className="text-gray-300">—</span>}</td>
-                                <td className="td text-right text-xs text-gray-700">{e.type==='purchase' && e.adblueQte ? `${fmtD(e.adblueQte)} L` : <span className="text-gray-300">—</span>}</td>
-                                <td className="td text-right text-xs text-gray-700">{e.type==='purchase' && e.adblueQte ? `${fmtMoney(e.adbluePrixUnitaire)} DH` : <span className="text-gray-300">—</span>}</td>
+                                <td className="td text-right text-sm font-semibold text-gray-900">{e.type==='purchase' && e.qte ? `${fmtD(e.qte)} L` : <span className="text-gray-300 font-normal">—</span>}</td>
+                                <td className="td text-right text-sm font-semibold text-gray-900">{e.type==='purchase' && e.qte ? `${fmtMoney(e.prixUnitaire)} DH` : <span className="text-gray-300 font-normal">—</span>}</td>
+                                <td className="td text-right text-sm font-semibold text-gray-900">{e.type==='purchase' && e.adblueQte ? `${fmtD(e.adblueQte)} L` : <span className="text-gray-300 font-normal">—</span>}</td>
+                                <td className="td text-right text-sm font-semibold text-gray-900">{e.type==='purchase' && e.adblueQte ? `${fmtMoney(e.adbluePrixUnitaire)} DH` : <span className="text-gray-300 font-normal">—</span>}</td>
                                 <td className="td text-right font-bold text-orange-700">{e.debit ? `+ ${fmtMoney(e.debit)}` : '—'}</td>
                                 <td className="td text-right font-bold text-green-600">{e.credit ? `− ${fmtMoney(e.credit)}` : '—'}</td>
                                 <td className={`td text-right font-bold ${e.solde>=0?'text-red-600':'text-green-600'}`}>
