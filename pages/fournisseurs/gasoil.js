@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
-import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards, printFooter } from '../../lib/printLayout'
+import { printBaseCss, printHeader, printGeneratedDate, entityCard, printFooter } from '../../lib/printLayout'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 
@@ -410,11 +410,6 @@ ${entityCard({
   name: selected.nom,
   metaHtml: `<strong>Fournisseur Carburant</strong> &nbsp;·&nbsp; <strong>Solde dû:</strong> ${fmtMoney(soldeDuNet)} DHS &nbsp;·&nbsp; <strong>Période:</strong> ${periode}`,
 })}
-${summaryCards([
-  { label: 'Achats période', value: `${fmtMoney(totalAchats)} DHS`, color: accent },
-  { label: 'Payé période', value: `${fmtMoney(totalPaiements)} DHS`, color: '#16a34a' },
-  { label: 'Solde total dû', value: `${fmtMoney(soldeDuNet)} DHS`, color: '#dc2626' },
-])}
 <div class="bdy">
 <div class="sec-title">Relevé Chronologique</div>
 <table>
@@ -527,11 +522,6 @@ ${entityCard({
   name: selected.nom,
   metaHtml: `<strong>Fournisseur Carburant</strong> &nbsp;·&nbsp; <strong>Vue:</strong> Présentation${isSelectionPrint ? ` — Sélection (${pEntries.length})` : ''}`,
 })}
-${summaryCards([
-  { label: 'Achats sélection', value: `${fmtMoney(selectedAchats)} DHS`, color: accent },
-  { label: 'Payé sélection', value: `${fmtMoney(selectedPaiements)} DHS`, color: '#16a34a' },
-  { label: 'Solde à payer', value: `${fmtMoney(selectedSoldeAPayer)} DHS`, color: '#dc2626' },
-])}
 <div class="bdy">
 <div class="sec-title">Relevé Présentation${isSelectionPrint ? ` — Sélection (${pEntries.length})` : ''}</div>
 <table>
