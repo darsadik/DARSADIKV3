@@ -218,7 +218,13 @@ export default function FournisseursGasoil() {
   const totalFuelLitres   = periodEntries.reduce((s, e) => s + (e.qte || 0), 0)
   const totalAdblueLitres = periodEntries.reduce((s, e) => s + (e.adblueQte || 0), 0)
   const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
-  const netSupplierTotal  = Math.round((totalAchats - fuelDiscount) * 100) / 100
+
+  // ── SOLDE À PAYER (period) — the single final total the summary section
+  // ends in: Total Achats − Remise Carburant − Total Paiements, so it is
+  // always exactly the sum of the three lines shown above it. Presentation
+  // only — does not touch totalAchats/fuelDiscount/totalPaiements/soldeDuNet
+  // or any ledger math below. ──
+  const soldeAPayer = Math.round((totalAchats - fuelDiscount - totalPaiements) * 100) / 100
 
   // ── SOLDE DÛ (BALANCE DUE) — single source of truth for "how much this
   // supplier is currently owed": opening balance + ALL-TIME purchases −
@@ -226,8 +232,8 @@ export default function FournisseursGasoil() {
   // "amount owed right now" isn't scoped to whatever date filter is active —
   // same reasoning as gasoil_fournisseurs.solde itself). The discount is a
   // real reduction of what's owed, so it must net out of this figure exactly
-  // like it already nets out of "Total Net Fournisseur" below — previously
-  // it didn't, which is what made the two totals on this page disagree.
+  // like it already nets out of "SOLDE À PAYER" below — previously it
+  // didn't, which is what made the two totals on this page disagree.
   // Computed once here and reused everywhere "Solde dû" is shown (KPI card,
   // PDF) so there is only ever one number. This does NOT rewrite
   // gasoil_fournisseurs.solde (still the gross, stored figure used by the
@@ -425,16 +431,16 @@ ${summaryCards([
     <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Litres Gasoil</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmt(totalFuelLitres)} L</td></tr>
     ${totalAdblueLitres > 0 ? `<tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Litres AdBlue</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmt(totalAdblueLitres)} L</td></tr>` : ''}
     <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Achats</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmtMoney(totalAchats)} DHS</td></tr>
-    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(fuelDiscount)} DHS</td></tr>
-    <tr style="border-top:1.5px solid #e2e8f0"><td style="padding:8px 4px;font-size:12.5px;font-weight:800;color:#1e293b">Total Net Fournisseur</td><td style="padding:8px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:900;color:${accent}">${fmtMoney(netSupplierTotal)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(fuelDiscount)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Paiements</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(totalPaiements)} DHS</td></tr>
   </tbody>
 </table>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
   <div>
-    <div style="font-size:11.5px;font-weight:700;color:#9a3412">Solde total dû</div>
+    <div style="font-size:11.5px;font-weight:700;color:#9a3412">SOLDE À PAYER</div>
     <div style="font-size:9.5px;color:#c2703d;margin-top:2px">${periode}</div>
   </div>
-  <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(soldeDuNet)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
+  <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(soldeAPayer)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
 </div>
 ${printFooter(printDate)}
 </div></body></html>`)
@@ -445,11 +451,10 @@ ${printFooter(printDate)}
   // the only differences are (1) it prints only the presentation selection
   // (or the full presentation order when nothing is selected) and (2) it
   // keeps a Report carry-forward row when the selection doesn't start at
-  // the top. pFinalBalance is the same running-balance figure the screen
-  // already computes (buildPresentationLedger) — untouched. The only new
-  // number is the Fuel Discount, computed the same way as everywhere else
-  // (litres × remiseRate) but restricted to the purchase rows being
-  // printed, exactly like the summary below it. ──
+  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is Total
+  // Achats − Remise Carburant − Total Paiements over the printed rows only —
+  // any carry-forward from rows outside the selection stays visible as its
+  // own Report row, never folded silently into the final total. ──
   function printPresentationFournisseur() {
     if (!selected) return
     const pLedger = buildPresentationLedger()
@@ -457,7 +462,6 @@ ${printFooter(printDate)}
     const pEntries = isSelectionPrint
       ? pLedger.entries.filter(e => presSelectedRows.has(eKey(e)))
       : pLedger.entries
-    const pFinalBalance = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
 
     let selectionCarryForward = null
     if (isSelectionPrint && pLedger.entries.length > 0) {
@@ -474,7 +478,9 @@ ${printFooter(printDate)}
     const selectedPaiements    = pEntries.reduce((s, e) => s + (e.credit || 0), 0)
     const selectedFuelLitres   = pEntries.filter(e => e.type === 'purchase').reduce((s, e) => s + (e.qte || 0), 0)
     const selectedFuelDiscount = Math.round(selectedFuelLitres * remiseRate * 100) / 100
-    const selectedNetTotal     = Math.round((selectedAchats - selectedFuelDiscount) * 100) / 100
+    // Total Achats − Remise Carburant − Total Paiements, over the printed
+    // rows — the one final total this summary ends in (see soldeAPayer above).
+    const selectedSoldeAPayer  = Math.round((selectedAchats - selectedFuelDiscount - selectedPaiements) * 100) / 100
 
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
@@ -513,8 +519,8 @@ ${entityCard({
 })}
 ${summaryCards([
   { label: 'Achats sélection', value: `${fmtMoney(selectedAchats)} DHS`, color: accent },
-  ...(selectedPaiements > 0 ? [{ label: 'Payé sélection', value: `${fmtMoney(selectedPaiements)} DHS`, color: '#16a34a' }] : []),
-  { label: 'Solde à payer', value: `${fmtMoney(pFinalBalance)} DHS`, color: '#dc2626' },
+  { label: 'Payé sélection', value: `${fmtMoney(selectedPaiements)} DHS`, color: '#16a34a' },
+  { label: 'Solde à payer', value: `${fmtMoney(selectedSoldeAPayer)} DHS`, color: '#dc2626' },
 ])}
 <div class="bdy">
 <div class="sec-title">Relevé Présentation${isSelectionPrint ? ` — Sélection (${pEntries.length})` : ''}</div>
@@ -526,17 +532,16 @@ ${summaryCards([
 <table style="width:100%;border-collapse:collapse">
   <tbody>
     <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Achats</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmtMoney(selectedAchats)} DHS</td></tr>
-    ${selectedPaiements > 0 ? `<tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Payé</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedPaiements)} DHS</td></tr>` : ''}
-    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedFuelDiscount)} DHS</td></tr>
-    <tr style="border-top:1.5px solid #e2e8f0"><td style="padding:8px 4px;font-size:12.5px;font-weight:800;color:#1e293b">Total Net</td><td style="padding:8px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:900;color:${accent}">${fmtMoney(selectedNetTotal)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedFuelDiscount)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Paiements</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedPaiements)} DHS</td></tr>
   </tbody>
 </table>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
   <div>
-    <div style="font-size:11.5px;font-weight:700;color:#9a3412">Solde à payer</div>
+    <div style="font-size:11.5px;font-weight:700;color:#9a3412">SOLDE À PAYER</div>
     <div style="font-size:9.5px;color:#c2703d;margin-top:2px">${isSelectionPrint ? `${pEntries.length} opération${pEntries.length!==1?'s':''} sélectionnée${pEntries.length!==1?'s':''}` : 'Vue Présentation'}</div>
   </div>
-  <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(pFinalBalance)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
+  <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(selectedSoldeAPayer)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
 </div>
 ${printFooter(printDate)}
 </div></body></html>`)
@@ -1030,26 +1035,38 @@ ${printFooter(printDate)}
                         </div>
                       )}
                       {ledger.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                            <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres Gasoil</div>
-                            <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalFuelLitres)} L</div>
-                          </div>
-                          {totalAdblueLitres > 0 && (
+                        <>
+                          <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                              <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres AdBlue</div>
-                              <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalAdblueLitres)} L</div>
+                              <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres Gasoil</div>
+                              <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalFuelLitres)} L</div>
                             </div>
-                          )}
-                          <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
-                            <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Remise Carburant</div>
-                            <div className="font-bold text-orange-700 text-sm mt-0.5">− {fmtMoney(fuelDiscount)} DHS</div>
+                            {totalAdblueLitres > 0 && (
+                              <div className="text-center p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                                <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Litres AdBlue</div>
+                                <div className="font-bold text-gray-700 text-sm mt-0.5">{fmt(totalAdblueLitres)} L</div>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-center p-2.5 rounded-lg bg-gray-100 border border-gray-200">
-                            <div className="text-[10px] text-gray-600 font-semibold uppercase tracking-wide">Total Net Fournisseur</div>
-                            <div className="font-bold text-gray-800 text-sm mt-0.5">{fmtMoney(netSupplierTotal)} DHS</div>
+                          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
+                              <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Total Achats</div>
+                              <div className="font-bold text-orange-700 text-sm mt-0.5">{fmtMoney(totalAchats)} DHS</div>
+                            </div>
+                            <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
+                              <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Total Remise Carburant</div>
+                              <div className="font-bold text-orange-700 text-sm mt-0.5">− {fmtMoney(fuelDiscount)} DHS</div>
+                            </div>
+                            <div className="text-center p-2.5 rounded-lg bg-green-50 border border-green-100">
+                              <div className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">Total Paiements</div>
+                              <div className="font-bold text-green-700 text-sm mt-0.5">− {fmtMoney(totalPaiements)} DHS</div>
+                            </div>
+                            <div className="text-center p-2.5 rounded-lg bg-red-50 border border-red-200">
+                              <div className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">Solde à payer</div>
+                              <div className="font-bold text-red-700 text-sm mt-0.5">{fmtMoney(soldeAPayer)} DHS</div>
+                            </div>
                           </div>
-                        </div>
+                        </>
                       )}
                     </div>
                   )}
