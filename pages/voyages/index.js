@@ -250,7 +250,7 @@ export default function Voyages() {
       supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
       supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,total_achat,frais_total'),
       supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
-      supabase.from('voyage_gasoil').select('voyage_id,total'),
+      supabase.from('voyage_gasoil').select('voyage_id,total,qte_litres'),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('clients').select('id,nom').order('nom'),

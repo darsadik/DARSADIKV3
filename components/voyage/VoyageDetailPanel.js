@@ -217,7 +217,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
         supabase.from('voyages').select('id,date_depart,camion_plaque,destination,statut,reference').order('date_depart', { ascending: false }),
         supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
         supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,qte,total_vente,frais_total'),
-        supabase.from('voyage_gasoil').select('voyage_id,total'),
+        supabase.from('voyage_gasoil').select('voyage_id,total,qte_litres'),
         supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
         supabase.from('voyage_retours').select('voyage_id,montant'),
         supabase.from('voyage_locations').select('voyage_id,montant_location'),

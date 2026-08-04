@@ -114,7 +114,7 @@ export default function Dashboard() {
       fetchByVoyageIds('voyage_charges', 'voyage_id,montant,facture_client,client_id,client_nom', vIds),
       fetchByVoyageIds('voyage_retours', 'voyage_id,montant', vIds),
       fetchByVoyageIds('voyage_locations', 'voyage_id,montant_location', vIds),
-      fetchByVoyageIds('voyage_gasoil', 'voyage_id,total', vIds),
+      fetchByVoyageIds('voyage_gasoil', 'voyage_id,total,qte_litres', vIds),
     ])
     setVoyages(vList); setAchats(ac); setLivraisons(li); setCharges(ch)
     setRetours(re); setLocations(loc); setVoyageGasoil(vg)
