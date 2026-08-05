@@ -219,26 +219,35 @@ export default function FournisseursGasoil() {
   const totalAdblueLitres = periodEntries.reduce((s, e) => s + (e.adblueQte || 0), 0)
   const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
 
-  // ── SOLDE À PAYER — the accounting source of truth is the chronological
-  // ledger's own running balance (closingBalance, defined above from
-  // openingBalance + Σ period debit−credit), never a recompute from the
-  // summary's own totals. Achats/Remise/Paiements/Litres in the Résumé
-  // section below are informational only — they must never be added back
-  // together to produce this figure. SOLDE À PAYER is always exactly
-  // closingBalance, i.e. the same number as the last row's Solde in the
-  // Relevé Chronologique table, so the two can never disagree. ──
-  const soldeAPayer = closingBalance
+  // ── ANCIEN SOLDE — the supplier's true balance immediately BEFORE the
+  // selected period starts: opening_balance + every prior achat − every
+  // prior paiement − the fuel discount those prior achats already earned.
+  // `openingBalance` above (used only for the ledger's own display and
+  // closingBalance) intentionally never subtracts discount — the ledger
+  // itself stays untouched, remise has never been one of its line items.
+  // This is a second, summary-only figure so "Ancien Solde" is the real
+  // starting point of the Résumé's own breakdown below. ──
+  const beforeFuelLitres = beforeEntries.reduce((s, e) => s + (e.qte || 0), 0)
+  const beforeDiscount   = Math.round(beforeFuelLitres * remiseRate * 100) / 100
+  const ancienSolde      = openingBalance - beforeDiscount
+
+  // ── SOLDE À PAYER — Ancien Solde + Achats de la période − Remise
+  // Carburant (période) − Paiements de la période, exactly the breakdown
+  // shown in the Résumé section, so the final figure and its own displayed
+  // steps can never disagree. Presentation-only: does not touch
+  // openingBalance/closingBalance/the ledger's own per-row solde,
+  // totalAchats/fuelDiscount/totalPaiements/soldeDuNet, or
+  // gasoil_fournisseurs.solde. ──
+  const soldeAPayer = Math.round((ancienSolde + totalAchats - fuelDiscount - totalPaiements) * 100) / 100
 
   // ── SOLDE DÛ (BALANCE DUE) — single source of truth for "how much this
   // supplier is currently owed": opening balance + ALL-TIME purchases −
   // ALL-TIME payments − ALL-TIME fuel discount (never period-filtered, since
   // "amount owed right now" isn't scoped to whatever date filter is active —
   // same reasoning as gasoil_fournisseurs.solde itself). The discount is a
-  // real reduction of what's owed, so it must net out of this figure. Note
-  // this is a DIFFERENT figure from "SOLDE À PAYER" below, which is always
-  // the ledger's own closingBalance (never discount-adjusted, by design —
-  // see soldeAPayer above) — soldeDuNet is the all-time balance shown in
-  // the header/KPI card, soldeAPayer is the selected period's ledger total.
+  // real reduction of what's owed, exactly like it nets into ancienSolde/
+  // soldeAPayer above — soldeDuNet is the all-time balance shown in the
+  // header/KPI card, soldeAPayer is the selected period's own breakdown.
   // Computed once here and reused everywhere "Solde dû" is shown (KPI card,
   // PDF) so there is only ever one number. This does NOT rewrite
   // gasoil_fournisseurs.solde (still the gross, stored figure used by the
@@ -426,14 +435,20 @@ ${entityCard({
   <tbody>
     <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Litres Gasoil</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmt(totalFuelLitres)} L</td></tr>
     ${totalAdblueLitres > 0 ? `<tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Litres AdBlue</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmt(totalAdblueLitres)} L</td></tr>` : ''}
-    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Achats</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmtMoney(totalAchats)} DHS</td></tr>
-    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(fuelDiscount)} DHS</td></tr>
-    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Paiements</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(totalPaiements)} DHS</td></tr>
+  </tbody>
+</table>
+<div class="sec-title" style="margin-top:16px">Calcul du Solde à Payer</div>
+<table style="width:100%;border-collapse:collapse">
+  <tbody>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Ancien Solde <span style="color:#94a3b8">(avant la période)</span></td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${ancienSolde>=0?'+ ':'− '}${fmtMoney(Math.abs(ancienSolde))} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Achats de la période</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${accent}">+ ${fmtMoney(totalAchats)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Remise Carburant <span style="color:#94a3b8">(période)</span></td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(fuelDiscount)} DHS</td></tr>
+    <tr style="border-bottom:1.5px solid #cbd5e1"><td style="padding:6px 4px;font-size:12px;color:#374151">Paiements de la période</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(totalPaiements)} DHS</td></tr>
   </tbody>
 </table>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
   <div>
-    <div style="font-size:11.5px;font-weight:700;color:#9a3412">SOLDE À PAYER</div>
+    <div style="font-size:11.5px;font-weight:700;color:#9a3412">= SOLDE À PAYER</div>
     <div style="font-size:9.5px;color:#c2703d;margin-top:2px">${periode}</div>
   </div>
   <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(soldeAPayer)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
@@ -461,22 +476,24 @@ ${printFooter(printDate)}
   // the only differences are (1) it prints only the presentation selection
   // (or the full presentation order when nothing is selected) and (2) it
   // keeps a Report carry-forward row when the selection doesn't start at
-  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is exactly
-  // the printed rows' own closing solde (opening balance / carry-forward +
-  // achats − paiements, from buildPresentationLedger — untouched) — never
-  // a recompute from the summary's own totals. ──
+  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is built
+  // the same way as the chrono statement's: ancienSolde (the true balance
+  // before the printed rows, discount-adjusted) + Achats − Remise −
+  // Paiements over the printed rows — never a recompute from those totals
+  // in isolation, and it always matches the printed rows' own closing solde
+  // from buildPresentationLedger (untouched). ──
   function printPresentationFournisseur() {
     if (!selected) return
     const pLedger = buildPresentationLedger()
     const isSelectionPrint = presSelectedRows.size > 0
+    const firstSelIdxInFull = isSelectionPrint ? pLedger.entries.findIndex(e => presSelectedRows.has(eKey(e))) : 0
     const pEntries = isSelectionPrint
       ? pLedger.entries.filter(e => presSelectedRows.has(eKey(e)))
       : pLedger.entries
 
     let selectionCarryForward = null
-    if (isSelectionPrint && pLedger.entries.length > 0) {
-      const firstSelIdxInFull = pLedger.entries.findIndex(e => presSelectedRows.has(eKey(e)))
-      if (firstSelIdxInFull > 0) selectionCarryForward = pLedger.entries[firstSelIdxInFull - 1].solde
+    if (isSelectionPrint && firstSelIdxInFull > 0) {
+      selectionCarryForward = pLedger.entries[firstSelIdxInFull - 1].solde
     }
 
     const accent = '#f97316'
@@ -488,14 +505,20 @@ ${printFooter(printDate)}
     const selectedPaiements    = pEntries.reduce((s, e) => s + (e.credit || 0), 0)
     const selectedFuelLitres   = pEntries.filter(e => e.type === 'purchase').reduce((s, e) => s + (e.qte || 0), 0)
     const selectedFuelDiscount = Math.round(selectedFuelLitres * remiseRate * 100) / 100
-    // ── SOLDE À PAYER — the accounting source of truth is the ledger's own
-    // running balance, same as the chrono statement's soldeAPayer: the last
-    // printed row's own solde (via buildPresentationLedger — untouched)
-    // already carries the full opening_balance/carry-forward + achats −
-    // paiements. Never recomputed from selectedAchats/selectedFuelDiscount/
-    // selectedPaiements — those stay informational-only in the Résumé table
-    // below. ──
-    const selectedSoldeAPayer = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
+
+    // ── ANCIEN SOLDE — the true balance immediately before the printed rows
+    // (in presentation order): the account's opening_balance when printing
+    // from the top, or selectionCarryForward's raw solde minus the discount
+    // already earned by every entry before the selection, when printing a
+    // partial selection that doesn't start at the top. ──
+    const priorEntries    = firstSelIdxInFull > 0 ? pLedger.entries.slice(0, firstSelIdxInFull) : []
+    const priorFuelLitres = priorEntries.reduce((s, e) => s + (e.qte || 0), 0)
+    const priorDiscount   = Math.round(priorFuelLitres * remiseRate * 100) / 100
+    const ancienSolde     = (firstSelIdxInFull > 0 ? selectionCarryForward : (selected?.opening_balance || 0)) - priorDiscount
+
+    // ── SOLDE À PAYER — Ancien Solde + Achats − Remise − Paiements over the
+    // printed rows, exactly the breakdown shown in the Résumé below. ──
+    const selectedSoldeAPayer = Math.round((ancienSolde + selectedAchats - selectedFuelDiscount - selectedPaiements) * 100) / 100
 
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
@@ -538,17 +561,18 @@ ${entityCard({
   <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres Gasoil</th><th class="r">Prix U. Gasoil</th><th class="r">Litres AdBlue</th><th class="r">Prix U. AdBlue</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="11" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
 </table>
-<div class="sec-title" style="margin-top:20px">Résumé</div>
+<div class="sec-title" style="margin-top:20px">Calcul du Solde à Payer</div>
 <table style="width:100%;border-collapse:collapse">
   <tbody>
-    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Achats</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${fmtMoney(selectedAchats)} DHS</td></tr>
-    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedFuelDiscount)} DHS</td></tr>
-    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Total Paiements</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedPaiements)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Ancien Solde <span style="color:#94a3b8">(avant la sélection)</span></td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${ancienSolde>=0?'+ ':'− '}${fmtMoney(Math.abs(ancienSolde))} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Achats</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${accent}">+ ${fmtMoney(selectedAchats)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedFuelDiscount)} DHS</td></tr>
+    <tr style="border-bottom:1.5px solid #cbd5e1"><td style="padding:6px 4px;font-size:12px;color:#374151">Paiements</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedPaiements)} DHS</td></tr>
   </tbody>
 </table>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
   <div>
-    <div style="font-size:11.5px;font-weight:700;color:#9a3412">SOLDE À PAYER</div>
+    <div style="font-size:11.5px;font-weight:700;color:#9a3412">= SOLDE À PAYER</div>
     <div style="font-size:9.5px;color:#c2703d;margin-top:2px">${isSelectionPrint ? `${pEntries.length} opération${pEntries.length!==1?'s':''} sélectionnée${pEntries.length!==1?'s':''}` : 'Vue Présentation'}</div>
   </div>
   <div style="font-size:21px;font-weight:900;color:${accent};line-height:1">${fmtMoney(selectedSoldeAPayer)}<span style="font-size:11px;font-weight:600;margin-left:3px;color:#9a3412">DHS</span></div>
@@ -1058,21 +1082,26 @@ ${printFooter(printDate)}
                               </div>
                             )}
                           </div>
-                          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
-                              <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Total Achats</div>
-                              <div className="font-bold text-orange-700 text-sm mt-0.5">{fmtMoney(totalAchats)} DHS</div>
+                          <div className="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Calcul du Solde à Payer</div>
+                          <div className="mt-1.5 grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div className="text-center p-2.5 rounded-lg bg-gray-100 border border-gray-200">
+                              <div className="text-[10px] text-gray-600 font-semibold uppercase tracking-wide">Ancien Solde</div>
+                              <div className="font-bold text-gray-800 text-sm mt-0.5">{ancienSolde>=0?'+ ':'− '}{fmtMoney(Math.abs(ancienSolde))} DHS</div>
                             </div>
                             <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
-                              <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Total Remise Carburant</div>
+                              <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Achats période</div>
+                              <div className="font-bold text-orange-700 text-sm mt-0.5">+ {fmtMoney(totalAchats)} DHS</div>
+                            </div>
+                            <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
+                              <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Remise Carburant</div>
                               <div className="font-bold text-orange-700 text-sm mt-0.5">− {fmtMoney(fuelDiscount)} DHS</div>
                             </div>
                             <div className="text-center p-2.5 rounded-lg bg-green-50 border border-green-100">
-                              <div className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">Total Paiements</div>
+                              <div className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">Paiements période</div>
                               <div className="font-bold text-green-700 text-sm mt-0.5">− {fmtMoney(totalPaiements)} DHS</div>
                             </div>
                             <div className="text-center p-2.5 rounded-lg bg-red-50 border border-red-200">
-                              <div className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">Solde à payer</div>
+                              <div className="text-[10px] text-red-600 font-semibold uppercase tracking-wide">= Solde à payer</div>
                               <div className="font-bold text-red-700 text-sm mt-0.5">{fmtMoney(soldeAPayer)} DHS</div>
                             </div>
                           </div>
