@@ -381,12 +381,13 @@ export default function FournisseursGasoil() {
     const printDate = printGeneratedDate()
     const periode = filterType === 'all' ? 'Toutes dates' : `${fmtDate(from)} → ${fmtDate(to)}`
     const rows = (openingBalance !== 0 ? [{
-      date: from, type: 'opening', label: "Solde d'ouverture", debit: 0, credit: 0, camion: '—', bon: '—', note: '', solde: openingBalance,
+      date: from, type: 'opening', label: "Ancien Solde", debit: 0, credit: 0, camion: '—', bon: '—', note: '', solde: openingBalance,
     }] : []).concat(displayLedger).map(e => {
       const isPurchase = e.type === 'purchase'
-      return `<tr>
-      <td class="m2" style="white-space:nowrap">${fmtDate(e.date)}</td>
-      <td class="opn">${e.label}</td>
+      const isOpening = e.type === 'opening'
+      return `<tr${isOpening ? ' style="background:#fafafa"' : ''}>
+      <td class="m2" style="white-space:nowrap">${isOpening ? '—' : fmtDate(e.date)}</td>
+      <td class="opn"${isOpening ? ' style="font-style:italic"' : ''}>${e.label}</td>
       <td class="m2">${e.camion}</td>
       <td class="m2">${e.bon}</td>
       <td class="r" style="color:#0f172a;font-size:14.5px">${isPurchase && e.qte ? `<b>${fmtD(e.qte)} L</b>` : '—'}</td>
@@ -988,8 +989,8 @@ ${printFooter(printDate)}
                           <tbody>
                             {openingBalance !== 0 && (
                               <tr className="bg-gray-50">
-                                <td className="td text-sm font-semibold text-gray-700">{fmtDate(from)}</td>
-                                <td className="td text-sm font-bold text-gray-700">Solde d'ouverture</td>
+                                <td className="td text-sm font-semibold text-gray-400">—</td>
+                                <td className="td text-sm font-bold text-gray-700 italic">Ancien Solde</td>
                                 <td className="td text-gray-400">—</td>
                                 <td className="td text-gray-400">—</td>
                                 <td className="td text-right text-gray-400">—</td>
