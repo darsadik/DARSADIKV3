@@ -225,17 +225,15 @@ export default function FournisseursGasoil() {
   // the fuel discount, and that stays exactly as-is. ──
   const ancienSolde = openingBalance
 
-  // ── SOLDE À PAYER — the chronological ledger IS the accounting source of
-  // truth: this is always exactly closingBalance (defined above, untouched),
-  // the ledger's own final running balance, never computed independently.
-  // The Résumé's breakdown below (Ancien Solde + Achats − Paiements)
-  // reproduces the exact same arithmetic that already produces
-  // closingBalance, so the two can never disagree — there is only ever one
-  // balance calculation. Remise Carburant is shown in the Résumé purely as
-  // informational context: it is not a ledger line item, so it does not
-  // enter this sum (exactly like totalAchats/fuelDiscount/totalPaiements/
-  // soldeDuNet above, none of which are touched). ──
-  const soldeAPayer = closingBalance
+  // ── SOLDE À PAYER — Ancien Solde + Achats de la période − Remise
+  // Carburant (période) − Paiements de la période. The fuel discount is a
+  // real deduction against THIS period's purchases only — Ancien Solde
+  // (openingBalance, untouched above) already reflects whatever happened
+  // in prior periods as-is, with no further discount adjustment applied to
+  // it here. Presentation-only figure: does not touch openingBalance/
+  // closingBalance/the ledger's own per-row solde, totalAchats/fuelDiscount/
+  // totalPaiements/soldeDuNet, or gasoil_fournisseurs.solde. ──
+  const soldeAPayer = Math.round((ancienSolde + totalAchats - fuelDiscount - totalPaiements) * 100) / 100
 
   // ── SOLDE DÛ (BALANCE DUE) — single source of truth for "how much this
   // supplier is currently owed": opening balance + ALL-TIME purchases −
@@ -440,13 +438,10 @@ ${entityCard({
   <tbody>
     <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Ancien Solde <span style="color:#94a3b8">(avant la période)</span></td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${ancienSolde>=0?'+ ':'− '}${fmtMoney(Math.abs(ancienSolde))} DHS</td></tr>
     <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Achats de la période</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${accent}">+ ${fmtMoney(totalAchats)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Remise Carburant <span style="color:#94a3b8">(période)</span></td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(fuelDiscount)} DHS</td></tr>
     <tr style="border-bottom:1.5px solid #cbd5e1"><td style="padding:6px 4px;font-size:12px;color:#374151">Paiements de la période</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(totalPaiements)} DHS</td></tr>
   </tbody>
 </table>
-${fuelDiscount > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:7px 12px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px">
-  <span style="font-size:10.5px;color:#64748b;font-style:italic">ℹ Remise Carburant (période) — indicatif, non déduite du solde</span>
-  <span style="font-size:12px;color:#64748b;font-family:'Courier New',monospace;font-weight:700">${fmtMoney(fuelDiscount)} DHS</span>
-</div>` : ''}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
   <div>
     <div style="font-size:11.5px;font-weight:700;color:#9a3412">= SOLDE À PAYER</div>
@@ -477,11 +472,9 @@ ${printFooter(printDate)}
   // the only differences are (1) it prints only the presentation selection
   // (or the full presentation order when nothing is selected) and (2) it
   // keeps a Report carry-forward row when the selection doesn't start at
-  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is always
-  // exactly the last printed row's own solde from buildPresentationLedger
-  // (untouched) — never computed independently. The Résumé's breakdown
-  // (Ancien Solde + Achats − Paiements) reproduces that same arithmetic, so
-  // the two can never disagree; Remise is shown purely as context. ──
+  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is Ancien
+  // Solde + Achats − Remise Carburant − Paiements over the printed rows —
+  // the fuel discount is a real deduction against those purchases only. ──
   function printPresentationFournisseur() {
     if (!selected) return
     const pLedger = buildPresentationLedger()
@@ -514,10 +507,11 @@ ${printFooter(printDate)}
     // this. ──
     const ancienSolde = firstSelIdxInFull > 0 ? selectionCarryForward : (selected?.opening_balance || 0)
 
-    // ── SOLDE À PAYER — the ledger IS the source of truth: always exactly
-    // the last printed row's own solde (via buildPresentationLedger,
-    // untouched), never computed independently. ──
-    const selectedSoldeAPayer = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
+    // ── SOLDE À PAYER — Ancien Solde + Achats − Remise Carburant −
+    // Paiements over the printed rows. The fuel discount is a real
+    // deduction against the printed rows' own purchases only — ancienSolde
+    // (above) is not further discount-adjusted. ──
+    const selectedSoldeAPayer = Math.round((ancienSolde + selectedAchats - selectedFuelDiscount - selectedPaiements) * 100) / 100
 
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
@@ -565,13 +559,10 @@ ${entityCard({
   <tbody>
     <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Ancien Solde <span style="color:#94a3b8">(avant la sélection)</span></td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700">${ancienSolde>=0?'+ ':'− '}${fmtMoney(Math.abs(ancienSolde))} DHS</td></tr>
     <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Achats</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${accent}">+ ${fmtMoney(selectedAchats)} DHS</td></tr>
+    <tr><td style="padding:6px 4px;font-size:12px;color:#374151">Remise Carburant</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedFuelDiscount)} DHS</td></tr>
     <tr style="border-bottom:1.5px solid #cbd5e1"><td style="padding:6px 4px;font-size:12px;color:#374151">Paiements</td><td style="padding:6px 4px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#16a34a">− ${fmtMoney(selectedPaiements)} DHS</td></tr>
   </tbody>
 </table>
-${selectedFuelDiscount > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:7px 12px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px">
-  <span style="font-size:10.5px;color:#64748b;font-style:italic">ℹ Remise Carburant — indicatif, non déduite du solde</span>
-  <span style="font-size:12px;color:#64748b;font-family:'Courier New',monospace;font-weight:700">${fmtMoney(selectedFuelDiscount)} DHS</span>
-</div>` : ''}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:11px 18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
   <div>
     <div style="font-size:11.5px;font-weight:700;color:#9a3412">= SOLDE À PAYER</div>
@@ -1085,7 +1076,7 @@ ${printFooter(printDate)}
                             )}
                           </div>
                           <div className="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Calcul du Solde à Payer</div>
-                          <div className="mt-1.5 grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="mt-1.5 grid grid-cols-2 md:grid-cols-5 gap-3">
                             <div className="text-center p-2.5 rounded-lg bg-gray-100 border border-gray-200">
                               <div className="text-[10px] text-gray-600 font-semibold uppercase tracking-wide">Ancien Solde</div>
                               <div className="font-bold text-gray-800 text-sm mt-0.5">{ancienSolde>=0?'+ ':'− '}{fmtMoney(Math.abs(ancienSolde))} DHS</div>
@@ -1093,6 +1084,10 @@ ${printFooter(printDate)}
                             <div className="text-center p-2.5 rounded-lg bg-orange-50 border border-orange-100">
                               <div className="text-[10px] text-orange-600 font-semibold uppercase tracking-wide">Achats période</div>
                               <div className="font-bold text-orange-700 text-sm mt-0.5">+ {fmtMoney(totalAchats)} DHS</div>
+                            </div>
+                            <div className="text-center p-2.5 rounded-lg bg-green-50 border border-green-100">
+                              <div className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">Remise Carburant</div>
+                              <div className="font-bold text-green-700 text-sm mt-0.5">− {fmtMoney(fuelDiscount)} DHS</div>
                             </div>
                             <div className="text-center p-2.5 rounded-lg bg-green-50 border border-green-100">
                               <div className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">Paiements période</div>
@@ -1103,12 +1098,6 @@ ${printFooter(printDate)}
                               <div className="font-bold text-red-700 text-sm mt-0.5">{fmtMoney(soldeAPayer)} DHS</div>
                             </div>
                           </div>
-                          {fuelDiscount > 0 && (
-                            <div className="mt-2 flex items-center justify-between px-3 py-1.5 rounded-lg bg-gray-50 border border-dashed border-gray-200">
-                              <span className="text-[10.5px] text-gray-500 italic">ℹ Remise Carburant (période) — indicatif, non déduite du solde</span>
-                              <span className="text-xs text-gray-500 font-semibold">{fmtMoney(fuelDiscount)} DHS</span>
-                            </div>
-                          )}
                         </>
                       )}
                     </div>
