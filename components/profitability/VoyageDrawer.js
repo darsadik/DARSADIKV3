@@ -118,6 +118,9 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
             <Row label={`Carburant — ${FUEL_SOURCE_LABEL[v.cost.fuelSource] || v.cost.fuelSource}`} value={`− ${fmtMoney(v.cost.fuel)} DHS`} />
             <Row label="Location camion" value={`− ${fmtMoney(v.cost.rental)} DHS`} />
             <Row label="Charges opérationnelles" value={`− ${fmtMoney(v.cost.chargesOperationnelles)} DHS`} />
+            {v.cost.chargesTransport > 0 && <Row label="dont Transport" value={`− ${fmtMoney(v.cost.chargesTransport)} DHS`} indent />}
+            {v.cost.chargesWorkers > 0 && <Row label="dont Ouvriers" value={`− ${fmtMoney(v.cost.chargesWorkers)} DHS`} indent />}
+            {v.cost.chargesOther > 0 && <Row label="dont Autres charges" value={`− ${fmtMoney(v.cost.chargesOther)} DHS`} indent />}
             <Row label="= Coût total" value={`${fmtMoney(v.cost.total)} DHS`} bold />
           </Section>
 
@@ -134,9 +137,12 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
                     <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Qté</th>
                     <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Revenu</th>
                     <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Achat</th>
+                    <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Transport</th>
                     <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Carburant</th>
+                    <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Ouvriers</th>
                     <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Location</th>
-                    <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Charges</th>
+                    <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Autres</th>
+                    <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">= Coût total</th>
                     <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Profit</th>
                     <th className="py-2 px-3 text-right text-[10px] font-semibold text-slate-400 uppercase">Marge</th>
                   </tr>
@@ -152,9 +158,12 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
                       <td className="py-2 px-3 text-right text-slate-500">{fmt(c.qte)}</td>
                       <td className="py-2 px-3 text-right font-semibold text-emerald-600">{fmtMoney(c.revenue.total)}</td>
                       <td className="py-2 px-3 text-right text-red-400">−{fmtMoney(c.cost.achatWAC)}</td>
-                      <td className="py-2 px-3 text-right text-orange-400">{c.cost.fuelAllocated > 0 ? `−${fmtMoney(c.cost.fuelAllocated)}` : '—'}</td>
-                      <td className="py-2 px-3 text-right text-amber-500">{c.cost.rentalAllocated > 0 ? `−${fmtMoney(c.cost.rentalAllocated)}` : '—'}</td>
-                      <td className="py-2 px-3 text-right text-red-400">{c.cost.chargesAllocated > 0 ? `−${fmtMoney(c.cost.chargesAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right text-red-400">{c.cost.transportAllocated > 0 ? `−${fmtMoney(c.cost.transportAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right text-red-400">{c.cost.fuelAllocated > 0 ? `−${fmtMoney(c.cost.fuelAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right text-red-400">{c.cost.workersAllocated > 0 ? `−${fmtMoney(c.cost.workersAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right text-red-400">{c.cost.rentalAllocated > 0 ? `−${fmtMoney(c.cost.rentalAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right text-red-400">{c.cost.otherAllocated > 0 ? `−${fmtMoney(c.cost.otherAllocated)}` : '—'}</td>
+                      <td className="py-2 px-3 text-right font-bold text-red-700">−{fmtMoney(c.cost.total)}</td>
                       <td className={`py-2 px-3 text-right font-black ${c.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                         {c.profit >= 0 ? '+' : ''}{fmtMoney(c.profit)}
                       </td>
@@ -162,7 +171,7 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
                     </tr>
                   ))}
                   {nbCli === 0 && (
-                    <tr><td colSpan={9} className="py-8 text-center text-slate-400">Aucun client sur ce voyage</td></tr>
+                    <tr><td colSpan={12} className="py-8 text-center text-slate-400">Aucun client sur ce voyage</td></tr>
                   )}
                 </tbody>
               </table>

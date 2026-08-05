@@ -6,6 +6,7 @@ import {
 import { fmtMoney } from '../../lib/utils'
 import { aggregateVoyageProfits, aggregateClientProfits } from '../../lib/services/profitability'
 import KpiCard from './KpiCard'
+import { marginTier } from './MarginBadge'
 
 const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
 
@@ -68,18 +69,25 @@ export default function Overview({ results, camions }) {
       .map(c => ({ label: c.client_nom, profit: Math.round(c.profit) }))
   }, [results])
 
+  const margeTierColor = { high: 'green', medium: 'blue', low: 'orange', loss: 'red' }[marginTier(global.marge).key]
+
   return (
     <div className="space-y-4">
-      {/* KPI row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
-        <KpiCard label="Revenu"    icon="💰" color="slate" large value={fmtMoney(global.revenue.total) + ' DHS'} />
-        <KpiCard label="Achats"    icon="📦" color="red"    value={fmtMoney(global.cost.achatTotal) + ' DHS'} />
-        <KpiCard label="Carburant" icon="⛽" color="orange" value={fmtMoney(global.cost.fuel) + ' DHS'} />
-        <KpiCard label="Charges"   icon="💸" color="red"    value={fmtMoney(global.cost.chargesOperationnelles) + ' DHS'} />
-        <KpiCard label="Location"  icon="🔑" color="amber"  value={fmtMoney(global.cost.rental) + ' DHS'} />
+      {/* Revenue → Cost composition → Profit → Margin, in that order, using
+          professional accounting colors (green=revenue, red=every cost
+          category, dark red=total cost, green/red=profit, tiered=margin). */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <KpiCard label="Revenu" icon="💰" color="green" large value={fmtMoney(global.revenue.total) + ' DHS'} />
+        <KpiCard label="Achats"           icon="📦" color="red" value={fmtMoney(global.cost.achatTotal) + ' DHS'} />
+        <KpiCard label="Transport"        icon="🚌" color="red" value={fmtMoney(global.cost.chargesTransport) + ' DHS'} />
+        <KpiCard label="Carburant"        icon="⛽" color="red" value={fmtMoney(global.cost.fuel) + ' DHS'} />
+        <KpiCard label="Ouvriers"         icon="👷" color="red" value={fmtMoney(global.cost.chargesWorkers) + ' DHS'} />
+        <KpiCard label="Location camion"  icon="🔑" color="red" value={fmtMoney(global.cost.rental) + ' DHS'} />
+        <KpiCard label="Autres charges"   icon="💸" color="red" value={fmtMoney(global.cost.chargesOther) + ' DHS'} />
+        <KpiCard label="Coût total" icon="🧾" color="darkred" large value={fmtMoney(global.cost.total) + ' DHS'} />
         <KpiCard label="Profit net" icon={global.profit >= 0 ? '✅' : '❌'} color={global.profit >= 0 ? 'green' : 'red'} large
           value={(global.profit >= 0 ? '+' : '') + fmtMoney(global.profit) + ' DHS'} />
-        <KpiCard label="Marge" icon="📈" color="blue" large value={global.marge + '%'} sub={`${results.length} voyages`} />
+        <KpiCard label="Marge" icon="📈" color={margeTierColor} large value={global.marge + '%'} sub={`${results.length} voyages`} />
       </div>
 
       {/* Evolution + comparison combined: same two series (revenue/profit by

@@ -2,10 +2,12 @@
 // Profitability Center so "high/medium/low/loss" always means the same
 // thresholds everywhere. Presentational only — does not touch how margin
 // itself is calculated (that's marge = profit/revenue*100 from the engine).
+// Thresholds follow standard accounting convention: green >25%, blue 15-25%,
+// orange 5-15%, red <5%.
 export const MARGIN_TIERS = [
-  { key: 'high',   label: 'Élevée',  min: 20,        text: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200', dot: '#10b981' },
-  { key: 'medium', label: 'Moyenne', min: 10,        text: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200',    dot: '#2563eb' },
-  { key: 'low',    label: 'Faible',  min: 0,         text: 'text-amber-700',   bg: 'bg-amber-50',    border: 'border-amber-200',   dot: '#d97706' },
+  { key: 'high',   label: 'Élevée',  min: 25,        text: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200', dot: '#10b981' },
+  { key: 'medium', label: 'Moyenne', min: 15,        text: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200',    dot: '#2563eb' },
+  { key: 'low',    label: 'Faible',  min: 5,         text: 'text-orange-700',  bg: 'bg-orange-50',   border: 'border-orange-200',  dot: '#ea580c' },
   { key: 'loss',   label: 'Perte',   min: -Infinity, text: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200',     dot: '#dc2626' },
 ]
 
@@ -32,7 +34,7 @@ export function marginRowClass(marge) {
   return {
     high:   'hover:bg-emerald-50/60',
     medium: 'hover:bg-blue-50/60',
-    low:    'hover:bg-amber-50/60',
+    low:    'hover:bg-orange-50/60',
     loss:   'bg-red-50/40 hover:bg-red-50/70',
   }[tier.key]
 }

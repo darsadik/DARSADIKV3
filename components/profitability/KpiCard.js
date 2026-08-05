@@ -2,6 +2,7 @@ const COLORS = {
   slate:   'text-slate-800',
   green:   'text-emerald-600',
   red:     'text-red-500',
+  darkred: 'text-red-800',
   blue:    'text-blue-600',
   orange:  'text-orange-500',
   amber:   'text-amber-600',

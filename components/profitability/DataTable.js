@@ -134,10 +134,10 @@ export default function DataTable({
           <tbody>
             {sorted.length === 0 ? (
               <tr><td colSpan={columns.length} className="py-16 text-center text-slate-400">{emptyText}</td></tr>
-            ) : sorted.map(row => (
+            ) : sorted.map((row, i) => (
               <tr key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`border-b border-slate-50 transition ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName ? rowClassName(row) : 'hover:bg-slate-50'}`}>
+                className={`border-b border-slate-50 transition ${onRowClick ? 'cursor-pointer' : ''} ${i % 2 === 1 ? 'bg-slate-50/50' : ''} ${rowClassName ? rowClassName(row) : 'hover:bg-slate-50'}`}>
                 {columns.map(col => (
                   <td key={col.key} className={`py-2.5 px-3 whitespace-nowrap ${cellAlign(col)}`}>
                     {col.render(row)}
