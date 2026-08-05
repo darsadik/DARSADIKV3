@@ -219,37 +219,26 @@ export default function FournisseursGasoil() {
   const totalAdblueLitres = periodEntries.reduce((s, e) => s + (e.adblueQte || 0), 0)
   const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
 
-  // ── PREVIOUS BALANCE (discount-adjusted) — the supplier's real running
-  // balance immediately before the selected period: opening_balance + every
-  // prior achat − every prior paiement − the fuel discount those prior
-  // achats already earned. `openingBalance` above (used only for the
-  // ledger's own display/closingBalance) intentionally never subtracts
-  // discount — remise has never been a ledger line item, and that stays
-  // untouched. This is a second, summary-only figure so "previous balance"
-  // for SOLDE À PAYER matches what soldeDuNet would already say as of the
-  // start of the period, instead of silently dropping every prior period's
-  // discount. ──
-  const beforeFuelLitres = beforeEntries.reduce((s, e) => s + (e.qte || 0), 0)
-  const beforeDiscount   = Math.round(beforeFuelLitres * remiseRate * 100) / 100
-  const previousBalance  = openingBalance - beforeDiscount
-
-  // ── SOLDE À PAYER — the supplier's real running balance, continued: start
-  // from previousBalance (already discount-adjusted, see above), add this
-  // period's achats, subtract this period's fuel discount, subtract this
-  // period's paiements. Never derived from totalAchats alone. Presentation
-  // only — does not touch openingBalance/closingBalance/the ledger's own
-  // per-row solde, totalAchats/fuelDiscount/totalPaiements/soldeDuNet, or
-  // gasoil_fournisseurs.solde. ──
-  const soldeAPayer = Math.round((previousBalance + totalAchats - fuelDiscount - totalPaiements) * 100) / 100
+  // ── SOLDE À PAYER — the accounting source of truth is the chronological
+  // ledger's own running balance (closingBalance, defined above from
+  // openingBalance + Σ period debit−credit), never a recompute from the
+  // summary's own totals. Achats/Remise/Paiements/Litres in the Résumé
+  // section below are informational only — they must never be added back
+  // together to produce this figure. SOLDE À PAYER is always exactly
+  // closingBalance, i.e. the same number as the last row's Solde in the
+  // Relevé Chronologique table, so the two can never disagree. ──
+  const soldeAPayer = closingBalance
 
   // ── SOLDE DÛ (BALANCE DUE) — single source of truth for "how much this
   // supplier is currently owed": opening balance + ALL-TIME purchases −
   // ALL-TIME payments − ALL-TIME fuel discount (never period-filtered, since
   // "amount owed right now" isn't scoped to whatever date filter is active —
   // same reasoning as gasoil_fournisseurs.solde itself). The discount is a
-  // real reduction of what's owed, so it must net out of this figure exactly
-  // like it already nets out of "SOLDE À PAYER" below — previously it
-  // didn't, which is what made the two totals on this page disagree.
+  // real reduction of what's owed, so it must net out of this figure. Note
+  // this is a DIFFERENT figure from "SOLDE À PAYER" below, which is always
+  // the ledger's own closingBalance (never discount-adjusted, by design —
+  // see soldeAPayer above) — soldeDuNet is the all-time balance shown in
+  // the header/KPI card, soldeAPayer is the selected period's ledger total.
   // Computed once here and reused everywhere "Solde dû" is shown (KPI card,
   // PDF) so there is only ever one number. This does NOT rewrite
   // gasoil_fournisseurs.solde (still the gross, stored figure used by the
@@ -472,10 +461,10 @@ ${printFooter(printDate)}
   // the only differences are (1) it prints only the presentation selection
   // (or the full presentation order when nothing is selected) and (2) it
   // keeps a Report carry-forward row when the selection doesn't start at
-  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is a true
-  // running balance — the printed rows' own closing solde (opening balance /
-  // carry-forward + achats − paiements) minus the period's fuel discount —
-  // not a flat recompute from the summary's own totals. ──
+  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is exactly
+  // the printed rows' own closing solde (opening balance / carry-forward +
+  // achats − paiements, from buildPresentationLedger — untouched) — never
+  // a recompute from the summary's own totals. ──
   function printPresentationFournisseur() {
     if (!selected) return
     const pLedger = buildPresentationLedger()
@@ -499,21 +488,14 @@ ${printFooter(printDate)}
     const selectedPaiements    = pEntries.reduce((s, e) => s + (e.credit || 0), 0)
     const selectedFuelLitres   = pEntries.filter(e => e.type === 'purchase').reduce((s, e) => s + (e.qte || 0), 0)
     const selectedFuelDiscount = Math.round(selectedFuelLitres * remiseRate * 100) / 100
-    // ── SOLDE À PAYER — a true running balance, same as the chrono
-    // statement's soldeAPayer: the last printed row's own solde already
-    // carries the full opening_balance/carry-forward + achats − paiements
-    // (via buildPresentationLedger — untouched); this subtracts the FULL
-    // cumulative fuel discount up to that same point in the presentation
-    // order — not just selectedFuelDiscount (the printed rows' own discount,
-    // still shown as-is in the Résumé table below) — so a partial-selection
-    // print still reconciles even when earlier, unprinted purchases also
-    // earned discount. ──
-    const lastPrintedEntry       = pEntries.length > 0 ? pEntries[pEntries.length - 1] : null
-    const lastPrintedIdx         = lastPrintedEntry ? pLedger.entries.indexOf(lastPrintedEntry) : -1
-    const cumulativeFuelLitres   = lastPrintedIdx >= 0 ? pLedger.entries.slice(0, lastPrintedIdx + 1).reduce((s, e) => s + (e.qte || 0), 0) : 0
-    const cumulativeFuelDiscount = Math.round(cumulativeFuelLitres * remiseRate * 100) / 100
-    const selectedClosingBalance = lastPrintedEntry ? lastPrintedEntry.solde : pLedger.finalBalance
-    const selectedSoldeAPayer    = Math.round((selectedClosingBalance - cumulativeFuelDiscount) * 100) / 100
+    // ── SOLDE À PAYER — the accounting source of truth is the ledger's own
+    // running balance, same as the chrono statement's soldeAPayer: the last
+    // printed row's own solde (via buildPresentationLedger — untouched)
+    // already carries the full opening_balance/carry-forward + achats −
+    // paiements. Never recomputed from selectedAchats/selectedFuelDiscount/
+    // selectedPaiements — those stay informational-only in the Résumé table
+    // below. ──
+    const selectedSoldeAPayer = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
 
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
