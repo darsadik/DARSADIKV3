@@ -219,12 +219,14 @@ export default function FournisseursGasoil() {
   const totalAdblueLitres = periodEntries.reduce((s, e) => s + (e.adblueQte || 0), 0)
   const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
 
-  // ── SOLDE À PAYER (period) — the single final total the summary section
-  // ends in: Total Achats − Remise Carburant − Total Paiements, so it is
-  // always exactly the sum of the three lines shown above it. Presentation
-  // only — does not touch totalAchats/fuelDiscount/totalPaiements/soldeDuNet
-  // or any ledger math below. ──
-  const soldeAPayer = Math.round((totalAchats - fuelDiscount - totalPaiements) * 100) / 100
+  // ── SOLDE À PAYER (period) — a true running balance, not a recompute from
+  // the summary's own totals: start from openingBalance, apply the period's
+  // achats/paiements (closingBalance already does exactly this, untouched),
+  // then apply the fuel discount on top — same sequence as the ledger itself
+  // would produce if remise were one of its debit/credit rows. Presentation
+  // only — does not touch closingBalance, the ledger's own per-row solde,
+  // totalAchats/fuelDiscount/totalPaiements/soldeDuNet, or gasoil_fournisseurs.solde. ──
+  const soldeAPayer = Math.round((closingBalance - fuelDiscount) * 100) / 100
 
   // ── SOLDE DÛ (BALANCE DUE) — single source of truth for "how much this
   // supplier is currently owed": opening balance + ALL-TIME purchases −
@@ -456,10 +458,10 @@ ${printFooter(printDate)}
   // the only differences are (1) it prints only the presentation selection
   // (or the full presentation order when nothing is selected) and (2) it
   // keeps a Report carry-forward row when the selection doesn't start at
-  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is Total
-  // Achats − Remise Carburant − Total Paiements over the printed rows only —
-  // any carry-forward from rows outside the selection stays visible as its
-  // own Report row, never folded silently into the final total. ──
+  // the top. The final SOLDE À PAYER (selectedSoldeAPayer, below) is a true
+  // running balance — the printed rows' own closing solde (opening balance /
+  // carry-forward + achats − paiements) minus the period's fuel discount —
+  // not a flat recompute from the summary's own totals. ──
   function printPresentationFournisseur() {
     if (!selected) return
     const pLedger = buildPresentationLedger()
@@ -483,9 +485,13 @@ ${printFooter(printDate)}
     const selectedPaiements    = pEntries.reduce((s, e) => s + (e.credit || 0), 0)
     const selectedFuelLitres   = pEntries.filter(e => e.type === 'purchase').reduce((s, e) => s + (e.qte || 0), 0)
     const selectedFuelDiscount = Math.round(selectedFuelLitres * remiseRate * 100) / 100
-    // Total Achats − Remise Carburant − Total Paiements, over the printed
-    // rows — the one final total this summary ends in (see soldeAPayer above).
-    const selectedSoldeAPayer  = Math.round((selectedAchats - selectedFuelDiscount - selectedPaiements) * 100) / 100
+    // ── SOLDE À PAYER — a true running balance, same as the chrono
+    // statement's soldeAPayer: the printed rows' own closing solde (which
+    // already carries opening_balance / carry-forward + achats − paiements,
+    // via buildPresentationLedger — untouched) minus the period's fuel
+    // discount. Not a flat recompute from selectedAchats alone. ──
+    const selectedClosingBalance = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
+    const selectedSoldeAPayer    = Math.round((selectedClosingBalance - selectedFuelDiscount) * 100) / 100
 
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
