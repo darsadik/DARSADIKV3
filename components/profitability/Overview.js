@@ -73,17 +73,15 @@ export default function Overview({ results, camions }) {
 
   return (
     <div className="space-y-4">
-      {/* Revenue → Cost composition → Profit → Margin, in that order, using
-          professional accounting colors (green=revenue, red=every cost
-          category, dark red=total cost, green/red=profit, tiered=margin). */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* Revenue → Gasoil / Charges → Total Cost → Profit → Margin, using
+          professional accounting colors (green=revenue, red=cost lines,
+          dark red=total cost, green/red=profit, tiered=margin). Charges is
+          every non-fuel cost combined (achats + location + charges
+          opérationnelles) — Gasoil + Charges always equals Coût total. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label="Revenu" icon="💰" color="green" large value={fmtMoney(global.revenue.total) + ' DHS'} />
-        <KpiCard label="Achats"           icon="📦" color="red" value={fmtMoney(global.cost.achatTotal) + ' DHS'} />
-        <KpiCard label="Transport"        icon="🚌" color="red" value={fmtMoney(global.cost.chargesTransport) + ' DHS'} />
-        <KpiCard label="Carburant"        icon="⛽" color="red" value={fmtMoney(global.cost.fuel) + ' DHS'} />
-        <KpiCard label="Ouvriers"         icon="👷" color="red" value={fmtMoney(global.cost.chargesWorkers) + ' DHS'} />
-        <KpiCard label="Location camion"  icon="🔑" color="red" value={fmtMoney(global.cost.rental) + ' DHS'} />
-        <KpiCard label="Autres charges"   icon="💸" color="red" value={fmtMoney(global.cost.chargesOther) + ' DHS'} />
+        <KpiCard label="Gasoil"  icon="⛽" color="red" value={fmtMoney(global.cost.fuel) + ' DHS'} />
+        <KpiCard label="Charges" icon="💸" color="red" value={fmtMoney(global.cost.total - global.cost.fuel) + ' DHS'} />
         <KpiCard label="Coût total" icon="🧾" color="darkred" large value={fmtMoney(global.cost.total) + ' DHS'} />
         <KpiCard label="Profit net" icon={global.profit >= 0 ? '✅' : '❌'} color={global.profit >= 0 ? 'green' : 'red'} large
           value={(global.profit >= 0 ? '+' : '') + fmtMoney(global.profit) + ' DHS'} />

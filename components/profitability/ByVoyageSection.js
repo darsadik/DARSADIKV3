@@ -5,6 +5,12 @@ import MarginBadge, { marginRowClass } from './MarginBadge'
 // One row = one voyage — "the heart of the ERP". All figures come straight
 // off the merged {...voyage, ...computeVoyageProfit(...)} rows built once in
 // pages/rentabilite/index.js; this component only defines columns/sorting.
+//
+// Cost is shown as just two lines — Gasoil (r.cost.fuel) and Charges (every
+// other cost bucket combined: achats + location + charges opérationnelles) —
+// instead of exploding every internal cost bucket into its own column.
+// Charges is derived as cost.total − cost.fuel, so Gasoil + Charges always
+// equals Total Cost exactly; no engine value is recomputed differently.
 export default function ByVoyageSection({ results, onOpenVoyage }) {
   const columns = [
     { key: 'date', label: 'Date', sortValue: r => r.date_depart, render: r => fmtDate(r.date_depart) },
@@ -19,12 +25,8 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
       <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{r.clients?.length || 0}</span>
     ) },
     { key: 'revenue', label: 'Revenu', right: true, sortValue: r => r.revenue.total, exportValue: r => Math.round(r.revenue.total), render: r => <span className="font-bold text-emerald-600">{fmtMoney(r.revenue.total)}</span> },
-    { key: 'achat', label: 'Achats', right: true, sortValue: r => r.cost.achatTotal, exportValue: r => Math.round(r.cost.achatTotal), render: r => <span className="text-red-400">−{fmtMoney(r.cost.achatTotal)}</span> },
-    { key: 'transport', label: 'Transport', right: true, sortValue: r => r.cost.chargesTransport, exportValue: r => Math.round(r.cost.chargesTransport), render: r => r.cost.chargesTransport > 0 ? <span className="text-red-400">−{fmtMoney(r.cost.chargesTransport)}</span> : '—' },
-    { key: 'fuel', label: 'Carburant', right: true, sortValue: r => r.cost.fuel, exportValue: r => Math.round(r.cost.fuel), render: r => <span className="text-red-400">−{fmtMoney(r.cost.fuel)}</span> },
-    { key: 'workers', label: 'Ouvriers', right: true, sortValue: r => r.cost.chargesWorkers, exportValue: r => Math.round(r.cost.chargesWorkers), render: r => r.cost.chargesWorkers > 0 ? <span className="text-red-400">−{fmtMoney(r.cost.chargesWorkers)}</span> : '—' },
-    { key: 'rental', label: 'Location', right: true, sortValue: r => r.cost.rental, exportValue: r => Math.round(r.cost.rental), render: r => r.cost.rental > 0 ? <span className="text-red-400">−{fmtMoney(r.cost.rental)}</span> : '—' },
-    { key: 'other', label: 'Autres charges', right: true, sortValue: r => r.cost.chargesOther, exportValue: r => Math.round(r.cost.chargesOther), render: r => r.cost.chargesOther > 0 ? <span className="text-red-400">−{fmtMoney(r.cost.chargesOther)}</span> : '—' },
+    { key: 'gasoil', label: 'Gasoil', right: true, sortValue: r => r.cost.fuel, exportValue: r => Math.round(r.cost.fuel), render: r => <span className="text-red-400">−{fmtMoney(r.cost.fuel)}</span> },
+    { key: 'charges', label: 'Charges', right: true, sortValue: r => r.cost.total - r.cost.fuel, exportValue: r => Math.round(r.cost.total - r.cost.fuel), render: r => <span className="text-red-400">−{fmtMoney(r.cost.total - r.cost.fuel)}</span> },
     { key: 'totalCost', label: '= Coût total', right: true, sortValue: r => r.cost.total, exportValue: r => Math.round(r.cost.total), render: r => <span className="font-bold text-red-700">−{fmtMoney(r.cost.total)}</span> },
     { key: 'profit', label: '= Profit', right: true, sortValue: r => r.profit, exportValue: r => Math.round(r.profit), render: r => (
       <span className={`font-black ${r.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{r.profit >= 0 ? '+' : ''}{fmtMoney(r.profit)}</span>
@@ -39,13 +41,9 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
 
   function footer(rows) {
     const rev = rows.reduce((s, r) => s + r.revenue.total, 0)
-    const ach = rows.reduce((s, r) => s + r.cost.achatTotal, 0)
-    const transport = rows.reduce((s, r) => s + r.cost.chargesTransport, 0)
-    const fuel = rows.reduce((s, r) => s + r.cost.fuel, 0)
-    const workers = rows.reduce((s, r) => s + r.cost.chargesWorkers, 0)
-    const rent = rows.reduce((s, r) => s + r.cost.rental, 0)
-    const other = rows.reduce((s, r) => s + r.cost.chargesOther, 0)
+    const gasoil = rows.reduce((s, r) => s + r.cost.fuel, 0)
     const totalCost = rows.reduce((s, r) => s + r.cost.total, 0)
+    const charges = totalCost - gasoil
     const profit = rows.reduce((s, r) => s + r.profit, 0)
     const marge = rev > 0 ? Math.round(profit / rev * 100) : 0
     return (
@@ -53,12 +51,8 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
         <tr className="border-t-2 border-slate-300 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
           <td colSpan={4} className="py-3 px-3 font-black text-sm uppercase tracking-wide">Total ({rows.length})</td>
           <td className="py-3 px-3 text-right font-black text-emerald-400">{fmtMoney(rev)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(ach)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(transport)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(fuel)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(workers)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(rent)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(other)}</td>
+          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(gasoil)}</td>
+          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(charges)}</td>
           <td className="py-3 px-3 text-right font-black text-red-200">−{fmtMoney(totalCost)}</td>
           <td className={`py-3 px-3 text-right font-black text-lg ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{fmtMoney(profit)}</td>
           <td className="py-3 px-3 text-right font-black text-blue-300">{marge}%</td>
