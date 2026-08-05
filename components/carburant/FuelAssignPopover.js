@@ -10,49 +10,41 @@ const REASON_LABEL = {
   km_after_start: 'KM après départ',
 }
 
-// Assign / Change / Remove / Split for ONE plein (spec §3), modeled on
+// Assign / Change / Remove for ONE plein, modeled on
 // components/voyage/GasoilSection.js's existing "+ Lier un plein" picker but
 // inverted: the plein is fixed here, the voyage is what gets picked. Every
 // write goes through lib/services/voyage/gasoilLink.js — the exact same
 // functions VoyageDetailPanel already uses, so behavior can never diverge.
+// Linking never takes an amount — a purchase can be linked to any number of
+// voyages, and each one's DHS share is always computed dynamically by
+// lib/services/fuelAllocation.js (distance-proportional), never typed here.
 export default function FuelAssignPopover({ plein, camionVoyageRows, onClose, onSaved }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
-  const [splitQte, setSplitQte] = useState({})
 
-  const pleinForLink = useMemo(() => ({
-    id: plein.gasoilId, date: plein.date, station: plein.station,
-    qte: plein.qte, prix_unitaire: plein.prixUnitaire,
-  }), [plein])
+  const pleinForLink = useMemo(() => ({ id: plein.gasoilId }), [plein])
+
+  const linkedVoyageIds = useMemo(() => new Set(plein.links.map(l => l.voyage_id)), [plein.links])
 
   const suggestions = useMemo(() => suggestVoyagesForPlein(
     { date: plein.date, km: plein.km, camion_id: plein.camionId },
     camionVoyageRows,
-  ), [plein, camionVoyageRows])
+  ).filter(s => !linkedVoyageIds.has(s.voyageId)), [plein, camionVoyageRows, linkedVoyageIds])
 
   const filteredVoyages = useMemo(() => {
     const q = search.trim().toLowerCase()
     return camionVoyageRows
       .filter(v => v.camionId === plein.camionId)
+      .filter(v => !linkedVoyageIds.has(v.voyageId))
       .filter(v => !q || v.reference.toLowerCase().includes(q))
       .slice(0, 30)
-  }, [camionVoyageRows, plein.camionId, search])
+  }, [camionVoyageRows, plein.camionId, search, linkedVoyageIds])
 
-  const assignedQte = plein.links.reduce((s, l) => s + (l.qte_litres || 0), 0)
-  const remainingQte = Math.max(0, (plein.qte || 0) - assignedQte)
-
-  // qte is whatever the user explicitly typed (or null for "the rest"/a
-  // suggestion click). linkGasoilToVoyage treats a falsy splitQte as "link
-  // the WHOLE plein" — correct only when nothing else has claimed part of it
-  // yet. Once earlier partial links exist (remainingQte < plein.qte), a
-  // blank/suggested assign must still only claim what's actually left,
-  // otherwise it would double-count litres already assigned elsewhere.
-  async function assign(voyageId, qte) {
+  async function assign(voyageId) {
     setBusy(true); setError('')
     try {
-      const splitQte = qte || (remainingQte < (plein.qte || 0) ? remainingQte : null)
-      await linkGasoilToVoyage({ plein: pleinForLink, voyageId, splitQte })
+      await linkGasoilToVoyage({ plein: pleinForLink, voyageId })
       onSaved?.()
     } catch (err) {
       setError(err.message)
@@ -92,27 +84,25 @@ export default function FuelAssignPopover({ plein, camionVoyageRows, onClose, on
               <div className="space-y-1.5">
                 {plein.links.map(l => (
                   <div key={l.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-slate-100 bg-slate-50 text-xs">
-                    <span className="font-semibold text-slate-700">
-                      Voyage #{l.voyage_id}{l.is_split ? ` · ${fmtD(l.qte_litres)}L (partiel)` : ' · plein entier'}
-                    </span>
+                    <span className="font-semibold text-slate-700">Voyage #{l.voyage_id}</span>
                     <div className="flex gap-1.5 flex-shrink-0">
                       <button disabled={busy} onClick={() => remove(l)} className="text-red-500 hover:underline font-semibold">Retirer</button>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-slate-400 mt-1.5">Pour changer un voyage : retirez l'assignation puis choisissez le nouveau voyage ci-dessous.</div>
+              <div className="text-[10px] text-slate-400 mt-1.5">Le montant DHS de chaque voyage est calculé automatiquement au prorata de sa distance.</div>
             </div>
           )}
 
           {/* Smart suggestions */}
-          {remainingQte > 0 && suggestions.length > 0 && (
+          {suggestions.length > 0 && (
             <div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1.5">Suggestions (jamais automatique — un clic assigne)</div>
               <div className="space-y-1.5">
                 {suggestions.map(s => (
                   <button key={s.voyageId} disabled={busy}
-                    onClick={() => assign(s.voyageId, null)}
+                    onClick={() => assign(s.voyageId)}
                     className="w-full flex items-center justify-between gap-2 p-2.5 rounded-lg border border-brand-100 bg-brand-50 hover:bg-brand-100 text-left transition">
                     <span className="text-xs font-semibold text-brand-700">{s.reference} <span className="text-slate-400 font-normal">({fmtDate(s.date)})</span></span>
                     <span className="flex items-center gap-1.5 flex-shrink-0">
@@ -125,40 +115,23 @@ export default function FuelAssignPopover({ plein, camionVoyageRows, onClose, on
             </div>
           )}
 
-          {/* Manual search + split */}
-          {remainingQte > 0 && (
-            <div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1.5">
-                Recherche manuelle {plein.qte ? `— ${fmtD(remainingQte)}L disponibles` : ''}
-              </div>
-              <input className="input text-sm mb-2" placeholder="Rechercher un voyage..." value={search} onChange={e => setSearch(e.target.value)} />
-              <div className="space-y-1.5 max-h-56 overflow-y-auto">
-                {filteredVoyages.map(v => (
-                  <div key={v.voyageId} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 text-xs">
-                    <span className="font-semibold text-slate-700">{v.reference} <span className="text-slate-400 font-normal">({fmtDate(v.date)})</span></span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <input type="number" min="0" max={remainingQte || undefined} step="0.01"
-                        placeholder={`${fmtD(remainingQte)}L`}
-                        value={splitQte[v.voyageId] || ''}
-                        onChange={e => setSplitQte({ ...splitQte, [v.voyageId]: e.target.value })}
-                        title="Litres à assigner — laisser vide pour lier tout le reste"
-                        className="input text-xs w-16 py-1" />
-                      <button disabled={busy} onClick={() => assign(v.voyageId, parseFloat(splitQte[v.voyageId]) || null)}
-                        className="text-xs bg-brand-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-brand-700 disabled:opacity-60">
-                        ✓ Lier
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {filteredVoyages.length === 0 && <div className="text-center text-slate-400 text-xs py-3">Aucun voyage pour ce camion</div>}
-              </div>
-              <div className="text-[10px] text-slate-400 mt-1.5">Laisser le champ litres vide = lier tout le reste disponible. Une valeur inférieure = assignation partielle (split).</div>
+          {/* Manual search */}
+          <div>
+            <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1.5">Recherche manuelle</div>
+            <input className="input text-sm mb-2" placeholder="Rechercher un voyage..." value={search} onChange={e => setSearch(e.target.value)} />
+            <div className="space-y-1.5 max-h-56 overflow-y-auto">
+              {filteredVoyages.map(v => (
+                <div key={v.voyageId} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 text-xs">
+                  <span className="font-semibold text-slate-700">{v.reference} <span className="text-slate-400 font-normal">({fmtDate(v.date)})</span></span>
+                  <button disabled={busy} onClick={() => assign(v.voyageId)}
+                    className="text-xs bg-brand-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-brand-700 disabled:opacity-60 flex-shrink-0">
+                    ✓ Lier
+                  </button>
+                </div>
+              ))}
+              {filteredVoyages.length === 0 && <div className="text-center text-slate-400 text-xs py-3">Aucun voyage disponible pour ce camion</div>}
             </div>
-          )}
-
-          {remainingQte <= 0 && plein.links.length > 0 && (
-            <div className="text-center text-emerald-600 text-xs py-2">✓ Plein entièrement assigné</div>
-          )}
+          </div>
 
           <div className="flex justify-end pt-2 border-t border-slate-50">
             <button onClick={onClose} className="btn-secondary text-xs">Fermer</button>

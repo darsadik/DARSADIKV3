@@ -60,12 +60,15 @@ export default function ProfitabiliteCenter() {
   const [charges,    setCharges]    = useState([])
   const [retours,    setRetours]    = useState([])
   const [locations,  setLocations]  = useState([])
-  const [voyageGasoil, setVoyageGasoil] = useState([])
 
-  // Fuel-cycle refills: NEVER scope this by the selected date range — a
-  // voyage's bracketing refill (before/after its km) can fall outside the
-  // period, and kmFuelCost needs the full chain to resolve automatic mode.
+  // Fuel allocation inputs: NEVER scope these by the selected date range — a
+  // voyage's bracketing purchase (before/after its km), or a manual link to a
+  // voyage outside the period, can fall outside the window, and the
+  // allocation engine (lib/services/fuelAllocation.js) needs the full picture
+  // to resolve automatic brackets / exclude manually-linked voyages correctly.
   const [allGasoil, setAllGasoil] = useState([])
+  const [allVoyages, setAllVoyages] = useState([])
+  const [allVoyageGasoilLinks, setAllVoyageGasoilLinks] = useState([])
 
   // ── filter-dropdown option lists (fetched once, independent of filters) ──
   const [camions,             setCamions]             = useState([])
@@ -80,18 +83,25 @@ export default function ProfitabiliteCenter() {
   useEffect(() => { loadVoyageData() }, [filters.from, filters.to])
 
   async function loadOptions() {
-    const [{ data: ca }, { data: cl }, { data: gc }, { data: fo }, { data: gf }, { data: tb }, { data: ag }] = await Promise.all([
+    const [{ data: ca }, { data: cl }, { data: gc }, { data: fo }, { data: gf }, { data: tb }, { data: ag }, { data: av }, { data: vgl }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('clients').select('id,nom').order('nom'),
       supabase.from('grignon_clients').select('id,nom').order('nom'),
       supabase.from('fournisseurs').select('id,nom').order('nom'),
       supabase.from('grignon_fournisseurs').select('id,nom').order('nom'),
       supabase.from('type_briques').select('id,nom').order('nom'),
-      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').not('km', 'is', null).order('km', { ascending: true }),
+      // No `.not('km', 'is', null)` filter: a purchase with no odometer can
+      // still be manually linked to a voyage, so it must stay in the pool the
+      // allocation engine sees (see lib/services/fuelAllocation.js).
+      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').order('km', { ascending: true }),
+      supabase.from('voyages').select('id,camion_id,km_depart,km_arrivee,fuel_mode,deleted_at'),
+      supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
     ])
     setCamions(ca || []); setClients(cl || []); setGrignonClients(gc || [])
     setFournisseurs(fo || []); setGrignonFournisseurs(gf || []); setTypeBriques(tb || [])
     setAllGasoil(ag || [])
+    setAllVoyages(av || [])
+    setAllVoyageGasoilLinks(vgl || [])
   }
 
   async function loadVoyageData() {
@@ -101,16 +111,15 @@ export default function ProfitabiliteCenter() {
       .order('date_depart', { ascending: false })
     const vList = v || []
     const vIds = vList.map(x => x.id)
-    const [ac, li, ch, re, loc, vg] = await Promise.all([
+    const [ac, li, ch, re, loc] = await Promise.all([
       fetchByVoyageIds('voyage_achats', 'id,voyage_id,type_produit,type_brique,fournisseur_id,fournisseur_nom,qte,prix_achat,total_achat', vIds),
       fetchByVoyageIds('voyage_livraisons', 'voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,frais_total', vIds),
       fetchByVoyageIds('voyage_charges', 'voyage_id,montant,facture_client,client_id,client_nom,categorie', vIds),
       fetchByVoyageIds('voyage_retours', 'voyage_id,montant', vIds),
       fetchByVoyageIds('voyage_locations', 'voyage_id,montant_location', vIds),
-      fetchByVoyageIds('voyage_gasoil', 'voyage_id,total,qte_litres', vIds),
     ])
     setVoyages(vList); setAchats(ac); setLivraisons(li); setCharges(ch)
-    setRetours(re); setLocations(loc); setVoyageGasoil(vg)
+    setRetours(re); setLocations(loc)
     setLoading(false)
   }
 
@@ -168,10 +177,11 @@ export default function ProfitabiliteCenter() {
       retours: retours.filter(r => r.voyage_id === v.id),
       locations: locations.filter(l => l.voyage_id === v.id),
       camionRefills: gasoilByCamion[v.camion_id] || [],
-      voyageGasoilRows: voyageGasoil.filter(g => g.voyage_id === v.id),
+      camionVoyages: allVoyages.filter(vv => vv.camion_id === v.camion_id),
+      voyageGasoilLinks: allVoyageGasoilLinks,
       remiseRate,
     }),
-  })), [visibleVoyages, achats, livraisons, charges, retours, locations, gasoilByCamion, voyageGasoil, remiseRate])
+  })), [visibleVoyages, achats, livraisons, charges, retours, locations, gasoilByCamion, allVoyages, allVoyageGasoilLinks, remiseRate])
 
   const resultById = useMemo(() => Object.fromEntries(results.map(r => [r.id, r])), [results])
   const drawerVoyage = drawerVoyageId ? resultById[drawerVoyageId] : null

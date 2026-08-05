@@ -135,9 +135,14 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   const [editingKm,     setEditingKm]     = useState(false)
   const [savingKm,      setSavingKm]      = useState(false)
 
-  // ── fuel cycle context (display only — see §8, never feeds fuelCost) ──
+  // ── fuel cycle context — camionVoyagesForCycle also feeds the fuel
+  // allocation engine (needs every voyage of this truck, not just this one,
+  // to resolve automatic brackets / exclude manually-linked voyages);
+  // cycleGasoil remains display-only (fuelCycles.js's cosmetic cycle cards,
+  // never read by computeFuelCost). ──
   const [camionVoyagesForCycle, setCamionVoyagesForCycle] = useState([])
   const [cycleGasoil,           setCycleGasoil]           = useState([])
+  const [truckVoyageGasoilLinks, setTruckVoyageGasoilLinks] = useState([])
 
   // ── UX additions ──
   const addAnotherLivRef               = useRef(false)
@@ -185,44 +190,60 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   } = useVoyageTransactionEdit({ onSaved: loadVoyage, camionId: voyage?.camion_id })
   useEffect(() => { if (editError) toast(editError) }, [editError])
 
-  // ── LOAD VEHICLE GASOIL FOR KM-BASED ALLOCATION ──────────────────────────────
+  // ── LOAD VEHICLE GASOIL FOR THE FUEL ALLOCATION ENGINE ───────────────────────
+  // No `.not('km', 'is', null)` filter here: a purchase with no odometer can
+  // still be manually linked to a voyage (lib/services/fuelAllocation.js's
+  // 'waiting' status), so it must stay in the pool the engine sees, even
+  // though it can never open/close an automatic bracket on its own.
   useEffect(() => {
     if (!voyage?.camion_id) return
     supabase.from('gasoil')
-      .select('id,km,total,date,qte,adblue_total')
+      .select('id,km,total,date,qte,adblue_total,station,prix_unitaire')
       .eq('camion_id', voyage.camion_id)
-      .not('km', 'is', null)
       .order('km', { ascending: true })
       .then(({ data }) => setVehicleGasoil(data || []))
   }, [voyage?.camion_id])
 
-  // ── LOAD CYCLE CONTEXT (display only, §8 — fuelCycles.js never feeds fuelCost) ──
-  useEffect(() => {
+  // ── LOAD CYCLE CONTEXT + FUEL ALLOCATION INPUTS ──────────────────────────────
+  // cycleGasoil/camionVoyagesForCycle also feed lib/services/fuelAllocation.js
+  // (via computeVoyageProfit below) — camionVoyagesForCycle needs fuel_mode so
+  // the engine can exclude manual_rate/manual_amount voyages from pools.
+  // voyage_gasoil is fetched table-wide (small table, no camion_id column to
+  // filter by) so the engine sees every manual link, not just this voyage's.
+  // Exposed as a callback (not just inline in the effect) so linking/
+  // unlinking a plein can refresh it immediately — loadVoyage() alone only
+  // reloads this ONE voyage's own rows, not the whole truck's link picture.
+  const loadCycleContext = useCallback(async () => {
     if (!voyage?.camion_id) return
-    Promise.all([
+    const [{ data: g }, { data: v }, { data: vg }] = await Promise.all([
       supabase.from('gasoil').select('id,camion_id,km,total,adblue_total,date,qte,adblue_qte,merge_with_previous').eq('camion_id', voyage.camion_id),
-      supabase.from('voyages').select('id,camion_id,date_depart,km_depart,km_arrivee,deleted_at').eq('camion_id', voyage.camion_id),
-    ]).then(([{ data: g }, { data: v }]) => {
-      setCycleGasoil(g || [])
-      setCamionVoyagesForCycle(v || [])
-    })
+      supabase.from('voyages').select('id,camion_id,date_depart,km_depart,km_arrivee,fuel_mode,deleted_at').eq('camion_id', voyage.camion_id),
+      supabase.from('voyage_gasoil').select('id,gasoil_id,voyage_id'),
+    ])
+    setCycleGasoil(g || [])
+    setCamionVoyagesForCycle(v || [])
+    setTruckVoyageGasoilLinks(vg || [])
   }, [voyage?.camion_id])
+  useEffect(() => { loadCycleContext() }, [loadCycleContext])
 
-  // ── LOAD SIDEBAR (shared engine — lighter-weight: no km-based fuel here) ─────
-  // Not needed when embedded (Review Mode owns its own queue/prev-next).
+  // ── LOAD SIDEBAR (shared engine, same fuel allocation inputs as the main
+  // panel) — not needed when embedded (Review Mode owns its own queue/prev-next).
   useEffect(() => {
     if (embedded) return
     async function loadSidebar() {
-      const [{ data: vs }, { data: ac }, { data: li }, { data: ga }, { data: ch }, { data: re }, { data: sl }] = await Promise.all([
-        supabase.from('voyages').select('id,date_depart,camion_plaque,destination,statut,reference').order('date_depart', { ascending: false }),
+      const [{ data: vs }, { data: ac }, { data: li }, { data: ga }, { data: ch }, { data: re }, { data: sl }, { data: gp }] = await Promise.all([
+        supabase.from('voyages').select('id,camion_id,date_depart,camion_plaque,destination,statut,reference,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at').order('date_depart', { ascending: false }),
         supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
         supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,qte,total_vente,frais_total'),
-        supabase.from('voyage_gasoil').select('voyage_id,total,qte_litres'),
+        supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
         supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
         supabase.from('voyage_retours').select('voyage_id,montant'),
         supabase.from('voyage_locations').select('voyage_id,montant_location'),
+        supabase.from('gasoil').select('id,camion_id,km,total,qte,adblue_total,date'),
       ])
       setSidebarVoyages(vs || [])
+      const gasoilByCamion = {}
+      ;(gp || []).forEach(g => { if (!gasoilByCamion[g.camion_id]) gasoilByCamion[g.camion_id] = []; gasoilByCamion[g.camion_id].push(g) })
       const profits = {}
       ;(vs || []).forEach(v => {
         const p = computeVoyageProfit({
@@ -232,8 +253,9 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
           charges: (ch||[]).filter(c=>c.voyage_id===v.id),
           retours: (re||[]).filter(r=>r.voyage_id===v.id),
           locations: (sl||[]).filter(l=>l.voyage_id===v.id),
-          camionRefills: [],
-          voyageGasoilRows: (ga||[]).filter(g=>g.voyage_id===v.id),
+          camionRefills: gasoilByCamion[v.camion_id] || [],
+          camionVoyages: (vs||[]).filter(vv=>vv.camion_id===v.camion_id),
+          voyageGasoilLinks: ga || [],
           remiseRate,
         })
         profits[v.id] = p.profit
@@ -255,15 +277,15 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
     setShowGasoilPicker(true)
   }
 
-  // splitQte (optional): a portion of plein.qte to assign to THIS voyage
-  // instead of the whole fill — see lib/services/voyage/gasoilLink.js
-  // (shared with the Voyage KM & Fuel Manager's assign/split actions).
-  async function linkGasoilToVoyage(plein, splitQte) {
+  // See lib/services/voyage/gasoilLink.js (shared with the Carburant control
+  // center's assign popover) — linking never takes an amount; the voyage's
+  // share is always computed dynamically by lib/services/fuelAllocation.js.
+  async function linkGasoilToVoyage(plein) {
     setLinkingGasoil(true)
     try {
-      await dbLinkGasoilToVoyage({ plein, voyageId: parseInt(id), splitQte })
+      await dbLinkGasoilToVoyage({ plein, voyageId: parseInt(id) })
       setShowGasoilPicker(false)
-      loadVoyage()
+      await Promise.all([loadVoyage(), loadCycleContext()])
     } catch (err) {
       toast('Erreur: ' + err.message)
     }
@@ -312,7 +334,20 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
     return truck.cycles.find(c => vKm >= c.kmDebut && (c.kmFin === null || vKm < c.kmFin)) || null
   }, [voyage?.camion_id, voyage?.km_depart, cycleGasoil, camionVoyagesForCycle, camions])
 
-  const totalGasoilManuel = gasoil.reduce((s,g) => s+(g.total||0), 0)
+  // gasoil (this voyage's own voyage_gasoil rows) no longer carries its own
+  // amount/date/station — those columns are only meaningful on the source
+  // `gasoil` row now (lib/services/voyage/gasoilLink.js writes gasoil_id +
+  // voyage_id only). Enrich for display by joining against vehicleGasoil,
+  // which already holds the full truck history including these fields.
+  const enrichedGasoil = useMemo(() => {
+    const byId = new Map(vehicleGasoil.map(g => [g.id, g]))
+    return gasoil.map(g => {
+      const source = byId.get(g.gasoil_id)
+      return source
+        ? { ...g, date_gasoil: source.date, station: source.station, qte_litres: source.qte, prix_unitaire: source.prix_unitaire, total: source.total }
+        : g
+    })
+  }, [gasoil, vehicleGasoil])
 
   // Memoized (not just inline) so its identity only changes when the actual
   // section data changes — not on every keystroke in an unrelated add-form —
@@ -320,9 +355,16 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   const result = useMemo(() => computeVoyageProfit({
     voyage, achats, livraisons, charges, retours, locations,
     camionRefills: vehicleGasoil,
-    voyageGasoilRows: gasoil,
+    camionVoyages: camionVoyagesForCycle,
+    voyageGasoilLinks: truckVoyageGasoilLinks,
     remiseRate,
-  }), [voyage, achats, livraisons, charges, retours, locations, vehicleGasoil, gasoil, remiseRate])
+  }), [voyage, achats, livraisons, charges, retours, locations, vehicleGasoil, camionVoyagesForCycle, truckVoyageGasoilLinks, remiseRate])
+
+  // Display total for the GasoilSection "historique" table/footer and the
+  // "use linked fuel instead" override — this voyage's ACTUAL computed share
+  // (never a naive sum of full purchase totals, which would overstate reality
+  // now that one purchase can be split across several voyages).
+  const totalGasoilManuel = result.cost.fuelSource === 'manuel' ? result.cost.fuel : 0
 
   // Let the host page (Review Mode) patch just this one voyage's row after
   // any load/save completes, instead of refetching its whole list. The third
@@ -471,7 +513,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   async function delGasoil(row) {
     try {
       await unlinkGasoilFromVoyage(row)
-      loadVoyage()
+      await Promise.all([loadVoyage(), loadCycleContext()])
     } catch (err) { toast('Erreur suppression gasoil: ' + err.message) }
   }
 
@@ -937,7 +979,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
             onSave={saveFuelMode}
           />
           <GasoilSection
-            gasoil={gasoil}
+            gasoil={enrichedGasoil}
             showGasoilPicker={showGasoilPicker} onClosePicker={() => setShowGasoilPicker(false)}
             camionPleins={camionPleins}
             linkingGasoil={linkingGasoil}

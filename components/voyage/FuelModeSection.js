@@ -4,6 +4,8 @@ import Section from '../ui/Section'
 
 const MODES = [
   { key: 'automatic',     label: 'Automatique',           hint: 'recommandé' },
+  { key: 'manual_km',     label: 'KM approximatif',       hint: 'lié à un plein' },
+  { key: 'manual_fixed',  label: 'Montant lié à un plein', hint: 'lié à un plein' },
   { key: 'manual_rate',   label: 'Estimation KM manuelle', hint: 'Distance × DH/KM' },
   { key: 'manual_amount', label: 'Coût carburant manuel',  hint: 'Montant direct' },
 ]
@@ -41,9 +43,9 @@ export default function FuelModeSection({ voyage, fuelCost, fuelSource, voyageKm
     try {
       await onSave({
         fuelMode: mode,
-        manualDistanceKm: mode === 'manual_rate' ? distance : voyage?.manual_distance_km,
+        manualDistanceKm: (mode === 'manual_rate' || mode === 'manual_km') ? distance : voyage?.manual_distance_km,
         manualCostPerKm:  mode === 'manual_rate' ? rate     : voyage?.manual_cost_per_km,
-        manualFuelCost:   mode === 'manual_amount' ? amount : voyage?.manual_fuel_cost,
+        manualFuelCost:   (mode === 'manual_amount' || mode === 'manual_fixed') ? amount : voyage?.manual_fuel_cost,
       })
       setEditing(false)
     } finally {
@@ -90,6 +92,32 @@ export default function FuelModeSection({ voyage, fuelCost, fuelSource, voyageKm
             <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
               Calculé à partir de l'odomètre du camion (voir barre ci-dessus).
               {voyageKm ? ` Distance: ${fmt(voyageKm)} km.` : ' Distance non disponible pour ce voyage.'}
+            </div>
+          )}
+
+          {mode === 'manual_km' && (
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs text-slate-500 font-semibold mb-1 block">Distance approximative (KM)</label>
+                <input type="number" value={distance} onChange={e => setDistance(e.target.value)}
+                  className="input text-sm w-32" placeholder="Ex: 420" />
+              </div>
+              <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                Ce voyage partage un plein au prorata de cette distance, exactement comme un voyage à KM réel — liez le plein voulu dans la section Gasoil ci-dessous ("+ Lier un plein").
+              </div>
+            </div>
+          )}
+
+          {mode === 'manual_fixed' && (
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs text-slate-500 font-semibold mb-1 block">Montant carburant (DH)</label>
+                <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                  className="input text-sm w-40" placeholder="Ex: 500" />
+              </div>
+              <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                Ce montant fixe est prélevé sur le plein lié ci-dessous ("+ Lier un plein") ; le reste du plein est partagé entre les autres voyages.
+              </div>
             </div>
           )}
 

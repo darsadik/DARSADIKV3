@@ -54,10 +54,18 @@ export default function Dashboard() {
   const [charges,      setCharges]      = useState([])
   const [retours,      setRetours]      = useState([])
   const [locations,    setLocations]    = useState([])
-  const [voyageGasoil, setVoyageGasoil] = useState([])
 
   // ── unscoped (fetched once) ──
   const [allGasoil,           setAllGasoil]           = useState([])
+  // Fuel allocation engine inputs — deliberately separate from allGasoil
+  // (which FleetFuelIntelligence/OperationalAlerts's own cycle-cards read,
+  // km-filtered): the engine needs every diesel purchase regardless of km
+  // (a no-km purchase can still be manually linked, see
+  // lib/services/fuelAllocation.js) plus every voyage/link truck-wide, never
+  // scoped by the dashboard's date window.
+  const [allGasoilForFuel,       setAllGasoilForFuel]       = useState([])
+  const [allVoyagesForFuel,      setAllVoyagesForFuel]      = useState([])
+  const [allVoyageGasoilLinks,   setAllVoyageGasoilLinks]   = useState([])
   const [camions,              setCamions]             = useState([])
   const [clients,              setClients]             = useState([])
   const [grignonClients,       setGrignonClients]      = useState([])
@@ -85,7 +93,7 @@ export default function Dashboard() {
   useEffect(() => { loadVoyageData() }, [windowFrom, windowTo])
 
   async function loadOptions() {
-    const [{ data: ca }, { data: cl }, { data: gc }, { data: fo }, { data: gf }, { data: ag }, { data: pt }, { data: gpt }] = await Promise.all([
+    const [{ data: ca }, { data: cl }, { data: gc }, { data: fo }, { data: gf }, { data: ag }, { data: pt }, { data: gpt }, { data: agf }, { data: avf }, { data: vgl }] = await Promise.all([
       supabase.from('camions').select('id,plaque,type_camion,chauffeur').order('plaque'),
       supabase.from('clients').select('id,nom,solde'),
       supabase.from('grignon_clients').select('id,nom,solde'),
@@ -94,11 +102,20 @@ export default function Dashboard() {
       supabase.from('gasoil').select('id,camion_id,camion_plaque,km,date,adblue_total,adblue_qte,qte,total,merge_with_previous').not('km', 'is', null).order('km', { ascending: true }),
       supabase.from('paiements').select('id,date,client_nom,montant').eq('date', today()),
       supabase.from('grignon_paiements').select('id,date,client_nom,montant').eq('date', today()),
+      // Fuel allocation engine inputs (see allGasoilForFuel/etc. declaration
+      // above) — no km filter, since a no-km purchase can still be manually
+      // linked and must stay visible to the engine.
+      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte'),
+      supabase.from('voyages').select('id,camion_id,km_depart,km_arrivee,fuel_mode,deleted_at'),
+      supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
     ])
     setCamions(ca || []); setClients(cl || []); setGrignonClients(gc || [])
     setFournisseurs(fo || []); setGrignonFournisseurs(gf || [])
     setAllGasoil(ag || [])
     setPaiementsToday([...(pt || []), ...(gpt || [])])
+    setAllGasoilForFuel(agf || [])
+    setAllVoyagesForFuel(avf || [])
+    setAllVoyageGasoilLinks(vgl || [])
   }
 
   async function loadVoyageData() {
@@ -108,16 +125,15 @@ export default function Dashboard() {
       .order('date_depart', { ascending: false })
     const vList = v || []
     const vIds = vList.map(x => x.id)
-    const [ac, li, ch, re, loc, vg] = await Promise.all([
+    const [ac, li, ch, re, loc] = await Promise.all([
       fetchByVoyageIds('voyage_achats', 'voyage_id,type_produit,type_brique,qte,prix_achat,total_achat', vIds),
       fetchByVoyageIds('voyage_livraisons', 'id,voyage_id,date_livraison,type_produit,type_brique,client_id,client_nom,qte,total_vente,frais_total', vIds),
       fetchByVoyageIds('voyage_charges', 'voyage_id,montant,facture_client,client_id,client_nom', vIds),
       fetchByVoyageIds('voyage_retours', 'voyage_id,montant', vIds),
       fetchByVoyageIds('voyage_locations', 'voyage_id,montant_location', vIds),
-      fetchByVoyageIds('voyage_gasoil', 'voyage_id,total,qte_litres', vIds),
     ])
     setVoyages(vList); setAchats(ac); setLivraisons(li); setCharges(ch)
-    setRetours(re); setLocations(loc); setVoyageGasoil(vg)
+    setRetours(re); setLocations(loc)
     setLoading(false)
   }
 
@@ -126,6 +142,12 @@ export default function Dashboard() {
     allGasoil.forEach(g => { if (!acc[g.camion_id]) acc[g.camion_id] = []; acc[g.camion_id].push(g) })
     return acc
   }, [allGasoil])
+
+  const gasoilByCamionForFuel = useMemo(() => {
+    const acc = {}
+    allGasoilForFuel.forEach(g => { if (!acc[g.camion_id]) acc[g.camion_id] = []; acc[g.camion_id].push(g) })
+    return acc
+  }, [allGasoilForFuel])
 
   // ── the ONE place computeVoyageProfit is called — every section reads this
   // same memoized array, never recomputing profit itself. ──
@@ -138,11 +160,12 @@ export default function Dashboard() {
       charges: charges.filter(c => c.voyage_id === v.id),
       retours: retours.filter(r => r.voyage_id === v.id),
       locations: locations.filter(l => l.voyage_id === v.id),
-      camionRefills: gasoilByCamion[v.camion_id] || [],
-      voyageGasoilRows: voyageGasoil.filter(g => g.voyage_id === v.id),
+      camionRefills: gasoilByCamionForFuel[v.camion_id] || [],
+      camionVoyages: allVoyagesForFuel.filter(vv => vv.camion_id === v.camion_id),
+      voyageGasoilLinks: allVoyageGasoilLinks,
       remiseRate,
     }),
-  })), [voyages, achats, livraisons, charges, retours, locations, gasoilByCamion, voyageGasoil, remiseRate])
+  })), [voyages, achats, livraisons, charges, retours, locations, gasoilByCamionForFuel, allVoyagesForFuel, allVoyageGasoilLinks, remiseRate])
 
   const periodResults = useMemo(
     () => results.filter(r => r.date_depart >= rangeFrom && r.date_depart <= rangeTo),
@@ -226,7 +249,7 @@ export default function Dashboard() {
 
             {/* ── SECTION 5 — Operational Alerts ── */}
             <OperationalAlerts
-              results={periodResults} achats={achats} livraisons={livraisons} voyageGasoil={voyageGasoil}
+              results={periodResults} achats={achats} livraisons={livraisons} voyageGasoil={allVoyageGasoilLinks}
               allGasoil={allGasoil} camions={camions} voyages={voyages}
               clients={clients} grignonClients={grignonClients}
               fournisseurs={fournisseurs} grignonFournisseurs={grignonFournisseurs}
