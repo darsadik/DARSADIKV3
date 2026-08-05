@@ -219,14 +219,28 @@ export default function FournisseursGasoil() {
   const totalAdblueLitres = periodEntries.reduce((s, e) => s + (e.adblueQte || 0), 0)
   const fuelDiscount      = Math.round(totalFuelLitres * remiseRate * 100) / 100
 
-  // ── SOLDE À PAYER (period) — a true running balance, not a recompute from
-  // the summary's own totals: start from openingBalance, apply the period's
-  // achats/paiements (closingBalance already does exactly this, untouched),
-  // then apply the fuel discount on top — same sequence as the ledger itself
-  // would produce if remise were one of its debit/credit rows. Presentation
-  // only — does not touch closingBalance, the ledger's own per-row solde,
-  // totalAchats/fuelDiscount/totalPaiements/soldeDuNet, or gasoil_fournisseurs.solde. ──
-  const soldeAPayer = Math.round((closingBalance - fuelDiscount) * 100) / 100
+  // ── PREVIOUS BALANCE (discount-adjusted) — the supplier's real running
+  // balance immediately before the selected period: opening_balance + every
+  // prior achat − every prior paiement − the fuel discount those prior
+  // achats already earned. `openingBalance` above (used only for the
+  // ledger's own display/closingBalance) intentionally never subtracts
+  // discount — remise has never been a ledger line item, and that stays
+  // untouched. This is a second, summary-only figure so "previous balance"
+  // for SOLDE À PAYER matches what soldeDuNet would already say as of the
+  // start of the period, instead of silently dropping every prior period's
+  // discount. ──
+  const beforeFuelLitres = beforeEntries.reduce((s, e) => s + (e.qte || 0), 0)
+  const beforeDiscount   = Math.round(beforeFuelLitres * remiseRate * 100) / 100
+  const previousBalance  = openingBalance - beforeDiscount
+
+  // ── SOLDE À PAYER — the supplier's real running balance, continued: start
+  // from previousBalance (already discount-adjusted, see above), add this
+  // period's achats, subtract this period's fuel discount, subtract this
+  // period's paiements. Never derived from totalAchats alone. Presentation
+  // only — does not touch openingBalance/closingBalance/the ledger's own
+  // per-row solde, totalAchats/fuelDiscount/totalPaiements/soldeDuNet, or
+  // gasoil_fournisseurs.solde. ──
+  const soldeAPayer = Math.round((previousBalance + totalAchats - fuelDiscount - totalPaiements) * 100) / 100
 
   // ── SOLDE DÛ (BALANCE DUE) — single source of truth for "how much this
   // supplier is currently owed": opening balance + ALL-TIME purchases −
@@ -486,12 +500,20 @@ ${printFooter(printDate)}
     const selectedFuelLitres   = pEntries.filter(e => e.type === 'purchase').reduce((s, e) => s + (e.qte || 0), 0)
     const selectedFuelDiscount = Math.round(selectedFuelLitres * remiseRate * 100) / 100
     // ── SOLDE À PAYER — a true running balance, same as the chrono
-    // statement's soldeAPayer: the printed rows' own closing solde (which
-    // already carries opening_balance / carry-forward + achats − paiements,
-    // via buildPresentationLedger — untouched) minus the period's fuel
-    // discount. Not a flat recompute from selectedAchats alone. ──
-    const selectedClosingBalance = pEntries.length > 0 ? pEntries[pEntries.length - 1].solde : pLedger.finalBalance
-    const selectedSoldeAPayer    = Math.round((selectedClosingBalance - selectedFuelDiscount) * 100) / 100
+    // statement's soldeAPayer: the last printed row's own solde already
+    // carries the full opening_balance/carry-forward + achats − paiements
+    // (via buildPresentationLedger — untouched); this subtracts the FULL
+    // cumulative fuel discount up to that same point in the presentation
+    // order — not just selectedFuelDiscount (the printed rows' own discount,
+    // still shown as-is in the Résumé table below) — so a partial-selection
+    // print still reconciles even when earlier, unprinted purchases also
+    // earned discount. ──
+    const lastPrintedEntry       = pEntries.length > 0 ? pEntries[pEntries.length - 1] : null
+    const lastPrintedIdx         = lastPrintedEntry ? pLedger.entries.indexOf(lastPrintedEntry) : -1
+    const cumulativeFuelLitres   = lastPrintedIdx >= 0 ? pLedger.entries.slice(0, lastPrintedIdx + 1).reduce((s, e) => s + (e.qte || 0), 0) : 0
+    const cumulativeFuelDiscount = Math.round(cumulativeFuelLitres * remiseRate * 100) / 100
+    const selectedClosingBalance = lastPrintedEntry ? lastPrintedEntry.solde : pLedger.finalBalance
+    const selectedSoldeAPayer    = Math.round((selectedClosingBalance - cumulativeFuelDiscount) * 100) / 100
 
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
