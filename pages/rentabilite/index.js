@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { computeVoyageProfit, buildFuelMapsByCamion, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import FilterBar, { DEFAULT_FILTERS } from '../../components/profitability/FilterBar'
 import Overview from '../../components/profitability/Overview'
@@ -123,11 +123,12 @@ export default function ProfitabiliteCenter() {
     setLoading(false)
   }
 
-  const gasoilByCamion = useMemo(() => {
-    const acc = {}
-    allGasoil.forEach(g => { if (!acc[g.camion_id]) acc[g.camion_id] = []; acc[g.camion_id].push(g) })
-    return acc
-  }, [allGasoil])
+  // Built ONCE per truck (not once per voyage) — see lib/services/profitability.js.
+  // Every voyage below does a cheap Map lookup instead of rebuilding its
+  // truck's whole purchase/voyage history from scratch.
+  const fuelMapsByCamion = useMemo(() => buildFuelMapsByCamion({
+    gasoil: allGasoil, voyages: allVoyages, voyageGasoilLinks: allVoyageGasoilLinks, remiseRate,
+  }), [allGasoil, allVoyages, allVoyageGasoilLinks, remiseRate])
 
   const drivers = useMemo(() => [...new Set(voyages.map(v => v.chauffeur).filter(Boolean))].sort(), [voyages])
 
@@ -176,12 +177,10 @@ export default function ProfitabiliteCenter() {
       charges: charges.filter(c => c.voyage_id === v.id),
       retours: retours.filter(r => r.voyage_id === v.id),
       locations: locations.filter(l => l.voyage_id === v.id),
-      camionRefills: gasoilByCamion[v.camion_id] || [],
-      camionVoyages: allVoyages.filter(vv => vv.camion_id === v.camion_id),
+      voyageFuelMap: fuelMapsByCamion.get(v.camion_id) || new Map(),
       voyageGasoilLinks: allVoyageGasoilLinks,
-      remiseRate,
     }),
-  })), [visibleVoyages, achats, livraisons, charges, retours, locations, gasoilByCamion, allVoyages, allVoyageGasoilLinks, remiseRate])
+  })), [visibleVoyages, achats, livraisons, charges, retours, locations, fuelMapsByCamion, allVoyageGasoilLinks])
 
   const resultById = useMemo(() => Object.fromEntries(results.map(r => [r.id, r])), [results])
   const drawerVoyage = drawerVoyageId ? resultById[drawerVoyageId] : null

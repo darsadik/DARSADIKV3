@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
 import { recalcOdometerChain } from '../../lib/services/voyage/updates'
 import { fmtMoney } from '../../lib/utils'
+import { computeVoyageProfit, buildFuelMapsByCamion, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 
 const fmt     = n => Math.round(n || 0).toLocaleString('fr-MA')
 const fmtDate = d => { if (!d) return '—'; const [y,m,j] = d.split('-'); return `${j}/${m}/${y}` }
@@ -19,8 +21,17 @@ export default function VoyagesArchives() {
   const [livraisons, setLivraisons] = useState([])
   const [achats,     setAchats]     = useState([])
   const [charges,    setCharges]    = useState([])
-  const [gasoilData, setGasoilData] = useState([])
   const [retours,    setRetours]    = useState([])
+  const [locations,  setLocations]  = useState([])
+
+  // Fuel allocation engine inputs — truck-wide, never scoped to just the
+  // archived list (see pages/rentabilite/index.js: an archived voyage's own
+  // truck can have plenty of still-active voyages/purchases the engine needs
+  // to resolve its bracket or manual link correctly).
+  const [allVoyages,        setAllVoyages]        = useState([])
+  const [allGasoil,         setAllGasoil]         = useState([])
+  const [voyageGasoilLinks, setVoyageGasoilLinks] = useState([])
+  const [remiseRate,        setRemiseRate]        = useState(DEFAULT_REMISE_CARBURANT_RATE)
 
   const [loading,     setLoading]     = useState(true)
   const [restoring,   setRestoring]   = useState(null)  // voyage id being restored
@@ -29,7 +40,7 @@ export default function VoyagesArchives() {
 
   const isAdmin = user?.email === SUPER_ADMIN
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
   async function loadAll() {
     setLoading(true)
@@ -39,38 +50,63 @@ export default function VoyagesArchives() {
       { data: li },
       { data: ac },
       { data: ch },
-      { data: ga },
       { data: re },
+      { data: loc },
+      { data: allV },
+      { data: allGas },
+      { data: vgl },
     ] = await Promise.all([
       supabase.from('voyages').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-      supabase.from('voyage_livraisons').select('voyage_id,total_vente,qte,client_nom,type_produit'),
-      supabase.from('voyage_achats').select('voyage_id,total_achat,qte,prix_achat'),
-      supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
-      supabase.from('voyage_gasoil').select('voyage_id,total'),
+      supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,frais_total'),
+      supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,fournisseur_id,fournisseur_nom,qte,prix_achat,total_achat'),
+      supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom,categorie'),
       supabase.from('voyage_retours').select('voyage_id,montant,montant_paye'),
+      supabase.from('voyage_locations').select('voyage_id,montant_location'),
+      supabase.from('voyages').select('id,camion_id,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at'),
+      supabase.from('gasoil').select('id,camion_id,km,total,qte,adblue_total,date'),
+      // Pure (gasoil_id, voyage_id) membership rows — never `total` (see
+      // lib/services/voyage/gasoilLink.js: that column is always 0 for links
+      // created under this engine, so it's no longer a valid money source).
+      supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
     ])
     setVoyages(v || [])
     setLivraisons(li || [])
     setAchats(ac || [])
     setCharges(ch || [])
-    setGasoilData(ga || [])
     setRetours(re || [])
+    setLocations(loc || [])
+    setAllVoyages(allV || [])
+    setAllGasoil(allGas || [])
+    setVoyageGasoilLinks(vgl || [])
     setLoading(false)
   }
 
-  function voyageStats(vid) {
+  // Built once per truck (same pattern as every other page — see
+  // lib/services/profitability.js) and reused for every archived voyage
+  // below, instead of each voyage recomputing its own formula.
+  const fuelMapsByCamion = useMemo(() => buildFuelMapsByCamion({
+    gasoil: allGasoil, voyages: allVoyages, voyageGasoilLinks, remiseRate,
+  }), [allGasoil, allVoyages, voyageGasoilLinks, remiseRate])
+
+  // Same shared engine as Rentabilité/Dashboard/Voyage Detail/Voyage List/
+  // Review Mode — no parallel formula, so an archived voyage's revenue/cost/
+  // profit here are exactly what it showed before being archived, fuel
+  // included via the real allocation engine instead of the legacy
+  // voyage_gasoil.total column.
+  function voyageStats(voyage) {
+    const vid = voyage.id
     const myLivs = livraisons.filter(l => l.voyage_id === vid)
     const myAcs  = achats.filter(a => a.voyage_id === vid)
     const myChgs = charges.filter(c => c.voyage_id === vid)
-    const myGas  = gasoilData.filter(g => g.voyage_id === vid)
+    const myGas  = voyageGasoilLinks.filter(g => g.voyage_id === vid)
     const myRets = retours.filter(r => r.voyage_id === vid)
+    const myLocs = locations.filter(l => l.voyage_id === vid)
 
-    const revenu  = myLivs.reduce((s,l) => s+(l.total_vente||0), 0)
-      + myRets.reduce((s,r) => s+(r.montant||0), 0)
-      + myChgs.filter(c=>c.facture_client).reduce((s,c) => s+(c.montant||0), 0)
-    const cout    = myAcs.reduce((s,a) => s+(a.total_achat||(a.qte||0)*(a.prix_achat||0)), 0)
-      + myGas.reduce((s,g) => s+(g.total||0), 0)
-      + myChgs.filter(c=>!c.facture_client).reduce((s,c) => s+(c.montant||0), 0)
+    const p = computeVoyageProfit({
+      voyage, achats: myAcs, livraisons: myLivs, charges: myChgs, retours: myRets, locations: myLocs,
+      voyageFuelMap: fuelMapsByCamion.get(voyage.camion_id) || new Map(),
+      voyageGasoilLinks,
+    })
 
     return {
       nbLivs:    myLivs.length,
@@ -78,7 +114,7 @@ export default function VoyagesArchives() {
       nbCharges: myChgs.length,
       nbGasoil:  myGas.length,
       nbRetours: myRets.length,
-      revenu, cout, profit: revenu - cout,
+      revenu: p.revenue.total, cout: p.cost.total, profit: p.profit,
     }
   }
 
@@ -140,7 +176,7 @@ export default function VoyagesArchives() {
             </div>
 
             {(() => {
-              const s = voyageStats(confirmDel.id)
+              const s = voyageStats(confirmDel)
               return (
                 <>
                   <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-4 space-y-2">
@@ -242,7 +278,7 @@ export default function VoyagesArchives() {
                 </thead>
                 <tbody>
                   {voyages.map(v => {
-                    const s = voyageStats(v.id)
+                    const s = voyageStats(v)
                     const isRestoring = restoring === v.id
                     const isDeleting  = deleting  === v.id
                     return (

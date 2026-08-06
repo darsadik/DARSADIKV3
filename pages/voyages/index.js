@@ -5,7 +5,7 @@ import { useAuth } from '../_app'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { fmt, fmtMoney, fmtDate, today, startOfMonth } from '../../lib/utils'
-import { computeVoyageProfit, aggregateVoyageProfits, aggregateClientProfits, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { computeVoyageProfit, buildFuelMapsByCamion, aggregateVoyageProfits, aggregateClientProfits, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { recalcOdometerChain } from '../../lib/services/voyage/updates'
 import { StatusBadge, ProfitCell, MargeBadge } from '../../components/voyage/StatusBadges'
@@ -44,7 +44,7 @@ function TotalRow({ cols }) {
 
 // ── DELETE PREVIEW MODAL ─────────────────────────────────────────────────────
 
-function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, retours, onConfirm, onCancel, archiving }) {
+function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, retours, agg, onConfirm, onCancel, archiving }) {
   const ids = voyages.map(v => v.id)
 
   const myLivs = livraisons.filter(l => ids.includes(l.voyage_id))
@@ -53,14 +53,17 @@ function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, 
   const myGas  = gasoilData.filter(g => ids.includes(g.voyage_id))
   const myRets = retours.filter(r => ids.includes(r.voyage_id))
 
-  const revenuLivs = myLivs.reduce((s, l) => s + (l.total_vente || 0), 0)
-  const revenuRets = myRets.reduce((s, r) => s + (r.montant || 0), 0)
-  const chgCli     = myChgs.filter(c => c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-  const revenuBrut = revenuLivs + revenuRets + chgCli
-  const coutAchat  = myAcs.reduce((s, a) => s + (a.total_achat || (a.qte || 0) * (a.prix_achat || 0)), 0)
-  const coutGasoil = myGas.reduce((s, g) => s + (g.total || 0), 0)
-  const coutCharges = myChgs.filter(c => !c.facture_client).reduce((s, c) => s + (c.montant || 0), 0)
-  const profit     = revenuBrut - coutAchat - coutGasoil - coutCharges
+  // Financial preview reads `agg` — the exact same aggregateVoyageProfits(
+  // computeVoyageProfit(...)) result the parent already computed for the main
+  // list (see `calc()` below) — never its own formula, so this preview always
+  // matches exactly what Rentabilité shows for these same voyages, fuel
+  // included via the real allocation engine instead of the legacy
+  // voyage_gasoil.total column.
+  const revenuBrut  = agg.revenue.total
+  const coutAchat   = agg.cost.achatTotal
+  const coutGasoil  = agg.cost.fuel
+  const coutCharges = agg.cost.total - agg.cost.achatTotal - agg.cost.fuel
+  const profit      = agg.profit
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -274,11 +277,11 @@ export default function Voyages() {
 
   // ── PROFIT FORMULA (shared engine — lib/services/profitability.js) ─────────
 
-  const gasoilByCamion = allGasoil.reduce((acc, g) => {
-    if (!acc[g.camion_id]) acc[g.camion_id] = []
-    acc[g.camion_id].push(g)
-    return acc
-  }, {})
+  // Built ONCE per truck per render (not once per voyage) — see
+  // lib/services/profitability.js. Both call sites below share this.
+  const fuelMapsByCamion = buildFuelMapsByCamion({
+    gasoil: allGasoil, voyages, voyageGasoilLinks: gasoilData, remiseRate,
+  })
 
   function resultsFor(vIds) {
     return voyages.filter(v => vIds.includes(v.id)).map(v => computeVoyageProfit({
@@ -288,10 +291,8 @@ export default function Voyages() {
       charges: charges.filter(c => c.voyage_id === v.id),
       retours: retours.filter(r => r.voyage_id === v.id),
       locations: locationsData.filter(l => l.voyage_id === v.id),
-      camionRefills: gasoilByCamion[v.camion_id] || [],
-      camionVoyages: voyages.filter(vv => vv.camion_id === v.camion_id),
+      voyageFuelMap: fuelMapsByCamion.get(v.camion_id) || new Map(),
       voyageGasoilLinks: gasoilData,
-      remiseRate,
     }))
   }
   function calc(vIds) { return aggregateVoyageProfits(resultsFor(vIds)) }
@@ -425,10 +426,8 @@ export default function Voyages() {
       charges: charges.filter(c => c.voyage_id === v.id),
       retours: retours.filter(r => r.voyage_id === v.id),
       locations: locationsData.filter(l => l.voyage_id === v.id),
-      camionRefills: gasoilByCamion[v.camion_id] || [],
-      camionVoyages: voyages.filter(vv => vv.camion_id === v.camion_id),
+      voyageFuelMap: fuelMapsByCamion.get(v.camion_id) || new Map(),
       voyageGasoilLinks: gasoilData,
-      remiseRate,
     })
     const myLivs = livraisons.filter(l => l.voyage_id === v.id)
     return {
@@ -516,6 +515,7 @@ export default function Voyages() {
           charges={charges}
           gasoilData={gasoilData}
           retours={retours}
+          agg={calc(deletePreviewFor.map(v => v.id))}
           onConfirm={confirmSoftDelete}
           onCancel={() => setDeletePreviewFor(null)}
           archiving={archiving}

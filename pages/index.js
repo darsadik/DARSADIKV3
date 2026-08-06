@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './_app'
-import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../lib/services/profitability'
+import { computeVoyageProfit, buildFuelMapsByCamion, DEFAULT_REMISE_CARBURANT_RATE } from '../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../lib/services/settings'
 import { fmtDate, today, startOfMonth } from '../lib/utils'
 import ExecutiveKpis from '../components/dashboard/ExecutiveKpis'
@@ -143,11 +143,10 @@ export default function Dashboard() {
     return acc
   }, [allGasoil])
 
-  const gasoilByCamionForFuel = useMemo(() => {
-    const acc = {}
-    allGasoilForFuel.forEach(g => { if (!acc[g.camion_id]) acc[g.camion_id] = []; acc[g.camion_id].push(g) })
-    return acc
-  }, [allGasoilForFuel])
+  // Built ONCE per truck (not once per voyage) — see lib/services/profitability.js.
+  const fuelMapsByCamion = useMemo(() => buildFuelMapsByCamion({
+    gasoil: allGasoilForFuel, voyages: allVoyagesForFuel, voyageGasoilLinks: allVoyageGasoilLinks, remiseRate,
+  }), [allGasoilForFuel, allVoyagesForFuel, allVoyageGasoilLinks, remiseRate])
 
   // ── the ONE place computeVoyageProfit is called — every section reads this
   // same memoized array, never recomputing profit itself. ──
@@ -160,12 +159,10 @@ export default function Dashboard() {
       charges: charges.filter(c => c.voyage_id === v.id),
       retours: retours.filter(r => r.voyage_id === v.id),
       locations: locations.filter(l => l.voyage_id === v.id),
-      camionRefills: gasoilByCamionForFuel[v.camion_id] || [],
-      camionVoyages: allVoyagesForFuel.filter(vv => vv.camion_id === v.camion_id),
+      voyageFuelMap: fuelMapsByCamion.get(v.camion_id) || new Map(),
       voyageGasoilLinks: allVoyageGasoilLinks,
-      remiseRate,
     }),
-  })), [voyages, achats, livraisons, charges, retours, locations, gasoilByCamionForFuel, allVoyagesForFuel, allVoyageGasoilLinks, remiseRate])
+  })), [voyages, achats, livraisons, charges, retours, locations, fuelMapsByCamion, allVoyageGasoilLinks])
 
   const periodResults = useMemo(
     () => results.filter(r => r.date_depart >= rangeFrom && r.date_depart <= rangeTo),

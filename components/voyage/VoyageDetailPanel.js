@@ -23,7 +23,7 @@ import GasoilSection from './GasoilSection'
 import FuelModeSection from './FuelModeSection'
 import LocationSection from './LocationSection'
 import ValidationPanel from './ValidationPanel'
-import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { computeVoyageProfit, buildFuelMapsByCamion, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { buildFuelCycles } from '../../lib/services/fuelCycles'
 
@@ -242,8 +242,12 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
         supabase.from('gasoil').select('id,camion_id,km,total,qte,adblue_total,date'),
       ])
       setSidebarVoyages(vs || [])
-      const gasoilByCamion = {}
-      ;(gp || []).forEach(g => { if (!gasoilByCamion[g.camion_id]) gasoilByCamion[g.camion_id] = []; gasoilByCamion[g.camion_id].push(g) })
+      // Built ONCE per truck across the whole fleet (not once per voyage) —
+      // see lib/services/profitability.js. This sidebar lists every voyage
+      // with no date filter, so it's the single biggest win for this refactor.
+      const fuelMapsByCamion = buildFuelMapsByCamion({
+        gasoil: gp || [], voyages: vs || [], voyageGasoilLinks: ga || [], remiseRate,
+      })
       const profits = {}
       ;(vs || []).forEach(v => {
         const p = computeVoyageProfit({
@@ -253,10 +257,8 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
           charges: (ch||[]).filter(c=>c.voyage_id===v.id),
           retours: (re||[]).filter(r=>r.voyage_id===v.id),
           locations: (sl||[]).filter(l=>l.voyage_id===v.id),
-          camionRefills: gasoilByCamion[v.camion_id] || [],
-          camionVoyages: (vs||[]).filter(vv=>vv.camion_id===v.camion_id),
+          voyageFuelMap: fuelMapsByCamion.get(v.camion_id) || new Map(),
           voyageGasoilLinks: ga || [],
-          remiseRate,
         })
         profits[v.id] = p.profit
       })
@@ -349,16 +351,21 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
     })
   }, [gasoil, vehicleGasoil])
 
+  // Built once for this voyage's truck (a single-truck call here, but kept on
+  // the same buildFuelMapsByCamion API as every other caller for consistency
+  // — see lib/services/profitability.js).
+  const fuelMapForThisCamion = useMemo(() => buildFuelMapsByCamion({
+    gasoil: vehicleGasoil, voyages: camionVoyagesForCycle, voyageGasoilLinks: truckVoyageGasoilLinks, remiseRate,
+  }).get(voyage?.camion_id) || new Map(), [vehicleGasoil, camionVoyagesForCycle, truckVoyageGasoilLinks, remiseRate, voyage?.camion_id])
+
   // Memoized (not just inline) so its identity only changes when the actual
   // section data changes — not on every keystroke in an unrelated add-form —
   // since it also drives the onSaved notification below.
   const result = useMemo(() => computeVoyageProfit({
     voyage, achats, livraisons, charges, retours, locations,
-    camionRefills: vehicleGasoil,
-    camionVoyages: camionVoyagesForCycle,
+    voyageFuelMap: fuelMapForThisCamion,
     voyageGasoilLinks: truckVoyageGasoilLinks,
-    remiseRate,
-  }), [voyage, achats, livraisons, charges, retours, locations, vehicleGasoil, camionVoyagesForCycle, truckVoyageGasoilLinks, remiseRate])
+  }), [voyage, achats, livraisons, charges, retours, locations, fuelMapForThisCamion, truckVoyageGasoilLinks])
 
   // Display total for the GasoilSection "historique" table/footer and the
   // "use linked fuel instead" override — this voyage's ACTUAL computed share

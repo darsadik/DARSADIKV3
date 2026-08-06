@@ -101,7 +101,7 @@ export default function VoyageKmCarburant() {
 
   const odometerRows = useMemo(() => buildOdometerRows(activeVoyages, camions), [activeVoyages, camions])
   const odometerProblems = useMemo(() => detectOdometerProblems(odometerRows), [odometerRows])
-  const fuelProblems = useMemo(() => detectFuelAssignmentProblems({ gasoil, voyageGasoilRows }), [gasoil, voyageGasoilRows])
+  const fuelProblems = useMemo(() => detectFuelAssignmentProblems({ voyages, voyageRows }), [voyages, voyageRows])
   const distanceProblems = useMemo(() => detectUnrealisticDistances(voyageRows), [voyageRows])
   const allProblems = useMemo(() => {
     const order = { error: 0, warning: 1, info: 2 }

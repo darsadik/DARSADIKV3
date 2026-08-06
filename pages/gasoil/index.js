@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmt, fmtD, fmtDate, fmtMoney, today, startOfMonth, openPrintWindow } from '../../lib/utils'
 import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards, soldeFinal, printFooter } from '../../lib/printLayout'
-import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { DEFAULT_REMISE_CARBURANT_RATE, buildFuelMapsByCamion } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate, DEFAULT_FUEL_OPENING_BALANCE, fetchFuelOpeningBalance } from '../../lib/services/settings'
 import { previewCycleForNewPlein } from '../../lib/services/fuelCycles'
 import Link from 'next/link'
@@ -76,7 +76,7 @@ export default function Gasoil() {
   const [formError, setFormError] = useState('')
   const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
   const [fuelOpeningBalance, setFuelOpeningBalance] = useState(DEFAULT_FUEL_OPENING_BALANCE)
-  const [voyageGasoilTotal, setVoyageGasoilTotal] = useState(0)
+  const [voyageGasoilLinks, setVoyageGasoilLinks] = useState([])
   // null = auto-detect fusion (default), true = fusionner avec le précédent, false = nouveau cycle forcé
   const [mergeChoice, setMergeChoice] = useState(null)
 
@@ -114,23 +114,27 @@ export default function Gasoil() {
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }, { data: vgas }, { data: gf }] = await Promise.all([
+    const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }, { data: vgl }, { data: gf }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       // ✅ date ASC — oldest to newest
       supabase.from('gasoil').select('*').order('date', { ascending: true }),
       supabase.from('gasoil_paiements').select('*').order('date', { ascending: true }),
-      supabase.from('voyages').select('id,reference,date_depart,camion_id,camion_plaque,destination,km_depart,km_arrivee').order('date_depart', { ascending: true }),
-      // Fuel cost already allocated to voyages (CLAUDE.md profitability formula:
-      // COÛT TOTAL includes Σ voyage_gasoil.total) — read-only, used only for the
-      // Fuel Opening Balance's "Balance Carburant Actuelle" display below.
-      supabase.from('voyage_gasoil').select('total'),
+      // fuel_mode/manual_*/deleted_at added: needed by the allocation engine
+      // (lib/services/fuelAllocation.js, via buildFuelMapsByCamion below) to
+      // resolve automatic brackets and manual overrides for this truck.
+      supabase.from('voyages').select('id,reference,date_depart,camion_id,camion_plaque,destination,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at').order('date_depart', { ascending: true }),
+      // Pure (gasoil_id, voyage_id) membership rows for the engine — never its
+      // own `total` column (see lib/services/voyage/gasoilLink.js: that column
+      // is always 0 for links created under this engine, and is no longer a
+      // valid source for "how much fuel this voyage actually consumed").
+      supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
       supabase.from('gasoil_fournisseurs').select('*').order('nom'),
     ])
     setCamions(ca || [])
     setGasoil(ga || [])
     setGasoilPaiements(gp || [])
     setVoyages(vg || [])
-    setVoyageGasoilTotal((vgas || []).reduce((s, r) => s + (r.total || 0), 0))
+    setVoyageGasoilLinks(vgl || [])
     setGasoilFournisseurs(gf || [])
     setLoading(false)
   }
@@ -350,7 +354,20 @@ export default function Gasoil() {
   // touch Fuel Cycle, Cost/KM, Voyage calculations, Profitability, Truck
   // statistics, or Plein count.
   const totalAdblueAll = gasoil.reduce((s, g) => s + (g.adblue_total || 0), 0)
-  const currentFuelBalance = fuelOpeningBalance + totalGasoilAll + totalAdblueAll - voyageGasoilTotal
+  // "Alloué aux voyages" now reads the real allocation engine (same one
+  // Rentabilité/Dashboard/Voyage Detail/Voyage List/Review Mode use) instead
+  // of the legacy voyage_gasoil.total column, which is always 0 for links
+  // created under this engine (see lib/services/voyage/gasoilLink.js) — that
+  // old column is exactly what made this balance drift as soon as any voyage
+  // used the new allocation model. Summing every truck's voyageFuelMap gives
+  // the true total DHS the engine has attributed to voyages so far.
+  const fuelAllocatedToVoyages = useMemo(() => {
+    const maps = buildFuelMapsByCamion({ gasoil, voyages, voyageGasoilLinks, remiseRate })
+    let sum = 0
+    maps.forEach(voyageFuelMap => voyageFuelMap.forEach(amount => { sum += amount }))
+    return Math.round(sum * 100) / 100
+  }, [gasoil, voyages, voyageGasoilLinks, remiseRate])
+  const currentFuelBalance = fuelOpeningBalance + totalGasoilAll + totalAdblueAll - fuelAllocatedToVoyages
 
   // ── MONTHLY CONSUMPTION PER CAMION ──
   // For each camion in selected month:

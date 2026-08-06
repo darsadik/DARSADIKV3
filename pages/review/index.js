@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmtDate, today, startOfMonth, fmtMoney } from '../../lib/utils'
-import { computeVoyageProfit, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { computeVoyageProfit, buildFuelMapsByCamion, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { computeVoyageValidation, voyageValidationStatus } from '../../lib/services/voyage/validation'
 import { detectAnomalies, voyageReviewStatus } from '../../lib/services/review/anomalies'
@@ -82,11 +82,11 @@ export default function ReviewMode() {
     setLoading(false)
   }
 
-  const gasoilByCamion = useMemo(() => allGasoil.reduce((acc, g) => {
-    if (!acc[g.camion_id]) acc[g.camion_id] = []
-    acc[g.camion_id].push(g)
-    return acc
-  }, {}), [allGasoil])
+  // Built ONCE per truck (not once per voyage) — see lib/services/profitability.js.
+  // This is the whole-fleet, no-date-filter case, so it's the biggest win.
+  const fuelMapsByCamion = useMemo(() => buildFuelMapsByCamion({
+    gasoil: allGasoil, voyages, voyageGasoilLinks: gasoilData, remiseRate,
+  }), [allGasoil, voyages, gasoilData, remiseRate])
 
   // ── one row per voyage: profit + anomalies + review status ──
   const rows = useMemo(() => voyages.map(v => {
@@ -100,17 +100,15 @@ export default function ReviewMode() {
       charges: charges.filter(c => c.voyage_id === v.id),
       retours: retours.filter(r => r.voyage_id === v.id),
       locations: locationsData.filter(l => l.voyage_id === v.id),
-      camionRefills: gasoilByCamion[v.camion_id] || [],
-      camionVoyages: voyages.filter(vv => vv.camion_id === v.camion_id),
+      voyageFuelMap: fuelMapsByCamion.get(v.camion_id) || new Map(),
       voyageGasoilLinks: gasoilData,
-      remiseRate,
     })
     const anomalies = detectAnomalies({ voyage: v, achats: myAchats, livraisons: myLivraisons, gasoil: myGasoil, result })
     const status = voyageReviewStatus({ reviewed_at: v.reviewed_at, anomalies })
     const validationStatus = voyageValidationStatus(computeVoyageValidation(myAchats, myLivraisons))
     const clientNoms = [...new Set(myLivraisons.map(l => l.client_nom).filter(Boolean))]
     return { voyage: v, result, anomalies, status, validationStatus, clientNoms }
-  }), [voyages, achats, livraisons, charges, retours, locationsData, gasoilData, gasoilByCamion, remiseRate])
+  }), [voyages, achats, livraisons, charges, retours, locationsData, gasoilData, fuelMapsByCamion])
 
   // ── patch a single row after VoyageDetailPanel saves — no list refetch ──
   const patchRow = useCallback((voyage, result, sections = {}) => {
