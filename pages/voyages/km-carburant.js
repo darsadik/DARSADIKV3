@@ -15,6 +15,7 @@ import FuelAssignPopover from '../../components/carburant/FuelAssignPopover'
 import KmEditPopover from '../../components/carburant/KmEditPopover'
 import CreateNextVoyageModal from '../../components/carburant/CreateNextVoyageModal'
 import OdometerChainStrip from '../../components/carburant/OdometerChainStrip'
+import AllocationControlCenter from '../../components/carburant/AllocationControlCenter'
 
 const SEVERITY_TONE = { error: 'badge-red', warning: 'badge-amber', info: 'badge-blue' }
 
@@ -23,10 +24,12 @@ const DEFAULT_FILTERS = {
 }
 
 export default function VoyageKmCarburant() {
+  const [tab, setTab] = useState('timeline') // 'timeline' | 'allocation'
   const [camions, setCamions] = useState([])
   const [voyages, setVoyages] = useState([])
   const [gasoil, setGasoil] = useState([])
   const [voyageGasoilRows, setVoyageGasoilRows] = useState([])
+  const [livraisons, setLivraisons] = useState([])
   const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
   const [loading, setLoading] = useState(true)
 
@@ -43,7 +46,7 @@ export default function VoyageKmCarburant() {
 
   async function loadAll() {
     setLoading(true)
-    const [camionsRes, voyagesRes, gasoilRes, voyageGasoilRes] = await Promise.all([
+    const [camionsRes, voyagesRes, gasoilRes, voyageGasoilRes, livraisonsRes] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('voyages')
         .select('id,reference,date_depart,camion_id,camion_plaque,chauffeur,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
@@ -55,22 +58,40 @@ export default function VoyageKmCarburant() {
       // silently.
       supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,adblue_qte,adblue_prix_unitaire,date,station'),
       supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total,is_split'),
+      // Client name per voyage for the "Contrôle Allocation" tab's Allocation
+      // List (spec item 2) — client_nom is already denormalized on this
+      // table, so this is a read-only, additive lookup, unused by the
+      // Chronologie tab.
+      supabase.from('voyage_livraisons').select('voyage_id, client_nom'),
     ])
     // Surface query failures instead of silently rendering empty data —
     // this is exactly the class of bug that made the Fuel tab look empty
     // (a bad column name failed the query, and the failure went unnoticed
     // because only `data` was read, never `error`).
-    ;[camionsRes, voyagesRes, gasoilRes, voyageGasoilRes].forEach(res => {
+    ;[camionsRes, voyagesRes, gasoilRes, voyageGasoilRes, livraisonsRes].forEach(res => {
       if (res.error) console.error('km-carburant loadAll:', res.error.message)
     })
     setCamions(camionsRes.data || [])
     setVoyages(voyagesRes.data || [])
     setGasoil(gasoilRes.data || [])
     setVoyageGasoilRows(voyageGasoilRes.data || [])
+    setLivraisons(livraisonsRes.data || [])
     setLoading(false)
   }
 
   const activeVoyages = useMemo(() => voyages.filter(v => !v.deleted_at), [voyages])
+
+  // Used only by the "Contrôle Allocation" tab (AllocationControlCenter) —
+  // dedup, preserve insertion order.
+  const clientNamesByVoyageId = useMemo(() => {
+    const map = new Map()
+    livraisons.forEach(l => {
+      if (!l.voyage_id || !l.client_nom) return
+      if (!map.has(l.voyage_id)) map.set(l.voyage_id, [])
+      if (!map.get(l.voyage_id).includes(l.client_nom)) map.get(l.voyage_id).push(l.client_nom)
+    })
+    return map
+  }, [livraisons])
 
   const voyageRows = useMemo(() => buildVoyageKmFuelTimeline({
     voyages, camions, gasoil, voyageGasoilRows, remiseRate,
@@ -154,6 +175,32 @@ export default function VoyageKmCarburant() {
   return (
     <Layout title="Truck Timeline & KM/Fuel Control Center" subtitle="Centre de contrôle unique par camion — voyages, pleins, KM, distance et carburant en une seule chronologie. Corrigez, assignez et vérifiez tout depuis cette page.">
 
+      <div className="flex gap-2 bg-white border border-slate-200 rounded-xl p-1.5 mb-6 w-fit">
+        <button onClick={() => setTab('timeline')}
+          className={`text-sm font-bold px-4 py-2 rounded-lg transition ${tab === 'timeline' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+          🕐 Chronologie
+        </button>
+        <button onClick={() => setTab('allocation')}
+          className={`text-sm font-bold px-4 py-2 rounded-lg transition ${tab === 'allocation' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+          ⛽ Contrôle Allocation
+        </button>
+      </div>
+
+      {tab === 'allocation' && (
+        <AllocationControlCenter
+          camions={camions}
+          activeVoyages={activeVoyages}
+          voyageRows={voyageRows}
+          gasoil={gasoil}
+          voyageGasoilRows={voyageGasoilRows}
+          clientNamesByVoyageId={clientNamesByVoyageId}
+          remiseRate={remiseRate}
+          onSaved={loadAll}
+        />
+      )}
+
+      {tab === 'timeline' && <>
+
       <KmFuelDashboardCards
         dashboard={dashboard}
         pleinsNeedingAssignment={pleinsNeedingAssignmentCount}
@@ -236,6 +283,7 @@ export default function VoyageKmCarburant() {
           onClose={() => setViewingChainForCamionId(null)}
         />
       )}
+      </>}
     </Layout>
   )
 }

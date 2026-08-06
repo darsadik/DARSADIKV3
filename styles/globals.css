@@ -72,6 +72,7 @@ body {
   .badge-amber { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50  text-amber-600  ring-1 ring-inset ring-amber-100; }
   .badge-green { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 ring-1 ring-inset ring-emerald-100; }
   .badge-blue  { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50  text-brand-600  ring-1 ring-inset ring-brand-100; }
+  .badge-purple{ @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-600 ring-1 ring-inset ring-purple-100; }
   .badge-gray  { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600  ring-1 ring-inset ring-slate-200; }
 
   /* Tables */
