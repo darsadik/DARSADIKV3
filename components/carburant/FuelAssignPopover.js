@@ -23,7 +23,7 @@ export default function FuelAssignPopover({ plein, camionVoyageRows, onClose, on
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
 
-  const pleinForLink = useMemo(() => ({ id: plein.gasoilId }), [plein])
+  const pleinForLink = useMemo(() => ({ id: plein.gasoilId, date: plein.date, station: plein.station }), [plein])
 
   const linkedVoyageIds = useMemo(() => new Set(plein.links.map(l => l.voyage_id)), [plein.links])
 
