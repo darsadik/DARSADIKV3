@@ -6,11 +6,17 @@ import MarginBadge, { marginRowClass } from './MarginBadge'
 // off the merged {...voyage, ...computeVoyageProfit(...)} rows built once in
 // pages/rentabilite/index.js; this component only defines columns/sorting.
 //
-// Cost is shown as just two lines — Gasoil (r.cost.fuel) and Charges (every
-// other cost bucket combined: achats + location + charges opérationnelles) —
-// instead of exploding every internal cost bucket into its own column.
-// Charges is derived as cost.total − cost.fuel, so Gasoil + Charges always
-// equals Total Cost exactly; no engine value is recomputed differently.
+// Cost is shown as three lines, each reading its own bucket straight off the
+// engine's `cost` object — no bucket is derived by subtracting another:
+//   Purchases = cost.achatTotal (brique + grignon achats — same value as the
+//               Voyage page's "Total achats" under Achats Briques & Grignon)
+//   Fuel      = cost.fuel (Fuel Allocation Engine output, unchanged)
+//   Charges   = cost.chargesOperationnelles (charges NOT billed to client —
+//               same value as the Voyage page's "Total charges fixes")
+// Total Cost stays cost.total, which the engine already computes as
+// achatTotal + fuel + rental + chargesOperationnelles — so it still equals
+// Purchases + Fuel + Charges, plus truck rental folded in silently when the
+// voyage has a location row (rental has no column of its own here).
 export default function ByVoyageSection({ results, onOpenVoyage }) {
   const columns = [
     { key: 'date', label: 'Date', sortValue: r => r.date_depart, render: r => fmtDate(r.date_depart) },
@@ -25,8 +31,9 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
       <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{r.clients?.length || 0}</span>
     ) },
     { key: 'revenue', label: 'Revenu', right: true, sortValue: r => r.revenue.total, exportValue: r => Math.round(r.revenue.total), render: r => <span className="font-bold text-emerald-600">{fmtMoney(r.revenue.total)}</span> },
+    { key: 'purchases', label: 'Achats', right: true, sortValue: r => r.cost.achatTotal, exportValue: r => Math.round(r.cost.achatTotal), render: r => <span className="text-red-400">−{fmtMoney(r.cost.achatTotal)}</span> },
     { key: 'gasoil', label: 'Gasoil', right: true, sortValue: r => r.cost.fuel, exportValue: r => Math.round(r.cost.fuel), render: r => <span className="text-red-400">−{fmtMoney(r.cost.fuel)}</span> },
-    { key: 'charges', label: 'Charges', right: true, sortValue: r => r.cost.total - r.cost.fuel, exportValue: r => Math.round(r.cost.total - r.cost.fuel), render: r => <span className="text-red-400">−{fmtMoney(r.cost.total - r.cost.fuel)}</span> },
+    { key: 'charges', label: 'Charges', right: true, sortValue: r => r.cost.chargesOperationnelles, exportValue: r => Math.round(r.cost.chargesOperationnelles), render: r => <span className="text-red-400">−{fmtMoney(r.cost.chargesOperationnelles)}</span> },
     { key: 'totalCost', label: '= Coût total', right: true, sortValue: r => r.cost.total, exportValue: r => Math.round(r.cost.total), render: r => <span className="font-bold text-red-700">−{fmtMoney(r.cost.total)}</span> },
     { key: 'profit', label: '= Profit', right: true, sortValue: r => r.profit, exportValue: r => Math.round(r.profit), render: r => (
       <span className={`font-black ${r.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{r.profit >= 0 ? '+' : ''}{fmtMoney(r.profit)}</span>
@@ -41,9 +48,10 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
 
   function footer(rows) {
     const rev = rows.reduce((s, r) => s + r.revenue.total, 0)
+    const purchases = rows.reduce((s, r) => s + r.cost.achatTotal, 0)
     const gasoil = rows.reduce((s, r) => s + r.cost.fuel, 0)
+    const charges = rows.reduce((s, r) => s + r.cost.chargesOperationnelles, 0)
     const totalCost = rows.reduce((s, r) => s + r.cost.total, 0)
-    const charges = totalCost - gasoil
     const profit = rows.reduce((s, r) => s + r.profit, 0)
     const marge = rev > 0 ? Math.round(profit / rev * 100) : 0
     return (
@@ -51,6 +59,7 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
         <tr className="border-t-2 border-slate-300 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
           <td colSpan={4} className="py-3 px-3 font-black text-sm uppercase tracking-wide">Total ({rows.length})</td>
           <td className="py-3 px-3 text-right font-black text-emerald-400">{fmtMoney(rev)}</td>
+          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(purchases)}</td>
           <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(gasoil)}</td>
           <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(charges)}</td>
           <td className="py-3 px-3 text-right font-black text-red-200">−{fmtMoney(totalCost)}</td>
