@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtMoney, fmtDate, today, startOfMonth, openPrintWindow } from '../../lib/utils'
+import { fmt, fmtMoney, fmtDate, today, startOfMonth, openPrintWindow, montantEnLettres } from '../../lib/utils'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import { resolveLivraisonByVenteId, resolveLivraisonByFraisRow, resolveChargeByVenteId } from '../../lib/services/voyage/resolveSource'
@@ -503,13 +503,12 @@ export default function Clients() {
   tbody tr.band td{background:#f6f8fb !important}
   tbody tr.grp-end td{border-bottom:1.5px solid #c3ccd6 !important}
   .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
-  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;font-weight:800;font-size:14px;color:#5b21b6}
-  .totals-amt{font-size:16px;font-weight:600;font-family:'Courier New',monospace}
-  .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
-  .sf-lbl{font-size:12px;font-weight:700;color:#166534;letter-spacing:0.01em}
-  .sf-amt{font-size:34px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
-  .sf-unit{font-size:12px;font-weight:600;color:#4ade80;margin-left:4px}
-  .sf-sub{font-size:10px;color:#86efac;margin-top:2px}
+  .total-block{margin-top:14px;padding-top:14px;border-top:1px solid #dde3ea;text-align:right}
+  .total-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em}
+  .total-value{margin-top:4px;font-size:27px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
+  .total-value .u{font-size:16px;font-weight:700;margin-left:3px}
+  .total-words{margin-top:10px;font-size:11px;color:#475569;line-height:1.6}
+  .total-words strong{color:#334155;font-weight:700}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
 <div class="hdr">
@@ -577,13 +576,10 @@ export default function Clients() {
     }).join('')}
   </tbody>
 </table>
-${pDisplayEntries.length > 0 ? `<div class="totals-row">
-  <span>Total</span>
-  <span class="totals-amt">${fmtMoney(pFinalBalance)} DHS</span>
-</div>` : ''}
-<div class="solde-final">
-  <div><div class="sf-lbl">Solde actuel à payer</div><div class="sf-sub">${periode}</div></div>
-  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
+<div class="total-block">
+  <div class="total-label">Total</div>
+  <div class="total-value">${fmtMoney(pFinalBalance)}<span class="u">DH</span></div>
+  <div class="total-words">Arrêté le présent relevé à la somme de :<br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
@@ -693,13 +689,12 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
   tbody tr.band td{background:#f6f8fb !important}
   tbody tr.grp-end td{border-bottom:1.5px solid #c3ccd6 !important}
-  .totals-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;font-weight:800;font-size:14px;color:#5b21b6}
-  .totals-amt{font-size:16px;font-weight:600;font-family:'Courier New',monospace}
-  .solde-final{background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
-  .sf-lbl{font-size:20px;font-weight:900;color:#166534}
-  .sf-amt{font-size:22px;font-weight:900;color:#15803d;line-height:1;letter-spacing:-0.5px}
-  .sf-unit{font-size:12px;font-weight:600;color:#4ade80;margin-left:4px}
-  .sf-sub{font-size:10px;color:#86efac;margin-top:2px}
+  .total-block{margin-top:14px;padding-top:14px;border-top:1px solid #dde3ea;text-align:right}
+  .total-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em}
+  .total-value{margin-top:4px;font-size:27px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
+  .total-value .u{font-size:16px;font-weight:700;margin-left:3px}
+  .total-words{margin-top:10px;font-size:11px;color:#475569;line-height:1.6}
+  .total-words strong{color:#334155;font-weight:700}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
 <div class="hdr">
@@ -738,13 +733,10 @@ ${pDisplayEntries.length > 0 ? `<div class="totals-row">
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>
-${pEntries.length > 0 ? `<div class="totals-row">
-  <span>Total</span>
-  <span class="totals-amt">${fmtMoney(pFinalBalance)} DHS</span>
-</div>` : ''}
-<div class="solde-final">
-  <div><div class="sf-lbl">Solde à payer</div><div class="sf-sub">${isSelectionPrint ? `${pEntries.length} opération${pEntries.length!==1?'s':''} sélectionnée${pEntries.length!==1?'s':''}` : 'Vue Présentation'}</div></div>
-  <div style="text-align:right"><div style="line-height:1"><span class="sf-amt">${fmtMoney(pFinalBalance)}</span><span class="sf-unit">DHS</span></div></div>
+<div class="total-block">
+  <div class="total-label">Total</div>
+  <div class="total-value">${fmtMoney(pFinalBalance)}<span class="u">DH</span></div>
+  <div class="total-words">Arrêté le présent relevé à la somme de :<br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
 </div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
