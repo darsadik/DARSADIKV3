@@ -14,6 +14,17 @@ export default function ByClientSection({ results, onOpenVoyage }) {
     return aggregateClientProfits(results).map(c => ({ ...c, nbVoyages: results.filter(r => r.clients.some(rc => rc.key === c.key)).length }))
   }, [results])
 
+  // PDF TOTAL row: plain reduce over the already-computed `rows` (one row per
+  // client, from aggregateClientProfits) — never re-touches the profit engine.
+  function totals(rows) {
+    const revenue = rows.reduce((s, r) => s + r.revenue.total, 0)
+    const profit = rows.reduce((s, r) => s + r.profit, 0)
+    const nbVoyages = rows.reduce((s, r) => s + r.nbVoyages, 0)
+    const marge = revenue > 0 ? Math.round(profit / revenue * 100) : 0
+    const avgProfit = nbVoyages > 0 ? profit / nbVoyages : 0
+    return { revenue, profit, nbVoyages, marge, avgProfit }
+  }
+
   const columns = [
     { key: 'client', label: 'Client', sortValue: r => r.client_nom || '', render: r => (
       <div>
@@ -24,15 +35,17 @@ export default function ByClientSection({ results, onOpenVoyage }) {
     ) },
     { key: 'nbVoyages', label: 'Voyages', center: true, sortValue: r => r.nbVoyages, render: r => (
       <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{r.nbVoyages}</span>
-    ) },
-    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => r.revenue.total, exportValue: r => Math.round(r.revenue.total), render: r => <span className="font-bold text-emerald-600">{fmtMoney(r.revenue.total)}</span> },
-    { key: 'profit', label: '= Profit', right: true, sortValue: r => r.profit, exportValue: r => Math.round(r.profit), render: r => (
+    ), total: rows => String(totals(rows).nbVoyages) },
+    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => r.revenue.total, exportValue: r => Math.round(r.revenue.total), printValue: r => fmtMoney(r.revenue.total) + ' DHS', render: r => <span className="font-bold text-emerald-600">{fmtMoney(r.revenue.total)}</span>,
+      total: rows => fmtMoney(totals(rows).revenue) + ' DHS' },
+    { key: 'profit', label: '= Profit', right: true, sortValue: r => r.profit, exportValue: r => Math.round(r.profit), printValue: r => (r.profit >= 0 ? '+' : '') + fmtMoney(r.profit) + ' DHS', render: r => (
       <span className={`font-black ${r.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{r.profit >= 0 ? '+' : ''}{fmtMoney(r.profit)}</span>
-    ) },
-    { key: 'marge', label: 'Marge', right: true, sortValue: r => r.marge, exportValue: r => r.marge, render: r => <MarginBadge marge={r.marge} /> },
-    { key: 'avgProfit', label: 'Moy. / voyage', right: true, sortValue: r => r.profit / (r.nbVoyages || 1), exportValue: r => Math.round(r.profit / (r.nbVoyages || 1)), render: r => (
+    ), total: rows => { const p = totals(rows).profit; return (p >= 0 ? '+' : '') + fmtMoney(p) + ' DHS' } },
+    { key: 'marge', label: 'Marge', right: true, sortValue: r => r.marge, exportValue: r => r.marge, printValue: r => r.marge + '%', render: r => <MarginBadge marge={r.marge} />,
+      total: rows => totals(rows).marge + '%' },
+    { key: 'avgProfit', label: 'Moy. / voyage', right: true, sortValue: r => r.profit / (r.nbVoyages || 1), exportValue: r => Math.round(r.profit / (r.nbVoyages || 1)), printValue: r => fmtMoney(r.profit / (r.nbVoyages || 1)) + ' DHS', render: r => (
       <span className={r.profit >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-500 font-semibold'}>{fmtMoney(r.profit / (r.nbVoyages || 1))}</span>
-    ) },
+    ), total: rows => fmtMoney(totals(rows).avgProfit) + ' DHS' },
   ]
 
   const selectedClient = rows.find(r => r.key === selected)

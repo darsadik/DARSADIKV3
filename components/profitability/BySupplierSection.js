@@ -30,6 +30,16 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
     return Array.from(map.values()).map(s => ({ ...s, nbVoyages: s.voyageIds.size })).sort((a, b) => b.totalAchat - a.totalAchat)
   }, [myAchats])
 
+  // PDF TOTAL row: plain reduce over the already-aggregated per-supplier
+  // `rows` — raw purchase spend, same values already shown on screen.
+  function totals(rows) {
+    return {
+      nbAchats: rows.reduce((s, r) => s + r.nbAchats, 0),
+      nbVoyages: rows.reduce((s, r) => s + r.nbVoyages, 0),
+      totalAchat: rows.reduce((s, r) => s + r.totalAchat, 0),
+    }
+  }
+
   const columns = [
     { key: 'nom', label: 'Fournisseur', sortValue: r => r.fournisseur_nom || '', render: r => (
       <div>
@@ -39,11 +49,12 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
     ) },
     { key: 'nbAchats', label: 'Achats', center: true, sortValue: r => r.nbAchats, render: r => (
       <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{r.nbAchats}</span>
-    ) },
+    ), total: rows => String(totals(rows).nbAchats) },
     { key: 'nbVoyages', label: 'Voyages', center: true, sortValue: r => r.nbVoyages, render: r => (
       <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{r.nbVoyages}</span>
-    ) },
-    { key: 'total', label: 'Total dépensé', right: true, sortValue: r => r.totalAchat, exportValue: r => Math.round(r.totalAchat), render: r => <span className="font-black text-red-500">{fmtMoney(r.totalAchat)} DHS</span> },
+    ), total: rows => String(totals(rows).nbVoyages) },
+    { key: 'total', label: 'Total dépensé', right: true, sortValue: r => r.totalAchat, exportValue: r => Math.round(r.totalAchat), printValue: r => fmtMoney(r.totalAchat) + ' DHS', render: r => <span className="font-black text-red-500">{fmtMoney(r.totalAchat)} DHS</span>,
+      total: rows => fmtMoney(totals(rows).totalAchat) + ' DHS' },
   ]
 
   const selectedSupplier = rows.find(r => r.key === selected)
@@ -51,14 +62,25 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
     ? myAchats.filter(a => `${a.type_produit}:${a.fournisseur_id}` === selected)
     : []
 
+  // Chronological (oldest → newest) by the achat's own voyage date, tie-broken
+  // by achat id — same convention as every other voyage-dated list in this
+  // module (see ByVoyageSection.js's chronoSort / lib/printRentabilite.js).
+  function drillChronoSort(a, b) {
+    const da = voyageById[a.voyage_id]?.date_depart || '', db = voyageById[b.voyage_id]?.date_depart || ''
+    if (da !== db) return da < db ? -1 : 1
+    return (a.id || 0) - (b.id || 0)
+  }
+
   const drillColumns = [
     { key: 'date', label: 'Date', sortValue: a => voyageById[a.voyage_id]?.date_depart || '', render: a => fmtDate(voyageById[a.voyage_id]?.date_depart) },
     { key: 'voyage', label: 'Voyage', sortValue: a => voyageById[a.voyage_id]?.reference || String(a.voyage_id), render: a => voyageById[a.voyage_id]?.reference || `#${a.voyage_id}` },
     { key: 'camion', label: 'Camion', sortValue: a => voyageById[a.voyage_id]?.camion_plaque || '', render: a => voyageById[a.voyage_id]?.camion_plaque || '—' },
     { key: 'type', label: 'Type', sortValue: a => a.type_brique || '', render: a => a.type_brique || '—' },
-    { key: 'qte', label: 'Qté', right: true, sortValue: a => a.qte, exportValue: a => a.qte, render: a => fmt(a.qte) },
-    { key: 'prix', label: 'Prix/u', right: true, sortValue: a => a.prix_achat, exportValue: a => a.prix_achat, render: a => fmtMoney(a.prix_achat) },
-    { key: 'total', label: 'Total', right: true, sortValue: a => a.total_achat, exportValue: a => Math.round(a.total_achat), render: a => <span className="font-bold text-red-500">{fmtMoney(a.total_achat)}</span> },
+    { key: 'qte', label: 'Qté', right: true, sortValue: a => a.qte, exportValue: a => a.qte, printValue: a => fmt(a.qte), render: a => fmt(a.qte),
+      total: rows => fmt(rows.reduce((s, a) => s + (a.qte || 0), 0)) },
+    { key: 'prix', label: 'Prix/u', right: true, sortValue: a => a.prix_achat, exportValue: a => a.prix_achat, printValue: a => fmtMoney(a.prix_achat) + ' DHS', render: a => fmtMoney(a.prix_achat) },
+    { key: 'total', label: 'Total', right: true, sortValue: a => a.total_achat, exportValue: a => Math.round(a.total_achat), printValue: a => fmtMoney(a.total_achat) + ' DHS', render: a => <span className="font-bold text-red-500">{fmtMoney(a.total_achat)}</span>,
+      total: rows => fmtMoney(rows.reduce((s, a) => s + (a.total_achat || 0), 0)) + ' DHS' },
   ]
 
   return (
@@ -85,7 +107,7 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
               <DataTable
                 columns={drillColumns} rows={selectedAchats} rowKey={a => a.id}
                 onRowClick={a => onOpenVoyage(a.voyage_id)}
-                defaultSortKey="date" exportFilename={selectedSupplier.fournisseur_nom}
+                defaultSortKey="date" printSort={drillChronoSort} exportFilename={selectedSupplier.fournisseur_nom}
               />
             </div>
           </div>

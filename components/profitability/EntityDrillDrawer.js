@@ -4,6 +4,14 @@ import DataTable from './DataTable'
 import MarginBadge, { marginRowClass, marginTier } from './MarginBadge'
 import KpiCard from './KpiCard'
 
+// Chronological (oldest → newest) tie-broken by id — same convention as
+// ByVoyageSection.js's chronoSort / lib/printRentabilite.js.
+function chronoSort(a, b) {
+  const da = a.date_depart || '', db = b.date_depart || ''
+  if (da !== db) return da < db ? -1 : 1
+  return (a.id || 0) - (b.id || 0)
+}
+
 // Level 2 of the drill-down: entity row (truck/client) → this modal, listing
 // every voyage that entity appears on within the current filters. Clicking a
 // row opens the shared VoyageDrawer (level 3) via onOpenVoyage, same as the
@@ -44,21 +52,11 @@ export default function EntityDrillDrawer({ title, subtitle, voyages, clientKey,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voyages, clientKey])
 
-  const columns = [
-    { key: 'date', label: 'Date', sortValue: r => r.date_depart, render: r => fmtDate(r.date_depart) },
-    { key: 'ref', label: 'Voyage', sortValue: r => r.reference || String(r.id), render: r => r.reference || `#${r.id}` },
-    { key: 'camion', label: 'Camion', sortValue: r => r.camion_plaque, render: r => r.camion_plaque },
-    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => breakdown(r).revenue, exportValue: r => Math.round(breakdown(r).revenue), render: r => <span className="font-bold text-emerald-600">{fmtMoney(breakdown(r).revenue)}</span> },
-    { key: 'gasoil', label: 'Gasoil', right: true, sortValue: r => breakdown(r).gasoil, exportValue: r => Math.round(breakdown(r).gasoil), render: r => breakdown(r).gasoil > 0 ? <span className="text-red-400">−{fmtMoney(breakdown(r).gasoil)}</span> : '—' },
-    { key: 'charges', label: 'Charges', right: true, sortValue: r => breakdown(r).charges, exportValue: r => Math.round(breakdown(r).charges), render: r => breakdown(r).charges > 0 ? <span className="text-red-400">−{fmtMoney(breakdown(r).charges)}</span> : '—' },
-    { key: 'totalCost', label: '= Coût total', right: true, sortValue: r => breakdown(r).total, exportValue: r => Math.round(breakdown(r).total), render: r => <span className="font-bold text-red-700">−{fmtMoney(breakdown(r).total)}</span> },
-    { key: 'profit', label: '= Profit', right: true, sortValue: r => breakdown(r).profit, exportValue: r => Math.round(breakdown(r).profit), render: r => (
-      <span className={`font-black ${breakdown(r).profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{breakdown(r).profit >= 0 ? '+' : ''}{fmtMoney(breakdown(r).profit)}</span>
-    ) },
-    { key: 'marge', label: 'Marge', right: true, sortValue: r => breakdown(r).marge, exportValue: r => breakdown(r).marge, render: r => <MarginBadge marge={breakdown(r).marge} /> },
-  ]
-
-  function footer(rows) {
+  // Single source for the TOTAL row's math — used by both the on-screen tfoot
+  // (footer() below) and the PDF/print export's TOTAL row (each column's
+  // `total`) so they can never diverge. Reduces breakdown(), which itself only
+  // reads fields already produced by computeVoyageProfit — no recomputation.
+  function computeTotals(rows) {
     const t = rows.reduce((acc, r) => {
       const b = breakdown(r)
       acc.revenue += b.revenue; acc.gasoil += b.gasoil; acc.total += b.total; acc.profit += b.profit
@@ -66,15 +64,39 @@ export default function EntityDrillDrawer({ title, subtitle, voyages, clientKey,
     }, { revenue: 0, gasoil: 0, total: 0, profit: 0 })
     const charges = t.total - t.gasoil
     const marge = t.revenue > 0 ? Math.round(t.profit / t.revenue * 100) : 0
+    return { ...t, charges, marge }
+  }
+
+  const columns = [
+    { key: 'date', label: 'Date', sortValue: r => r.date_depart, printValue: r => fmtDate(r.date_depart), render: r => fmtDate(r.date_depart) },
+    { key: 'ref', label: 'Voyage', sortValue: r => r.reference || String(r.id), render: r => r.reference || `#${r.id}` },
+    { key: 'camion', label: 'Camion', sortValue: r => r.camion_plaque, render: r => r.camion_plaque },
+    { key: 'revenue', label: 'Revenu', right: true, sortValue: r => breakdown(r).revenue, exportValue: r => Math.round(breakdown(r).revenue), printValue: r => fmtMoney(breakdown(r).revenue) + ' DHS', render: r => <span className="font-bold text-emerald-600">{fmtMoney(breakdown(r).revenue)}</span>,
+      total: rows => fmtMoney(computeTotals(rows).revenue) + ' DHS' },
+    { key: 'gasoil', label: 'Gasoil', right: true, sortValue: r => breakdown(r).gasoil, exportValue: r => Math.round(breakdown(r).gasoil), printValue: r => breakdown(r).gasoil > 0 ? '− ' + fmtMoney(breakdown(r).gasoil) + ' DHS' : '—', render: r => breakdown(r).gasoil > 0 ? <span className="text-red-400">−{fmtMoney(breakdown(r).gasoil)}</span> : '—',
+      total: rows => '− ' + fmtMoney(computeTotals(rows).gasoil) + ' DHS' },
+    { key: 'charges', label: 'Charges', right: true, sortValue: r => breakdown(r).charges, exportValue: r => Math.round(breakdown(r).charges), printValue: r => breakdown(r).charges > 0 ? '− ' + fmtMoney(breakdown(r).charges) + ' DHS' : '—', render: r => breakdown(r).charges > 0 ? <span className="text-red-400">−{fmtMoney(breakdown(r).charges)}</span> : '—',
+      total: rows => '− ' + fmtMoney(computeTotals(rows).charges) + ' DHS' },
+    { key: 'totalCost', label: '= Coût total', right: true, sortValue: r => breakdown(r).total, exportValue: r => Math.round(breakdown(r).total), printValue: r => '− ' + fmtMoney(breakdown(r).total) + ' DHS', render: r => <span className="font-bold text-red-700">−{fmtMoney(breakdown(r).total)}</span>,
+      total: rows => '− ' + fmtMoney(computeTotals(rows).total) + ' DHS' },
+    { key: 'profit', label: '= Profit', right: true, sortValue: r => breakdown(r).profit, exportValue: r => Math.round(breakdown(r).profit), printValue: r => (breakdown(r).profit >= 0 ? '+' : '') + fmtMoney(breakdown(r).profit) + ' DHS', render: r => (
+      <span className={`font-black ${breakdown(r).profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{breakdown(r).profit >= 0 ? '+' : ''}{fmtMoney(breakdown(r).profit)}</span>
+    ), total: rows => { const p = computeTotals(rows).profit; return (p >= 0 ? '+' : '') + fmtMoney(p) + ' DHS' } },
+    { key: 'marge', label: 'Marge', right: true, sortValue: r => breakdown(r).marge, exportValue: r => breakdown(r).marge, printValue: r => breakdown(r).marge + '%', render: r => <MarginBadge marge={breakdown(r).marge} />,
+      total: rows => computeTotals(rows).marge + '%' },
+  ]
+
+  function footer(rows) {
+    const { revenue, gasoil, total, profit, charges, marge } = computeTotals(rows)
     return (
       <tfoot>
         <tr className="border-t-2 border-slate-300 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
           <td colSpan={3} className="py-3 px-3 font-black text-sm uppercase">Total ({rows.length} voyages)</td>
-          <td className="py-3 px-3 text-right font-black text-emerald-400">{fmtMoney(t.revenue)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(t.gasoil)}</td>
+          <td className="py-3 px-3 text-right font-black text-emerald-400">{fmtMoney(revenue)}</td>
+          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(gasoil)}</td>
           <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(charges)}</td>
-          <td className="py-3 px-3 text-right font-black text-red-200">−{fmtMoney(t.total)}</td>
-          <td className={`py-3 px-3 text-right font-black ${t.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{t.profit >= 0 ? '+' : ''}{fmtMoney(t.profit)}</td>
+          <td className="py-3 px-3 text-right font-black text-red-200">−{fmtMoney(total)}</td>
+          <td className={`py-3 px-3 text-right font-black ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{fmtMoney(profit)}</td>
           <td className="py-3 px-3 text-right font-black text-blue-300">{marge}%</td>
         </tr>
       </tfoot>
@@ -108,7 +130,7 @@ export default function EntityDrillDrawer({ title, subtitle, voyages, clientKey,
             columns={columns} rows={voyages} rowKey={r => r.id}
             onRowClick={r => onOpenVoyage(r.id)}
             rowClassName={r => marginRowClass(breakdown(r).marge)}
-            defaultSortKey="date" footer={footer} exportFilename={title}
+            defaultSortKey="date" footer={footer} printSort={chronoSort} exportFilename={title}
           />
         </div>
       </div>

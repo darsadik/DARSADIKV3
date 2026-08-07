@@ -28,21 +28,40 @@ export function exportExcel(rows, columns, filename) {
   XLSX.writeFile(wb, `${filename}.xlsx`)
 }
 
+// `rows` must already be exactly the set the report should cover (filtered
+// and, for date-bearing tables, pre-sorted chronologically by the caller —
+// see the `printSort` prop below) — this function never re-filters, re-sorts,
+// or recomputes a total; it only renders. Per column:
+//   printValue(row)  — pre-formatted print/PDF cell text (falls back to
+//                       exportValue, then sortValue, so existing columns keep
+//                       working unformatted until a section opts in)
+//   total(rows)       — pre-formatted TOTAL-row cell text, reducing the exact
+//                       `rows` being printed; columns without a `total` are
+//                       either blank or merged into the leading "TOTAL (n)"
+//                       label cell (every column before the first one that
+//                       defines `total`)
 export function exportPrint(rows, columns, title, subtitle) {
   const accent = '#2563eb'
   const printDate = printGeneratedDate()
   const printCols = columns.filter(c => c.exportValue || c.sortValue)
+  const orientation = printCols.length <= 5 ? 'portrait' : 'landscape'
   const th = printCols.map(c => `<th class="${c.right ? 'r' : ''}">${c.label}</th>`).join('')
   const tr = rows.map(row => `<tr>${printCols.map(c => {
-    const v = (c.exportValue || c.sortValue)(row)
+    const v = (c.printValue || c.exportValue || c.sortValue)(row)
     return `<td class="${c.right ? 'r' : c.center ? 'm' : ''}" style="${c.center ? 'text-align:center' : ''}">${v ?? ''}</td>`
   }).join('')}</tr>`).join('')
+
+  const firstTotalIdx = printCols.findIndex(c => c.total)
+  const totalRow = firstTotalIdx === -1 ? '' : `<tfoot><tr>
+    <td colspan="${firstTotalIdx}" style="text-transform:uppercase">TOTAL (${rows.length})</td>
+    ${printCols.slice(firstTotalIdx).map(c => `<td class="${c.right ? 'r' : ''}">${c.total ? c.total(rows) : ''}</td>`).join('')}
+  </tr></tfoot>`
 
   const html = `<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>${title} — DAR SADIK</title>
 <style>
 ${printBaseCss(accent)}
-@page{size:landscape;margin:12mm}
+@page{size:${orientation};margin:12mm}
 </style></head><body>
 ${printHeader({ date: printDate })}
 <div class="periode-bar" style="padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600">
@@ -52,6 +71,7 @@ ${printHeader({ date: printDate })}
 <table>
   <thead><tr>${th}</tr></thead>
   <tbody>${tr}</tbody>
+  ${totalRow}
 </table>
 ${printFooter(printDate)}
 </div></body></html>`
@@ -64,6 +84,12 @@ export default function DataTable({
   defaultSortKey, defaultSortAsc = false,
   footer, emptyText = 'Aucune donnée',
   title, subtitle, exportFilename = 'export',
+  // Comparator forcing chronological (oldest → newest) order in the PDF/print
+  // export regardless of whatever column the user has interactively sorted
+  // on-screen — used by date-bearing voyage/operation lists per the
+  // Rentabilité print spec. Applied to the search-filtered rows, not `sorted`,
+  // so it always wins over the live UI sort state for this one export.
+  printSort,
 }) {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState(defaultSortKey || columns[0]?.key)
@@ -111,7 +137,7 @@ export default function DataTable({
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
               📊 Excel
             </button>
-            <button onClick={() => exportPrint(sorted, columns, title || exportFilename, subtitle)}
+            <button onClick={() => exportPrint(printSort ? [...filtered].sort(printSort) : sorted, columns, title || exportFilename, subtitle)}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
               🖨️ PDF
             </button>
