@@ -93,14 +93,32 @@ export default function AllocationAssignModal({
       .filter(c => !q || c.plaque.toLowerCase().includes(q) || (c.station || '').toLowerCase().includes(q))
   }, [mode, card, camionVoyageRows, allCards, search])
 
+  // Live simulation for the "no real KM" branch (spec items 7, 8) — a
+  // shallow clone of the picked voyage with the typed fuel_mode/value
+  // applied, fed into the SAME preview call below. Recomputes on every
+  // keystroke; nothing is written until Confirm.
+  const simulatedCamionVoyages = useMemo(() => {
+    if (!needsFuelModeChoice || !fuelModeChoice) return null
+    const value = fuelModeChoice === 'manual_km' ? manualKm : manualAmount
+    if (!(parseFloat(value) > 0)) return null
+    return (camionVoyages || []).map(v => v.id !== pickedVoyageId ? v : {
+      ...v,
+      fuel_mode: fuelModeChoice,
+      manual_distance_km: fuelModeChoice === 'manual_km' ? value : v.manual_distance_km,
+      manual_fuel_cost: fuelModeChoice === 'manual_fixed' ? value : v.manual_fuel_cost,
+    })
+  }, [needsFuelModeChoice, fuelModeChoice, manualKm, manualAmount, camionVoyages, pickedVoyageId])
+
   const preview = useMemo(() => {
-    if (!pickedVoyageId || !pickedGasoilId || needsFuelModeChoice) return null
+    if (!pickedVoyageId || !pickedGasoilId) return null
+    if (needsFuelModeChoice && !simulatedCamionVoyages) return null
     return computeAllocationPreview({
-      camionGasoil, camionVoyages, voyageGasoilRows, remiseRate,
+      camionGasoil, camionVoyages: simulatedCamionVoyages || camionVoyages, voyageGasoilRows, remiseRate,
       voyageId: pickedVoyageId, addToGasoilId: pickedGasoilId,
       removeFromGasoilId: currentCard?.gasoilId || null,
+      camionVoyageRows,
     })
-  }, [pickedVoyageId, pickedGasoilId, currentCard, camionGasoil, camionVoyages, voyageGasoilRows, remiseRate, needsFuelModeChoice])
+  }, [pickedVoyageId, pickedGasoilId, currentCard, camionGasoil, camionVoyages, voyageGasoilRows, remiseRate, needsFuelModeChoice, simulatedCamionVoyages, camionVoyageRows])
 
   async function confirm() {
     setBusy(true); setError('')
@@ -160,13 +178,17 @@ export default function AllocationAssignModal({
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1.5">Suggestions automatiques (jamais appliquées seules — un clic sélectionne)</div>
                   <div className="space-y-2">
-                    {suggestions.map(s => (
+                    {suggestions.map((s, i) => (
                       <button key={s.voyageId} disabled={busy} onClick={() => setPickedVoyageId(s.voyageId)}
-                        className="w-full p-2.5 rounded-lg border border-brand-100 bg-brand-50 hover:bg-brand-100 text-left transition">
+                        className={`w-full p-2.5 rounded-lg border text-left transition ${i === 0 ? 'border-brand-300 bg-brand-50 hover:bg-brand-100 ring-1 ring-brand-200' : 'border-brand-100 bg-brand-50 hover:bg-brand-100'}`}>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-semibold text-brand-700">{s.reference} <span className="text-slate-400 font-normal">({fmtDate(s.date)})</span></span>
+                          <span className="text-xs font-semibold text-brand-700 flex items-center gap-1.5">
+                            {i === 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-brand-600 text-white">⚡ Meilleure correspondance</span>}
+                            {s.reference} <span className="text-slate-400 font-normal">({fmtDate(s.date)})</span>
+                          </span>
                           <span className="flex items-center gap-1.5 flex-shrink-0">
                             <Stars confidence={s.confidence} />
+                            <span className="text-[10px] font-bold text-brand-700">{s.confidence}%</span>
                             <span className="text-[10px] font-bold text-brand-600">{confidenceTier(s.confidence)}</span>
                           </span>
                         </div>
@@ -220,10 +242,20 @@ export default function AllocationAssignModal({
                     </button>
                   </div>
                   {fuelModeChoice === 'manual_km' && (
-                    <input type="number" className="input text-sm w-32" placeholder="Ex: 150" value={manualKm} onChange={e => setManualKm(e.target.value)} />
+                    <div>
+                      <div className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide mb-1">Distance approximative (km)</div>
+                      <input type="number" autoFocus className="input text-sm w-32" placeholder="Ex: 150" value={manualKm} onChange={e => setManualKm(e.target.value)} />
+                    </div>
                   )}
                   {fuelModeChoice === 'manual_fixed' && (
-                    <input type="number" className="input text-sm w-32" placeholder="Ex: 500" value={manualAmount} onChange={e => setManualAmount(e.target.value)} />
+                    <div>
+                      <div className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide mb-1">Montant fixe (DHS)</div>
+                      <input type="number" autoFocus className="input text-sm w-32" placeholder="Ex: 500" value={manualAmount} onChange={e => setManualAmount(e.target.value)} />
+                      <div className="text-[10px] text-amber-600 mt-1">Ce montant remplace l'allocation automatique.</div>
+                    </div>
+                  )}
+                  {(fuelModeChoice === 'manual_km' || fuelModeChoice === 'manual_fixed') && !simulatedCamionVoyages && (
+                    <div className="text-[10px] text-slate-400">Entrez une valeur pour voir le coût carburant estimé en direct.</div>
                   )}
                 </div>
               )}
@@ -244,7 +276,10 @@ export default function AllocationAssignModal({
                   as `targetWasCapped`, not a fabricated negative number. */}
               {preview && (
                 <div className="space-y-2">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Aperçu avant/après — tout se met à jour avant l'enregistrement</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Aperçu avant/après — tout se met à jour avant l'enregistrement</div>
+                    <div className="text-[10px] text-slate-400 italic">⚡ Recalcul automatique et instantané</div>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
                       <div className="font-bold text-slate-400 uppercase tracking-wide text-[10px] mb-2">Avant</div>
@@ -289,6 +324,30 @@ export default function AllocationAssignModal({
                     <span className="font-bold text-slate-700">Ce voyage recevra</span>
                     <span className="font-black text-emerald-600 text-sm">{fmtMoney(preview.voyageAmountAfter)} DHS</span>
                   </div>
+
+                  {/* Impact sur les autres voyages (spec item 6) — every
+                      sibling voyage whose share of the SAME purchase(s) also
+                      shifts, since distributeFuelPurchase redistributes the
+                      whole pool on any membership change. Read straight off
+                      computeAllocationPreview's siblingImpacts — never a
+                      separate calculation. */}
+                  {preview.siblingImpacts?.length > 0 && (
+                    <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-1.5">
+                        ⚠ Impact sur {preview.siblingImpacts.length} autre{preview.siblingImpacts.length > 1 ? 's' : ''} voyage{preview.siblingImpacts.length > 1 ? 's' : ''}
+                      </div>
+                      <div className="space-y-1">
+                        {preview.siblingImpacts.map(s => (
+                          <div key={s.voyageId} className="flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-slate-600">{s.reference}</span>
+                            <span className="text-slate-500">
+                              {fmtMoney(s.before)} → <b className={s.after > s.before ? 'text-emerald-600' : 'text-red-500'}>{fmtMoney(s.after)}</b> DHS
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

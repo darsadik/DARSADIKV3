@@ -2,10 +2,10 @@ import Link from 'next/link'
 import { fmt, fmtDate, fmtMoney } from '../../lib/utils'
 
 const MODE_BADGE = {
-  automatic:       { label: '⚡ Automatique',     cls: 'badge-blue' },
-  manual_override: { label: '🔧 Override Manuel', cls: 'badge-purple' },
-  manual_km:       { label: '📏 KM Manuel',       cls: 'badge-purple' },
-  manual_fixed:    { label: '💰 Montant Fixe',    cls: 'badge-purple' },
+  automatic:       { label: '⚡ Automatique',     cls: 'badge-blue',   title: 'Détecté automatiquement par le moteur, à partir du KM du voyage.' },
+  manual_override: { label: '🔧 Override Manuel', cls: 'badge-purple', title: 'Lié manuellement à ce plein — ne suit plus la détection automatique.' },
+  manual_km:       { label: '📏 KM Manuel',       cls: 'badge-purple', title: "Distance approximative saisie à la main (pas d'odomètre réel)." },
+  manual_fixed:    { label: '💰 Montant Fixe',    cls: 'badge-purple', title: "Montant DHS fixe saisi à la main — remplace l'allocation automatique." },
 }
 
 // One voyage row inside a PurchaseAllocationCard's expanded Allocation List
@@ -24,7 +24,7 @@ export default function AllocationListRow({ voyage, onMove, onUnlink, canUnlink 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <Link href={`/voyages/${voyage.voyageId}`} className="font-bold text-brand-700 hover:underline text-sm">{voyage.reference}</Link>
-          <span className={badge.cls}>{badge.label}</span>
+          <span className={badge.cls} title={badge.title}>{badge.label}</span>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="text-right">

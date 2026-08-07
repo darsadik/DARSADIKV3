@@ -7,6 +7,8 @@ import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards
 import { DEFAULT_REMISE_CARBURANT_RATE, buildFuelMapsByCamion } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate, DEFAULT_FUEL_OPENING_BALANCE, fetchFuelOpeningBalance } from '../../lib/services/settings'
 import { previewCycleForNewPlein } from '../../lib/services/fuelCycles'
+import { buildAllocationCards, buildAllocationStats } from '../../lib/services/voyage/fuelAllocationCenter'
+import AllocationAlertBanner from '../../components/carburant/AllocationAlertBanner'
 import Link from 'next/link'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
@@ -58,6 +60,10 @@ export default function Gasoil() {
   const [gasoilPaiements, setGasoilPaiements] = useState([])
   const [gasoilFournisseurs, setGasoilFournisseurs] = useState([])
   const [voyages, setVoyages] = useState([])
+  // Workflow tie-in (spec item 14) — the just-created plein's id/camion, so
+  // we can link straight to its allocation suggestions after saving instead
+  // of making the accountant hunt for the page.
+  const [justSavedPlein, setJustSavedPlein] = useState(null)
   const [paiForm, setPaiForm] = useState({ date: '', montant: '', note: '' })
   const [savingPai, setSavingPai] = useState(false)
   const [showPaiForm, setShowPaiForm] = useState(false)
@@ -98,6 +104,20 @@ export default function Gasoil() {
       gasoil, voyages, camions, mergeOverride: mergeChoice,
     })
   }, [form.camion_id, form.date, form.km, form.qte, form.prix_unitaire, form.adblue_qte, adblueTotal, gasoil, voyages, camions, mergeChoice])
+
+  // ── Fuel Health / Audit Alerts (spec items 10, 11) — reuses the exact
+  // same card/stats builders as the Contrôle Allocation tab, over data this
+  // page already loads (gasoil/voyages/voyageGasoilLinks) — no new queries.
+  // voyageRows/clientNamesByVoyageId are omitted; buildAllocationCards
+  // already falls back to the raw voyage's own reference/km fields when
+  // they're missing, and neither is needed just to count purchases by status.
+  const allocationStats = useMemo(() => {
+    const cards = buildAllocationCards({
+      camions, activeVoyages: voyages.filter(v => !v.deleted_at), voyageRows: [],
+      gasoil, voyageGasoilRows: voyageGasoilLinks, clientNamesByVoyageId: null, remiseRate,
+    })
+    return buildAllocationStats(cards)
+  }, [camions, voyages, gasoil, voyageGasoilLinks, remiseRate])
 
   // ── CONSUMPTION MONTH FILTER ──
   const currentMonth = () => {
@@ -150,7 +170,7 @@ export default function Gasoil() {
     setSaving(true)
     const camion = camions.find(c => c.id === parseInt(form.camion_id))
     const fournisseurId = parseInt(form.fournisseur_id)
-    const { error } = await supabase.from('gasoil').insert({
+    const { data: inserted, error } = await supabase.from('gasoil').insert({
       date: form.date,
       camion_id: parseInt(form.camion_id),
       camion_plaque: camion?.plaque || '',
@@ -165,7 +185,7 @@ export default function Gasoil() {
       adblue_prix_unitaire: adbluePu,
       adblue_total: adblueTotal,
       merge_with_previous: mergeChoice,
-    })
+    }).select('id').single()
     if (error) {
       setSaving(false)
       setFormError('❌ ' + error.message)
@@ -184,6 +204,7 @@ export default function Gasoil() {
     const { data: freshFourn } = await supabase.from('gasoil_fournisseurs').select('solde').eq('id', fournisseurId).single()
     if (freshFourn) await supabase.from('gasoil_fournisseurs').update({ solde: (freshFourn.solde || 0) + total + adblueTotal }).eq('id', fournisseurId)
     setSaving(false)
+    setJustSavedPlein(inserted ? { gasoilId: inserted.id, camionId: parseInt(form.camion_id) } : null)
     setForm({ date: today(), camion_id: '', fournisseur_id: '', station: '', qte: '', prix_unitaire: '12.40', bon: '', km: '', note: '', adblue_qte: '', adblue_prix_unitaire: '' })
     setMergeChoice(null)
     setShowAdblue(false)
@@ -688,6 +709,8 @@ ${printFooter(printDate)}
   return (
     <Layout title="Gasoil" subtitle="Suivi de consommation et coûts carburant">
 
+      <AllocationAlertBanner stats={allocationStats} />
+
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
         <div className="stat-card border border-amber-100 bg-amber-50">
@@ -882,6 +905,21 @@ ${printFooter(printDate)}
                 {saving ? 'Enregistrement...' : '✓ Enregistrer le plein'}
               </button>
             </form>
+
+            {/* Workflow tie-in (spec item 14) — Create → Suggest in one
+                click, no page hunt. Dismissible; replaced on the next save. */}
+            {justSavedPlein && (
+              <div className="mt-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                <span className="text-xs font-semibold text-emerald-700">✓ Plein #{justSavedPlein.gasoilId} enregistré</span>
+                <div className="flex items-center gap-3">
+                  <Link href={`/voyages/km-carburant?tab=allocation&camionId=${justSavedPlein.camionId}&search=${justSavedPlein.gasoilId}`}
+                    className="text-xs font-bold text-emerald-700 hover:underline whitespace-nowrap">
+                    → Voir les suggestions d'allocation
+                  </Link>
+                  <button onClick={() => setJustSavedPlein(null)} className="text-emerald-400 hover:text-emerald-600 text-sm leading-none">✕</button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* BY CAMION STATS */}

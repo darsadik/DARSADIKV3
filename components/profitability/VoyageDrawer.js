@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import Link from 'next/link'
 import { fmt, fmtDate, fmtMoney } from '../../lib/utils'
 import MarginBadge from './MarginBadge'
+import AllocationProgressBar from '../carburant/AllocationProgressBar'
 
 const FUEL_SOURCE_LABEL = {
   automatic:     '⚡ Automatique (odomètre)',
@@ -28,9 +30,11 @@ function Section({ title, children }) {
   )
 }
 
-export default function VoyageDrawer({ voyage: v, onClose }) {
+export default function VoyageDrawer({ voyage: v, onClose, contributions }) {
   const nbCli = v.clients?.length || 0
   const clientNames = (v.clients || []).map(c => c.client_nom).filter(Boolean)
+  const [showFuelDetail, setShowFuelDetail] = useState(false)
+  const hasFuelDetail = (contributions?.length > 0) && (v.cost.fuelSource === 'automatic' || v.cost.fuelSource === 'manuel')
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -113,7 +117,57 @@ export default function VoyageDrawer({ voyage: v, onClose }) {
               opérationnelles). Charges = Coût total − Gasoil, so the two
               always reconcile exactly to the engine's own Total Cost. */}
           <Section title="Coût">
-            <Row label={`Gasoil — ${FUEL_SOURCE_LABEL[v.cost.fuelSource] || v.cost.fuelSource}`} value={`− ${fmtMoney(v.cost.fuel)} DHS`} />
+            <div className="flex items-center justify-between py-1.5 text-xs">
+              <span className="text-slate-500">Gasoil — {FUEL_SOURCE_LABEL[v.cost.fuelSource] || v.cost.fuelSource}</span>
+              <span className="flex items-center gap-2">
+                <span className="text-slate-600">− {fmtMoney(v.cost.fuel)} DHS</span>
+                {hasFuelDetail && (
+                  <button onClick={() => setShowFuelDetail(x => !x)} className="text-[10px] font-bold text-blue-600 hover:underline whitespace-nowrap">
+                    {showFuelDetail ? '✕ Fermer' : 'Détails →'}
+                  </button>
+                )}
+              </span>
+            </div>
+
+            {/* Profitability Transparency (spec item 9) — one row per fuel
+                purchase this voyage draws from, read straight from
+                lib/services/voyage/fuelAllocationCenter.js's
+                buildVoyageFuelContributions (which itself only reads the
+                unmodified engine's own voyageContributions output — no new
+                math). Sums back exactly to v.cost.fuel above. */}
+            {showFuelDetail && hasFuelDetail && (
+              <div className="mb-2 -mt-1 space-y-2">
+                {contributions.map(c => (
+                  <div key={c.gasoilId} className="bg-white border border-slate-200 rounded-lg p-2.5 text-[11px]">
+                    <div className="flex items-center justify-between mb-1">
+                      <Link href={`/voyages/km-carburant?tab=allocation&search=${c.gasoilId}`}
+                        className="font-bold text-blue-600 hover:underline">
+                        Plein #{c.gasoilId} — {fmtDate(c.date)}
+                      </Link>
+                      <span className="font-black text-slate-800">{fmtMoney(c.amount)} DHS</span>
+                    </div>
+                    <div className="text-slate-400 mb-1.5">{c.camionPlaque}{c.station ? ` · ${c.station}` : ''}</div>
+                    {c.isFixed ? (
+                      <div className="text-purple-600 font-semibold">💰 Montant fixe manuel</div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-2 text-slate-500 mb-1">
+                          <div>Distance <b className="text-slate-700">{fmt(c.distance)} km</b></div>
+                          <div>Total plein <b className="text-slate-700">{c.totalDistance !== null ? `${fmt(c.totalDistance)} km` : '—'}</b></div>
+                          <div>Allocation <b className="text-slate-700">{Math.round((c.share || 0) * 1000) / 10}%</b></div>
+                        </div>
+                        <AllocationProgressBar allocated={c.share * 100} total={100} colorClass="green" size="sm" />
+                      </>
+                    )}
+                  </div>
+                ))}
+                <div className="flex justify-between px-1 text-[11px] font-bold text-slate-700">
+                  <span>= Coût carburant final</span>
+                  <span>{fmtMoney(v.cost.fuel)} DHS</span>
+                </div>
+              </div>
+            )}
+
             <Row label="Charges" value={`− ${fmtMoney(v.cost.total - v.cost.fuel)} DHS`} />
             {v.cost.achatUnallocated > 0 && (
               <Row label="dont achat non livré (non attribué)" value={fmtMoney(v.cost.achatUnallocated) + ' DHS'} indent color="text-amber-600" />

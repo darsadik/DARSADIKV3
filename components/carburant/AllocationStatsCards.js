@@ -21,16 +21,16 @@ export default function AllocationStatsCards({ stats, activeStatusFilter, onSele
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
       <Card emoji="⛽" label="Achats carburant" value={stats.totalPurchases} />
-      <Card emoji="🔴" label="En attente" value={stats.waiting}
+      <Card emoji="🟡" label="Nouveaux" value={stats.waiting}
         toneClass={stats.waiting ? 'text-red-600' : 'text-emerald-600'}
         active={activeStatusFilter === 'waiting'} onClick={() => onSelectStatusFilter('waiting')} />
-      <Card emoji="🟠" label="Partiellement alloués" value={stats.partiallyAllocated}
+      <Card emoji="🟠" label="À vérifier" value={stats.partiallyAllocated}
         toneClass={stats.partiallyAllocated ? 'text-orange-600' : 'text-emerald-600'}
         active={activeStatusFilter === 'remaining'} onClick={() => onSelectStatusFilter('remaining')} />
-      <Card emoji="✓" label="Entièrement alloués" value={stats.fullyAllocated}
+      <Card emoji="🟢" label="Vérifiés" value={stats.fullyAllocated}
         toneClass="text-emerald-600"
         active={activeStatusFilter === 'full'} onClick={() => onSelectStatusFilter('full')} />
-      <Card emoji="🟣" label="Avec override manuel" value={stats.manualOverrides}
+      <Card emoji="🔵" label="Clôturés (manuel)" value={stats.manualOverrides}
         toneClass="text-purple-600"
         active={activeStatusFilter === 'manual'} onClick={() => onSelectStatusFilter('manual')} />
       <Card emoji="💰" label="Montant restant à allouer" value={`${fmtMoney(stats.totalRemaining)} DHS`}

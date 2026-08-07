@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
@@ -24,7 +25,25 @@ const DEFAULT_FILTERS = {
 }
 
 export default function VoyageKmCarburant() {
+  const router = useRouter()
   const [tab, setTab] = useState('timeline') // 'timeline' | 'allocation'
+  // Deep-link support (spec items 10, 11, 14) — /gasoil's alert banner and
+  // "voir les suggestions" link land here with ?tab=allocation&statusFilter=…
+  // Applied once when the router is ready; the tab/filters stay normal local
+  // state afterward (no URL sync back), same one-way pattern as every other
+  // page's filter bar in this app.
+  const [initialAllocationFilters, setInitialAllocationFilters] = useState(null)
+  useEffect(() => {
+    if (!router.isReady) return
+    const { tab: qTab, statusFilter, camionId, search, dateFrom, dateTo } = router.query
+    if (qTab === 'allocation') {
+      setTab('allocation')
+      setInitialAllocationFilters({
+        camionId: camionId || '', statusFilter: statusFilter || '', search: search || '',
+        dateFrom: dateFrom || '', dateTo: dateTo || '',
+      })
+    }
+  }, [router.isReady])
   const [camions, setCamions] = useState([])
   const [voyages, setVoyages] = useState([])
   const [gasoil, setGasoil] = useState([])
@@ -186,7 +205,24 @@ export default function VoyageKmCarburant() {
         </button>
       </div>
 
-      {tab === 'allocation' && (
+      {tab === 'allocation' && loading && (
+        <div className="space-y-4">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="card animate-pulse">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <div className="h-4 w-40 bg-slate-100 rounded" />
+                  <div className="h-3 w-64 bg-slate-100 rounded" />
+                </div>
+                <div className="h-8 w-24 bg-slate-100 rounded" />
+              </div>
+              <div className="h-2 w-full bg-slate-100 rounded mt-4" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'allocation' && !loading && (
         <AllocationControlCenter
           camions={camions}
           activeVoyages={activeVoyages}
@@ -196,6 +232,7 @@ export default function VoyageKmCarburant() {
           clientNamesByVoyageId={clientNamesByVoyageId}
           remiseRate={remiseRate}
           onSaved={loadAll}
+          initialFilters={initialAllocationFilters}
         />
       )}
 

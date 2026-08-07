@@ -3,6 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { computeVoyageProfit, buildFuelMapsByCamion, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { buildVoyageFuelContributions } from '../../lib/services/voyage/fuelAllocationCenter'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import FilterBar, { DEFAULT_FILTERS } from '../../components/profitability/FilterBar'
 import Overview from '../../components/profitability/Overview'
@@ -12,6 +13,7 @@ import ByClientSection from '../../components/profitability/ByClientSection'
 import BySupplierSection from '../../components/profitability/BySupplierSection'
 import Timeline from '../../components/profitability/Timeline'
 import VoyageDrawer from '../../components/profitability/VoyageDrawer'
+import { printRentabiliteReport } from '../../lib/printRentabilite'
 
 // ── Profitability Center ─────────────────────────────────────────────────────
 // The ONE place profitability is analyzed. Every number displayed anywhere in
@@ -39,11 +41,14 @@ function chunk(arr, size) {
 
 // voyage_id-scoped tables can exceed a comfortable URL length once a filtered
 // period spans hundreds of voyages — batch the .in() lookups defensively.
-async function fetchByVoyageIds(table, select, ids) {
+async function fetchByColumnIds(table, column, select, ids) {
   if (!ids.length) return []
   const groups = chunk(ids, 200)
-  const pages = await Promise.all(groups.map(g => supabase.from(table).select(select).in('voyage_id', g)))
+  const pages = await Promise.all(groups.map(g => supabase.from(table).select(select).in(column, g)))
   return pages.flatMap(p => p.data || [])
+}
+async function fetchByVoyageIds(table, select, ids) {
+  return fetchByColumnIds(table, 'voyage_id', select, ids)
 }
 
 export default function ProfitabiliteCenter() {
@@ -60,6 +65,12 @@ export default function ProfitabiliteCenter() {
   const [charges,    setCharges]    = useState([])
   const [retours,    setRetours]    = useState([])
   const [locations,  setLocations]  = useState([])
+  // Charges/déductions attached to individual livraisons (voyage_livraison_frais)
+  // — fetched only for the print report's itemized operation ledger (see
+  // lib/printRentabilite.js). Never read by computeVoyageProfit: livraisons
+  // already carry their own frais_total, so this only unbundles that same
+  // number into its component lines for display, never recomputes it.
+  const [livraisonFrais, setLivraisonFrais] = useState([])
 
   // Fuel allocation inputs: NEVER scope these by the selected date range — a
   // voyage's bracketing purchase (before/after its km), or a manual link to a
@@ -93,7 +104,9 @@ export default function ProfitabiliteCenter() {
       // No `.not('km', 'is', null)` filter: a purchase with no odometer can
       // still be manually linked to a voyage, so it must stay in the pool the
       // allocation engine sees (see lib/services/fuelAllocation.js).
-      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').order('km', { ascending: true }),
+      // id/camion_plaque/station/prix_unitaire added (display-only) for the
+      // VoyageDrawer's fuel-cost breakdown (buildVoyageFuelContributions).
+      supabase.from('gasoil').select('id,camion_id,camion_plaque,station,prix_unitaire,km,total,date,adblue_total,qte').order('km', { ascending: true }),
       supabase.from('voyages').select('id,camion_id,km_depart,km_arrivee,fuel_mode,deleted_at'),
       supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
     ])
@@ -111,15 +124,24 @@ export default function ProfitabiliteCenter() {
       .order('date_depart', { ascending: false })
     const vList = v || []
     const vIds = vList.map(x => x.id)
+    // Extra columns below (id, created_at, date_*, and a few descriptive
+    // fields) are additive — every column computeVoyageProfit already reads
+    // (qte, total_achat, total_vente, frais_total, montant, facture_client,
+    // montant_location...) is untouched, so the engine's own math is
+    // unaffected. They only feed the print report's itemized ledger
+    // (lib/printRentabilite.js), which never recomputes a total — it just
+    // displays these exact rows and lets them sum to the engine's totals.
     const [ac, li, ch, re, loc] = await Promise.all([
-      fetchByVoyageIds('voyage_achats', 'id,voyage_id,type_produit,type_brique,fournisseur_id,fournisseur_nom,qte,prix_achat,total_achat', vIds),
-      fetchByVoyageIds('voyage_livraisons', 'voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,frais_total', vIds),
-      fetchByVoyageIds('voyage_charges', 'voyage_id,montant,facture_client,client_id,client_nom,categorie', vIds),
-      fetchByVoyageIds('voyage_retours', 'voyage_id,montant', vIds),
-      fetchByVoyageIds('voyage_locations', 'voyage_id,montant_location', vIds),
+      fetchByVoyageIds('voyage_achats', 'id,voyage_id,type_produit,type_brique,fournisseur_id,fournisseur_nom,qte,prix_achat,total_achat,date_achat,created_at', vIds),
+      fetchByVoyageIds('voyage_livraisons', 'id,voyage_id,type_produit,type_brique,client_id,client_nom,qte,prix_vente,total_vente,frais_total,date_livraison,created_at', vIds),
+      fetchByVoyageIds('voyage_charges', 'id,voyage_id,montant,facture_client,client_id,client_nom,categorie,description,date_charge,created_at', vIds),
+      fetchByVoyageIds('voyage_retours', 'id,voyage_id,montant,destination,client_nom,note,date_retour,created_at', vIds),
+      fetchByVoyageIds('voyage_locations', 'id,voyage_id,montant_location,loueur_nom,note,created_at', vIds),
     ])
+    const liIds = li.map(l => l.id).filter(Boolean)
+    const lf = await fetchByColumnIds('voyage_livraison_frais', 'livraison_id', 'id,livraison_id,label,montant,kind,note,created_at', liIds)
     setVoyages(vList); setAchats(ac); setLivraisons(li); setCharges(ch)
-    setRetours(re); setLocations(loc)
+    setRetours(re); setLocations(loc); setLivraisonFrais(lf)
     setLoading(false)
   }
 
@@ -127,6 +149,13 @@ export default function ProfitabiliteCenter() {
   // Every voyage below does a cheap Map lookup instead of rebuilding its
   // truck's whole purchase/voyage history from scratch.
   const fuelMapsByCamion = useMemo(() => buildFuelMapsByCamion({
+    gasoil: allGasoil, voyages: allVoyages, voyageGasoilLinks: allVoyageGasoilLinks, remiseRate,
+  }), [allGasoil, allVoyages, allVoyageGasoilLinks, remiseRate])
+
+  // Per-purchase breakdown for the VoyageDrawer's fuel-cost transparency
+  // panel (spec item 9) — same inputs as fuelMapsByCamion above, reading the
+  // engine's own voyageContributions instead of discarding them.
+  const fuelContributionsByVoyage = useMemo(() => buildVoyageFuelContributions({
     gasoil: allGasoil, voyages: allVoyages, voyageGasoilLinks: allVoyageGasoilLinks, remiseRate,
   }), [allGasoil, allVoyages, allVoyageGasoilLinks, remiseRate])
 
@@ -193,15 +222,23 @@ export default function ProfitabiliteCenter() {
 
         <FilterBar filters={filters} onChange={setFilters} options={options} />
 
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition flex-shrink-0 ${
-                tab === t.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto flex-1">
+            {TABS.map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition flex-shrink-0 ${
+                  tab === t.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => printRentabiliteReport({ results, achats, livraisons, livraisonFrais, charges, retours, locations, filters, options })}
+            disabled={loading}
+            className="text-xs font-semibold px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition whitespace-nowrap disabled:opacity-50">
+            🖨️ Imprimer / PDF
+          </button>
         </div>
 
         {loading ? (
@@ -217,7 +254,10 @@ export default function ProfitabiliteCenter() {
           </>
         )}
 
-        {drawerVoyage && <VoyageDrawer voyage={drawerVoyage} onClose={() => setDrawerVoyageId(null)} />}
+        {drawerVoyage && (
+          <VoyageDrawer voyage={drawerVoyage} onClose={() => setDrawerVoyageId(null)}
+            contributions={fuelContributionsByVoyage.get(drawerVoyage.id)} />
+        )}
       </div>
     </Layout>
   )

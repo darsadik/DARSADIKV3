@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { buildAllocationCards, filterAllocationCards, buildAllocationStats } from '../../lib/services/voyage/fuelAllocationCenter'
 import { unlinkGasoilFromVoyage } from '../../lib/services/voyage/gasoilLink'
 import AllocationStatsCards from './AllocationStatsCards'
@@ -15,8 +15,15 @@ const DEFAULT_FILTERS = { camionId: '', dateFrom: '', dateTo: '', statusFilter: 
 // real engine (lib/services/fuelAllocation.js) — nothing here recomputes
 // money. The sibling "Chronologie" tab and its components are never touched
 // by anything in this file.
-export default function AllocationControlCenter({ camions, activeVoyages, voyageRows, gasoil, voyageGasoilRows, clientNamesByVoyageId, remiseRate, onSaved }) {
+export default function AllocationControlCenter({ camions, activeVoyages, voyageRows, gasoil, voyageGasoilRows, clientNamesByVoyageId, remiseRate, onSaved, initialFilters }) {
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
+
+  // Deep-link from /gasoil's alert banner (spec items 10, 11, 14) — applied
+  // once the parent page has parsed router.query (arrives one tick after
+  // mount, hence a separate effect rather than a lazy useState initializer).
+  useEffect(() => {
+    if (initialFilters) setFilters(f => ({ ...f, ...initialFilters }))
+  }, [initialFilters])
   const [viewMode, setViewMode] = useState('list') // 'list' | 'timeline'
   const [assignState, setAssignState] = useState(null) // { mode: 'assign'|'move', card, voyage }
   // Timeline click-to-highlight (spec item 8) — pure UI state, never affects

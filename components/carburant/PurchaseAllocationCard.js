@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fmt, fmtD, fmtDate, fmtMoney } from '../../lib/utils'
 import { remainingBadgeTone, explainRemaining } from '../../lib/services/voyage/fuelAllocationCenter'
 import AllocationListRow from './AllocationListRow'
+import AllocationProgressBar from './AllocationProgressBar'
 
 // Border/ring color per the confirmed 4-color priority chain
 // (lib/services/voyage/fuelAllocationCenter.js's classifyAllocationColor),
@@ -14,11 +15,22 @@ const COLOR = {
   green:  { border: 'border-l-emerald-400',ring: 'ring-emerald-100 bg-emerald-50', text: 'text-emerald-600' },
 }
 
+// Same 4 states as classifyAllocationColor — only the wording changed
+// (confirmed with the accountant) to a friendlier workflow vocabulary. No
+// new status is stored anywhere; this is a pure relabeling of the existing
+// derived colorClass.
 const STATUS_LABEL = {
-  red: 'Nécessite une action manuelle',
-  orange: 'Partiellement alloué',
-  purple: 'Alloué — override manuel',
-  green: 'Alloué — automatique',
+  red: '🟡 Nouveau',
+  orange: '🟠 Nécessite vérification',
+  purple: '🔵 Clôturé — manuel',
+  green: '🟢 Vérifié',
+}
+
+const STATUS_TITLE = {
+  red: "Pas encore de KM ou montant manuel qui ne couvre pas le plein — action requise.",
+  orange: "Allocation partielle — il reste un solde à couvrir.",
+  purple: "Entièrement alloué grâce à un lien manuel — figé tant que personne ne le modifie.",
+  green: "Entièrement alloué automatiquement par le moteur d'allocation.",
 }
 
 // Small badge next to the Remaining figure — its OWN color, independent of
@@ -50,8 +62,9 @@ export default function PurchaseAllocationCard({ card, onAssign, onMoveVoyage, o
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-base font-black text-slate-900">{card.plaque}</span>
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.ring} ${c.text}`}>
-                {STATUS_LABEL[card.colorClass]}{card.fullyAllocated ? ' ✓' : ''}
+              <span className="text-[11px] font-semibold text-slate-400">Plein #{card.gasoilId}</span>
+              <span title={STATUS_TITLE[card.colorClass]} className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.ring} ${c.text} cursor-help`}>
+                {STATUS_LABEL[card.colorClass]}
               </span>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                 {card.voyageAllocations.length} voyage{card.voyageAllocations.length > 1 ? 's' : ''}
@@ -60,6 +73,7 @@ export default function PurchaseAllocationCard({ card, onAssign, onMoveVoyage, o
             <div className="text-xs text-slate-400 mt-0.5">
               {fmtDate(card.date)} · {card.station || 'Station inconnue'} · {card.hasKm ? `KM ${fmt(card.km)}` : 'Sans KM'}
               {' · '}{fmtD(card.qte)} L × {fmtMoney(card.prixUnitaire)} DHS/L
+              {card.discount > 0 && <> · <span className="text-emerald-500">Remise −{fmtMoney(card.discount)} DHS</span></>}
               {card.adblueTotal > 0 && <> · AdBlue {fmtMoney(card.adblueTotal)} DHS</>}
             </div>
           </div>
@@ -82,12 +96,16 @@ export default function PurchaseAllocationCard({ card, onAssign, onMoveVoyage, o
                 {fmtMoney(card.remaining)} DHS <span className="font-semibold">({card.remainingPct}%)</span>
               </button>
             ) : (
-              <div className="text-sm font-black text-slate-300">{fmtMoney(card.remaining)} DHS</div>
+              <div className="text-sm font-black text-slate-300">{fmtMoney(card.remaining)} DHS (0%)</div>
             )}
           </div>
           <span className={`text-slate-400 text-lg transition-transform ${expanded ? 'rotate-180' : ''}`}>⌄</span>
         </div>
       </button>
+
+      <div className="mt-3 max-w-md">
+        <AllocationProgressBar allocated={card.allocated} total={card.total} colorClass={card.colorClass} />
+      </div>
 
       {showWhy && why && (
         <div className="mt-3 text-xs text-orange-700 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
@@ -129,6 +147,23 @@ export default function PurchaseAllocationCard({ card, onAssign, onMoveVoyage, o
               </div>
             )}
           </div>
+
+          {/* Visual Coverage (spec item 5) — one summary line before the
+              itemized list, built purely from voyageAllocations already on
+              this card (no new data). */}
+          {card.voyageAllocations.length > 0 && (
+            <div className="mb-4 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+              <span className="text-emerald-500">✔</span>
+              <span>
+                Ce plein couvre <b className="text-slate-700">{card.voyageAllocations.length} voyage{card.voyageAllocations.length > 1 ? 's' : ''}</b>
+                {card.coveredDistance > 0 && <> sur <b className="text-slate-700">{fmt(card.coveredDistance)} km</b></>}
+                {' — '}
+                {card.fullyAllocated
+                  ? <span className="text-emerald-600 font-semibold">carburant entièrement alloué ✓</span>
+                  : <span className="text-orange-600 font-semibold">{fmtMoney(card.remaining)} DHS restants</span>}
+              </span>
+            </div>
+          )}
 
           {card.status === 'waiting' ? (
             <div className="text-center py-6 text-sm text-red-500 font-semibold bg-red-50 rounded-xl">

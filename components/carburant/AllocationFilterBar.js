@@ -1,10 +1,10 @@
 const STATUS_CHIPS = [
-  { key: '', label: 'Tous' },
-  { key: 'remaining', label: '🟠 Reste à allouer' },
-  { key: 'waiting', label: '🔴 En attente' },
-  { key: 'manual', label: '🟣 Override manuel' },
-  { key: 'automatic', label: '🔵 Automatique seul' },
-  { key: 'full', label: '✓ Entièrement alloué' },
+  { key: '', label: 'Tous', title: 'Tous les pleins, quel que soit leur état' },
+  { key: 'waiting', label: '🟡 Nouveaux', title: "Pleins sans KM — l'allocation automatique ne peut pas encore démarrer" },
+  { key: 'remaining', label: '🟠 À vérifier', title: 'Pleins partiellement alloués — il reste un solde à couvrir' },
+  { key: 'full', label: '🟢 Vérifiés', title: 'Pleins entièrement alloués' },
+  { key: 'manual', label: '🔵 Clôturés (manuel)', title: 'Entièrement alloués grâce à au moins un lien manuel' },
+  { key: 'automatic', label: 'Automatique seul', title: 'Entièrement alloués sans aucune intervention manuelle' },
 ]
 
 // Truck + date range markup identical to TimelineFilterBar.js (same app,
@@ -39,7 +39,7 @@ export default function AllocationFilterBar({ camions, filters, setFilters, onRe
 
       <div className="flex flex-wrap gap-2">
         {STATUS_CHIPS.map(c => (
-          <button key={c.key || 'all'}
+          <button key={c.key || 'all'} title={c.title}
             onClick={() => setFilters(f => ({ ...f, statusFilter: c.key }))}
             className={`text-xs font-bold px-3 py-1.5 rounded-full border transition ${
               filters.statusFilter === c.key
