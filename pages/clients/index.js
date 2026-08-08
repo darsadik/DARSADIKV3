@@ -511,7 +511,8 @@ export default function Clients() {
   .total-box .tb-label{font-size:13px;font-weight:800;color:#166534;letter-spacing:0.08em;text-transform:uppercase}
   .total-box .tb-amount{font-size:26px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
   .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#16a34a;margin-left:3px}
-  .total-words{margin-top:8px;font-size:11px;color:#475569;line-height:1.55;text-align:left}
+  .total-words{margin-top:10px;font-size:12px;color:#475569;line-height:1.65;text-align:left}
+  .total-words .tw-label{color:#334155;font-weight:600}
   .total-words strong{color:#334155;font-weight:700}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
@@ -591,7 +592,7 @@ export default function Clients() {
   <span class="tb-label">Total</span>
   <span class="tb-amount">${fmtMoney(pFinalBalance)}<span class="u">DH</span></span>
 </div>
-<div class="total-words">Arrêté le présent relevé à la somme de :<br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
+<div class="total-words"><span class="tw-label">Arrêté le présent relevé à la somme de :</span><br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
@@ -715,7 +716,8 @@ export default function Clients() {
   .total-box .tb-label{font-size:13px;font-weight:800;color:#166534;letter-spacing:0.08em;text-transform:uppercase}
   .total-box .tb-amount{font-size:26px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
   .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#16a34a;margin-left:3px}
-  .total-words{margin-top:8px;font-size:11px;color:#475569;line-height:1.55;text-align:left}
+  .total-words{margin-top:10px;font-size:12px;color:#475569;line-height:1.65;text-align:left}
+  .total-words .tw-label{color:#334155;font-weight:600}
   .total-words strong{color:#334155;font-weight:700}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
@@ -759,7 +761,7 @@ export default function Clients() {
   <span class="tb-label">Total</span>
   <span class="tb-amount">${fmtMoney(pFinalBalance)}<span class="u">DH</span></span>
 </div>
-<div class="total-words">Arrêté le présent relevé à la somme de :<br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
+<div class="total-words"><span class="tw-label">Arrêté le présent relevé à la somme de :</span><br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
@@ -1023,7 +1025,14 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
 
     const livraisonEntry = { ...base, delta: (base.delta || 0) - signedFraisTotal }
 
-    const fraisEntries = fraisItems.map(f => {
+    // Strict accounting order within a Livraison group: charges (Frais) always
+    // print before deductions, regardless of DB row order/insertion order —
+    // never a deduction ahead of a charge belonging to the same delivery.
+    // Array.sort is stable, so relative order among same-kind items is kept.
+    const orderedFraisItems = [...fraisItems].sort((a, b) =>
+      (a.kind === 'deduction' ? 1 : 0) - (b.kind === 'deduction' ? 1 : 0))
+
+    const fraisEntries = orderedFraisItems.map(f => {
       const isDed = f.kind === 'deduction'
       return {
         date: v.date, created_at: f.created_at || v.created_at || '',
@@ -1613,7 +1622,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 <th style={{...thS,width:20,padding:'9px 4px'}}></th>
                 {[
                   {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
-                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Solde',r:true},{l:'Note',r:false}
+                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Montant',r:true},{l:'Solde',r:true},{l:'Note',r:false}
                 ].map((col,ci) => (
                   <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
                 ))}
@@ -1776,9 +1785,13 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         {e.detail || <span className="text-gray-400">—</span>}
                       </td>
                     )}
-                    {/* OPÉRATION */}
-                    <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
-                      {e.operation}
+                    {/* OPÉRATION — frais/déduction rows are children of the Livraison
+                        directly above them; indent + lighter weight makes that
+                        relationship visible (matches print/PDF treatment). */}
+                    <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',padding: e.src === 'frais' ? '10px 12px 10px 26px' : '10px 12px',
+                      color: e.src === 'frais' ? '#64748b' : '#1e293b', fontWeight: e.src === 'frais' ? 500 : 700,
+                      fontSize: e.src === 'frais' ? 12 : 13}}>
+                      {e.src === 'frais' ? `↳ ${e.operation}` : e.operation}
                     </td>
                     {/* TYPE BADGE */}
                     <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
@@ -2434,7 +2447,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                 <tr>
                                   {[
                                     {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
-                                    {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Total DHS',r:true},{l:'Solde',r:true},
+                                    {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Montant',r:true},{l:'Solde',r:true},
                                     {l:'Note',r:false},{l:'',r:false}
                                   ].map((col,i) => (
                                     <th key={i} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
@@ -2505,9 +2518,14 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                             {e.detail || <span className="text-gray-400">—</span>}
                                           </td>
                                         )}
-                                        {/* OPÉRATION */}
-                                        <td className="td text-xs font-semibold" style={{...bdr,whiteSpace:'nowrap',color:'#1e293b',padding:'10px 12px'}}>
-                                          {e.operation}
+                                        {/* OPÉRATION — frais/déduction rows are children of the Livraison
+                                            directly above them in the same voyage group; indent + lighter
+                                            weight makes that relationship visible instead of reading as an
+                                            unrelated operation (matches print/PDF treatment). */}
+                                        <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',padding: e.src === 'frais' ? '10px 12px 10px 26px' : '10px 12px',
+                                          color: e.src === 'frais' ? '#64748b' : '#1e293b', fontWeight: e.src === 'frais' ? 500 : 700,
+                                          fontSize: e.src === 'frais' ? 12 : 13}}>
+                                          {e.src === 'frais' ? `↳ ${e.operation}` : e.operation}
                                         </td>
                                         {/* TYPE BADGE */}
                                         <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
