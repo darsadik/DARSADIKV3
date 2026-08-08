@@ -343,14 +343,16 @@ export default function Voyages() {
     if (!deletePreviewFor?.length) return
     setArchiving(true)
     const ids = deletePreviewFor.map(v => v.id)
-    const { error } = await supabase
-      .from('voyages')
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: user?.email || 'unknown',
-      })
-      .in('id', ids)
+    // archive_voyage (supabase_rpc.sql) archives AND reverses this voyage's
+    // achats from fournisseur/grignon_fournisseur solde in one atomic step —
+    // so an archived voyage immediately stops counting in Fournisseurs
+    // Briques/Grignon, same as a permanent delete, but reversible via
+    // restore_voyage (pages/voyages/archives.js).
+    const results = await Promise.all(
+      ids.map(id => supabase.rpc('archive_voyage', { p_voyage_id: id, p_deleted_by: user?.email || 'unknown' }))
+    )
     setArchiving(false)
+    const error = results.find(r => r.error)?.error
     if (error) {
       alert('Erreur archivage: ' + error.message)
       return

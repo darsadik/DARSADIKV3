@@ -348,3 +348,79 @@ BEGIN
   DELETE FROM voyages           WHERE id        = p_voyage_id;
 END;
 $$;
+
+
+-- 9. Archive (soft-delete) a voyage atomically:
+--    Sets deleted_at/deleted_by AND reverses fournisseur/grignon_fournisseur
+--    solde for this voyage's achats — same reversal formula as delete_voyage's
+--    achat step above, so an archived voyage's purchases stop counting in
+--    Fournisseurs Briques/Grignon (solde + traceability) immediately, exactly
+--    like a permanent delete does, but reversibly via restore_voyage below.
+--    voyage_achats rows themselves are left untouched (archiving is not
+--    destructive) — pages must additionally filter them out by joining the
+--    parent voyage's deleted_at, same as /voyages and /review already do.
+--    No-op if the voyage is already archived (guards against double-reversal
+--    if called twice, e.g. a retried request).
+CREATE OR REPLACE FUNCTION archive_voyage(p_voyage_id BIGINT, p_deleted_by TEXT)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v voyages%ROWTYPE;
+BEGIN
+  SELECT * INTO v FROM voyages WHERE id = p_voyage_id;
+  IF NOT FOUND OR v.deleted_at IS NOT NULL THEN RETURN; END IF;
+
+  UPDATE fournisseurs f SET
+    solde = GREATEST(f.solde - COALESCE(a.total_achat, a.qte * a.prix_achat, 0), 0)
+  FROM voyage_achats a
+  WHERE a.voyage_id = p_voyage_id
+    AND a.type_produit <> 'grignon'
+    AND a.fournisseur_id = f.id;
+
+  UPDATE grignon_fournisseurs gf SET
+    solde = GREATEST(gf.solde - COALESCE(a.total_achat, a.qte * a.prix_achat, 0), 0)
+  FROM voyage_achats a
+  WHERE a.voyage_id = p_voyage_id
+    AND a.type_produit = 'grignon'
+    AND a.fournisseur_id = gf.id;
+
+  UPDATE voyages SET deleted_at = NOW(), deleted_by = p_deleted_by WHERE id = p_voyage_id;
+END;
+$$;
+
+
+-- 10. Restore an archived voyage atomically:
+--     Clears deleted_at/deleted_by AND re-adds the fournisseur/grignon_fournisseur
+--     solde this voyage's achats represent — exact inverse of archive_voyage.
+--     No-op if the voyage isn't currently archived.
+--     Note: if archive_voyage's GREATEST(...,0) clamp kicked in (solde would
+--     have gone negative), the clamped amount is lost and restore re-adds
+--     less than was originally reversed — same clamp-precision trade-off the
+--     rest of this codebase already accepts everywhere else solde is adjusted
+--     (see delAchat in lib/services/voyage/achats.js). Run
+--     reconcile_client_solde-style recomputation from source tables if a
+--     solde ever needs to be re-derived exactly.
+CREATE OR REPLACE FUNCTION restore_voyage(p_voyage_id BIGINT)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v voyages%ROWTYPE;
+BEGIN
+  SELECT * INTO v FROM voyages WHERE id = p_voyage_id;
+  IF NOT FOUND OR v.deleted_at IS NULL THEN RETURN; END IF;
+
+  UPDATE fournisseurs f SET
+    solde = f.solde + COALESCE(a.total_achat, a.qte * a.prix_achat, 0)
+  FROM voyage_achats a
+  WHERE a.voyage_id = p_voyage_id
+    AND a.type_produit <> 'grignon'
+    AND a.fournisseur_id = f.id;
+
+  UPDATE grignon_fournisseurs gf SET
+    solde = gf.solde + COALESCE(a.total_achat, a.qte * a.prix_achat, 0)
+  FROM voyage_achats a
+  WHERE a.voyage_id = p_voyage_id
+    AND a.type_produit = 'grignon'
+    AND a.fournisseur_id = gf.id;
+
+  UPDATE voyages SET deleted_at = NULL, deleted_by = NULL WHERE id = p_voyage_id;
+END;
+$$;

@@ -94,14 +94,21 @@ export default function FournisseursGrignon() {
     // truck from the linked voyage when one exists.
     const voyageIds = [...new Set((ac || []).map(a => a.voyage_id).filter(Boolean))]
     let voyageCamionById = {}
+    let archivedVoyageIds = new Set()
     if (voyageIds.length > 0) {
-      const { data: voys } = await supabase.from('voyages').select('id,camion_plaque').in('id', voyageIds)
+      const { data: voys } = await supabase.from('voyages').select('id,camion_plaque,deleted_at').in('id', voyageIds)
       voyageCamionById = Object.fromEntries((voys || []).map(v => [v.id, v.camion_plaque]))
+      archivedVoyageIds = new Set((voys || []).filter(v => v.deleted_at).map(v => v.id))
     }
-    setAchats((ac || []).map(a => ({
-      ...a,
-      camion_plaque: (a.voyage_id && voyageCamionById[a.voyage_id]) || a.camion_plaque || '',
-    })))
+    // Archived voyages are hidden here too — archive_voyage (supabase_rpc.sql)
+    // already reverses their achats out of grignon_fournisseurs.solde, so
+    // leaving the rows visible would show purchases the solde no longer counts.
+    setAchats((ac || [])
+      .filter(a => !a.voyage_id || !archivedVoyageIds.has(a.voyage_id))
+      .map(a => ({
+        ...a,
+        camion_plaque: (a.voyage_id && voyageCamionById[a.voyage_id]) || a.camion_plaque || '',
+      })))
     const merged = [
       ...(paLegacy || []).map(p => ({ id: `legacy-${p.id}`, date: p.date, montant: p.montant, mode: p.mode_paiement, note: p.note, cheque_number: null })),
       ...(paMain   || []).map(p => ({ id: `main-${p.id}`,   date: p.date, montant: p.montant, mode: p.mode,           note: p.note, cheque_number: p.cheque_number })),

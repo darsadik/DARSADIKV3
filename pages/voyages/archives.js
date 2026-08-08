@@ -120,10 +120,11 @@ export default function VoyagesArchives() {
 
   async function restoreVoyage(v) {
     setRestoring(v.id)
-    const { error } = await supabase
-      .from('voyages')
-      .update({ deleted_at: null, deleted_by: null })
-      .eq('id', v.id)
+    // restore_voyage (supabase_rpc.sql) clears deleted_at AND re-adds this
+    // voyage's achats to fournisseur/grignon_fournisseur solde in one atomic
+    // step — exact inverse of archive_voyage, so no manual re-entry is needed
+    // for Fournisseurs Briques/Grignon to reflect the restored voyage.
+    const { error } = await supabase.rpc('restore_voyage', { p_voyage_id: v.id })
     setRestoring(null)
     if (error) { alert('Erreur restauration: ' + error.message); return }
     // Restoring re-inserts this voyage into its truck's chronological

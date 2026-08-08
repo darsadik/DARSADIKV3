@@ -55,10 +55,6 @@ export default function FournisseursBriques() {
       supabase.from('ventes').select('*').eq('fournisseur_id', f.id).order('date', { ascending: true }),
       supabase.from('paiements').select('*').eq('fournisseur_id', f.id).order('date', { ascending: true }),
     ])
-    setAchats(ac || [])
-    setVentesLegacy(vl || [])
-    setPaiements(pa || [])
-
     // ── Traçabilité achats → livraisons (outil de contrôle, lecture seule) ──
     // Retrouve les livraisons des voyages concernés pour calculer, par achat,
     // la répartition par client. Aucune écriture, uniquement de la lecture.
@@ -68,17 +64,27 @@ export default function FournisseursBriques() {
     ].filter(Boolean))]
     let vld = []
     let vMap = {}
+    let archivedVoyageIds = new Set()
     if (voyageIds.length > 0) {
       const [{ data: livData }, { data: voyData }] = await Promise.all([
         supabase.from('voyage_livraisons')
           .select('voyage_id, type_brique, qte, client_nom, type_produit')
           .in('voyage_id', voyageIds)
           .eq('type_produit', 'brique'),
-        supabase.from('voyages').select('id, camion_plaque, chauffeur').in('id', voyageIds),
+        supabase.from('voyages').select('id, camion_plaque, chauffeur, deleted_at').in('id', voyageIds),
       ])
       vld = livData || []
       vMap = Object.fromEntries((voyData || []).map(v => [v.id, v]))
+      archivedVoyageIds = new Set((voyData || []).filter(v => v.deleted_at).map(v => v.id))
     }
+    // Archived voyages are hidden here too — archive_voyage (supabase_rpc.sql)
+    // already reverses their achats out of fournisseur.solde, so leaving the
+    // rows visible would show purchases the solde above no longer counts.
+    // Rows with no voyage_id (the standalone legacy `achats` table, or
+    // pre-Voyage `ventes` history) are never voyage-archived, so they pass through.
+    setAchats((ac || []).filter(a => !a.voyage_id || !archivedVoyageIds.has(a.voyage_id)))
+    setVentesLegacy((vl || []).filter(v => !v.voyage_id || !archivedVoyageIds.has(v.voyage_id)))
+    setPaiements(pa || [])
     setVoyageLivraisons(vld)
     setVoyagesById(vMap)
 
