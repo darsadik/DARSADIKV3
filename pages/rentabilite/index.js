@@ -107,7 +107,13 @@ export default function ProfitabiliteCenter() {
       // id/camion_plaque/station/prix_unitaire added (display-only) for the
       // VoyageDrawer's fuel-cost breakdown (buildVoyageFuelContributions).
       supabase.from('gasoil').select('id,camion_id,camion_plaque,station,prix_unitaire,km,total,date,adblue_total,qte').order('km', { ascending: true }),
-      supabase.from('voyages').select('id,camion_id,km_depart,km_arrivee,fuel_mode,deleted_at'),
+      // manual_distance_km/manual_fuel_cost/manual_cost_per_km REQUIRED —
+      // poolEntryForVoyage (lib/services/fuelAllocation.js) reads them off
+      // every truck voyage to build manual_km/manual_fixed pool entries.
+      // Without them, those voyages (and their pool-siblings' shares)
+      // silently computed wrong here while Contrôle Allocation (which
+      // already selects these fields) computed correctly for the same data.
+      supabase.from('voyages').select('id,camion_id,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at'),
       supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
     ])
     setCamions(ca || []); setClients(cl || []); setGrignonClients(gc || [])

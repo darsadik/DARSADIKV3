@@ -63,15 +63,30 @@ export default function FuelModeSection({ voyage, fuelCost, fuelSource, voyageKm
       )}>
 
       {!editing ? (
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Méthode active</div>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${badge.cls}`}>{badge.label}</span>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Méthode active</div>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${badge.cls}`}>{badge.label}</span>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wide">Coût carburant</div>
+              <div className="text-lg font-black text-slate-700">{fmtMoney(fuelCost)} DHS</div>
+            </div>
           </div>
-          <div className="text-right">
-            <div className="text-[10px] text-slate-400 uppercase tracking-wide">Coût carburant</div>
-            <div className="text-lg font-black text-slate-700">{fmtMoney(fuelCost)} DHS</div>
-          </div>
+          {activeMode === 'manual_km' && (
+            <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+              📏 Distance carburant saisie : <b className="text-slate-700">{fmt(voyage?.manual_distance_km)} KM</b> — utilisée comme poids de répartition sur le plein lié (voir Gasoil ci-dessous).
+            </div>
+          )}
+          {activeMode === 'manual_fixed' && (
+            <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+              💰 Montant demandé : <b className="text-slate-700">{fmtMoney(voyage?.manual_fuel_cost)} DHS</b>
+              {Math.abs((parseFloat(voyage?.manual_fuel_cost) || 0) - fuelCost) > 0.01 && (
+                <span className="text-amber-600"> — réduit à {fmtMoney(fuelCost)} DHS (plein insuffisant)</span>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

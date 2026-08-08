@@ -24,6 +24,7 @@ import FuelModeSection from './FuelModeSection'
 import LocationSection from './LocationSection'
 import ValidationPanel from './ValidationPanel'
 import { computeVoyageProfit, buildFuelMapsByCamion, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { buildVoyageFuelContributions, modeForVoyage } from '../../lib/services/voyage/fuelAllocationCenter'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { buildFuelCycles } from '../../lib/services/fuelCycles'
 
@@ -198,7 +199,14 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   useEffect(() => {
     if (!voyage?.camion_id) return
     supabase.from('gasoil')
-      .select('id,km,total,date,qte,adblue_total,station,prix_unitaire')
+      // camion_id is REQUIRED here even though every row is already filtered
+      // to this truck below — buildFuelMapsByCamion/buildVoyageFuelContributions
+      // group purchases by reading g.camion_id off each row, and silently
+      // drop any row where it's undefined. Without it in the select, the
+      // allocation engine saw zero purchases for this truck and every
+      // voyage's fuel cost/contributions here silently computed to 0/none —
+      // even when Contrôle Allocation showed the same voyage correctly.
+      .select('id,camion_id,km,total,date,qte,adblue_total,station,prix_unitaire')
       .eq('camion_id', voyage.camion_id)
       .order('km', { ascending: true })
       .then(({ data }) => setVehicleGasoil(data || []))
@@ -217,7 +225,12 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
     if (!voyage?.camion_id) return
     const [{ data: g }, { data: v }, { data: vg }] = await Promise.all([
       supabase.from('gasoil').select('id,camion_id,km,total,adblue_total,date,qte,adblue_qte,merge_with_previous').eq('camion_id', voyage.camion_id),
-      supabase.from('voyages').select('id,camion_id,date_depart,km_depart,km_arrivee,fuel_mode,deleted_at').eq('camion_id', voyage.camion_id),
+      // manual_distance_km/manual_fuel_cost are REQUIRED — poolEntryForVoyage
+      // (lib/services/fuelAllocation.js) reads them off every truck voyage to
+      // build manual_km/manual_fixed pool entries. Without them here, any
+      // sibling voyage in those modes silently contributed nothing to a
+      // shared purchase when the allocation table was built from this array.
+      supabase.from('voyages').select('id,camion_id,date_depart,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at').eq('camion_id', voyage.camion_id),
       supabase.from('voyage_gasoil').select('id,gasoil_id,voyage_id'),
     ])
     setCycleGasoil(g || [])
@@ -357,6 +370,54 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   const fuelMapForThisCamion = useMemo(() => buildFuelMapsByCamion({
     gasoil: vehicleGasoil, voyages: camionVoyagesForCycle, voyageGasoilLinks: truckVoyageGasoilLinks, remiseRate,
   }).get(voyage?.camion_id) || new Map(), [vehicleGasoil, camionVoyagesForCycle, truckVoyageGasoilLinks, remiseRate, voyage?.camion_id])
+
+  // Per-purchase breakdown for THIS voyage's Gasoil section — reuses
+  // buildVoyageFuelContributions (lib/services/voyage/fuelAllocationCenter.js)
+  // UNCHANGED, the exact same call Rentabilité's VoyageDrawer already makes,
+  // just scoped to this one truck's already-loaded rows. No second fuel
+  // formula: this is the SAME buildCamionFuelAllocationTable run that
+  // produced fuelMapForThisCamion above, just also keeping the per-purchase
+  // detail that buildFuelMapsByCamion discards. Enriches each contribution
+  // with this purchase's own km/litres (from vehicleGasoil, already loaded)
+  // and whether it's a manual link (from this voyage's own voyage_gasoil
+  // rows, `gasoil`) purely for display — never changes any amount.
+  const fuelContributions = useMemo(() => {
+    if (!voyage?.id) return []
+    const raw = buildVoyageFuelContributions({
+      gasoil: vehicleGasoil, voyages: camionVoyagesForCycle, voyageGasoilLinks: truckVoyageGasoilLinks, remiseRate,
+    }).get(voyage.id) || []
+    const purchaseById = new Map(vehicleGasoil.map(g => [g.id, g]))
+    const linkRowByGasoilId = new Map((gasoil || []).map(l => [l.gasoil_id, l]))
+    return raw.map(c => {
+      const purchase = purchaseById.get(c.gasoilId)
+      const linkRow = linkRowByGasoilId.get(c.gasoilId)
+      return {
+        ...c,
+        purchaseKm: purchase?.km ?? null,
+        purchaseQte: purchase?.qte || 0,
+        linkRowId: linkRow?.id || null,
+        mode: modeForVoyage(voyage, !!linkRow),
+      }
+    }).sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
+  }, [voyage, vehicleGasoil, camionVoyagesForCycle, truckVoyageGasoilLinks, remiseRate, gasoil])
+
+  // Manual-link rows that no longer resolve to any allocation contribution —
+  // e.g. the linked purchase was deleted, or now has no km/qte to allocate
+  // from. Surfaced explicitly instead of silently falling back to the link
+  // row's own legacy qte_litres/prix_unitaire/total columns (always 0 or
+  // stale for links created under the current engine — see
+  // sql/22_voyage_gasoil_pure_mapping.sql). Only meaningful in
+  // automatic/manual_km/manual_fixed modes — manual_rate/manual_amount are
+  // fully independent overrides that NEVER produce a contribution by design
+  // (poolEntryForVoyage returns null unconditionally for them), so a
+  // leftover link from before switching to one of those modes is inert, not
+  // broken, and must not be flagged as an error.
+  const orphanGasoilLinks = useMemo(() => {
+    const fm = voyage?.fuel_mode || 'automatic'
+    if (fm === 'manual_rate' || fm === 'manual_amount') return []
+    const contributed = new Set(fuelContributions.map(c => c.gasoilId))
+    return (gasoil || []).filter(g => g.gasoil_id && !contributed.has(g.gasoil_id))
+  }, [gasoil, fuelContributions, voyage?.fuel_mode])
 
   // Memoized (not just inline) so its identity only changes when the actual
   // section data changes — not on every keystroke in an unrelated add-form —
@@ -546,12 +607,20 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
     }
     setSavingKm(false)
     setEditingKm(false)
-    loadVoyage()
+    // KM changes this voyage's automatic bracket (which purchase it draws
+    // from) truck-wide — loadVoyage() alone only refreshes this voyage's own
+    // row, leaving camionVoyagesForCycle (what the allocation engine reads)
+    // stale until something else happened to reload it. Same fix as
+    // linkGasoilToVoyage/delGasoil below.
+    await Promise.all([loadVoyage(), loadCycleContext()])
   }
 
   async function saveFuelMode(fields) {
     await dbUpdateFuelMode(id, fields)
-    loadVoyage()
+    // See updateKm() above — fuel_mode/manual_distance_km/manual_fuel_cost
+    // all feed the allocation engine via camionVoyagesForCycle, not just the
+    // voyage row loadVoyage() refreshes.
+    await Promise.all([loadVoyage(), loadCycleContext()])
   }
 
   async function saveLocation(e) {
@@ -987,6 +1056,9 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
           />
           <GasoilSection
             gasoil={enrichedGasoil}
+            fuelContributions={fuelContributions}
+            orphanGasoilLinks={orphanGasoilLinks}
+            voyage={voyage}
             showGasoilPicker={showGasoilPicker} onClosePicker={() => setShowGasoilPicker(false)}
             camionPleins={camionPleins}
             linkingGasoil={linkingGasoil}
