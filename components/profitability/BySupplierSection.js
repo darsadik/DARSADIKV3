@@ -92,6 +92,15 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
         searchable searchFn={(r, q) => (r.fournisseur_nom || '').toLowerCase().includes(q)}
         placeholder="Rechercher un fournisseur..."
         defaultSortKey="total" exportFilename="Fournisseurs"
+        printIcon="🏭"
+        printSummary={rows => {
+          const t = totals(rows)
+          return [
+            { label: 'Total Dépensé', value: `${fmtMoney(t.totalAchat)} DHS`, color: '#dc2626' },
+            { label: 'Nb. Achats', value: `${t.nbAchats}`, color: '#64748b' },
+            { label: 'Nb. Voyages', value: `${t.nbVoyages}`, color: '#64748b' },
+          ]
+        }}
       />
       {selectedSupplier && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={e => { if (e.target === e.currentTarget) setSelected(null) }}>
@@ -108,6 +117,12 @@ export default function BySupplierSection({ achats, results, onOpenVoyage }) {
                 columns={drillColumns} rows={selectedAchats} rowKey={a => a.id}
                 onRowClick={a => onOpenVoyage(a.voyage_id)}
                 defaultSortKey="date" printSort={drillChronoSort} exportFilename={selectedSupplier.fournisseur_nom}
+                printIcon="🏭"
+                printSummary={rows => [
+                  { label: 'Total Achats', value: `${fmtMoney(rows.reduce((s, a) => s + (a.total_achat || 0), 0))} DHS`, color: '#dc2626' },
+                  { label: 'Quantité Totale', value: fmt(rows.reduce((s, a) => s + (a.qte || 0), 0)), color: '#64748b' },
+                  { label: 'Nb. Achats', value: `${rows.length}`, color: '#64748b' },
+                ]}
               />
             </div>
           </div>

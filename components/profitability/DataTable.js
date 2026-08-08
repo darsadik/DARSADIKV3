@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { openPrintWindow } from '../../lib/utils'
-import { printBaseCss, printHeader, printGeneratedDate, printFooter } from '../../lib/printLayout'
+import { printBaseCss, printHeader, printGeneratedDate, printFooter, entityCard, summaryCards, soldeFinal } from '../../lib/printLayout'
 
 // ── Generic sortable / searchable / exportable table shell ──────────────────
 // Used by every tabular section of the Profitability Center (By Voyage, By
@@ -31,7 +31,11 @@ export function exportExcel(rows, columns, filename) {
 // `rows` must already be exactly the set the report should cover (filtered
 // and, for date-bearing tables, pre-sorted chronologically by the caller —
 // see the `printSort` prop below) — this function never re-filters, re-sorts,
-// or recomputes a total; it only renders. Per column:
+// or recomputes a total; it only renders. Same visual language as every other
+// statement in the app (client/fournisseur/gasoil — see lib/printLayout.js):
+// company header, an entityCard "report identity" block, an optional row of
+// KPI summaryCards, the detailed table, and an optional soldeFinal closing
+// banner. Per column:
 //   printValue(row)  — pre-formatted print/PDF cell text (falls back to
 //                       exportValue, then sortValue, so existing columns keep
 //                       working unformatted until a section opts in)
@@ -40,7 +44,11 @@ export function exportExcel(rows, columns, filename) {
 //                       either blank or merged into the leading "TOTAL (n)"
 //                       label cell (every column before the first one that
 //                       defines `total`)
-export function exportPrint(rows, columns, title, subtitle) {
+// `opts.summary`/`opts.banner` are pre-formatted display data the caller
+// derives from its own already-computed totals — this function never sums
+// anything itself beyond the per-column `total(rows)` reduces above.
+export function exportPrint(rows, columns, title, subtitle, opts = {}) {
+  const { icon = '📊', summary = [], banner = null } = opts
   const accent = '#2563eb'
   const printDate = printGeneratedDate()
   const printCols = columns.filter(c => c.exportValue || c.sortValue)
@@ -64,15 +72,19 @@ ${printBaseCss(accent)}
 @page{size:${orientation};margin:12mm}
 </style></head><body>
 ${printHeader({ date: printDate })}
-<div class="periode-bar" style="padding:13px 24px;border-bottom:2px solid #e2e8f0;font-size:13px;color:#1e293b;font-weight:600">
-  ${title}${subtitle ? ` &nbsp;·&nbsp; <strong style="color:${accent};font-weight:800">${subtitle}</strong>` : ''}
-</div>
+${entityCard({
+  avatarText: icon,
+  name: title,
+  metaHtml: `${subtitle ? `${subtitle} &nbsp;·&nbsp; ` : ''}<strong>${rows.length} ligne(s)</strong>`,
+})}
+${summary.length ? summaryCards(summary) : ''}
 <div class="bdy">
 <table>
   <thead><tr>${th}</tr></thead>
   <tbody>${tr}</tbody>
   ${totalRow}
 </table>
+${banner ? soldeFinal(banner) : ''}
 ${printFooter(printDate)}
 </div></body></html>`
   openPrintWindow(html)
@@ -90,6 +102,14 @@ export default function DataTable({
   // Rentabilité print spec. Applied to the search-filtered rows, not `sorted`,
   // so it always wins over the live UI sort state for this one export.
   printSort,
+  // PDF report identity/summary — same building blocks every other statement
+  // in the app uses (see lib/printLayout.js). printSummary(rows)/printBanner(rows)
+  // receive the exact rows being printed and must return pre-formatted
+  // display data derived from the caller's own already-computed totals —
+  // never a place to introduce new math.
+  printIcon = '📊',
+  printSummary,
+  printBanner,
 }) {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState(defaultSortKey || columns[0]?.key)
@@ -137,7 +157,14 @@ export default function DataTable({
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
               📊 Excel
             </button>
-            <button onClick={() => exportPrint(printSort ? [...filtered].sort(printSort) : sorted, columns, title || exportFilename, subtitle)}
+            <button onClick={() => {
+              const pRows = printSort ? [...filtered].sort(printSort) : sorted
+              exportPrint(pRows, columns, title || exportFilename, subtitle, {
+                icon: printIcon,
+                summary: printSummary ? printSummary(pRows) : [],
+                banner: printBanner ? printBanner(pRows) : null,
+              })
+            }}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
               🖨️ PDF
             </button>

@@ -60,6 +60,20 @@ export default function ByClientSection({ results, onOpenVoyage }) {
         searchable searchFn={(r, q) => (r.client_nom || '').toLowerCase().includes(q)}
         placeholder="Rechercher un client..."
         defaultSortKey="profit" exportFilename="Clients"
+        printIcon="👤"
+        printSummary={rows => {
+          const t = totals(rows)
+          return [
+            { label: 'Revenu Total', value: `${fmtMoney(t.revenue)} DHS`, color: '#16a34a' },
+            { label: 'Profit Total', value: `${t.profit >= 0 ? '+' : ''}${fmtMoney(t.profit)} DHS`, color: t.profit >= 0 ? '#059669' : '#dc2626' },
+            { label: 'Marge Moyenne', value: `${t.marge}%`, color: '#2563eb' },
+            { label: 'Nb. Voyages', value: `${t.nbVoyages}`, color: '#64748b' },
+          ]
+        }}
+        printBanner={rows => {
+          const t = totals(rows)
+          return { label: 'Profit Net Total', amountFormatted: fmtMoney(t.profit), amount: t.profit, sub: `${rows.length} client(s) — ${t.nbVoyages} voyage(s)` }
+        }}
       />
       {selectedClient && (
         <EntityDrillDrawer
@@ -69,6 +83,7 @@ export default function ByClientSection({ results, onOpenVoyage }) {
           clientKey={selected}
           onOpenVoyage={onOpenVoyage}
           onClose={() => setSelected(null)}
+          icon="👤"
         />
       )}
     </>

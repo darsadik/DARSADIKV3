@@ -26,7 +26,7 @@ function chronoSort(a, b) {
 // combined) — same simplified model as ByVoyageSection. breakdown() only
 // reads fields already produced by computeVoyageProfit; Charges is derived
 // as total − gasoil so it always reconciles to the engine's own Total Cost.
-export default function EntityDrillDrawer({ title, subtitle, voyages, clientKey, onOpenVoyage, onClose }) {
+export default function EntityDrillDrawer({ title, subtitle, voyages, clientKey, onOpenVoyage, onClose, icon = '📋' }) {
   function slice(v) {
     if (!clientKey) return v
     return v.clients.find(c => c.key === clientKey) || {
@@ -131,6 +131,21 @@ export default function EntityDrillDrawer({ title, subtitle, voyages, clientKey,
             onRowClick={r => onOpenVoyage(r.id)}
             rowClassName={r => marginRowClass(breakdown(r).marge)}
             defaultSortKey="date" footer={footer} printSort={chronoSort} exportFilename={title}
+            printIcon={icon}
+            printSummary={rows => {
+              const t = computeTotals(rows)
+              return [
+                { label: 'Revenu Total', value: `${fmtMoney(t.revenue)} DHS`, color: '#16a34a' },
+                { label: 'Gasoil', value: `− ${fmtMoney(t.gasoil)} DHS`, color: '#dc2626' },
+                { label: 'Charges', value: `− ${fmtMoney(t.charges)} DHS`, color: '#dc2626' },
+                { label: 'Coût Total', value: `− ${fmtMoney(t.total)} DHS`, color: '#b91c1c' },
+                { label: 'Marge', value: `${t.marge}%`, color: '#2563eb' },
+              ]
+            }}
+            printBanner={rows => {
+              const t = computeTotals(rows)
+              return { label: 'Profit Net Total', amountFormatted: fmtMoney(t.profit), amount: t.profit, sub: `${rows.length} voyage(s)` }
+            }}
           />
         </div>
       </div>

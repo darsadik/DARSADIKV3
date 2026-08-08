@@ -66,6 +66,20 @@ export default function ByTruckSection({ results, camions, onOpenVoyage }) {
         onRowClick={r => setSelected(r.id)}
         rowClassName={r => marginRowClass(r.marge)}
         defaultSortKey="profit" exportFilename="Camions"
+        printIcon="🚚"
+        printSummary={rows => {
+          const t = totals(rows)
+          return [
+            { label: 'Revenu Total', value: `${fmtMoney(t.revenue)} DHS`, color: '#16a34a' },
+            { label: 'Profit Total', value: `${t.profit >= 0 ? '+' : ''}${fmtMoney(t.profit)} DHS`, color: t.profit >= 0 ? '#059669' : '#dc2626' },
+            { label: 'Marge Moyenne', value: `${t.marge}%`, color: '#2563eb' },
+            { label: 'Nb. Voyages', value: `${t.nbVoyages}`, color: '#64748b' },
+          ]
+        }}
+        printBanner={rows => {
+          const t = totals(rows)
+          return { label: 'Profit Net Total', amountFormatted: fmtMoney(t.profit), amount: t.profit, sub: `${rows.length} camion(s) — ${t.nbVoyages} voyage(s)` }
+        }}
       />
       {selectedTruck && (
         <EntityDrillDrawer
@@ -74,6 +88,7 @@ export default function ByTruckSection({ results, camions, onOpenVoyage }) {
           voyages={results.filter(r => r.camion_id === selected)}
           onOpenVoyage={onOpenVoyage}
           onClose={() => setSelected(null)}
+          icon="🚚"
         />
       )}
     </>

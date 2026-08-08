@@ -109,6 +109,22 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
       defaultSortKey="date"
       footer={footer}
       printSort={chronoSort}
+      printIcon="🚛"
+      printSummary={rows => {
+        const t = computeTotals(rows)
+        return [
+          { label: 'Revenu Total', value: `${fmtMoney(t.revenue)} DHS`, color: '#16a34a' },
+          { label: 'Total Achats', value: `− ${fmtMoney(t.purchases)} DHS`, color: '#dc2626' },
+          { label: 'Total Gasoil', value: `− ${fmtMoney(t.gasoil)} DHS`, color: '#dc2626' },
+          { label: 'Total Charges', value: `− ${fmtMoney(t.charges)} DHS`, color: '#dc2626' },
+          { label: 'Coût Total', value: `− ${fmtMoney(t.totalCost)} DHS`, color: '#b91c1c' },
+          { label: 'Marge Moyenne', value: `${t.marge}%`, color: '#2563eb' },
+        ]
+      }}
+      printBanner={rows => {
+        const t = computeTotals(rows)
+        return { label: 'Profit Net Total', amountFormatted: fmtMoney(t.profit), amount: t.profit, sub: `${rows.length} voyage(s) — Marge ${t.marge}%` }
+      }}
       exportFilename="Voyages"
     />
   )
