@@ -503,11 +503,11 @@ export default function Clients() {
   tbody tr.band td{background:#f6f8fb !important}
   tbody tr.grp-end td{border-bottom:1.5px solid #c3ccd6 !important}
   .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
-  .total-block{margin-top:14px;padding-top:14px;border-top:1px solid #dde3ea;text-align:right}
-  .total-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em}
-  .total-value{margin-top:4px;font-size:27px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
-  .total-value .u{font-size:16px;font-weight:700;margin-left:3px}
-  .total-words{margin-top:10px;font-size:11px;color:#475569;line-height:1.6}
+  .total-box{margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
+  .total-box .tb-label{font-size:13px;font-weight:800;color:#166534;letter-spacing:0.08em;text-transform:uppercase}
+  .total-box .tb-amount{font-size:26px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
+  .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#16a34a;margin-left:3px}
+  .total-words{margin-top:8px;font-size:11px;color:#475569;line-height:1.55;text-align:left}
   .total-words strong{color:#334155;font-weight:700}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
@@ -576,11 +576,11 @@ export default function Clients() {
     }).join('')}
   </tbody>
 </table>
-<div class="total-block">
-  <div class="total-label">Total</div>
-  <div class="total-value">${fmtMoney(pFinalBalance)}<span class="u">DH</span></div>
-  <div class="total-words">Arrêté le présent relevé à la somme de :<br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
+<div class="total-box">
+  <span class="tb-label">Total</span>
+  <span class="tb-amount">${fmtMoney(pFinalBalance)}<span class="u">DH</span></span>
 </div>
+<div class="total-words">Arrêté le présent relevé à la somme de :<br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
@@ -689,11 +689,11 @@ export default function Clients() {
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
   tbody tr.band td{background:#f6f8fb !important}
   tbody tr.grp-end td{border-bottom:1.5px solid #c3ccd6 !important}
-  .total-block{margin-top:14px;padding-top:14px;border-top:1px solid #dde3ea;text-align:right}
-  .total-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em}
-  .total-value{margin-top:4px;font-size:27px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
-  .total-value .u{font-size:16px;font-weight:700;margin-left:3px}
-  .total-words{margin-top:10px;font-size:11px;color:#475569;line-height:1.6}
+  .total-box{margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
+  .total-box .tb-label{font-size:13px;font-weight:800;color:#166534;letter-spacing:0.08em;text-transform:uppercase}
+  .total-box .tb-amount{font-size:26px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
+  .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#16a34a;margin-left:3px}
+  .total-words{margin-top:8px;font-size:11px;color:#475569;line-height:1.55;text-align:left}
   .total-words strong{color:#334155;font-weight:700}
   .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
@@ -733,11 +733,11 @@ export default function Clients() {
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>
-<div class="total-block">
-  <div class="total-label">Total</div>
-  <div class="total-value">${fmtMoney(pFinalBalance)}<span class="u">DH</span></div>
-  <div class="total-words">Arrêté le présent relevé à la somme de :<br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
+<div class="total-box">
+  <span class="tb-label">Total</span>
+  <span class="tb-amount">${fmtMoney(pFinalBalance)}<span class="u">DH</span></span>
 </div>
+<div class="total-words">Arrêté le présent relevé à la somme de :<br><strong>${montantEnLettres(pFinalBalance)}</strong></div>
 <div class="foot"><span>DAR SADIK — Matériaux de Construction — Selouane, Nador</span><span>Généré le ${date}</span></div>
 </div></body></html>`)
   }
