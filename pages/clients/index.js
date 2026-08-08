@@ -566,10 +566,17 @@ export default function Clients() {
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
         : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
+      // Frais/déduction rows are children of the Livraison directly above them
+      // within the same voyage group — indent + subordinate weight makes that
+      // relationship visible instead of reading as an unrelated operation.
+      const isChild = e.src === 'frais'
+      const opCell = isChild
+        ? `<td style="font-size:12px;font-weight:500;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
+        : `<td style="font-size:13.5px;font-weight:700;color:#0f172a">${e.operation}</td>`
       return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
-        <td style="font-size:13px;font-weight:600;color:#1e293b">${e.operation}</td>
+        ${opCell}
         <td>${typeTag}</td>
         <td class="r" style="font-weight:700;color:#0f172a;font-size:14px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
         <td class="r" style="font-weight:700;color:#0f172a;font-size:14px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmtMoney(v.prix_vente||0):'<span style="color:#9ca3af">—</span>'}</td>
@@ -651,10 +658,17 @@ export default function Clients() {
       const bandBg = pGroupMeta.band[i] === 1 ? '#f6f8fb' : '#ffffff'
       const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg}" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
       const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+      // Frais/déduction rows are children of the Livraison directly above them
+      // within the same voyage group — indent + subordinate weight makes that
+      // relationship visible instead of reading as an unrelated operation.
+      const isChild = e.src === 'frais'
+      const opCell = isChild
+        ? `<td style="font-size:12px;font-weight:500;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
+        : `<td style="font-size:13.5px;font-weight:700;color:#0f172a">${e.operation}</td>`
       return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
-        <td style="font-size:13px;font-weight:600;color:#1e293b">${e.operation}</td>
+        ${opCell}
         <td>${typeTag}</td>
         <td class="r" style="font-size:14px">${qteCell}</td>
         <td class="r" style="font-size:14px">${prixCell}</td>
@@ -1027,7 +1041,17 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   // ── BUILD LEDGER (chronological, accounting source of truth) ──
   function buildLedger() {
     const startBalance = carryOver !== null ? carryOver : (selected?.opening_balance || 0)
-    const entries = []
+    // `parents` holds one entry per real transaction (Livraison/Paiement/Remise) —
+    // frais/déduction children are attached in a second pass, AFTER sorting, so
+    // they can never drift away from their own Livraison. Sorting the flat
+    // (parent + children) list directly is fragile: a déduction added or edited
+    // days after the original save (FraisEditor, via the edit modal) carries its
+    // own later created_at, which could sort it in between two DIFFERENT
+    // voyages that share the same date — breaking voyageGroupKey's consecutive-
+    // rows grouping and making the child render as if it were a standalone
+    // operation. Splicing children onto their parent's already-sorted position
+    // guarantees they always stay adjacent, regardless of their own timestamp.
+    const parents = []
 
     function opLabel(type, typeRemise) {
       if (type === 'vente')         return 'Livraison'
@@ -1048,32 +1072,33 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
       const isMdo = v.type_entree === 'mdo'
       const type = isRemiseVoyage ? 'remise-voyage' : isMdo ? 'mdo' : 'vente'
       const deliveryNote = isRemiseVoyage ? (v.description_mdo || v.note || '') : isMdo ? (v.description_mdo || '') : (v.note || clientLivNoteMap[v.id] || '')
-      const baseEntry = {
+      parents.push({
         date: v.date, created_at: v.created_at || '', type,
         label: isRemiseVoyage ? 'Remise' : isMdo ? "Main d'œuvre" : (v.type_brique || '—'),
         detail: v.camion_plaque || '', note: deliveryNote,
         operation: opLabel(type, null), delta: v.total_vente || 0, src: 'vente', raw: v,
         voyage_id: v.voyage_id || null,
-      }
-      entries.push(...expandVenteEntry(baseEntry))
+      })
     })
 
-    filteredPaiements.forEach(p => entries.push({
+    filteredPaiements.forEach(p => parents.push({
       date: p.date, created_at: p.created_at || '', type: 'paiement',
       label: p.mode || 'Paiement', detail: p.camion_plaque || '', note: p.note || '',
       operation: 'Paiement', delta: -(p.montant || 0), src: 'paiement', raw: p,
     }))
 
-    filteredRemises.forEach(r => entries.push({
+    filteredRemises.forEach(r => parents.push({
       date: r.date, created_at: r.created_at || '', type: 'remise',
       label: r.type_remise || 'Remise', detail: '', note: r.motif || '',
       operation: opLabel('remise', r.type_remise), delta: -(r.montant || 0), src: 'remise', raw: r,
     }))
 
-    entries.sort((a, b) => {
+    parents.sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1
       return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0
     })
+
+    const entries = parents.flatMap(p => expandVenteEntry(p))
 
     let balance = startBalance
     entries.forEach(e => { balance += e.delta; e.solde = balance })
