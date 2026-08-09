@@ -1617,24 +1617,31 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
           </div>
         )}
 
-        <div className="overflow-x-auto" style={{userSelect:'none'}}>
+        {/* Sticky anchor columns (checkbox/drag/Date/Camion) — same treatment as the
+            chrono table, so the identifying columns stay visible while scrolling
+            horizontally through Montant/Solde/Note on narrow screens. */}
+        {(() => { const SEL_W = 36, DRAG_W = 20, DATE_W = 92, CAMION_W = 96
+          const stickyLeft = [0, SEL_W, SEL_W + DRAG_W, SEL_W + DRAG_W + DATE_W]
+          return (
+        <div className="overflow-x-auto" style={{userSelect:'none',WebkitOverflowScrolling:'touch',boxShadow:'inset -10px 0 8px -8px rgba(15,23,42,0.06)'}}>
           <table className="w-full border-collapse">
             <thead>
               <tr>
                 {/* Select-all checkbox */}
-                <th style={{...thS,width:36,padding:'9px 6px',textAlign:'center'}}>
+                <th style={{...thS,width:36,padding:'9px 6px',textAlign:'center',position:'sticky',left:stickyLeft[0],zIndex:2}}>
                   <input type="checkbox"
                     checked={displayEntries.length > 0 && displayEntries.every(e => presSelectedRows.has(eKey(e)))}
                     onChange={ev => setPresSelectedRows(ev.target.checked ? new Set(displayEntries.map(eKey)) : new Set())}
                     style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
                 </th>
                 {/* Drag handle col */}
-                <th style={{...thS,width:20,padding:'9px 4px'}}></th>
+                <th style={{...thS,width:20,padding:'9px 4px',position:'sticky',left:stickyLeft[1],zIndex:2}}></th>
                 {[
                   {l:'Date',r:false,w:92},{l:'Camion',r:false,w:96},{l:'Opération',r:false,w:150},{l:'Type',r:false,w:100},
                   {l:'Qté',r:true,w:64},{l:'Prix/u',r:true,w:84},{l:'Montant',r:true,w:118},{l:'Solde',r:true,w:130},{l:'Note',r:false,w:160}
                 ].map((col,ci) => (
-                  <th key={ci} style={{...thS,textAlign:col.r?'right':'left',minWidth:col.w}}>{col.l}</th>
+                  <th key={ci} style={{...thS,textAlign:col.r?'right':'left',minWidth:col.w,
+                    ...(ci===0?{position:'sticky',left:stickyLeft[2],zIndex:2}:ci===1?{position:'sticky',left:stickyLeft[3],zIndex:2}:{})}}>{col.l}</th>
                 ))}
                 <th style={{...thS,width:70}}></th>
               </tr>
@@ -1655,18 +1662,18 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       }}
                       style={{ background: isSelected ? '#fef3c7' : '#fffbeb', cursor: 'pointer',
                         borderLeft: isSelected ? '3px solid #f59e0b' : undefined }}>
-                      <td style={{ width:36, padding:'0 6px', textAlign:'center', ...bdrA }} onClick={ev => ev.stopPropagation()}>
+                      <td style={{ width:36, padding:'0 6px', textAlign:'center', ...bdrA, position:'sticky', left:stickyLeft[0], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }} onClick={ev => ev.stopPropagation()}>
                         <input type="checkbox" checked={isSelected} onChange={() => {
                           const ns = new Set(presSelectedRows); const key = eKey(e)
                           ns.has(key) ? ns.delete(key) : ns.add(key)
                           setPresSelectedRows(ns); setPresLastClickedIdx(i); presSelectInitRef.current = new Set(ns)
                         }} style={{ width:13, height:13, cursor:'pointer', accentColor:'#f59e0b' }} />
                       </td>
-                      <td style={{ width:20, textAlign:'center', color:'#fde68a', fontSize:17, userSelect:'none', ...bdrA }}>—</td>
-                      <td className="td text-xs" style={{ ...bdrA, color:'#92400e', whiteSpace:'nowrap', padding:'10px 12px' }}>
+                      <td style={{ width:20, textAlign:'center', color:'#fde68a', fontSize:17, userSelect:'none', ...bdrA, position:'sticky', left:stickyLeft[1], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>—</td>
+                      <td className="td text-xs" style={{ ...bdrA, color:'#92400e', whiteSpace:'nowrap', padding:'10px 12px', position:'sticky', left:stickyLeft[2], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>
                         {e.date ? fmtDate(e.date) : '—'}
                       </td>
-                      <td className="td text-center text-gray-300" style={{ ...bdrA, padding:'10px 12px' }}>—</td>
+                      <td className="td text-center text-gray-300" style={{ ...bdrA, padding:'10px 12px', position:'sticky', left:stickyLeft[3], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>—</td>
                       <td className="td text-xs font-semibold" style={{ ...bdrA, color:'#92400e', whiteSpace:'nowrap', padding:'10px 12px' }}>
                         Solde initial
                       </td>
@@ -1757,7 +1764,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                     }}
                   >
                     {/* CHECKBOX — still visible but clicking anywhere on row works */}
-                    <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr}} onClick={ev => ev.stopPropagation()}>
+                    <td style={{width:36,padding:'0 6px',textAlign:'center',...bdr,position:'sticky',left:stickyLeft[0],zIndex:1,background:rowBg}} onClick={ev => ev.stopPropagation()}>
                       <input type="checkbox" checked={isSelected} onChange={() => {
                         const ns = new Set(presSelectedRows)
                         ns.has(eKey(e)) ? ns.delete(eKey(e)) : ns.add(eKey(e))
@@ -1771,14 +1778,14 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       draggable
                       onDragStart={ev => { ev.dataTransfer.effectAllowed = 'move'; setPresDragFrom(i) }}
                       onClick={ev => ev.stopPropagation()}
-                      style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
+                      style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr,position:'sticky',left:stickyLeft[1],zIndex:1,background:rowBg}}>
                       ⠿
                     </td>
                     {/* DATE + MOVED INDICATOR — real rowspan merge across the voyage group.
                         Explicit background (not transparent) so the merged block never
                         shows a mismatched color bleeding through from a row beneath it. */}
                     {rowSpan > 0 && (
-                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle'}}>
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[2],zIndex:1}}>
                         <div>{fmtDate(e.date)}</div>
                         {isMoved && (
                           <div style={{fontSize:9,marginTop:2}}>
@@ -1791,7 +1798,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         right border marks where the "anchor" columns end and the
                         transaction detail columns begin. */}
                     {rowSpan > 0 && (
-                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle'}}>
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[3],zIndex:1}}>
                         {e.detail || <span className="text-gray-400">—</span>}
                       </td>
                     )}
@@ -1856,10 +1863,10 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                   return (
                     <Fragment key={`rf-${eKey(e)}`}>
                       <tr style={{background:'#fef3c7',cursor:'default'}}>
-                        <td style={{width:36,padding:'0 6px',textAlign:'center',border:'1px solid #fde68a'}}></td>
-                        <td style={{width:20,textAlign:'center',color:'#fde68a',fontSize:17,userSelect:'none',border:'1px solid #fde68a'}}>—</td>
-                        <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>—</td>
-                        <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
+                        <td style={{width:36,padding:'0 6px',textAlign:'center',border:'1px solid #fde68a',position:'sticky',left:stickyLeft[0],zIndex:1,background:'#fef3c7'}}></td>
+                        <td style={{width:20,textAlign:'center',color:'#fde68a',fontSize:17,userSelect:'none',border:'1px solid #fde68a',position:'sticky',left:stickyLeft[1],zIndex:1,background:'#fef3c7'}}>—</td>
+                        <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px',position:'sticky',left:stickyLeft[2],zIndex:1,background:'#fef3c7'}}>—</td>
+                        <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px',position:'sticky',left:stickyLeft[3],zIndex:1,background:'#fef3c7'}}>—</td>
                         <td className="td text-xs font-semibold" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>Report</td>
                         <td style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
                           <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>Report</span>
@@ -1880,6 +1887,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
             </tbody>
           </table>
         </div>
+          )})()}
       </div>
     )
   }
@@ -2436,26 +2444,31 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
 
                         {/* TABLE BODY — switch between modes */}
                         {stmtMode === 'presentation' ? renderPresentationTable() : stmtMode === 'billing' ? renderBillingTable() : (
-                          <div className="overflow-x-auto">
+                          // Sticky Date/Camion anchor columns — on narrow screens the table scrolls
+                          // horizontally, but the two columns that identify "which operation" stay
+                          // pinned so they're never lost off-screen while scanning Montant/Solde/Note.
+                          (() => { const DATE_W = 92, CAMION_W = 96; return (
+                          <div className="overflow-x-auto" style={{WebkitOverflowScrolling:'touch',boxShadow:'inset -10px 0 8px -8px rgba(15,23,42,0.06)'}}>
                             <table className="w-full border-collapse">
                               <thead>
                                 <tr>
                                   {[
-                                    {l:'Date',r:false,w:92},{l:'Camion',r:false,w:96},{l:'Opération',r:false,w:150},{l:'Type',r:false,w:100},
+                                    {l:'Date',r:false,w:DATE_W},{l:'Camion',r:false,w:CAMION_W},{l:'Opération',r:false,w:150},{l:'Type',r:false,w:100},
                                     {l:'Qté',r:true,w:64},{l:'Prix/u',r:true,w:84},{l:'Montant',r:true,w:118},{l:'Solde',r:true,w:130},
                                     {l:'Note',r:false,w:160},{l:'',r:false,w:56}
                                   ].map((col,i) => (
-                                    <th key={i} style={{...thS,textAlign:col.r?'right':'left',minWidth:col.w}}>{col.l}</th>
+                                    <th key={i} style={{...thS,textAlign:col.r?'right':'left',minWidth:col.w,
+                                      ...(i===0?{position:'sticky',left:0,zIndex:2}:i===1?{position:'sticky',left:DATE_W,zIndex:2}:{})}}>{col.l}</th>
                                   ))}
                                 </tr>
                               </thead>
                               <tbody>
                                 {/* Opening balance / carry-over row */}
                                 <tr style={{background:'#fffbeb'}}>
-                                  <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>
+                                  <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px',position:'sticky',left:0,zIndex:1,background:'#fffbeb'}}>
                                     {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                                   </td>
-                                  <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
+                                  <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px',position:'sticky',left:DATE_W,zIndex:1,background:'#fffbeb'}}>—</td>
                                   <td className="td text-xs text-amber-700 font-semibold" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
                                     {carryOver !== null ? 'Report' : 'Solde initial'}
                                   </td>
@@ -2504,12 +2517,12 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                             background so it never shows a mismatched color bleeding
                                             through from a differently-tinted row beneath it. */}
                                         {rowSpan > 0 && (
-                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle'}}>{fmtDate(e.date)}</td>
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:0,zIndex:1}}>{fmtDate(e.date)}</td>
                                         )}
                                         {/* CAMION — real rowspan merge across the voyage group. Heavier
                                             right border marks where the anchor columns end. */}
                                         {rowSpan > 0 && (
-                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle'}}>
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:DATE_W,zIndex:1}}>
                                             {e.detail || <span className="text-gray-400">—</span>}
                                           </td>
                                         )}
@@ -2582,21 +2595,24 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                               </tbody>
                             </table>
                           </div>
+                          )})()
                         )}
                       </div>
                     )
                   })()}
 
-                  {/* TOTAL — single, final presentation (no duplicate colored total line elsewhere) */}
-                  <div className="flex items-center justify-between"
-                    style={{position:'relative',overflow:'hidden',borderRadius:14,border:'1px solid #dde5e0',background:'#f8faf9',padding:'20px 26px 20px 30px'}}>
+                  {/* TOTAL — single, final presentation (no duplicate colored total line elsewhere).
+                      Stacks label above amount below the sm breakpoint instead of squeezing a
+                      space-between row into a narrow screen. */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                    style={{position:'relative',overflow:'hidden',borderRadius:14,border:'1px solid #dde5e0',background:'#f8faf9',padding:'18px 20px 18px 24px'}}>
                     <div style={{position:'absolute',left:0,top:0,bottom:0,width:5,background:'#16a34a'}} />
                     <div>
                       <div className="font-extrabold" style={{color:'#1e293b',fontSize:12.5,letterSpacing:'0.1em',textTransform:'uppercase'}}>Total</div>
                       <div className="mt-1" style={{color:'#64748b',fontSize:12}}>Solde actuel à payer · {getFilterLabel()}</div>
                     </div>
-                    <div style={{textAlign:'right'}}>
-                      <div className="font-black" style={{fontSize:36,color:'#15803d',lineHeight:1,letterSpacing:'-0.5px'}}>
+                    <div className="text-left sm:text-right">
+                      <div className="font-black" style={{fontSize:32,color:'#15803d',lineHeight:1,letterSpacing:'-0.5px'}}>
                         {fmtMoney(ledger.finalBalance)}
                       </div>
                       <div style={{fontSize:12,fontWeight:600,color:'#94a3b8',marginTop:4}}>DHS</div>
