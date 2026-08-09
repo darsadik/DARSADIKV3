@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import { fmtMoney, fmtDate, today, startOfMonth, useIsMobile, openPrintWindow } from '../../lib/utils'
-import { printBaseCss, printHeader, printGeneratedDate, totalsRow, soldeFinal, printFooter } from '../../lib/printLayout'
+import { printBaseCss, printHeader, printGeneratedDate, totalsRow, printFooter } from '../../lib/printLayout'
 
 const MODES = ['Espèce', 'Chèque', 'Virement', 'Paiement fournisseur']
 const CHEQUE_STATUSES = ['pending', 'validated', 'rejected']
@@ -520,6 +520,9 @@ ${printBaseCss(accent)}
   .b-esp{background:#dcfce7;color:#166534}.b-chq{background:#fef9c3;color:#854d0e}
   .b-vir{background:#dbeafe;color:#1e40af}.b-fou{background:#f3e8ff;color:#6b21a8}
   .s-pending{color:#b45309}.s-validated{color:#16a34a}.s-rejected{color:#dc2626;font-weight:700}
+  .totals-row{padding:18px 22px;margin-top:14px;border-radius:10px}
+  .totals-row span:first-child{font-size:14px;font-weight:800;letter-spacing:0.03em;text-transform:uppercase;color:#1e3a5f}
+  .totals-amt{font-size:24px;font-weight:900;color:#5b21b6}
 </style></head><body>
 ${printHeader({ date: printDateTime })}
 <div class="periode-bar">Période : <strong>${periode}</strong></div>
@@ -549,7 +552,6 @@ ${printHeader({ date: printDateTime })}
   </tbody>
 </table>
 ${filtered.length > 0 ? totalsRow(`Total — ${filtered.length} paiement${filtered.length !== 1 ? 's' : ''}`, `${fmtMoney(total)} DHS`) : ''}
-${soldeFinal({ label: 'Total général encaissé', amountFormatted: fmtMoney(total), amount: total, sub: periode })}
 ${printFooter(printDateTime)}
 </div></body></html>`)
   }
