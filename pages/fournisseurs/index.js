@@ -8,7 +8,6 @@ import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards
 import { buildAchatTraceability, buildProductSummary, buildGrandTotal, TRACE_STATUS_META, DISTRIBUTION_STATUS_META } from '../../lib/fournisseurTraceability'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
-import { resolveAchatByVenteId } from '../../lib/services/voyage/resolveSource'
 
 const ADMIN   = 'abdelhafidbaadi@gmail.com'
 
@@ -21,6 +20,7 @@ export default function FournisseursBriques() {
   const [typeBriques,  setTypeBriques]  = useState([])
   const [selected,     setSelected]     = useState(null)
   const [achats,       setAchats]       = useState([])
+  const [voyageAchats, setVoyageAchats] = useState([])
   const [ventesLegacy, setVentesLegacy] = useState([])
   const [paiements,    setPaiements]    = useState([])
   const [voyageLivraisons, setVoyageLivraisons] = useState([])
@@ -57,18 +57,27 @@ export default function FournisseursBriques() {
   async function selectFournisseur(f) {
     setSelected(f)
     setLoadingDetail(true)
-    const [{ data: ac }, { data: vl }, { data: pa }] = await Promise.all([
+    // voyage_achats is the authoritative source for voyage-sourced achats —
+    // ventes (`type_entree='achat'`) is only a mirror that saveAchat/updateAchat
+    // write to for the fournisseur-accounting join; it can silently go stale
+    // when the mirror link (vente_id) is missing, which was the root cause of
+    // false "Dépassement" states here (audited 2026-08-09: 265/321 brique
+    // voyage_achats rows had no vente_id, so an edit to the achat's qty never
+    // reached the ventes row this page used to read). Reading voyage_achats
+    // directly — the same table pages/achats/index.js already reads from —
+    // makes this figure structurally impossible to go stale.
+    // `ventes` is still needed for genuinely pre-Voyage historical achats
+    // (voyage_id IS NULL) that have no voyage_achats counterpart at all.
+    const [{ data: ac }, { data: va }, { data: vl }, { data: pa }] = await Promise.all([
       supabase.from('achats').select('*').eq('fournisseur_id', f.id).order('date', { ascending: true }),
-      supabase.from('ventes').select('*').eq('fournisseur_id', f.id).order('date', { ascending: true }),
+      supabase.from('voyage_achats').select('*').eq('fournisseur_id', f.id).eq('type_produit', 'brique').order('date_achat', { ascending: true }),
+      supabase.from('ventes').select('*').eq('fournisseur_id', f.id).is('voyage_id', null).order('date', { ascending: true }),
       supabase.from('paiements').select('*').eq('fournisseur_id', f.id).order('date', { ascending: true }),
     ])
     // ── Traçabilité achats → livraisons (outil de contrôle, lecture seule) ──
     // Retrouve les livraisons des voyages concernés pour calculer, par achat,
     // la répartition par client. Aucune écriture, uniquement de la lecture.
-    const voyageIds = [...new Set([
-      ...(ac || []).map(a => a.voyage_id),
-      ...(vl || []).map(v => v.voyage_id),
-    ].filter(Boolean))]
+    const voyageIds = [...new Set((va || []).map(a => a.voyage_id).filter(Boolean))]
     let vld = []
     let vMap = {}
     let archivedVoyageIds = new Set()
@@ -89,8 +98,9 @@ export default function FournisseursBriques() {
     // rows visible would show purchases the solde above no longer counts.
     // Rows with no voyage_id (the standalone legacy `achats` table, or
     // pre-Voyage `ventes` history) are never voyage-archived, so they pass through.
-    setAchats((ac || []).filter(a => !a.voyage_id || !archivedVoyageIds.has(a.voyage_id)))
-    setVentesLegacy((vl || []).filter(v => !v.voyage_id || !archivedVoyageIds.has(v.voyage_id)))
+    setAchats(ac || [])
+    setVoyageAchats((va || []).filter(a => !archivedVoyageIds.has(a.voyage_id)))
+    setVentesLegacy(vl || [])
     setPaiements(pa || [])
     setVoyageLivraisons(vld)
     setVoyagesById(vMap)
@@ -99,9 +109,12 @@ export default function FournisseursBriques() {
   }
 
   // ── EDIT VOYAGE-SOURCED ACHATS (same modal as the voyage page) ──
-  // Only rows mirrored from a voyage (_source==='legacy', i.e. ventes with
-  // type_entree='achat') are editable here — the separate manual `achats`
-  // table (_source==='new') isn't voyage data.
+  // Only rows sourced from voyage_achats (_source==='voyage') are editable
+  // here — the separate manual `achats` table (_source==='new', currently
+  // empty/dead) isn't voyage data. The full voyage_achats row is already in
+  // `voyageAchats` state, so this is a direct lookup — no network round-trip
+  // to resolve it via a vente_id link (which is what read the stale mirror
+  // in the first place; see selectFournisseur).
   const {
     editRow: voyEditRow, editForm: voyEditForm, setEditForm: setVoyEditForm,
     editSaving: voyEditSaving, editError: voyEditError,
@@ -112,10 +125,10 @@ export default function FournisseursBriques() {
   })
   useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
 
-  async function editAchat(a) {
-    const resolved = await resolveAchatByVenteId(a._venteId)
-    if (!resolved) { alert("Cet achat ne peut pas être modifié depuis cette page — ouvrez le voyage."); return }
-    openVoyEdit('achat', resolved)
+  function editAchat(a) {
+    const row = voyageAchats.find(v => v.id === a._achatId)
+    if (!row) { alert("Cet achat ne peut pas être modifié depuis cette page — ouvrez le voyage."); return }
+    openVoyEdit('achat', row)
   }
 
   async function addFournisseur(e) {
@@ -145,11 +158,19 @@ export default function FournisseursBriques() {
 
   const allAchats = [
     ...achats.map(a => ({ ...a, _source: 'new' })),
+    ...(voyageAchats||[]).map(a => ({
+      id: `va_${a.id}`, date: a.date_achat,
+      voyage_id: a.voyage_id, type_brique: a.type_brique,
+      qte: a.qte, prix_achat: a.prix_achat,
+      total_achat: a.total_achat || Math.round((a.qte||0)*(a.prix_achat||0)*100)/100,
+      camion_plaque: voyagesById[a.voyage_id]?.camion_plaque || '',
+      note: a.note, _source: 'voyage', _achatId: a.id,
+    })),
     ...(ventesLegacy||[]).map(v => ({
       id: `leg_${v.id}`, date: v.date_fournisseur || v.date,
-      voyage_id: v.voyage_id || null, type_brique: v.type_brique,
+      voyage_id: null, type_brique: v.type_brique,
       qte: v.qte, prix_achat: v.prix_achat,
-      total_achat: v.total_achat || 0, note: v.note, _source: 'legacy', _venteId: v.id,
+      total_achat: v.total_achat || 0, note: v.note, _source: 'legacy',
     })),
   ].sort((a,b) => (a.date||'').localeCompare(b.date||''))
 
@@ -387,7 +408,7 @@ ${printFooter(printDate)}
                                   <span className={`text-xs font-semibold px-2 py-1 rounded-lg whitespace-nowrap ${meta.bg} ${meta.text}`}>{meta.emoji} {meta.label}</span>
                                 </td>
                                 <td className="td whitespace-nowrap">
-                                  {a._source === 'legacy' && a.voyage_id && (
+                                  {a._source === 'voyage' && a.voyage_id && (
                                     <div className="flex items-center gap-1">
                                       <button onClick={() => editAchat(a)} title="Modifier (voyage)"
                                         className="btn-secondary" style={{fontSize:10,padding:'2px 5px'}}>✎</button>
