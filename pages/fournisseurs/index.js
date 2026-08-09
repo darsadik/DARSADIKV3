@@ -21,7 +21,6 @@ export default function FournisseursBriques() {
   const [selected,     setSelected]     = useState(null)
   const [achats,       setAchats]       = useState([])
   const [voyageAchats, setVoyageAchats] = useState([])
-  const [ventesLegacy, setVentesLegacy] = useState([])
   const [paiements,    setPaiements]    = useState([])
   const [voyageLivraisons, setVoyageLivraisons] = useState([])
   const [voyagesById,      setVoyagesById]      = useState({})
@@ -66,12 +65,17 @@ export default function FournisseursBriques() {
     // reached the ventes row this page used to read). Reading voyage_achats
     // directly — the same table pages/achats/index.js already reads from —
     // makes this figure structurally impossible to go stale.
-    // `ventes` is still needed for genuinely pre-Voyage historical achats
-    // (voyage_id IS NULL) that have no voyage_achats counterpart at all.
-    const [{ data: ac }, { data: va }, { data: vl }, { data: pa }] = await Promise.all([
+    // Pre-Voyage historical achats (`ventes` rows with fournisseur_id set but
+    // voyage_id NULL — the old "legacy" tag) are deliberately NOT fetched
+    // here anymore (2026-08-09): the current Achats Briques workflow is
+    // Voyage-linked purchases only, per business rule. Those 125 historical
+    // rows are untouched in the database — solde already includes them
+    // (maintained incrementally by saveAchat/updateAchat/delAchat, never
+    // recomputed from this query) — they're just no longer surfaced in this
+    // table, since they can't be traced back to a Voyage.
+    const [{ data: ac }, { data: va }, { data: pa }] = await Promise.all([
       supabase.from('achats').select('*').eq('fournisseur_id', f.id).order('date', { ascending: true }),
       supabase.from('voyage_achats').select('*').eq('fournisseur_id', f.id).eq('type_produit', 'brique').order('date_achat', { ascending: true }),
-      supabase.from('ventes').select('*').eq('fournisseur_id', f.id).is('voyage_id', null).order('date', { ascending: true }),
       supabase.from('paiements').select('*').eq('fournisseur_id', f.id).order('date', { ascending: true }),
     ])
     // ── Traçabilité achats → livraisons (outil de contrôle, lecture seule) ──
@@ -96,11 +100,10 @@ export default function FournisseursBriques() {
     // Archived voyages are hidden here too — archive_voyage (supabase_rpc.sql)
     // already reverses their achats out of fournisseur.solde, so leaving the
     // rows visible would show purchases the solde above no longer counts.
-    // Rows with no voyage_id (the standalone legacy `achats` table, or
-    // pre-Voyage `ventes` history) are never voyage-archived, so they pass through.
+    // Rows with no voyage_id (the standalone `achats` table) are never
+    // voyage-archived, so they pass through.
     setAchats(ac || [])
     setVoyageAchats((va || []).filter(a => !archivedVoyageIds.has(a.voyage_id)))
-    setVentesLegacy(vl || [])
     setPaiements(pa || [])
     setVoyageLivraisons(vld)
     setVoyagesById(vMap)
@@ -156,6 +159,9 @@ export default function FournisseursBriques() {
   }
   const { from, to } = getDateRange()
 
+  // Current Achats Briques workflow is Voyage-linked purchases only — see
+  // the comment in selectFournisseur for why pre-Voyage `ventes` history
+  // (the old "legacy" tag) is excluded here rather than merged in.
   const allAchats = [
     ...achats.map(a => ({ ...a, _source: 'new' })),
     ...(voyageAchats||[]).map(a => ({
@@ -165,12 +171,6 @@ export default function FournisseursBriques() {
       total_achat: a.total_achat || Math.round((a.qte||0)*(a.prix_achat||0)*100)/100,
       camion_plaque: voyagesById[a.voyage_id]?.camion_plaque || '',
       note: a.note, _source: 'voyage', _achatId: a.id,
-    })),
-    ...(ventesLegacy||[]).map(v => ({
-      id: `leg_${v.id}`, date: v.date_fournisseur || v.date,
-      voyage_id: null, type_brique: v.type_brique,
-      qte: v.qte, prix_achat: v.prix_achat,
-      total_achat: v.total_achat || 0, note: v.note, _source: 'legacy',
     })),
   ].sort((a,b) => (a.date||'').localeCompare(b.date||''))
 
@@ -379,7 +379,6 @@ ${printFooter(printDate)}
                               <tr key={a.id} className="hover:bg-blue-50">
                                 <td className="td text-gray-500">
                                   {fmtDate(a.date)}
-                                  {a._source==='legacy'&&<span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-gray-100 text-gray-400">legacy</span>}
                                 </td>
                                 <td className="td text-xs text-blue-600">
                                   {a.voyage_id ? `#${a.voyage_id}` : '—'}
