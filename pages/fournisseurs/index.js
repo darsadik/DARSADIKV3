@@ -18,6 +18,7 @@ export default function FournisseursBriques() {
   const admin    = user?.email === ADMIN
 
   const [fournisseurs, setFournisseurs] = useState([])
+  const [typeBriques,  setTypeBriques]  = useState([])
   const [selected,     setSelected]     = useState(null)
   const [achats,       setAchats]       = useState([])
   const [ventesLegacy, setVentesLegacy] = useState([])
@@ -38,7 +39,13 @@ export default function FournisseursBriques() {
   const [showAdd,      setShowAdd]      = useState(false)
   const [newNom,       setNewNom]       = useState('')
 
-  useEffect(() => { loadFournisseurs() }, [])
+  useEffect(() => {
+    loadFournisseurs()
+    // Needed for the achat edit modal's "Type brique" selector (Test F —
+    // changing an achat's brick type in place) — not used anywhere else on
+    // this page, so it's a one-time load, not part of selectFournisseur().
+    supabase.from('type_briques').select('*').order('nom').then(({ data }) => setTypeBriques(data || []))
+  }, [])
 
   async function loadFournisseurs() {
     setLoading(true)
@@ -101,6 +108,7 @@ export default function FournisseursBriques() {
     openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
   } = useVoyageTransactionEdit({
     onSaved: async () => { await loadFournisseurs(); if (selected) await selectFournisseur(selected) },
+    achatLists: { fournisseurs, typeBriques },
   })
   useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
 
@@ -228,6 +236,7 @@ ${printFooter(printDate)}
       <EditTransactionModal
         editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
         onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+        fournisseurs={fournisseurs} typeBriques={typeBriques}
       />
       <div className={`${isMobile ? '' : 'grid grid-cols-3 gap-6'}`}>
 

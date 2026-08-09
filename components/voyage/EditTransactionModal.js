@@ -5,7 +5,7 @@ import FraisEditor from './FraisEditor'
 // voyage. Used inside the voyage detail page AND from any other page that
 // displays voyage-derived data (client/fournisseur statements, retours,
 // charges, dashboard…) — always the same modal, same fields, same save path.
-export default function EditTransactionModal({ editRow, editForm, setEditForm, onSave, onCancel, saving }) {
+export default function EditTransactionModal({ editRow, editForm, setEditForm, onSave, onCancel, saving, fournisseurs = [], grignonFournisseurs = [], typeBriques = [] }) {
   if (!editRow) return null
   const ef = editForm
   const setEf = v => setEditForm(prev => ({ ...prev, ...v }))
@@ -29,6 +29,22 @@ export default function EditTransactionModal({ editRow, editForm, setEditForm, o
               <input type="date" value={ef.date_achat||''} onChange={e=>setEf({date_achat:e.target.value})} className="input w-full text-sm"/></div>
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Quantité</label>
               <input type="number" value={ef.qte||''} onChange={e=>setEf({qte:e.target.value})} className="input w-full text-sm"/></div>
+            {/* Fournisseur/type are only switchable within the achat's own
+                type_produit (briques ↔ briques, grignon ↔ grignon) — moving
+                an achat across the briques/grignon business line is not
+                supported here (CLAUDE.md: never mix the two). */}
+            <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Fournisseur</label>
+              <select value={ef.fournisseur_id||''} onChange={e=>setEf({fournisseur_id:e.target.value})} className="input w-full text-sm">
+                <option value="">— Sélectionner —</option>
+                {(editRow.data.type_produit==='grignon' ? grignonFournisseurs : fournisseurs).map(f=><option key={f.id} value={f.id}>{f.nom}</option>)}
+              </select></div>
+            {editRow.data.type_produit !== 'grignon' && (
+              <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Type brique</label>
+                <select value={ef.type_brique_id||''} onChange={e=>setEf({type_brique_id:e.target.value})} className="input w-full text-sm">
+                  <option value="">— Sélectionner —</option>
+                  {typeBriques.map(t=><option key={t.id} value={t.id}>{t.nom}</option>)}
+                </select></div>
+            )}
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Prix achat / u</label>
               <input type="number" step="0.01" value={ef.prix_achat||''} onChange={e=>setEf({prix_achat:e.target.value})} className="input w-full text-sm"/></div>
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Total achat</label>

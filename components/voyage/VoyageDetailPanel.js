@@ -188,7 +188,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
   const {
     editRow, editForm, setEditForm, editSaving, editError,
     openEdit, closeEdit, save: saveEditRow,
-  } = useVoyageTransactionEdit({ onSaved: loadVoyage, camionId: voyage?.camion_id })
+  } = useVoyageTransactionEdit({ onSaved: loadVoyage, camionId: voyage?.camion_id, achatLists: { fournisseurs, grignonFournisseurs, typeBriques } })
   useEffect(() => { if (editError) toast(editError) }, [editError])
 
   // ── LOAD VEHICLE GASOIL FOR THE FUEL ALLOCATION ENGINE ───────────────────────
@@ -693,6 +693,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
       <EditTransactionModal
         editRow={editRow} editForm={editForm} setEditForm={setEditForm}
         onSave={saveEditRow} onCancel={closeEdit} saving={editSaving}
+        fournisseurs={fournisseurs} grignonFournisseurs={grignonFournisseurs} typeBriques={typeBriques}
       />
 
       {/* ── TWO-COLUMN LAYOUT ── */}

@@ -124,6 +124,9 @@ export default function FournisseursGrignon() {
     openEdit: openVoyEdit, closeEdit: closeVoyEdit, save: saveVoyEdit,
   } = useVoyageTransactionEdit({
     onSaved: async () => { await loadFournisseurs(); if (selected) await selectFournisseur(selected) },
+    // `fournisseurs` on this page is the grignon_fournisseurs list — passed
+    // as grignonFournisseurs since these achats are always type_produit='grignon'.
+    achatLists: { grignonFournisseurs: fournisseurs },
   })
   useEffect(() => { if (voyEditError) alert(voyEditError) }, [voyEditError])
 
@@ -261,6 +264,7 @@ ${printFooter(printDate)}
       <EditTransactionModal
         editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
         onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}
+        grignonFournisseurs={fournisseurs}
       />
       <div className={`${isMobile ? '' : 'grid grid-cols-3 gap-6'}`}>
 
