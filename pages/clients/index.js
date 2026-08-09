@@ -494,23 +494,28 @@ export default function Clients() {
   .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
   .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:11px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
+  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:12px 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
+  thead th.dt{min-width:88px}
+  thead th.cm{min-width:92px}
+  thead th.op{min-width:150px}
+  thead th.ty{min-width:96px}
   thead th.qte,thead td.qte{min-width:56px}
   thead th.pu{min-width:78px}
   thead th.mt{min-width:112px}
   thead th.sd{min-width:126px}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:11px 12px;font-size:14px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
+  tbody td{padding:12px 14px;font-size:14px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
-  tbody tr.band td{background:#f6f8fb !important}
-  tbody tr.grp-end td{border-bottom:1.5px solid #c3ccd6 !important}
+  tbody tr.band td{background:#f8fafc !important}
+  tbody tr.grp-end td{border-bottom:2px solid #cbd5e1 !important}
   .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
-  .total-box{margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
-  .total-box .tb-label{font-size:13px;font-weight:800;color:#166534;letter-spacing:0.08em;text-transform:uppercase}
-  .total-box .tb-amount{font-size:26px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
-  .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#16a34a;margin-left:3px}
+  .total-box{margin-top:10px;position:relative;overflow:hidden;background:#f8faf9;border:1px solid #dde5e0;border-radius:10px;padding:14px 20px 14px 24px;display:flex;justify-content:space-between;align-items:center}
+  .total-box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:#16a34a}
+  .total-box .tb-label{font-size:13px;font-weight:800;color:#1e293b;letter-spacing:0.08em;text-transform:uppercase}
+  .total-box .tb-amount{font-size:30px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
+  .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#4b8f68;margin-left:3px}
   .total-words{margin-top:10px;font-size:12px;color:#475569;line-height:1.65;text-align:left}
   .total-words .tw-label{color:#334155;font-weight:600}
   .total-words strong{color:#334155;font-weight:700}
@@ -546,7 +551,7 @@ export default function Clients() {
 <div class="bdy">
 <table>
   <thead><tr>
-    <th>Date</th><th>Camion</th><th>Opération</th><th>Type</th>
+    <th class="dt">Date</th><th class="cm">Camion</th><th class="op">Opération</th><th class="ty">Type</th>
     <th class="r qte">Qté</th><th class="r pu">Prix/u</th><th class="r mt">Montant</th><th class="r sd">Solde</th><th>Note</th>
   </tr></thead>
   <tbody>
@@ -558,7 +563,7 @@ export default function Clients() {
       const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
       const noteDisplay = e.note || '—'
       const rowSpan = pRowSpans[i]
-      const bandBg = pGroupMeta.band[i] === 1 ? '#f6f8fb' : '#ffffff'
+      const bandBg = pGroupMeta.band[i] === 1 ? '#f8fafc' : '#ffffff'
       const rowClass = [pGroupMeta.band[i] === 1 ? 'band' : '', pGroupMeta.isGroupLast[i] ? 'grp-end' : ''].filter(Boolean).join(' ')
       const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg}" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
       const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
@@ -656,7 +661,7 @@ export default function Clients() {
         : e.type === 'mdo'
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
         : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
-      const bandBg = pGroupMeta.band[i] === 1 ? '#f6f8fb' : '#ffffff'
+      const bandBg = pGroupMeta.band[i] === 1 ? '#f8fafc' : '#ffffff'
       const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg}" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
       const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       // Frais/déduction rows are children of the Livraison directly above them
@@ -700,22 +705,27 @@ export default function Clients() {
   .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
   .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#7c3aed !important;color:#fff !important;padding:11px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
+  thead th{background:#1e3a5f !important;color:#fff !important;padding:12px 14px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
+  thead th.dt{min-width:88px}
+  thead th.cm{min-width:92px}
+  thead th.op{min-width:150px}
+  thead th.ty{min-width:96px}
   thead th.qte{min-width:56px}
   thead th.pu{min-width:78px}
   thead th.mt{min-width:112px}
   thead th.sd{min-width:126px}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:11px 12px;font-size:14px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
+  tbody td{padding:12px 14px;font-size:14px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
   tbody td.m{color:#374151;font-size:12.5px;font-weight:500;white-space:nowrap}
-  tbody tr.band td{background:#f6f8fb !important}
-  tbody tr.grp-end td{border-bottom:1.5px solid #c3ccd6 !important}
-  .total-box{margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
-  .total-box .tb-label{font-size:13px;font-weight:800;color:#166534;letter-spacing:0.08em;text-transform:uppercase}
-  .total-box .tb-amount{font-size:26px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
-  .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#16a34a;margin-left:3px}
+  tbody tr.band td{background:#f8fafc !important}
+  tbody tr.grp-end td{border-bottom:2px solid #cbd5e1 !important}
+  .total-box{margin-top:10px;position:relative;overflow:hidden;background:#f8faf9;border:1px solid #dde5e0;border-radius:10px;padding:14px 20px 14px 24px;display:flex;justify-content:space-between;align-items:center}
+  .total-box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:#16a34a}
+  .total-box .tb-label{font-size:13px;font-weight:800;color:#1e293b;letter-spacing:0.08em;text-transform:uppercase}
+  .total-box .tb-amount{font-size:30px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
+  .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#4b8f68;margin-left:3px}
   .total-words{margin-top:10px;font-size:12px;color:#475569;line-height:1.65;text-align:left}
   .total-words .tw-label{color:#334155;font-weight:600}
   .total-words strong{color:#334155;font-weight:700}
@@ -752,7 +762,7 @@ export default function Clients() {
 <div class="bdy">
 <table>
   <thead><tr>
-    <th>Date</th><th>Camion</th><th>Opération</th><th>Type</th>
+    <th class="dt">Date</th><th class="cm">Camion</th><th class="op">Opération</th><th class="ty">Type</th>
     <th class="r qte">Qté</th><th class="r pu">Prix/u</th><th class="r mt">Montant</th><th class="r sd">Solde</th><th>Note</th>
   </tr></thead>
   <tbody>${rows}</tbody>
@@ -1527,7 +1537,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   function renderPresentationTable() {
     const presLedger     = buildPresentationLedger()
     const displayEntries = presLedger.entries
-    const thS = { background:'#ede9fe', color:'#5b21b6', borderBottom:'2px solid #ddd6fe', whiteSpace:'nowrap', padding:'9px 12px', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
+    const thS = { background:'#1e3a5f', color:'#ffffff', borderBottom:'2px solid #16283d', whiteSpace:'nowrap', padding:'11px 14px', fontSize:10.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', userSelect:'none' }
     const bdr = { border:'1px solid #f1f5f9' }
 
     // Selection totals for floating toolbar
@@ -1621,10 +1631,10 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 {/* Drag handle col */}
                 <th style={{...thS,width:20,padding:'9px 4px'}}></th>
                 {[
-                  {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
-                  {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Montant',r:true},{l:'Solde',r:true},{l:'Note',r:false}
+                  {l:'Date',r:false,w:92},{l:'Camion',r:false,w:96},{l:'Opération',r:false,w:150},{l:'Type',r:false,w:100},
+                  {l:'Qté',r:true,w:64},{l:'Prix/u',r:true,w:84},{l:'Montant',r:true,w:118},{l:'Solde',r:true,w:130},{l:'Note',r:false,w:160}
                 ].map((col,ci) => (
-                  <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
+                  <th key={ci} style={{...thS,textAlign:col.r?'right':'left',minWidth:col.w}}>{col.l}</th>
                 ))}
                 <th style={{...thS,width:70}}></th>
               </tr>
@@ -1694,9 +1704,9 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 // divider — this is what makes a multi-row voyage read as one block
                 // instead of a stack of independently striped rows.
                 const isGroupLast = groupMeta.isGroupLast[i]
-                const bandBg = groupMeta.band[i] === 1 ? '#f7f9fb' : '#ffffff'
+                const bandBg = groupMeta.band[i] === 1 ? '#f8fafc' : '#ffffff'
                 const rowBg = isSelected ? '#ede9fe' : typeRowBg || bandBg
-                const bdr = { border: '1px solid #f1f5f9', borderBottom: isGroupLast ? '1.5px solid #c3ccd6' : '1px solid #f1f5f9' }
+                const bdr = { border: '1px solid #f1f5f9', borderBottom: isGroupLast ? '2px solid #cbd5e1' : '1px solid #f1f5f9' }
 
                 const rowEl = (
                   <tr key={eKey(e)}
@@ -1868,20 +1878,6 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 return rowEl
               })}
             </tbody>
-            {displayEntries.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={9} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
-                    Total
-                  </td>
-                  <td style={{padding:'11px 14px',background:'#f5f3ff',fontSize:17,fontWeight:600,color:'#5b21b6',textAlign:'right',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',letterSpacing:'-0.2px'}}>
-                    {fmtMoney(presLedger.finalBalance)} <span style={{fontSize:12,fontWeight:600,color:'#a78bfa'}}>DHS</span>
-                  </td>
-                  <td style={{background:'#f5f3ff',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe'}}></td>
-                  <td style={{background:'#f5f3ff',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderRight:'1px solid #ddd6fe',borderRadius:'0 0 8px 0'}}></td>
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
       </div>
@@ -2376,8 +2372,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                   {/* LEDGER CARD */}
                   {(() => {
                     const displayEntries = ledger.entries
-                    const finalEntry = displayEntries.length ? displayEntries[displayEntries.length - 1] : null
-                    const thS = {background:'#eff6ff',color:'#1d4ed8',borderBottom:'2px solid #bfdbfe',whiteSpace:'nowrap',padding:'9px 12px',fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',userSelect:'none'}
+                    const thS = {background:'#1e3a5f',color:'#ffffff',borderBottom:'2px solid #16283d',whiteSpace:'nowrap',padding:'11px 14px',fontSize:10.5,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',userSelect:'none'}
                     const bdr = {border:'1px solid #f1f5f9'}
                     return (
                       <div className="card" style={{padding:0,overflow:'hidden'}}>
@@ -2446,11 +2441,11 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                               <thead>
                                 <tr>
                                   {[
-                                    {l:'Date',r:false},{l:'Camion',r:false},{l:'Opération',r:false},{l:'Type',r:false},
-                                    {l:'Qté',r:true},{l:'Prix/u',r:true},{l:'Montant',r:true},{l:'Solde',r:true},
-                                    {l:'Note',r:false},{l:'',r:false}
+                                    {l:'Date',r:false,w:92},{l:'Camion',r:false,w:96},{l:'Opération',r:false,w:150},{l:'Type',r:false,w:100},
+                                    {l:'Qté',r:true,w:64},{l:'Prix/u',r:true,w:84},{l:'Montant',r:true,w:118},{l:'Solde',r:true,w:130},
+                                    {l:'Note',r:false,w:160},{l:'',r:false,w:56}
                                   ].map((col,i) => (
-                                    <th key={i} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
+                                    <th key={i} style={{...thS,textAlign:col.r?'right':'left',minWidth:col.w}}>{col.l}</th>
                                   ))}
                                 </tr>
                               </thead>
@@ -2498,9 +2493,9 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                   // (not per-row) and only the LAST row of a group gets the heavier
                                   // divider, so a multi-row voyage reads as one block.
                                   const isGroupLast = groupMeta.isGroupLast[i]
-                                  const bandBg = groupMeta.band[i] === 1 ? '#f7f9fb' : '#ffffff'
+                                  const bandBg = groupMeta.band[i] === 1 ? '#f8fafc' : '#ffffff'
                                   const rowBg = isHighlighted ? '#fef9c3' : (typeRowBg || bandBg)
-                                  const bdr = { border: '1px solid #f1f5f9', borderBottom: isGroupLast ? '1.5px solid #c3ccd6' : '1px solid #f1f5f9' }
+                                  const bdr = { border: '1px solid #f1f5f9', borderBottom: isGroupLast ? '2px solid #cbd5e1' : '1px solid #f1f5f9' }
                                   return (
                                     <Fragment key={eKey(e)}>
                                       <tr style={{ background: rowBg, cursor: 'pointer', transition: 'background 0.1s' }}
@@ -2585,19 +2580,6 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                   )
                                 }) })()}
                               </tbody>
-                              {displayEntries.length > 0 && finalEntry && (
-                                <tfoot>
-                                  <tr>
-                                    <td colSpan={7} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
-                                      Total
-                                    </td>
-                                    <td style={{padding:'11px 14px',background:'#f5f3ff',fontSize:17,fontWeight:600,color:'#5b21b6',textAlign:'right',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',letterSpacing:'-0.2px'}}>
-                                      {fmtMoney(finalEntry.solde)} <span style={{fontSize:12,fontWeight:600,color:'#a78bfa'}}>DHS</span>
-                                    </td>
-                                    <td colSpan={2} style={{background:'#f5f3ff',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderRight:'1px solid #ddd6fe',borderRadius:'0 0 8px 0'}}></td>
-                                  </tr>
-                                </tfoot>
-                              )}
                             </table>
                           </div>
                         )}
@@ -2605,18 +2587,19 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                     )
                   })()}
 
-                  {/* SOLDE FINAL */}
-                  <div className="flex items-center justify-between rounded-2xl"
-                    style={{background:'#f0fdf4',border:'2px solid #86efac',padding:'20px 24px',boxShadow:'0 4px 20px rgba(134,239,172,0.25)'}}>
+                  {/* TOTAL — single, final presentation (no duplicate colored total line elsewhere) */}
+                  <div className="flex items-center justify-between"
+                    style={{position:'relative',overflow:'hidden',borderRadius:14,border:'1px solid #dde5e0',background:'#f8faf9',padding:'20px 26px 20px 30px'}}>
+                    <div style={{position:'absolute',left:0,top:0,bottom:0,width:5,background:'#16a34a'}} />
                     <div>
-                      <div className="font-bold tracking-wide" style={{color:'#166534',fontSize:15}}>Solde actuel à payer</div>
-                      <div className="mt-1" style={{color:'#4ade80',fontSize:12}}>{getFilterLabel()}</div>
+                      <div className="font-extrabold" style={{color:'#1e293b',fontSize:12.5,letterSpacing:'0.1em',textTransform:'uppercase'}}>Total</div>
+                      <div className="mt-1" style={{color:'#64748b',fontSize:12}}>Solde actuel à payer · {getFilterLabel()}</div>
                     </div>
                     <div style={{textAlign:'right'}}>
-                      <div className="font-black" style={{fontSize:36,color:ledger.finalBalance>0?'#15803d':'#16a34a',lineHeight:1,letterSpacing:'-0.5px'}}>
+                      <div className="font-black" style={{fontSize:36,color:'#15803d',lineHeight:1,letterSpacing:'-0.5px'}}>
                         {fmtMoney(ledger.finalBalance)}
                       </div>
-                      <div style={{fontSize:13,fontWeight:600,color:'#86efac',marginTop:3}}>DHS</div>
+                      <div style={{fontSize:12,fontWeight:600,color:'#94a3b8',marginTop:4}}>DHS</div>
                     </div>
                   </div>
                 </>
