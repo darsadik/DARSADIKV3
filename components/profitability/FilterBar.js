@@ -55,9 +55,14 @@ export default function FilterBar({ filters, onChange, options }) {
     ...options.grignonFournisseurs.map(f => ({ value: `grignon:${f.id}`, label: `${f.nom} (Grignon)` })),
   ]
 
+  function toggleTypeCamion(value) {
+    onChange({ ...filters, typeCamion: filters.typeCamion === value ? '' : value })
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
-      {/* Date row */}
+      {/* Date row + Propre/Loué toggle — same top row as the date filter so
+          the truck-category split is immediately visible, one click each. */}
       <div className="flex flex-wrap items-center gap-2">
         {PRESETS.map(p => (
           <button key={p.key} onClick={() => setPreset(p.key)}
@@ -72,6 +77,19 @@ export default function FilterBar({ filters, onChange, options }) {
           <span className="text-slate-300">→</span>
           <input type="date" value={filters.to} onChange={e => setCustomDate('to', e.target.value)} className="input text-xs px-2 py-1.5 rounded-lg" />
         </div>
+        <div className="w-px h-5 bg-slate-200 mx-1" />
+        <button onClick={() => toggleTypeCamion('propre')}
+          className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition whitespace-nowrap ${
+            filters.typeCamion === 'propre' ? 'bg-slate-800 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}>
+          🏢 Propre
+        </button>
+        <button onClick={() => toggleTypeCamion('loue')}
+          className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition whitespace-nowrap ${
+            filters.typeCamion === 'loue' ? 'bg-amber-500 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}>
+          🔑 Loué
+        </button>
       </div>
 
       {/* Dimension row */}
@@ -79,9 +97,6 @@ export default function FilterBar({ filters, onChange, options }) {
         <Select placeholder="🚛 Tous les camions" value={filters.camionId}
           onChange={v => onChange({ ...filters, camionId: v })}
           options={options.camions.map(c => ({ value: String(c.id), label: c.plaque + (c.type_camion === 'loue' ? ' 🔑' : '') }))} />
-        <Select placeholder="🚚 Propre / Loué" value={filters.typeCamion}
-          onChange={v => onChange({ ...filters, typeCamion: v })}
-          options={[{ value: 'propre', label: '🏢 Propre' }, { value: 'loue', label: '🔑 Loué' }]} />
         <Select placeholder="👤 Tous les clients" value={filters.clientKey}
           onChange={v => onChange({ ...filters, clientKey: v })}
           options={clientOptions} />
