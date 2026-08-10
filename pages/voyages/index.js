@@ -251,7 +251,7 @@ export default function Voyages() {
     ] = await Promise.all([
       supabase.from('voyages').select('*').is('deleted_at', null).order('date_depart', { ascending: false }),
       supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
-      supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,total_achat,frais_total'),
+      supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,total_achat,frais_total,deductions_total'),
       supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
       supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
       supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),

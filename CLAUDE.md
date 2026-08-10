@@ -102,6 +102,7 @@ Each livraison can carry optional extra movements that adjust what's billed to t
 Both kinds live in the same `voyage_livraison_frais` table (FK → `voyage_livraisons.id`, CASCADE DELETE), distinguished only by the `kind` column. `montant` is always stored as a positive magnitude — `kind` alone determines the sign used when summing.
 
 - `voyage_livraisons.frais_total` = Σ(charge montants) − Σ(deduction montants) — a **net signed** total, not a plain sum
+- `voyage_livraisons.deductions_total` = Σ(deduction montants) only, always ≥ 0 (`sql/24_livraison_deductions_total.sql`) — exists solely so profitability (below) can add deductions back out of revenue; never used for client billing
 - `ventes.frais_note` stores a text summary with deductions prefixed `-` (e.g. "Frais Transport 300 DHS · Transport payé -4 000 DHS")
 - `accounting_total = total_vente + frais_total` — this is what is billed to the client and stored in `ventes.total_vente` and used to update `clients.solde` (unchanged formula — deductions simply make `frais_total` negative)
 - Shared UI editor: `components/voyage/FraisEditor.js`, used by both the create form (`LivraisonSection.js`) and the edit modal (`voyages/[id].js`)
@@ -120,7 +121,7 @@ REVENU LIVRAISON = total_vente + frais_total   (frais_total may be negative when
 ## Profit formula per voyage
 
 ```
-REVENU BRUT  = Σ (voyage_livraisons.total_vente + voyage_livraisons.frais_total)
+REVENU BRUT  = Σ (voyage_livraisons.total_vente + voyage_livraisons.frais_total + voyage_livraisons.deductions_total)
              + Σ voyage_retours.montant_paye
              + Σ voyage_charges.montant WHERE facture_client=true
 
@@ -131,6 +132,8 @@ COÛT TOTAL   = Σ voyage_achats.total_achat        ← use voyage_achats, NOT l
 PROFIT NET   = REVENU BRUT − COÛT TOTAL
 MARGE %      = PROFIT NET / REVENU BRUT × 100
 ```
+
+`frais_total + deductions_total` cancels the deduction back out of `frais_total`, leaving charges-only revenue (`frais_total = charges − deductions`, so `frais_total + deductions_total = charges`). A "Transport payé" déduction reduces what the client owes (`accounting_total`, `clients.solde`, client statement — via `frais_total` alone, unchanged) but is money the client already paid directly, not a company cost — so it must never reduce PROFIT NET. `lib/services/profitability.js`'s `computeVoyageProfit` is the only place this addback happens; every other consumer of `frais_total` (client statement, per-livraison billing display, dashboard activity feed) is unaffected and keeps using the plain net total.
 
 Gasoil and fixed charges are split **equally** among the number of unique clients on the voyage (for per-client breakdown).
 
@@ -155,6 +158,7 @@ These values are computed in JS and explicitly saved (they are NOT PostgreSQL GE
 - `voyage_livraisons.total_achat` = `qte × prix_achat`
 - `voyage_livraisons.marge` = `total_vente − total_achat`
 - `voyage_livraisons.frais_total` = Σ charges − Σ deductions on this livraison (net signed, see below)
+- `voyage_livraisons.deductions_total` = Σ deductions on this livraison only (≥ 0, profitability addback only — see below)
 - `voyage_gasoil.total` = `qte_litres × prix_unitaire`
 - `ventes.total_vente` = `voyage_livraisons.total_vente + frais_total` (full amount billed to client)
 

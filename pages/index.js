@@ -133,7 +133,7 @@ export default function Dashboard() {
     const vIds = vList.map(x => x.id)
     const [ac, li, ch, re, loc] = await Promise.all([
       fetchByVoyageIds('voyage_achats', 'voyage_id,type_produit,type_brique,qte,prix_achat,total_achat', vIds),
-      fetchByVoyageIds('voyage_livraisons', 'id,voyage_id,date_livraison,type_produit,type_brique,client_id,client_nom,qte,total_vente,frais_total', vIds),
+      fetchByVoyageIds('voyage_livraisons', 'id,voyage_id,date_livraison,type_produit,type_brique,client_id,client_nom,qte,total_vente,frais_total,deductions_total', vIds),
       fetchByVoyageIds('voyage_charges', 'voyage_id,montant,facture_client,client_id,client_nom', vIds),
       fetchByVoyageIds('voyage_retours', 'voyage_id,montant', vIds),
       fetchByVoyageIds('voyage_locations', 'voyage_id,montant_location', vIds),

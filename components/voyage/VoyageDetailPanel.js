@@ -247,7 +247,7 @@ const VoyageDetailPanel = forwardRef(function VoyageDetailPanel({ voyageId, embe
       const [{ data: vs }, { data: ac }, { data: li }, { data: ga }, { data: ch }, { data: re }, { data: sl }, { data: gp }] = await Promise.all([
         supabase.from('voyages').select('id,camion_id,date_depart,camion_plaque,destination,statut,reference,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at').order('date_depart', { ascending: false }),
         supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
-        supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,qte,total_vente,frais_total'),
+        supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,qte,total_vente,frais_total,deductions_total'),
         supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
         supabase.from('voyage_charges').select('voyage_id,montant,facture_client'),
         supabase.from('voyage_retours').select('voyage_id,montant'),
