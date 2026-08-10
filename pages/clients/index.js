@@ -506,7 +506,7 @@ export default function Clients() {
   .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
   .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:13px 14px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;text-align:left;white-space:nowrap}
+  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:14px 14px;font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
   thead th.dt{min-width:88px}
   thead th.cm{min-width:92px}
@@ -517,12 +517,12 @@ export default function Clients() {
   thead th.mt{min-width:112px}
   thead th.sd{min-width:126px}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:12px 14px;font-size:14px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
+  tbody td{padding:12px 14px;font-size:15px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-size:13px;font-weight:500;white-space:nowrap}
-  tbody tr.band td{background:#f8fafc !important}
+  tbody td.m{color:#374151;font-size:13.5px;font-weight:500;white-space:nowrap}
+  tbody tr.band td{background:#f1f5f9 !important}
   tbody tr.grp-end td{border-bottom:2px solid #cbd5e1 !important}
-  .tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
+  .tag{display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
   .total-box{margin-top:10px;position:relative;overflow:hidden;background:#f8faf9;border:1px solid #dde5e0;border-radius:10px;padding:14px 20px 14px 24px;display:flex;justify-content:space-between;align-items:center}
   .total-box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:#16a34a}
   .total-box .tb-label{font-size:15px;font-weight:800;color:#1e293b;letter-spacing:0.07em;text-transform:uppercase}
@@ -567,7 +567,7 @@ export default function Clients() {
     <th class="r qte">Qté</th><th class="r pu">Prix/u</th><th class="r mt">Montant</th><th class="r sd">Solde</th><th>Note</th>
   </tr></thead>
   <tbody>
-    ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap;font-weight:700;font-size:13px;color:#92400e">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:13px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report' : 'Solde initial'}</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:16px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmtMoney(ancienSoldeVal)}</td><td class="m">${carryOver !== null ? '' : (selected.opening_note||'Solde de départ')}</td></tr>` : ''}
+    ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap;font-weight:700;font-size:14px;color:#92400e">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:14px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report' : 'Solde initial'}</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:17px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmtMoney(ancienSoldeVal)}</td><td class="m">${carryOver !== null ? '' : (selected.opening_note||'Solde de départ')}</td></tr>` : ''}
     ${pDisplayEntries.map((e, i) => {
       const isVente = e.src === 'vente'; const v = e.raw
       const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
@@ -575,32 +575,32 @@ export default function Clients() {
       const soldeColor = e.solde > 0 ? '#1e3a5f' : '#16a34a'
       const noteDisplay = e.note || '—'
       const rowSpan = pRowSpans[i]
-      const bandBg = pGroupMeta.band[i] === 1 ? '#f8fafc' : '#ffffff'
+      const bandBg = pGroupMeta.band[i] === 1 ? '#f1f5f9' : '#ffffff'
       const rowClass = [pGroupMeta.band[i] === 1 ? 'band' : '', pGroupMeta.isGroupLast[i] ? 'grp-end' : ''].filter(Boolean).join(' ')
-      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:13px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
-      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:13px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:14px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:14px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       const typeTag = e.type === 'vente' || e.type === 'frais-charge'
         ? `<span class="tag">${e.label}</span>`
         : e.type === 'mdo'
-        ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10.5px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
-        : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10.5px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
+        ? `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
+        : `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
       // Frais/déduction rows are children of the Livraison directly above them
       // within the same voyage group — indent + subordinate weight makes that
       // relationship visible instead of reading as an unrelated operation.
       const isChild = e.src === 'frais'
       const opCell = isChild
-        ? `<td style="font-size:13px;font-weight:500;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
-        : `<td style="font-size:14px;font-weight:700;color:#0f172a">${e.operation}</td>`
+        ? `<td style="font-size:14px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
+        : `<td style="font-size:15px;font-weight:700;color:#0f172a">${e.operation}</td>`
       return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
         ${opCell}
         <td>${typeTag}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:14px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:14px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmtMoney(v.prix_vente||0):'<span style="color:#9ca3af">—</span>'}</td>
-        <td class="r" style="font-size:15px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
-        <td class="r" style="font-weight:900;font-size:16px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
-        <td class="m" style="white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?600:400};color:${e.note?'#374151':'#9ca3af'}">${noteDisplay}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:15px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:15px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmtMoney(v.prix_vente||0):'<span style="color:#9ca3af">—</span>'}</td>
+        <td class="r" style="font-size:16px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:17px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
+        <td class="m" style="white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?700:400};color:${e.note?'#374151':'#9ca3af'}">${noteDisplay}</td>
       </tr>`
     }).join('')}
   </tbody>
@@ -633,7 +633,7 @@ export default function Clients() {
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
       const cfAmt = fmtMoney(Math.abs(selectionCarryForward))
-      return `<tr style="background:#fef3c7"><td class="m" style="white-space:nowrap;color:#92400e">—</td><td class="m">—</td><td style="font-size:14px;font-weight:700;color:#92400e">Report</td><td><span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10.5px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Report</span></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:16px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${cfSign}${cfAmt}</td><td class="m"></td></tr>`
+      return `<tr style="background:#fef3c7"><td class="m" style="white-space:nowrap;color:#92400e;font-weight:700;font-size:14px">—</td><td class="m">—</td><td style="font-size:14px;font-weight:700;color:#92400e">Report</td><td><span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Report</span></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:17px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${cfSign}${cfAmt}</td><td class="m"></td></tr>`
     })() : ''
 
     const _now = new Date()
@@ -648,14 +648,14 @@ export default function Clients() {
       if (e.type === 'opening') {
         const soldeAmber = e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`
         return `<tr class="${rowClass}" style="background:#fffbeb !important">
-          <td class="m" style="color:#92400e;white-space:nowrap;font-weight:700;font-size:13px" rowspan="${rowSpan}">${e.date ? fmtDate(e.date) : '—'}</td>
+          <td class="m" style="color:#92400e;white-space:nowrap;font-weight:700;font-size:14px" rowspan="${rowSpan}">${e.date ? fmtDate(e.date) : '—'}</td>
           <td class="m" rowspan="${rowSpan}">—</td>
-          <td style="font-size:13px;font-weight:600;color:#92400e">Solde initial</td>
-          <td><span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10.5px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Solde initial</span></td>
+          <td style="font-size:14px;font-weight:600;color:#92400e">Solde initial</td>
+          <td><span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Solde initial</span></td>
           <td class="r" style="color:#9ca3af">—</td>
           <td class="r" style="color:#9ca3af">—</td>
           <td class="r" style="color:#9ca3af">—</td>
-          <td class="r" style="font-weight:900;font-size:16px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${soldeAmber}</td>
+          <td class="r" style="font-weight:900;font-size:17px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${soldeAmber}</td>
           <td class="m" style="color:#92400e;font-style:italic">${e.note || 'Solde de départ'}</td>
         </tr>`
       }
@@ -669,30 +669,30 @@ export default function Clients() {
       const qteCell  = isVenteLine ? `<span style="font-weight:700;color:#374151">${fmt(v.qte)}</span>` : dash
       const prixCell = isVenteLine ? `<span style="font-weight:600;color:#374151">${fmtMoney(v.prix_vente||0)}</span>` : dash
       const typeTag = e.type === 'vente' || e.type === 'frais-charge'
-        ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">${e.label}</span>`
+        ? `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">${e.label}</span>`
         : e.type === 'mdo'
-        ? `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10.5px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
-        : `<span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:10.5px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
-      const bandBg = pGroupMeta.band[i] === 1 ? '#f8fafc' : '#ffffff'
-      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:13px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
-      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:13px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+        ? `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
+        : `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
+      const bandBg = pGroupMeta.band[i] === 1 ? '#f1f5f9' : '#ffffff'
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:14px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:14px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       // Frais/déduction rows are children of the Livraison directly above them
       // within the same voyage group — indent + subordinate weight makes that
       // relationship visible instead of reading as an unrelated operation.
       const isChild = e.src === 'frais'
       const opCell = isChild
-        ? `<td style="font-size:13px;font-weight:500;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
-        : `<td style="font-size:14px;font-weight:700;color:#0f172a">${e.operation}</td>`
+        ? `<td style="font-size:14px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
+        : `<td style="font-size:15px;font-weight:700;color:#0f172a">${e.operation}</td>`
       return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
         ${opCell}
         <td>${typeTag}</td>
-        <td class="r" style="font-size:14px">${qteCell}</td>
-        <td class="r" style="font-size:14px">${prixCell}</td>
-        <td class="r" style="font-size:15px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
-        <td class="r" style="font-weight:900;font-size:16px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
-        <td class="m" style="white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?600:400};color:${e.note?'#374151':'#9ca3af'}">${e.note||'—'}</td>
+        <td class="r" style="font-size:15px">${qteCell}</td>
+        <td class="r" style="font-size:15px">${prixCell}</td>
+        <td class="r" style="font-size:16px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:17px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
+        <td class="m" style="white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?700:400};color:${e.note?'#374151':'#9ca3af'}">${e.note||'—'}</td>
       </tr>`
     }).join('')
 
@@ -717,7 +717,7 @@ export default function Clients() {
   .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
   .bdy{padding:10px 24px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#fff !important;padding:13px 14px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;text-align:left;white-space:nowrap}
+  thead th{background:#1e3a5f !important;color:#fff !important;padding:14px 14px;font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
   thead th.dt{min-width:88px}
   thead th.cm{min-width:92px}
@@ -728,10 +728,10 @@ export default function Clients() {
   thead th.mt{min-width:112px}
   thead th.sd{min-width:126px}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:12px 14px;font-size:14px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
+  tbody td{padding:12px 14px;font-size:15px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-size:13px;font-weight:500;white-space:nowrap}
-  tbody tr.band td{background:#f8fafc !important}
+  tbody td.m{color:#374151;font-size:13.5px;font-weight:500;white-space:nowrap}
+  tbody tr.band td{background:#f1f5f9 !important}
   tbody tr.grp-end td{border-bottom:2px solid #cbd5e1 !important}
   .total-box{margin-top:10px;position:relative;overflow:hidden;background:#f8faf9;border:1px solid #dde5e0;border-radius:10px;padding:14px 20px 14px 24px;display:flex;justify-content:space-between;align-items:center}
   .total-box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:#16a34a}
@@ -1549,7 +1549,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   function renderPresentationTable() {
     const presLedger     = buildPresentationLedger()
     const displayEntries = presLedger.entries
-    const thS = { background:'#1e3a5f', color:'#ffffff', borderBottom:'2px solid #16283d', whiteSpace:'nowrap', padding:'12px 14px', fontSize:11.5, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
+    const thS = { background:'#1e3a5f', color:'#ffffff', borderBottom:'2px solid #16283d', whiteSpace:'nowrap', padding:'13px 14px', fontSize:12.5, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.06em', userSelect:'none' }
     const bdr = { border:'1px solid #f1f5f9' }
 
     // Selection totals for floating toolbar
@@ -1785,7 +1785,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         }} style={{ width:13, height:13, cursor:'pointer', accentColor:'#f59e0b' }} />
                       </td>
                       <td style={{ width:20, textAlign:'center', color:'#fde68a', fontSize:17, userSelect:'none', ...bdrA, position:'sticky', left:stickyLeft[1], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>—</td>
-                      <td className="td text-xs" style={{ ...bdrA, color:'#92400e', fontSize:13, fontWeight:700, whiteSpace:'nowrap', padding:'10px 12px', position:'sticky', left:stickyLeft[2], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>
+                      <td className="td text-xs" style={{ ...bdrA, color:'#92400e', fontSize:14, fontWeight:700, whiteSpace:'nowrap', padding:'10px 12px', position:'sticky', left:stickyLeft[2], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>
                         {e.date ? fmtDate(e.date) : '—'}
                       </td>
                       <td className="td text-center text-gray-300" style={{ ...bdrA, padding:'10px 12px', position:'sticky', left:stickyLeft[3], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>—</td>
@@ -1793,12 +1793,12 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         Solde initial
                       </td>
                       <td style={{ ...bdrA, padding:'10px 12px' }}>
-                        <span style={{ background:'#fef3c7', color:'#92400e', fontWeight:700, fontSize:10, padding:'2px 7px', borderRadius:3, border:`1px solid ${amber}`, whiteSpace:'nowrap' }}>
+                        <span style={{ background:'#fef3c7', color:'#92400e', fontWeight:700, fontSize:11, padding:'3px 8px', borderRadius:3, border:`1px solid ${amber}`, whiteSpace:'nowrap' }}>
                           Solde initial
                         </span>
                       </td>
                       {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{ ...bdrA, padding:'10px 12px' }}>—</td>)}
-                      <td className="td text-right font-black" style={{ ...bdrA, color:'#b45309', fontSize:15, whiteSpace:'nowrap', padding:'10px 14px', letterSpacing:'-0.2px' }}>
+                      <td className="td text-right font-black" style={{ ...bdrA, color:'#b45309', fontSize:17, whiteSpace:'nowrap', padding:'10px 14px', letterSpacing:'-0.2px' }}>
                         {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                       </td>
                       <td className="td text-xs" style={{ ...bdrA, padding:'10px 12px', color:'#92400e', fontStyle:'italic' }}>
@@ -1826,7 +1826,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                 // divider — this is what makes a multi-row voyage read as one block
                 // instead of a stack of independently striped rows.
                 const isGroupLast = groupMeta.isGroupLast[i]
-                const bandBg = groupMeta.band[i] === 1 ? '#f8fafc' : '#ffffff'
+                const bandBg = groupMeta.band[i] === 1 ? '#f1f5f9' : '#ffffff'
                 const rowBg = isSelected ? '#ede9fe' : typeRowBg || bandBg
                 const bdr = { border: '1px solid #f1f5f9', borderBottom: isGroupLast ? '2px solid #cbd5e1' : '1px solid #f1f5f9' }
 
@@ -1900,7 +1900,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         Explicit background (not transparent) so the merged block never
                         shows a mismatched color bleeding through from a row beneath it. */}
                     {rowSpan > 0 && (
-                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#1e293b',fontWeight:700,fontSize:13,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[2],zIndex:1}}>
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#1e293b',fontWeight:700,fontSize:14,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[2],zIndex:1}}>
                         <div>{fmtDate(e.date)}</div>
                         {isMoved && (
                           <div style={{fontSize:9,marginTop:2}}>
@@ -1913,7 +1913,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         right border marks where the "anchor" columns end and the
                         transaction detail columns begin. */}
                     {rowSpan > 0 && (
-                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#475569',fontWeight:700,fontSize:13,padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[3],zIndex:1}}>
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#475569',fontWeight:700,fontSize:14,padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[3],zIndex:1}}>
                         {e.detail || <span className="text-gray-400">—</span>}
                       </td>
                     )}
@@ -1921,40 +1921,40 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         directly above them; indent + lighter weight makes that
                         relationship visible (matches print/PDF treatment). */}
                     <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',padding: e.src === 'frais' ? '10px 12px 10px 26px' : '10px 12px',
-                      color: e.src === 'frais' ? '#64748b' : '#1e293b', fontWeight: e.src === 'frais' ? 500 : 700,
-                      fontSize: e.src === 'frais' ? 13 : 14}}>
+                      color: e.src === 'frais' ? '#64748b' : '#1e293b', fontWeight: e.src === 'frais' ? 600 : 700,
+                      fontSize: e.src === 'frais' ? 14 : 15}}>
                       {e.src === 'frais' ? `↳ ${e.operation}` : e.operation}
                     </td>
                     {/* TYPE BADGE */}
                     <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
                       {e.type === 'vente' || e.type === 'frais-charge'
-                        ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
+                        ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
                         : e.type === 'mdo'
-                        ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
-                        : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                        ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                        : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
                             {e.type === 'paiement' || e.type === 'frais-deduction' ? e.label : 'Remise'}
                           </span>}
                     </td>
                     {/* QTÉ */}
-                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:14}}>
+                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:700,color:'#374151',fontSize:15}}>
                       {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-400">—</span>}
                     </td>
                     {/* PRIX/U */}
-                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:13}}>
+                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:700,color:'#374151',fontSize:14}}>
                       {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmtMoney(v.prix_vente||0) : <span className="text-gray-400">—</span>}
                     </td>
                     {/* TOTAL */}
-                    <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
+                    <td className="td text-right" style={{...bdr,fontSize:16,fontWeight:800,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
                       {isPos ? `+ ${fmtMoney(absAmt)}` : `− ${fmtMoney(absAmt)}`}
                     </td>
                     {/* SOLDE */}
-                    <td className="td text-right" style={{...bdr,fontSize:16,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                    <td className="td text-right" style={{...bdr,fontSize:17,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
                       color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
                       {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                     </td>
                     {/* NOTE */}
-                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',fontSize:12.5,
-                      color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',fontSize:13,
+                      color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 700 : 400}}>
                       {e.note || '—'}
                     </td>
                     {/* ACTIONS — edit/open-voyage for voyage-sourced rows (same as chrono mode) */}
@@ -1984,10 +1984,10 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px',position:'sticky',left:stickyLeft[3],zIndex:1,background:'#fef3c7'}}>—</td>
                         <td className="td text-xs font-semibold" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px'}}>Report</td>
                         <td style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
-                          <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>Report</span>
+                          <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>Report</span>
                         </td>
                         {[0,1,2].map(k => <td key={k} className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>)}
-                        <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
+                        <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:17,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
                           {cfSign}{cfAmt}
                         </td>
                         <td className="td text-xs" style={{border:'1px solid #fde68a',padding:'10px 12px'}}></td>
@@ -2551,7 +2551,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                   {/* LEDGER CARD */}
                   {(() => {
                     const displayEntries = ledger.entries
-                    const thS = {background:'#1e3a5f',color:'#ffffff',borderBottom:'2px solid #16283d',whiteSpace:'nowrap',padding:'12px 14px',fontSize:11.5,fontWeight:800,textTransform:'uppercase',letterSpacing:'0.07em',userSelect:'none'}
+                    const thS = {background:'#1e3a5f',color:'#ffffff',borderBottom:'2px solid #16283d',whiteSpace:'nowrap',padding:'13px 14px',fontSize:12.5,fontWeight:800,textTransform:'uppercase',letterSpacing:'0.06em',userSelect:'none'}
                     const bdr = {border:'1px solid #f1f5f9'}
                     return (
                       <div className="card" style={{padding:0,overflow:'hidden'}}>
@@ -2716,7 +2716,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                               <tbody>
                                 {/* Opening balance / carry-over row */}
                                 <tr style={{background:'#fffbeb'}}>
-                                  <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',fontSize:13,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',position:'sticky',left:0,zIndex:1,background:'#fffbeb'}}>
+                                  <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',position:'sticky',left:0,zIndex:1,background:'#fffbeb'}}>
                                     {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                                   </td>
                                   <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px',position:'sticky',left:DATE_W,zIndex:1,background:'#fffbeb'}}>—</td>
@@ -2725,7 +2725,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                   </td>
                                   <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>
                                   {[0,1,2].map(k => <td key={k} className="td text-center text-gray-200" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>—</td>)}
-                                  <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:15,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
+                                  <td className="td text-right font-black" style={{border:'1px solid #fde68a',color:'#b45309',fontSize:17,whiteSpace:'nowrap',padding:'10px 14px',letterSpacing:'-0.2px'}}>
                                     {fmtMoney(ledger.startBalance)}
                                   </td>
                                   <td className="td text-xs text-gray-400" style={{border:'1px solid #fde68a',padding:'10px 12px'}}>
@@ -2757,7 +2757,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                   // (not per-row) and only the LAST row of a group gets the heavier
                                   // divider, so a multi-row voyage reads as one block.
                                   const isGroupLast = groupMeta.isGroupLast[i]
-                                  const bandBg = groupMeta.band[i] === 1 ? '#f8fafc' : '#ffffff'
+                                  const bandBg = groupMeta.band[i] === 1 ? '#f1f5f9' : '#ffffff'
                                   const rowBg = isHighlighted ? '#fef9c3' : (typeRowBg || bandBg)
                                   const bdr = { border: '1px solid #f1f5f9', borderBottom: isGroupLast ? '2px solid #cbd5e1' : '1px solid #f1f5f9' }
                                   return (
@@ -2768,12 +2768,12 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                             background so it never shows a mismatched color bleeding
                                             through from a differently-tinted row beneath it. */}
                                         {rowSpan > 0 && (
-                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#1e293b',fontWeight:700,fontSize:13,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:0,zIndex:1}}>{fmtDate(e.date)}</td>
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#1e293b',fontWeight:700,fontSize:14,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:0,zIndex:1}}>{fmtDate(e.date)}</td>
                                         )}
                                         {/* CAMION — real rowspan merge across the voyage group. Heavier
                                             right border marks where the anchor columns end. */}
                                         {rowSpan > 0 && (
-                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#475569',fontWeight:700,fontSize:13,padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:DATE_W,zIndex:1}}>
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#475569',fontWeight:700,fontSize:14,padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:DATE_W,zIndex:1}}>
                                             {e.detail || <span className="text-gray-400">—</span>}
                                           </td>
                                         )}
@@ -2782,40 +2782,40 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                             weight makes that relationship visible instead of reading as an
                                             unrelated operation (matches print/PDF treatment). */}
                                         <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',padding: e.src === 'frais' ? '10px 12px 10px 26px' : '10px 12px',
-                                          color: e.src === 'frais' ? '#64748b' : '#1e293b', fontWeight: e.src === 'frais' ? 500 : 700,
-                                          fontSize: e.src === 'frais' ? 13 : 14}}>
+                                          color: e.src === 'frais' ? '#64748b' : '#1e293b', fontWeight: e.src === 'frais' ? 600 : 700,
+                                          fontSize: e.src === 'frais' ? 14 : 15}}>
                                           {e.src === 'frais' ? `↳ ${e.operation}` : e.operation}
                                         </td>
                                         {/* TYPE BADGE */}
                                         <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
                                           {e.type === 'vente' || e.type === 'frais-charge'
-                                            ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
+                                            ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
                                             : e.type === 'mdo'
-                                            ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
-                                            : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                                            ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                                            : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:11,padding:'3px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
                                                 {e.type === 'paiement' || e.type === 'frais-deduction' ? e.label : 'Remise'}
                                               </span>}
                                         </td>
                                         {/* QTÉ */}
-                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:14}}>
+                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:700,color:'#374151',fontSize:15}}>
                                           {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-400">—</span>}
                                         </td>
                                         {/* PRIX */}
-                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:13}}>
+                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:700,color:'#374151',fontSize:14}}>
                                           {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmtMoney(v.prix_vente||0) : <span className="text-gray-400">—</span>}
                                         </td>
                                         {/* TOTAL */}
-                                        <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
+                                        <td className="td text-right" style={{...bdr,fontSize:16,fontWeight:800,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
                                           {isPos ? `+ ${fmtMoney(absAmt)}` : `− ${fmtMoney(absAmt)}`}
                                         </td>
                                         {/* SOLDE */}
-                                        <td className="td text-right" style={{...bdr,fontSize:16,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                                        <td className="td text-right" style={{...bdr,fontSize:17,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
                                           color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
                                           {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                                         </td>
                                         {/* NOTE */}
-                                        <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',fontSize:12.5,
-                                          color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
+                                        <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',fontSize:13,
+                                          color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 700 : 400}}>
                                           {noteDisplay}
                                         </td>
                                         {/* ACTIONS — remise edit/delete, or edit/open-voyage for voyage-sourced rows */}
