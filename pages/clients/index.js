@@ -3,7 +3,7 @@ import Layout from '../../components/Layout'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { fmt, fmtMoney, fmtDate, today, startOfMonth, openPrintWindow, montantEnLettres } from '../../lib/utils'
+import { fmt, fmtMoney, fmtDate, today, startOfMonth, openPrintWindow, montantEnLettres, useIsMobile } from '../../lib/utils'
 import { useVoyageTransactionEdit } from '../../lib/hooks/useVoyageTransactionEdit'
 import EditTransactionModal from '../../components/voyage/EditTransactionModal'
 import { resolveLivraisonByVenteId, resolveLivraisonByFraisRow, resolveChargeByVenteId } from '../../lib/services/voyage/resolveSource'
@@ -13,6 +13,7 @@ const startOfWeek = () => { const d = new Date(); d.setDate(d.getDate() - d.getD
 
 export default function Clients() {
   const { user } = useAuth()
+  const isMobile = useIsMobile()
 
   // ── CLIENT STATE ──
   const [clients, setClients] = useState([])
@@ -377,6 +378,17 @@ export default function Clients() {
 
   // ── ENTRY KEY ──
   function eKey(e) { return `${e.src}:${e.raw?.id ?? e.date}` }
+
+  // ── TYPE BADGE — same color rules as the desktop chrono/présentation
+  // tables' inline Type-column badge, extracted so the mobile cards below
+  // can reuse the exact same classification without duplicating the logic. ──
+  function typeBadgeInfo(e) {
+    if (e.type === 'vente' || e.type === 'frais-charge')
+      return { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe', label: e.label }
+    if (e.type === 'mdo')
+      return { bg: '#fef9c3', color: '#92400e', border: '#fde68a', label: 'M.O.' }
+    return { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0', label: (e.type === 'paiement' || e.type === 'frais-deduction') ? e.label : 'Remise' }
+  }
 
   // ── VOYAGE GROUP KEY (display-only — groups consecutive rows from the same voyage
   // so Date/Camion print once per voyage instead of once per row). Same voyage_id wins;
@@ -1537,7 +1549,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   function renderPresentationTable() {
     const presLedger     = buildPresentationLedger()
     const displayEntries = presLedger.entries
-    const thS = { background:'#1e3a5f', color:'#ffffff', borderBottom:'2px solid #16283d', whiteSpace:'nowrap', padding:'11px 14px', fontSize:10.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', userSelect:'none' }
+    const thS = { background:'#1e3a5f', color:'#ffffff', borderBottom:'2px solid #16283d', whiteSpace:'nowrap', padding:'12px 14px', fontSize:11.5, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
     const bdr = { border:'1px solid #f1f5f9' }
 
     // Selection totals for floating toolbar
@@ -1617,10 +1629,113 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
           </div>
         )}
 
-        {/* Sticky anchor columns (checkbox/drag/Date/Camion) — same treatment as the
-            chrono table, so the identifying columns stay visible while scrolling
-            horizontally through Montant/Solde/Note on narrow screens. */}
-        {(() => { const SEL_W = 36, DRAG_W = 20, DATE_W = 92, CAMION_W = 96
+        {/* MOBILE: cards instead of a squeezed table. The drag handle (⠿, desktop-only
+            below) relies on the HTML5 drag-and-drop API, which does not fire from touch
+            input — so on mobile, reordering happens via explicit ▲/▼ buttons that call
+            the exact same handlePresentationReorder() the desktop drop handler calls.
+            Multi-select already works with a plain tap (see checkbox below), so only
+            reordering needed a touch-friendly replacement. Desktop drag-and-drop is
+            untouched — see the `: (` branch below. */}
+        {isMobile ? (
+          <div className="mobile-card-list" style={{ padding: 10 }}>
+            {displayEntries.map((e, i) => {
+              const isSelected = presSelectedRows.has(eKey(e))
+              const isOpening = e.type === 'opening'
+
+              function toggleSelect() {
+                const key = eKey(e)
+                const ns = new Set(presSelectedRows)
+                ns.has(key) ? ns.delete(key) : ns.add(key)
+                setPresSelectedRows(ns); setPresLastClickedIdx(i)
+                presSelectInitRef.current = new Set(ns)
+              }
+
+              if (isOpening) {
+                return (
+                  <div key="opening:opening" className="mobile-row-card"
+                    onClick={toggleSelect}
+                    style={{ background: isSelected ? '#fef3c7' : '#fffbeb', borderColor: '#fde68a', cursor: 'pointer',
+                      borderLeft: isSelected ? '3px solid #f59e0b' : undefined }}>
+                    <div className="card-header">
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <input type="checkbox" checked={isSelected} readOnly
+                          style={{ width: 18, height: 18, marginTop: 1, accentColor: '#f59e0b', flexShrink: 0 }} />
+                        <span className="card-title" style={{ color: '#92400e', fontSize: 13 }}>{e.date ? fmtDate(e.date) : 'Solde initial'}</span>
+                      </div>
+                    </div>
+                    <div className="card-meta"><span>Solde initial</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6, borderTop: '1px dashed #fde68a' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '.04em' }}>Solde</span>
+                      <span style={{ fontSize: 16, fontWeight: 900, color: '#b45309' }}>{e.solde >= 0 ? '+ ' : '− '}{fmtMoney(Math.abs(e.solde))} DHS</span>
+                    </div>
+                  </div>
+                )
+              }
+
+              const isVente  = e.src === 'vente'
+              const v        = e.raw
+              const isPos    = e.delta >= 0
+              const absAmt   = Math.abs(e.delta)
+              const amtColor = isPos ? '#1d4ed8' : '#16a34a'
+              const isChild  = e.src === 'frais'
+              const isMoved  = !!presentationOrder[eKey(e)]
+              const badge    = typeBadgeInfo(e)
+              const canMoveUp   = i > 1   // i===0 is opening, i===1 moving up would target the opening row (no-op guard in handlePresentationReorder)
+              const canMoveDown = i < displayEntries.length - 1
+
+              return (
+                <div key={eKey(e)} className="mobile-row-card"
+                  onClick={toggleSelect}
+                  style={{
+                    marginLeft: isChild ? 14 : 0,
+                    borderLeft: isSelected ? '3px solid #7c3aed' : (isChild ? '3px solid #cbd5e1' : undefined),
+                    background: isSelected ? '#ede9fe' : '#fff',
+                    cursor: 'pointer',
+                  }}>
+                  <div className="card-header">
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+                      <input type="checkbox" checked={isSelected} readOnly
+                        style={{ width: 18, height: 18, marginTop: 1, accentColor: '#7c3aed', flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div className="card-title" style={{ fontSize: isChild ? 13 : 15 }}>{isChild ? `↳ ${e.operation}` : e.operation}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                          {fmtDate(e.date)}{e.detail ? ` · ${e.detail}` : ''}
+                          {isMoved && <span style={{ marginLeft: 6, background: '#ede9fe', color: '#7c3aed', fontWeight: 700, padding: '1px 5px', borderRadius: 3, fontSize: 9 }}>↕ Déplacé</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="card-amount" style={{ color: amtColor, fontSize: 16, whiteSpace: 'nowrap', flexShrink: 0 }}>{isPos ? '+ ' : '− '}{fmtMoney(absAmt)}</div>
+                  </div>
+                  <div className="card-meta">
+                    <span style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, fontWeight: 700 }}>{badge.label}</span>
+                    {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' && <span>{fmt(v.qte)} × {fmtMoney(v.prix_vente || 0)} DHS</span>}
+                    {e.note && <span style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.note}>{e.note}</span>}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.04em' }}>Solde</span>
+                    <span style={{ fontSize: 16, fontWeight: 900, color: e.solde > 0 ? '#1e3a5f' : '#16a34a' }}>{e.solde >= 0 ? '+ ' : '− '}{fmtMoney(Math.abs(e.solde))} DHS</span>
+                  </div>
+                  <div className="card-actions" style={{ justifyContent: 'space-between' }} onClick={ev => ev.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button disabled={!canMoveUp} onClick={() => handlePresentationReorder(i, i - 1, displayEntries)}
+                        className="btn-secondary" style={{ padding: '6px 10px', opacity: canMoveUp ? 1 : 0.35 }}>▲</button>
+                      <button disabled={!canMoveDown} onClick={() => handlePresentationReorder(i, i + 1, displayEntries)}
+                        className="btn-secondary" style={{ padding: '6px 10px', opacity: canMoveDown ? 1 : 0.35 }}>▼</button>
+                    </div>
+                    {(e.type === 'vente' || e.type === 'frais-charge' || e.type === 'frais-deduction' || e.type === 'mdo') && (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn-secondary" style={{ padding: '6px 10px' }} onClick={() => editLedgerEntry(e)}>✎</button>
+                        {e.voyage_id && (
+                          <Link href={`/voyages/${e.voyage_id}`} className="btn-secondary" style={{ padding: '6px 10px', textDecoration: 'none' }}>↗</Link>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (() => { const SEL_W = 36, DRAG_W = 20, DATE_W = 92, CAMION_W = 96
           const stickyLeft = [0, SEL_W, SEL_W + DRAG_W, SEL_W + DRAG_W + DATE_W]
           return (
         <div className="overflow-x-auto" style={{userSelect:'none',WebkitOverflowScrolling:'touch',boxShadow:'inset -10px 0 8px -8px rgba(15,23,42,0.06)'}}>
@@ -1978,7 +2093,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         {billingPresentationMode && selectedRows.length > 0 && (
           <div style={{margin:'10px 16px 0',border:'1px solid #99f6e4',borderRadius:8,overflow:'hidden'}}>
             <div style={{background:'#f0fdfa',color:'#0f766e',fontSize:10.5,fontWeight:700,padding:'6px 12px',textTransform:'uppercase',letterSpacing:'0.05em'}}>
-              Glissez ⠿ pour réordonner l'ordre d'impression
+              {isMobile ? '▲▼ Utilisez les flèches pour réordonner l\'ordre d\'impression' : 'Glissez ⠿ pour réordonner l\'ordre d\'impression'}
             </div>
             {selectedRows.map((r, i) => {
               const isPai = r.kind === 'paiement'
@@ -1992,10 +2107,22 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                   onDrop={ev => { ev.preventDefault(); moveSelectedRow(billingDragFrom, i); setBillingDragFrom(null); setBillingDragOver(null) }}
                   style={{display:'flex',alignItems:'center',gap:10,padding:'7px 12px',borderTop:'1px solid #f1f5f9',
                     background: isDropTarget ? '#f0fdfa' : '#fff', opacity: isDragging ? 0.4 : 1}}>
-                  <span draggable
-                    onDragStart={ev => { ev.dataTransfer.effectAllowed='move'; setBillingDragFrom(i) }}
-                    onDragEnd={() => { setBillingDragFrom(null); setBillingDragOver(null) }}
-                    style={{cursor:'grab',color:'#94a3b8',fontSize:14,userSelect:'none'}}>⠿</span>
+                  {/* Native HTML5 drag-and-drop (below) doesn't fire from touch input,
+                      so mobile gets explicit ▲/▼ buttons calling the same moveSelectedRow()
+                      the drop handler above calls — desktop drag is untouched. */}
+                  {isMobile ? (
+                    <div style={{display:'flex',gap:3,flexShrink:0}}>
+                      <button disabled={i===0} onClick={() => moveSelectedRow(i, i-1)}
+                        className="btn-secondary" style={{padding:'3px 7px',fontSize:11,opacity:i===0?0.35:1}}>▲</button>
+                      <button disabled={i===selectedRows.length-1} onClick={() => moveSelectedRow(i, i+1)}
+                        className="btn-secondary" style={{padding:'3px 7px',fontSize:11,opacity:i===selectedRows.length-1?0.35:1}}>▼</button>
+                    </div>
+                  ) : (
+                    <span draggable
+                      onDragStart={ev => { ev.dataTransfer.effectAllowed='move'; setBillingDragFrom(i) }}
+                      onDragEnd={() => { setBillingDragFrom(null); setBillingDragOver(null) }}
+                      style={{cursor:'grab',color:'#94a3b8',fontSize:14,userSelect:'none'}}>⠿</span>
+                  )}
                   <span style={{fontSize:11,color:'#374151',minWidth:70}}>{fmtDate(r.date)}</span>
                   <span style={{fontSize:12,fontWeight:600,color:'#0f172a',flex:1}}>{label}</span>
                   <span style={{fontSize:12,fontWeight:700,color: isPai ? '#374151' : '#0f766e'}}>
@@ -2035,6 +2162,49 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
           </div>
         )}
 
+        {isMobile ? (
+          <div className="mobile-card-list" style={{ padding: 10 }}>
+            {candidates.map(c => {
+              const isSelected = billingSelectedRows.has(c.key)
+              const isPai = c.kind === 'paiement'
+              const v = c.raw
+              const solde = soldeByKey.get(c.key)
+              const noteText = isPai ? ([v.mode, v.note].filter(Boolean).join(' · ')) : v.note
+              return (
+                <div key={c.key} className="mobile-row-card" onClick={() => toggleRow(c.key)}
+                  style={{ cursor: 'pointer',
+                    borderLeft: isSelected ? `3px solid ${isPai ? '#64748b' : '#0f766e'}` : undefined,
+                    background: isSelected ? (isPai ? '#f8fafc' : '#f0fdfa') : '#fff' }}>
+                  <div className="card-header">
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+                      <input type="checkbox" checked={isSelected} readOnly
+                        style={{ width: 18, height: 18, marginTop: 1, accentColor: '#0f766e', flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div className="card-title">{isPai ? 'Paiement' : (v.type_brique || '—')}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{fmtDate(v.date)}{v.camion_plaque ? ` · ${v.camion_plaque}` : ''}</div>
+                      </div>
+                    </div>
+                    <div className="card-amount" style={{ color: isPai ? '#334155' : '#0f766e', fontSize: 16, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {isPai ? '− ' : '+ '}{fmtMoney(isPai ? (v.montant || 0) : (v.total_vente || 0))}
+                    </div>
+                  </div>
+                  {(!isPai || noteText) && (
+                    <div className="card-meta">
+                      {!isPai && <span>{fmt(v.qte)} × {fmtMoney(v.prix_vente || 0)} DHS</span>}
+                      {noteText && <span style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={noteText}>{noteText}</span>}
+                    </div>
+                  )}
+                  {solde !== undefined && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.04em' }}>Solde (document)</span>
+                      <span style={{ fontSize: 16, fontWeight: 900, color: solde > 0 ? '#1e3a5f' : '#16a34a' }}>{solde >= 0 ? '+ ' : '− '}{fmtMoney(Math.abs(solde))} DHS</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -2116,6 +2286,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
             )}
           </table>
         </div>
+        )}
       </div>
     )
   }
@@ -2284,7 +2455,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                       <span className="text-brand-700 font-black text-xl">{selected.nom[0]}</span>
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900">{selected.nom}</h2>
+                      <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">{selected.nom}</h2>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="badge-gray">{selected.depot}</span>
                         {selected.tel && <span className="text-sm text-gray-500">📞 {selected.tel}</span>}
@@ -2380,7 +2551,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                   {/* LEDGER CARD */}
                   {(() => {
                     const displayEntries = ledger.entries
-                    const thS = {background:'#1e3a5f',color:'#ffffff',borderBottom:'2px solid #16283d',whiteSpace:'nowrap',padding:'11px 14px',fontSize:10.5,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',userSelect:'none'}
+                    const thS = {background:'#1e3a5f',color:'#ffffff',borderBottom:'2px solid #16283d',whiteSpace:'nowrap',padding:'12px 14px',fontSize:11.5,fontWeight:800,textTransform:'uppercase',letterSpacing:'0.07em',userSelect:'none'}
                     const bdr = {border:'1px solid #f1f5f9'}
                     return (
                       <div className="card" style={{padding:0,overflow:'hidden'}}>
@@ -2443,7 +2614,87 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         </div>
 
                         {/* TABLE BODY — switch between modes */}
-                        {stmtMode === 'presentation' ? renderPresentationTable() : stmtMode === 'billing' ? renderBillingTable() : (
+                        {stmtMode === 'presentation' ? renderPresentationTable() : stmtMode === 'billing' ? renderBillingTable() : isMobile ? (
+                          // MOBILE: cards instead of a squeezed table — same `displayEntries`
+                          // (ledger.entries) as the desktop table below, same accounting values,
+                          // just laid out so Montant and Solde are never off-screen. See §J of the
+                          // mobile audit: "do not simply squeeze the existing table."
+                          <div className="mobile-card-list" style={{ padding: 10 }}>
+                            <div className="mobile-row-card" style={{ background: '#fffbeb', borderColor: '#fde68a' }}>
+                              <div className="card-header">
+                                <span className="card-title" style={{ color: '#92400e', fontSize: 13 }}>
+                                  {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : 'Solde initial')}
+                                </span>
+                              </div>
+                              <div className="card-meta"><span>{carryOver !== null ? 'Report' : 'Solde initial'}</span></div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6, borderTop: '1px dashed #fde68a' }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '.04em' }}>Solde</span>
+                                <span style={{ fontSize: 16, fontWeight: 900, color: '#b45309' }}>{fmtMoney(ledger.startBalance)} DHS</span>
+                              </div>
+                            </div>
+
+                            {displayEntries.length === 0 && (
+                              <div className="text-center text-gray-400 py-8">Aucune opération pour cette période</div>
+                            )}
+
+                            {displayEntries.map(e => {
+                              const isVente = e.src === 'vente'
+                              const isPos = e.delta >= 0
+                              const absAmt = Math.abs(e.delta)
+                              const amtColor = isPos ? '#1d4ed8' : '#16a34a'
+                              const v = e.raw
+                              const isChild = e.src === 'frais'
+                              const isHighlighted = chronoHighlights.has(eKey(e))
+                              const badge = typeBadgeInfo(e)
+                              return (
+                                <div key={eKey(e)} className="mobile-row-card"
+                                  onClick={() => toggleHighlight(eKey(e))}
+                                  style={{
+                                    marginLeft: isChild ? 14 : 0,
+                                    borderLeft: isChild ? '3px solid #cbd5e1' : undefined,
+                                    background: isHighlighted ? '#fef9c3' : '#fff',
+                                    cursor: 'pointer',
+                                  }}>
+                                  <div className="card-header">
+                                    <div style={{ minWidth: 0 }}>
+                                      <div className="card-title" style={{ fontSize: isChild ? 13 : 15 }}>{isChild ? `↳ ${e.operation}` : e.operation}</div>
+                                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{fmtDate(e.date)}{e.detail ? ` · ${e.detail}` : ''}</div>
+                                    </div>
+                                    <div className="card-amount" style={{ color: amtColor, fontSize: 16, whiteSpace: 'nowrap', flexShrink: 0 }}>{isPos ? '+ ' : '− '}{fmtMoney(absAmt)}</div>
+                                  </div>
+                                  <div className="card-meta">
+                                    <span style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, fontWeight: 700 }}>{badge.label}</span>
+                                    {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' && <span>{fmt(v.qte)} × {fmtMoney(v.prix_vente || 0)} DHS</span>}
+                                    {e.note && <span style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.note}>{e.note}</span>}
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.04em' }}>Solde</span>
+                                    <span style={{ fontSize: 16, fontWeight: 900, color: e.solde > 0 ? '#1e3a5f' : '#16a34a' }}>
+                                      {e.solde >= 0 ? '+ ' : '− '}{fmtMoney(Math.abs(e.solde))} DHS
+                                    </span>
+                                  </div>
+                                  {(e.src === 'remise' || e.type === 'vente' || e.type === 'frais-charge' || e.type === 'frais-deduction' || e.type === 'mdo') && (
+                                    <div className="card-actions" onClick={ev => ev.stopPropagation()}>
+                                      {e.src === 'remise' && <>
+                                        <button className="btn-secondary" style={{ fontSize: 12, padding: '6px 10px' }}
+                                          onClick={() => { setRemiseForm({ date: v.date, montant: String(v.montant), type_remise: v.type_remise || 'Commerciale', motif: v.motif || '' }); setRemiseError(''); setRemiseModal(v) }}>
+                                          ✎ Modifier
+                                        </button>
+                                        <button className="btn-danger" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => deleteRemise(v)}>✕ Supprimer</button>
+                                      </>}
+                                      {(e.type === 'vente' || e.type === 'frais-charge' || e.type === 'frais-deduction' || e.type === 'mdo') && <>
+                                        <button className="btn-secondary" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => editLedgerEntry(e)}>✎ Modifier</button>
+                                        {e.voyage_id && (
+                                          <Link href={`/voyages/${e.voyage_id}`} className="btn-secondary" style={{ fontSize: 12, padding: '6px 10px', textDecoration: 'none' }}>↗ Voyage</Link>
+                                        )}
+                                      </>}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
                           // Sticky Date/Camion anchor columns — on narrow screens the table scrolls
                           // horizontally, but the two columns that identify "which operation" stay
                           // pinned so they're never lost off-screen while scanning Montant/Solde/Note.

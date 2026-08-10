@@ -48,6 +48,12 @@ export default function ReviewMode() {
   const [selectedId, setSelectedId] = useState(null)
   const panelRef = useRef(null)
 
+  // ── MOBILE: the filters+queue sidebar is `hidden` below md (see render),
+  // so on a phone it instead opens as a slide-in drawer, toggled from a
+  // dedicated mobile-only bar. Same JSX, same state/handlers either way —
+  // see renderQueuePanel() below.
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+
   useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
 
   async function loadAll() {
@@ -184,87 +190,134 @@ export default function ReviewMode() {
     errors:    filteredRows.filter(r => r.status === 'has_errors').length,
   }), [filteredRows])
 
+  // ── Filters + stats + queue — shared by the desktop sidebar (always visible,
+  // `hidden md:flex` wrapper) and the mobile drawer (only rendered while
+  // mobileDrawerOpen). Same state, same handlers, same list either way — only
+  // the surrounding container differs. ──
+  function renderQueuePanel() {
+    return (
+      <>
+        <div className="p-3 border-b border-slate-100 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
+              className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50" />
+            <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
+              className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50" />
+          </div>
+          <select value={filterCamion} onChange={e => setFilterCamion(e.target.value)}
+            className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50">
+            <option value="">Tous les camions</option>
+            {camions.map(c => <option key={c.id} value={c.id}>{c.plaque}{c.chauffeur ? ` — ${c.chauffeur}` : ''}</option>)}
+          </select>
+          <input type="text" value={filterChauffeur} onChange={e => setFilterChauffeur(e.target.value)}
+            placeholder="Chauffeur…"
+            className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50" />
+          <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
+            className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50">
+            <option value="">Tous les clients</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+          </select>
+          <select value={filterReviewed} onChange={e => setFilterReviewed(e.target.value)}
+            className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50">
+            <option value="all">Tous</option>
+            <option value="reviewed">Revus</option>
+            <option value="not_reviewed">Non revus</option>
+          </select>
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 px-0.5">
+            <input type="checkbox" checked={errorsOnly} onChange={e => setErrorsOnly(e.target.checked)} />
+            🔴 Erreurs uniquement
+          </label>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1 px-3 py-2 border-b border-slate-100 bg-slate-50 text-center flex-shrink-0">
+          <div><div className="text-sm font-black text-slate-800">{stats.total}</div><div className="text-[9px] text-slate-400 uppercase">Total</div></div>
+          <div><div className="text-sm font-black text-emerald-600">{stats.reviewed}</div><div className="text-[9px] text-slate-400 uppercase">Revus</div></div>
+          <div><div className="text-sm font-black text-red-500">{stats.errors}</div><div className="text-[9px] text-slate-400 uppercase">Erreurs</div></div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+          {loading && <div className="text-center text-xs text-slate-400 py-8">Chargement...</div>}
+          {!loading && filteredRows.length === 0 && <div className="text-center text-xs text-slate-400 py-8">Aucun voyage</div>}
+          {filteredRows.map(({ voyage: v, result, status, clientNoms }) => {
+            const isActive = v.id === selectedId
+            return (
+              <button key={v.id} onClick={() => { setSelectedId(v.id); setMobileDrawerOpen(false) }}
+                className={`w-full text-left px-3 py-2.5 transition-colors ${isActive ? 'bg-blue-600' : 'hover:bg-blue-50/60'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className={`font-bold text-xs leading-tight ${isActive ? 'text-white' : 'text-slate-800'}`}>
+                    {v.reference || `#${v.id}`} · {fmtDate(v.date_depart)}
+                  </div>
+                  <span title={STATUS_LABEL[status]}>{STATUS_DOT[status]}</span>
+                </div>
+                <div className={`text-[10px] mt-0.5 ${isActive ? 'text-blue-200' : 'text-slate-400'}`}>
+                  {v.camion_plaque}{v.chauffeur ? ` · ${v.chauffeur}` : ''}
+                </div>
+                {clientNoms.length > 0 && (
+                  <div className={`text-[10px] mt-0.5 truncate ${isActive ? 'text-blue-200' : 'text-slate-400'}`}>
+                    {clientNoms.join(', ')}
+                  </div>
+                )}
+                <div className="flex items-center justify-between mt-1">
+                  <div className={isActive ? 'text-white' : ''}>
+                    {isActive
+                      ? <span className={`font-black text-sm ${result.profit >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{result.profit >= 0 ? '+' : ''}{fmtMoney(result.profit)}</span>
+                      : <ProfitCell v={result.profit} />}
+                  </div>
+                  <label className="flex items-center gap-1 text-[10px]" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={!!v.reviewed_at} onChange={() => toggleReviewed(v)} />
+                    <span className={isActive ? 'text-blue-200' : 'text-slate-400'}>Revu</span>
+                  </label>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </>
+    )
+  }
+
   return (
     <Layout title="Mode Révision" subtitle="Audit mensuel des voyages">
+
+      {/* ── MOBILE-ONLY: toggle bar for the filters+queue drawer, since the
+          sidebar itself is `hidden` below md. Always rendered (not gated on
+          selectedRow) so the queue is reachable even when nothing is selected
+          yet or the current filters match nothing. ── */}
+      <div className="md:hidden flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-2xl shadow-sm px-3 py-2.5 mb-3">
+        <button onClick={() => setMobileDrawerOpen(true)}
+          className="flex items-center gap-2 text-sm font-bold text-slate-700 active:opacity-70"
+          style={{ WebkitTapHighlightColor: 'transparent' }}>
+          <span>☰</span> Filtres &amp; File <span className="text-slate-400 font-semibold">({stats.total})</span>
+        </button>
+        <div className="flex items-center gap-2 text-[11px] font-bold flex-shrink-0">
+          <span className="text-emerald-600">{stats.reviewed} revus</span>
+          <span className="text-slate-300">·</span>
+          <span className="text-red-500">{stats.errors} erreurs</span>
+        </div>
+      </div>
+
+      {/* ── MOBILE DRAWER — same filters/stats/queue as the desktop sidebar,
+          same visual language as components/Layout.js's own mobile drawer
+          (dark backdrop, slide-in panel). ── */}
+      {mobileDrawerOpen && (
+        <div className="md:hidden fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setMobileDrawerOpen(false)}>
+          <div className="absolute top-0 left-0 h-full w-[86%] max-w-sm bg-white flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-shrink-0">
+              <h3 className="font-bold text-slate-800 text-sm">Filtres &amp; File de révision</h3>
+              <button onClick={() => setMobileDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+            </div>
+            <div className="flex-1 min-h-0 flex flex-col">
+              {renderQueuePanel()}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-4 items-stretch" style={{ height: 'calc(100vh - 7.5rem)' }}>
 
-        {/* ── LEFT: filters + queue ── */}
+        {/* ── LEFT: filters + queue (desktop only — see mobile drawer above) ── */}
         <div className="hidden md:flex flex-col w-80 flex-shrink-0 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-3 border-b border-slate-100 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
-                className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50" />
-              <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
-                className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50" />
-            </div>
-            <select value={filterCamion} onChange={e => setFilterCamion(e.target.value)}
-              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50">
-              <option value="">Tous les camions</option>
-              {camions.map(c => <option key={c.id} value={c.id}>{c.plaque}{c.chauffeur ? ` — ${c.chauffeur}` : ''}</option>)}
-            </select>
-            <input type="text" value={filterChauffeur} onChange={e => setFilterChauffeur(e.target.value)}
-              placeholder="Chauffeur…"
-              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50" />
-            <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
-              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50">
-              <option value="">Tous les clients</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-            </select>
-            <select value={filterReviewed} onChange={e => setFilterReviewed(e.target.value)}
-              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50">
-              <option value="all">Tous</option>
-              <option value="reviewed">Revus</option>
-              <option value="not_reviewed">Non revus</option>
-            </select>
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 px-0.5">
-              <input type="checkbox" checked={errorsOnly} onChange={e => setErrorsOnly(e.target.checked)} />
-              🔴 Erreurs uniquement
-            </label>
-          </div>
-
-          <div className="grid grid-cols-3 gap-1 px-3 py-2 border-b border-slate-100 bg-slate-50 text-center">
-            <div><div className="text-sm font-black text-slate-800">{stats.total}</div><div className="text-[9px] text-slate-400 uppercase">Total</div></div>
-            <div><div className="text-sm font-black text-emerald-600">{stats.reviewed}</div><div className="text-[9px] text-slate-400 uppercase">Revus</div></div>
-            <div><div className="text-sm font-black text-red-500">{stats.errors}</div><div className="text-[9px] text-slate-400 uppercase">Erreurs</div></div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
-            {loading && <div className="text-center text-xs text-slate-400 py-8">Chargement...</div>}
-            {!loading && filteredRows.length === 0 && <div className="text-center text-xs text-slate-400 py-8">Aucun voyage</div>}
-            {filteredRows.map(({ voyage: v, result, status, clientNoms }) => {
-              const isActive = v.id === selectedId
-              return (
-                <button key={v.id} onClick={() => setSelectedId(v.id)}
-                  className={`w-full text-left px-3 py-2.5 transition-colors ${isActive ? 'bg-blue-600' : 'hover:bg-blue-50/60'}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className={`font-bold text-xs leading-tight ${isActive ? 'text-white' : 'text-slate-800'}`}>
-                      {v.reference || `#${v.id}`} · {fmtDate(v.date_depart)}
-                    </div>
-                    <span title={STATUS_LABEL[status]}>{STATUS_DOT[status]}</span>
-                  </div>
-                  <div className={`text-[10px] mt-0.5 ${isActive ? 'text-blue-200' : 'text-slate-400'}`}>
-                    {v.camion_plaque}{v.chauffeur ? ` · ${v.chauffeur}` : ''}
-                  </div>
-                  {clientNoms.length > 0 && (
-                    <div className={`text-[10px] mt-0.5 truncate ${isActive ? 'text-blue-200' : 'text-slate-400'}`}>
-                      {clientNoms.join(', ')}
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between mt-1">
-                    <div className={isActive ? 'text-white' : ''}>
-                      {isActive
-                        ? <span className={`font-black text-sm ${result.profit >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{result.profit >= 0 ? '+' : ''}{fmtMoney(result.profit)}</span>
-                        : <ProfitCell v={result.profit} />}
-                    </div>
-                    <label className="flex items-center gap-1 text-[10px]" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={!!v.reviewed_at} onChange={() => toggleReviewed(v)} />
-                      <span className={isActive ? 'text-blue-200' : 'text-slate-400'}>Revu</span>
-                    </label>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
+          {renderQueuePanel()}
         </div>
 
         {/* ── RIGHT: existing Voyage Detail component — this IS /voyages/[id] ── */}

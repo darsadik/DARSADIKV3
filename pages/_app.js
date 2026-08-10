@@ -1,6 +1,23 @@
 import '../styles/globals.css'
 import { useState, useEffect, createContext, useContext } from 'react'
+import Head from 'next/head'
 import { supabase } from '../lib/supabase'
+
+// Required for the app's own `window.innerWidth < 768` mobile detection
+// (components/Layout.js, lib/utils.js useIsMobile, MobileTable, and every
+// `@media (max-width: 767px)` rule in styles/globals.css) to work at all on
+// a real phone. Without this tag, mobile browsers lay out the page against
+// a wide virtual viewport (~980px) instead of the device's actual width, so
+// window.innerWidth never reports below 768 and the whole mobile UI silently
+// never activates. Must live in _app.js/next/head, not _document.js — Next.js
+// warns and ignores a <meta name="viewport"> placed in _document.js's <Head>.
+function ViewportMeta() {
+  return (
+    <Head>
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    </Head>
+  )
+}
 
 const SUPER_ADMIN = 'abdelhafidbaadi@gmail.com'
 
@@ -45,17 +62,21 @@ export default function App({ Component, pageProps }) {
   }
 
   if (loading) return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f5f6fa'}}>
-      <div style={{textAlign:'center'}}>
-        <div style={{width:'48px',height:'48px',border:'4px solid #c5d8f5',borderTopColor:'#1a5fa8',borderRadius:'50%',animation:'spin .7s linear infinite',margin:'0 auto 16px'}}></div>
-        <p style={{color:'#94a3b8',fontSize:'14px'}}>Chargement...</p>
+    <>
+      <ViewportMeta />
+      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f5f6fa'}}>
+        <div style={{textAlign:'center'}}>
+          <div style={{width:'48px',height:'48px',border:'4px solid #c5d8f5',borderTopColor:'#1a5fa8',borderRadius:'50%',animation:'spin .7s linear infinite',margin:'0 auto 16px'}}></div>
+          <p style={{color:'#94a3b8',fontSize:'14px'}}>Chargement...</p>
+        </div>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+    </>
   )
 
   return (
     <AuthContext.Provider value={{ user, supabase }}>
+      <ViewportMeta />
       {!user ? <LoginPage accessDenied={accessDenied} /> : <Component {...pageProps} />}
     </AuthContext.Provider>
   )

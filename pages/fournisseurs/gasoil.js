@@ -734,14 +734,28 @@ ${printFooter(printDate)}
                       }}
                         style={{width:13,height:13,cursor:'pointer',accentColor:'#7c3aed'}} />
                     </td>
-                    {/* DRAG HANDLE — only this initiates row reorder */}
-                    <td
-                      draggable
-                      onDragStart={ev => { ev.dataTransfer.effectAllowed = 'move'; setPresDragFrom(i) }}
-                      onClick={ev => ev.stopPropagation()}
-                      style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
-                      ⠿
-                    </td>
+                    {/* DRAG HANDLE (desktop) / ▲▼ BUTTONS (mobile) — only this initiates
+                        row reorder. HTML5 drag-and-drop doesn't fire from touch input, so
+                        mobile gets explicit buttons calling the same handlePresentationReorder()
+                        the drop handler above calls — desktop drag-and-drop is untouched. */}
+                    {isMobile ? (
+                      <td onClick={ev => ev.stopPropagation()} style={{width:44,padding:'2px',...bdr}}>
+                        <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                          <button disabled={i===0} onClick={() => handlePresentationReorder(i, i-1, displayEntries)}
+                            style={{fontSize:10,lineHeight:1,padding:'3px 0',border:'1px solid #e2e8f0',borderRadius:4,background:'#fff',color:'#64748b',opacity:i===0?0.35:1}}>▲</button>
+                          <button disabled={i===displayEntries.length-1} onClick={() => handlePresentationReorder(i, i+1, displayEntries)}
+                            style={{fontSize:10,lineHeight:1,padding:'3px 0',border:'1px solid #e2e8f0',borderRadius:4,background:'#fff',color:'#64748b',opacity:i===displayEntries.length-1?0.35:1}}>▼</button>
+                        </div>
+                      </td>
+                    ) : (
+                      <td
+                        draggable
+                        onDragStart={ev => { ev.dataTransfer.effectAllowed = 'move'; setPresDragFrom(i) }}
+                        onClick={ev => ev.stopPropagation()}
+                        style={{width:20,textAlign:'center',color:'#9ca3af',fontSize:17,userSelect:'none',cursor:'grab',...bdr}}>
+                        ⠿
+                      </td>
+                    )}
                     {/* DATE + MOVED INDICATOR */}
                     <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>
                       <div>{fmtDate(e.date)}</div>

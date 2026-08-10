@@ -11,10 +11,15 @@ export default function EditTransactionModal({ editRow, editForm, setEditForm, o
   const setEf = v => setEditForm(prev => ({ ...prev, ...v }))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto"
       onClick={e => { if (e.target===e.currentTarget) onCancel() }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-        <div className="flex items-center justify-between mb-4">
+      {/* max-h + flex-col so the footer (Enregistrer) is a fixed flex item that
+          never scrolls away — only the form body scrolls. Without this, a
+          livraison with several frais/déductions (unbounded list, see
+          FraisEditor) plus an open mobile keyboard could push the Enregistrer
+          button off-screen with no way to reach it. */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0 border-b border-slate-100">
           <h3 className="font-bold text-slate-800 text-sm">
             {editRow.type==='achat'  && '✏️ Modifier Achat'}
             {editRow.type==='liv'    && '✏️ Modifier Livraison'}
@@ -23,7 +28,7 @@ export default function EditTransactionModal({ editRow, editForm, setEditForm, o
           </h3>
           <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 px-6 py-4 overflow-y-auto flex-1">
           {editRow.type==='achat' && <>
             <div><label className="text-[10px] font-semibold text-slate-500 block mb-1">Date</label>
               <input type="date" value={ef.date_achat||''} onChange={e=>setEf({date_achat:e.target.value})} className="input w-full text-sm"/></div>
@@ -98,7 +103,9 @@ export default function EditTransactionModal({ editRow, editForm, setEditForm, o
               <input type="number" value={ef.montant||''} onChange={e=>setEf({montant:e.target.value})} className="input w-full text-sm"/></div>
           </>}
         </div>
-        <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-slate-100">
+        {/* Footer stays outside the scrollable body (flex-shrink-0) so Enregistrer
+            is always reachable, even mid-scroll or with the keyboard open. */}
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 flex-shrink-0">
           <button onClick={onCancel}
             className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">
             Annuler
