@@ -1785,7 +1785,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         }} style={{ width:13, height:13, cursor:'pointer', accentColor:'#f59e0b' }} />
                       </td>
                       <td style={{ width:20, textAlign:'center', color:'#fde68a', fontSize:17, userSelect:'none', ...bdrA, position:'sticky', left:stickyLeft[1], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>—</td>
-                      <td className="td text-xs" style={{ ...bdrA, color:'#92400e', whiteSpace:'nowrap', padding:'10px 12px', position:'sticky', left:stickyLeft[2], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>
+                      <td className="td text-xs" style={{ ...bdrA, color:'#92400e', fontSize:13, fontWeight:700, whiteSpace:'nowrap', padding:'10px 12px', position:'sticky', left:stickyLeft[2], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>
                         {e.date ? fmtDate(e.date) : '—'}
                       </td>
                       <td className="td text-center text-gray-300" style={{ ...bdrA, padding:'10px 12px', position:'sticky', left:stickyLeft[3], zIndex:1, background: isSelected ? '#fef3c7' : '#fffbeb' }}>—</td>
@@ -1900,7 +1900,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         Explicit background (not transparent) so the merged block never
                         shows a mismatched color bleeding through from a row beneath it. */}
                     {rowSpan > 0 && (
-                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[2],zIndex:1}}>
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#1e293b',fontWeight:700,fontSize:13,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[2],zIndex:1}}>
                         <div>{fmtDate(e.date)}</div>
                         {isMoved && (
                           <div style={{fontSize:9,marginTop:2}}>
@@ -1913,7 +1913,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         right border marks where the "anchor" columns end and the
                         transaction detail columns begin. */}
                     {rowSpan > 0 && (
-                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[3],zIndex:1}}>
+                      <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#475569',fontWeight:700,fontSize:13,padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:stickyLeft[3],zIndex:1}}>
                         {e.detail || <span className="text-gray-400">—</span>}
                       </td>
                     )}
@@ -1922,38 +1922,38 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                         relationship visible (matches print/PDF treatment). */}
                     <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',padding: e.src === 'frais' ? '10px 12px 10px 26px' : '10px 12px',
                       color: e.src === 'frais' ? '#64748b' : '#1e293b', fontWeight: e.src === 'frais' ? 500 : 700,
-                      fontSize: e.src === 'frais' ? 12 : 13}}>
+                      fontSize: e.src === 'frais' ? 13 : 14}}>
                       {e.src === 'frais' ? `↳ ${e.operation}` : e.operation}
                     </td>
                     {/* TYPE BADGE */}
                     <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
                       {e.type === 'vente' || e.type === 'frais-charge'
-                        ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
+                        ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
                         : e.type === 'mdo'
-                        ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
-                        : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                        ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                        : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
                             {e.type === 'paiement' || e.type === 'frais-deduction' ? e.label : 'Remise'}
                           </span>}
                     </td>
                     {/* QTÉ */}
-                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:13}}>
+                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:14}}>
                       {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-400">—</span>}
                     </td>
                     {/* PRIX/U */}
-                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:12}}>
+                    <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:13}}>
                       {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmtMoney(v.prix_vente||0) : <span className="text-gray-400">—</span>}
                     </td>
                     {/* TOTAL */}
-                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
+                    <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
                       {isPos ? `+ ${fmtMoney(absAmt)}` : `− ${fmtMoney(absAmt)}`}
                     </td>
                     {/* SOLDE */}
-                    <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                    <td className="td text-right" style={{...bdr,fontSize:16,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
                       color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
                       {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                     </td>
                     {/* NOTE */}
-                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
+                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',fontSize:12.5,
                       color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
                       {e.note || '—'}
                     </td>
@@ -2716,7 +2716,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                               <tbody>
                                 {/* Opening balance / carry-over row */}
                                 <tr style={{background:'#fffbeb'}}>
-                                  <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',whiteSpace:'nowrap',padding:'10px 12px',position:'sticky',left:0,zIndex:1,background:'#fffbeb'}}>
+                                  <td className="td text-xs" style={{border:'1px solid #fde68a',color:'#92400e',fontSize:13,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',position:'sticky',left:0,zIndex:1,background:'#fffbeb'}}>
                                     {carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}
                                   </td>
                                   <td className="td text-center text-gray-300" style={{border:'1px solid #fde68a',padding:'10px 12px',position:'sticky',left:DATE_W,zIndex:1,background:'#fffbeb'}}>—</td>
@@ -2768,12 +2768,12 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                             background so it never shows a mismatched color bleeding
                                             through from a differently-tinted row beneath it. */}
                                         {rowSpan > 0 && (
-                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:0,zIndex:1}}>{fmtDate(e.date)}</td>
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,color:'#1e293b',fontWeight:700,fontSize:13,whiteSpace:'nowrap',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:0,zIndex:1}}>{fmtDate(e.date)}</td>
                                         )}
                                         {/* CAMION — real rowspan merge across the voyage group. Heavier
                                             right border marks where the anchor columns end. */}
                                         {rowSpan > 0 && (
-                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#64748b',padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:DATE_W,zIndex:1}}>
+                                          <td rowSpan={rowSpan} className="td text-xs" style={{...bdr,background:bandBg,borderRight:'1.5px solid #dde3ea',whiteSpace:'nowrap',color:'#475569',fontWeight:700,fontSize:13,padding:'10px 12px',verticalAlign:'middle',position:'sticky',left:DATE_W,zIndex:1}}>
                                             {e.detail || <span className="text-gray-400">—</span>}
                                           </td>
                                         )}
@@ -2783,38 +2783,38 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                                             unrelated operation (matches print/PDF treatment). */}
                                         <td className="td text-xs" style={{...bdr,whiteSpace:'nowrap',padding: e.src === 'frais' ? '10px 12px 10px 26px' : '10px 12px',
                                           color: e.src === 'frais' ? '#64748b' : '#1e293b', fontWeight: e.src === 'frais' ? 500 : 700,
-                                          fontSize: e.src === 'frais' ? 12 : 13}}>
+                                          fontSize: e.src === 'frais' ? 13 : 14}}>
                                           {e.src === 'frais' ? `↳ ${e.operation}` : e.operation}
                                         </td>
                                         {/* TYPE BADGE */}
                                         <td className="td" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px'}}>
                                           {e.type === 'vente' || e.type === 'frais-charge'
-                                            ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
+                                            ? <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>{e.label}</span>
                                             : e.type === 'mdo'
-                                            ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
-                                            : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                                            ? <span style={{background:'#fef9c3',color:'#92400e',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #fde68a',whiteSpace:'nowrap'}}>M.O.</span>
+                                            : <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10.5,padding:'2px 8px',borderRadius:3,letterSpacing:'0.03em',border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
                                                 {e.type === 'paiement' || e.type === 'frais-deduction' ? e.label : 'Remise'}
                                               </span>}
                                         </td>
                                         {/* QTÉ */}
-                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:13}}>
+                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:14}}>
                                           {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmt(v.qte) : <span className="text-gray-400">—</span>}
                                         </td>
                                         {/* PRIX */}
-                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:12}}>
+                                        <td className="td text-right" style={{...bdr,whiteSpace:'nowrap',padding:'10px 12px',fontWeight:600,color:'#374151',fontSize:13}}>
                                           {isVente && e.type !== 'remise-voyage' && e.type !== 'mdo' ? fmtMoney(v.prix_vente||0) : <span className="text-gray-400">—</span>}
                                         </td>
                                         {/* TOTAL */}
-                                        <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
+                                        <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:amtColor}}>
                                           {isPos ? `+ ${fmtMoney(absAmt)}` : `− ${fmtMoney(absAmt)}`}
                                         </td>
                                         {/* SOLDE */}
-                                        <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
+                                        <td className="td text-right" style={{...bdr,fontSize:16,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
                                           color: e.solde > 0 ? '#1e3a5f' : '#16a34a', letterSpacing:'-0.2px'}}>
                                           {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                                         </td>
                                         {/* NOTE */}
-                                        <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
+                                        <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',fontSize:12.5,
                                           color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
                                           {noteDisplay}
                                         </td>
@@ -2859,7 +2859,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
                     style={{position:'relative',overflow:'hidden',borderRadius:14,border:'1px solid #dde5e0',background:'#f8faf9',padding:'18px 20px 18px 24px'}}>
                     <div style={{position:'absolute',left:0,top:0,bottom:0,width:5,background:'#16a34a'}} />
                     <div>
-                      <div className="font-extrabold" style={{color:'#1e293b',fontSize:12.5,letterSpacing:'0.1em',textTransform:'uppercase'}}>Total</div>
+                      <div className="font-extrabold" style={{color:'#1e293b',fontSize:15,letterSpacing:'0.08em',textTransform:'uppercase'}}>Total</div>
                       <div className="mt-1" style={{color:'#64748b',fontSize:12}}>Solde actuel à payer · {getFilterLabel()}</div>
                     </div>
                     <div className="text-left sm:text-right">
