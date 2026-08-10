@@ -34,10 +34,48 @@ function TooltipBox({ active, payload, label }) {
   )
 }
 
+// PROPRE (owned) vs LOUÉ (rented) truck category — small local card, reusing
+// aggregateVoyageProfits on a filtered subset of the SAME `results` array the
+// rest of Overview already reads. Never recomputes revenue/cost/fuel: it only
+// partitions rows by their truck's `type_camion` before summing.
+function FleetTypeCard({ title, data, amber }) {
+  const margeColor = { high: 'green', medium: 'blue', low: 'orange', loss: 'red' }[marginTier(data.marge).key]
+  return (
+    <div className={`bg-white rounded-2xl border shadow-sm p-4 ${amber ? 'border-amber-200' : 'border-slate-100'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
+        <span className="text-[10px] font-semibold text-slate-400">{data.nbVoyages} voyage(s)</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="Revenu" value={fmtMoney(data.revenue.total) + ' DHS'} color="green" />
+        <KpiCard label="Coût total" value={fmtMoney(data.cost.total) + ' DHS'} color="darkred" />
+        <KpiCard label="Profit net" value={(data.profit >= 0 ? '+' : '') + fmtMoney(data.profit) + ' DHS'} color={data.profit >= 0 ? 'green' : 'red'} />
+        <KpiCard label="Marge" value={data.marge + '%'} color={margeColor} />
+      </div>
+    </div>
+  )
+}
+
 // Overview — every number here is a sum/group of computeVoyageProfit results
 // (aggregateVoyageProfits / aggregateClientProfits), never recomputed.
 export default function Overview({ results, camions }) {
   const global = useMemo(() => aggregateVoyageProfits(results), [results])
+
+  // Split the SAME already-filtered `results` by each voyage's truck category
+  // — a voyage belongs to exactly one category (its camion's `type_camion`,
+  // defaulting to 'propre' for legacy/unset rows, same convention already
+  // used by ByTruckSection/FleetPerformance's LOUÉ badge). Fuel, achats,
+  // charges, and profit for a voyage never leave its own camion's bucket
+  // here since this is a plain array partition, not a recomputation.
+  const fleetSplit = useMemo(() => {
+    const typeById = new Map(camions.map(c => [c.id, c.type_camion === 'loue' ? 'loue' : 'propre']))
+    const propreResults = results.filter(r => typeById.get(r.camion_id) !== 'loue')
+    const loueResults   = results.filter(r => typeById.get(r.camion_id) === 'loue')
+    return {
+      propre: { ...aggregateVoyageProfits(propreResults), nbVoyages: propreResults.length },
+      loue:   { ...aggregateVoyageProfits(loueResults),   nbVoyages: loueResults.length },
+    }
+  }, [results, camions])
 
   const monthly = useMemo(() => {
     const byMonth = {}
@@ -86,6 +124,15 @@ export default function Overview({ results, camions }) {
         <KpiCard label="Profit net" icon={global.profit >= 0 ? '✅' : '❌'} color={global.profit >= 0 ? 'green' : 'red'} large
           value={(global.profit >= 0 ? '+' : '') + fmtMoney(global.profit) + ' DHS'} />
         <KpiCard label="Marge" icon="📈" color={margeTierColor} large value={global.marge + '%'} sub={`${results.length} voyages`} />
+      </div>
+
+      {/* PROPRE and LOUÉ trucks are two separate business categories — never
+          summed together into one number here. Each card below sums only its
+          own category's voyages (see fleetSplit above); the "Revenu" KPI grid
+          just above stays the pre-existing whole-fleet total. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FleetTypeCard title="🏢 Camions Propres" data={fleetSplit.propre} />
+        <FleetTypeCard title="🔑 Camions Loués" data={fleetSplit.loue} amber />
       </div>
 
       {/* Evolution + comparison combined: same two series (revenue/profit by
