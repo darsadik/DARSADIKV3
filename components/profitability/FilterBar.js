@@ -24,7 +24,7 @@ const PRESETS = [
 const [defaultFrom, defaultTo] = PRESETS.find(p => p.key === 'month').range()
 export const DEFAULT_FILTERS = {
   preset: 'month', from: defaultFrom, to: defaultTo,
-  camionId: '', clientKey: '', supplierKey: '', typeProduit: '', typeBrique: '', chauffeur: '',
+  camionId: '', clientKey: '', supplierKey: '', typeProduit: '', typeBrique: '', chauffeur: '', typeCamion: '',
 }
 
 function Select({ value, onChange, options, placeholder }) {
@@ -79,6 +79,9 @@ export default function FilterBar({ filters, onChange, options }) {
         <Select placeholder="🚛 Tous les camions" value={filters.camionId}
           onChange={v => onChange({ ...filters, camionId: v })}
           options={options.camions.map(c => ({ value: String(c.id), label: c.plaque + (c.type_camion === 'loue' ? ' 🔑' : '') }))} />
+        <Select placeholder="🚚 Propre / Loué" value={filters.typeCamion}
+          onChange={v => onChange({ ...filters, typeCamion: v })}
+          options={[{ value: 'propre', label: '🏢 Propre' }, { value: 'loue', label: '🔑 Loué' }]} />
         <Select placeholder="👤 Tous les clients" value={filters.clientKey}
           onChange={v => onChange({ ...filters, clientKey: v })}
           options={clientOptions} />
@@ -94,9 +97,9 @@ export default function FilterBar({ filters, onChange, options }) {
         <Select placeholder="🧑‍✈️ Tous chauffeurs" value={filters.chauffeur}
           onChange={v => onChange({ ...filters, chauffeur: v })}
           options={options.drivers.map(d => ({ value: d, label: d }))} />
-        {(filters.camionId || filters.clientKey || filters.supplierKey || filters.typeProduit || filters.typeBrique || filters.chauffeur) && (
+        {(filters.camionId || filters.typeCamion || filters.clientKey || filters.supplierKey || filters.typeProduit || filters.typeBrique || filters.chauffeur) && (
           <button
-            onClick={() => onChange({ ...filters, camionId: '', clientKey: '', supplierKey: '', typeProduit: '', typeBrique: '', chauffeur: '' })}
+            onClick={() => onChange({ ...filters, camionId: '', typeCamion: '', clientKey: '', supplierKey: '', typeProduit: '', typeBrique: '', chauffeur: '' })}
             className="text-[11px] text-red-500 hover:text-red-700 font-semibold ml-1">
             ✕ Réinitialiser
           </button>

@@ -139,7 +139,7 @@ export default function ProfitabiliteCenter() {
     // displays these exact rows and lets them sum to the engine's totals.
     const [ac, li, ch, re, loc] = await Promise.all([
       fetchByVoyageIds('voyage_achats', 'id,voyage_id,type_produit,type_brique,fournisseur_id,fournisseur_nom,qte,prix_achat,total_achat,date_achat,created_at', vIds),
-      fetchByVoyageIds('voyage_livraisons', 'id,voyage_id,type_produit,type_brique,client_id,client_nom,qte,prix_vente,total_vente,frais_total,date_livraison,created_at', vIds),
+      fetchByVoyageIds('voyage_livraisons', 'id,voyage_id,type_produit,type_brique,client_id,client_nom,qte,prix_vente,total_vente,frais_total,deductions_total,date_livraison,created_at', vIds),
       fetchByVoyageIds('voyage_charges', 'id,voyage_id,montant,facture_client,client_id,client_nom,categorie,description,date_charge,created_at', vIds),
       fetchByVoyageIds('voyage_retours', 'id,voyage_id,montant,destination,client_nom,note,date_retour,created_at', vIds),
       fetchByVoyageIds('voyage_locations', 'id,voyage_id,montant_location,loueur_nom,note,created_at', vIds),
@@ -173,8 +173,10 @@ export default function ProfitabiliteCenter() {
   // shows every voyage Client X appears on, with that voyage's FULL total —
   // isolating just X's share is what the "Par Client" tab's aggregation is for).
   const visibleVoyages = useMemo(() => {
+    const camionTypeById = new Map(camions.map(c => [c.id, c.type_camion === 'loue' ? 'loue' : 'propre']))
     return voyages.filter(v => {
       if (filters.camionId && v.camion_id !== parseInt(filters.camionId)) return false
+      if (filters.typeCamion && camionTypeById.get(v.camion_id) !== filters.typeCamion) return false
       if (filters.chauffeur && v.chauffeur !== filters.chauffeur) return false
       const myLivs = livraisons.filter(l => l.voyage_id === v.id)
       const myAch  = achats.filter(a => a.voyage_id === v.id)
@@ -199,7 +201,7 @@ export default function ProfitabiliteCenter() {
       }
       return true
     })
-  }, [voyages, livraisons, achats, charges, filters.camionId, filters.chauffeur, filters.typeProduit, filters.typeBrique, filters.clientKey, filters.supplierKey])
+  }, [voyages, livraisons, achats, charges, camions, filters.camionId, filters.typeCamion, filters.chauffeur, filters.typeProduit, filters.typeBrique, filters.clientKey, filters.supplierKey])
 
   // ── the ONE place computeVoyageProfit is called — every section below
   // reads this same memoized array, never recomputing per-voyage math. ──
