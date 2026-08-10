@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ResponsiveContainer, ComposedChart, Bar, Line, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'
-import { fmt, fmtMoney } from '../../lib/utils'
+import { fmt, fmtMoney, useIsMobile } from '../../lib/utils'
 import { aggregateVoyageProfits } from '../../lib/services/profitability'
 import Section from './Section'
 
@@ -24,6 +24,9 @@ function TooltipBox({ active, payload, label }) {
 }
 
 export default function DashboardCharts({ results, camions }) {
+  const isMobile = useIsMobile()
+  const chartHeight = isMobile ? 220 : 260
+
   const monthly = useMemo(() => {
     const byMonth = {}
     results.forEach(r => {
@@ -52,7 +55,7 @@ export default function DashboardCharts({ results, camions }) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Section title="Profit dans le temps">
         <div className="p-4">
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <ComposedChart data={monthly}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
@@ -68,7 +71,7 @@ export default function DashboardCharts({ results, camions }) {
 
       <Section title="Profit par camion">
         <div className="p-4">
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <BarChart data={truckRanking} layout="vertical" margin={{ left: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={fmtMoney} />

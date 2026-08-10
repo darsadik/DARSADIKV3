@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { fmt, fmtMoney, fmtDate, today, startOfMonth } from '../../lib/utils'
+import { fmt, fmtMoney, fmtDate, today, startOfMonth, useIsMobile } from '../../lib/utils'
 import { computeVoyageProfit, buildFuelMapsByCamion, aggregateVoyageProfits, aggregateClientProfits, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import { recalcOdometerChain } from '../../lib/services/voyage/updates'
@@ -68,10 +68,13 @@ function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={e => { if (e.target === e.currentTarget && !archiving) onCancel() }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+      {/* max-h + flex-col so Actions (Annuler/Archiver) stay a fixed footer
+          instead of being pushed off a short phone screen — same pattern as
+          components/voyage/EditTransactionModal.js. */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-slate-100">
+        <div className="px-6 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -89,6 +92,8 @@ function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, 
             )}
           </div>
         </div>
+
+        <div className="overflow-y-auto flex-1">
 
         {/* Voyage list (max 5) */}
         {voyages.length <= 5 && (
@@ -114,7 +119,7 @@ function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, 
         {/* Records count */}
         <div className="px-6 pt-4">
           <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Enregistrements concernés</div>
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
             {[
               { label: 'Livraisons', count: myLivs.length, cls: 'bg-blue-50 text-blue-700' },
               { label: 'Achats',     count: myAcs.length,  cls: 'bg-purple-50 text-purple-700' },
@@ -158,14 +163,16 @@ function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, 
         </div>
 
         {/* Info note */}
-        <div className="px-6 pt-3">
+        <div className="px-6 pt-3 pb-5">
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-xs text-blue-700 leading-relaxed">
             <span className="font-bold">Info :</span> Les soldes clients restent inchangés lors de l'archivage. Pour supprimer définitivement et corriger les soldes, utilisez la suppression permanente depuis la vue Archives (admin).
           </div>
         </div>
 
+        </div>
+
         {/* Actions */}
-        <div className="px-6 py-5 flex justify-end gap-3">
+        <div className="px-6 py-5 flex justify-end gap-3 flex-shrink-0 border-t border-slate-100">
           <button onClick={onCancel} disabled={archiving}
             className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition disabled:opacity-40">
             Annuler
@@ -188,6 +195,8 @@ function DeletePreviewModal({ voyages, livraisons, achats, charges, gasoilData, 
 export default function Voyages() {
   const { user } = useAuth()
   const router = useRouter()
+  const isMobile = useIsMobile()
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   // ── DATA ──
   const [voyages,    setVoyages]    = useState([])
@@ -524,16 +533,18 @@ export default function Voyages() {
         />
       )}
 
-      {/* ── EDIT VOYAGE MODAL ── */}
+      {/* ── EDIT VOYAGE MODAL — max-h + scrollable body + fixed footer, same
+          pattern as components/voyage/EditTransactionModal.js, so Enregistrer
+          can never be pushed off-screen on a short phone with the keyboard open. ── */}
       {editingVoyage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={e => { if (e.target===e.currentTarget) setEditingVoyage(null) }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0 border-b border-slate-100">
               <h3 className="font-bold text-slate-800 text-sm">✏️ Modifier le voyage</h3>
               <button onClick={() => setEditingVoyage(null)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 px-6 py-4 overflow-y-auto flex-1">
               <div><label className="text-xs font-semibold text-slate-500 block mb-1">Date départ</label>
                 <input type="date" value={editVoyageForm.date_depart||''} onChange={e=>setEditVoyageForm({...editVoyageForm,date_depart:e.target.value})} className="input w-full"/></div>
               <div><label className="text-xs font-semibold text-slate-500 block mb-1">Camion</label>
@@ -549,12 +560,12 @@ export default function Voyages() {
                   <option value="termine">Terminé</option>
                   <option value="annule">Annulé</option>
                 </select></div>
-              <div className="col-span-2"><label className="text-xs font-semibold text-slate-500 block mb-1">Note</label>
+              <div className="md:col-span-2"><label className="text-xs font-semibold text-slate-500 block mb-1">Note</label>
                 <input type="text" value={editVoyageForm.note||''} onChange={e=>setEditVoyageForm({...editVoyageForm,note:e.target.value})} className="input w-full" placeholder="Optionnel..."/></div>
-              <div className="col-span-2"><label className="text-xs font-semibold text-slate-500 block mb-1">Odomètre au chargement</label>
+              <div className="md:col-span-2"><label className="text-xs font-semibold text-slate-500 block mb-1">Odomètre au chargement</label>
                 <input type="number" value={editVoyageForm.km_depart||''} onChange={e=>setEditVoyageForm({...editVoyageForm,km_depart:e.target.value})} className="input w-full" placeholder="Ex: 125000"/></div>
             </div>
-            <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-slate-100">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 flex-shrink-0">
               <button onClick={() => setEditingVoyage(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">Annuler</button>
               <button onClick={updateVoyage} disabled={savingEditVoyage} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 transition disabled:opacity-60">
                 {savingEditVoyage ? '⌛ Sauvegarde...' : '✅ Enregistrer'}
@@ -610,7 +621,7 @@ export default function Voyages() {
               <h3 className="font-bold text-slate-800">🚛 Nouveau Voyage</h3>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
             </div>
-            <form onSubmit={createVoyage} className="grid grid-cols-2 gap-4">
+            <form onSubmit={createVoyage} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-slate-500 font-semibold mb-1 block">Date départ</label>
                 <input type="date" value={form.date_depart} onChange={e => setForm({...form, date_depart: e.target.value})}
@@ -634,13 +645,13 @@ export default function Voyages() {
                 <input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})}
                   className="input w-full" placeholder="Optionnel..." />
               </div>
-              <div className="col-span-2">
+              <div className="md:col-span-2">
                 <label className="text-xs text-slate-500 font-semibold mb-1 block">Odomètre au chargement (optionnel)</label>
                 <input type="number" value={form.km_depart} onChange={e => setForm({...form, km_depart: e.target.value})}
                   className="input w-full" placeholder="Ex: 125000" />
               </div>
-              {msg && <div className="col-span-2 text-sm text-red-500 font-semibold">{msg}</div>}
-              <div className="col-span-2 flex justify-end gap-3">
+              {msg && <div className="md:col-span-2 text-sm text-red-500 font-semibold">{msg}</div>}
+              <div className="md:col-span-2 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowForm(false)}
                   className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition">
                   Annuler
@@ -654,8 +665,15 @@ export default function Voyages() {
           </div>
         )}
 
-        {/* ── FILTERS ── */}
+        {/* ── FILTERS — collapsed behind a toggle on mobile so filters don't
+            dominate the screen before any data is visible; always open on
+            desktop (md:block unconditionally overrides the mobile toggle). ── */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
+          <button type="button" className="mobile-collapse-btn md:hidden" onClick={() => setMobileFiltersOpen(v => !v)}>
+            <span>🔍 Filtres</span>
+            <span>{mobileFiltersOpen ? '▲' : '▼'}</span>
+          </button>
+          <div className={`space-y-3 ${mobileFiltersOpen ? '' : 'hidden'} md:block`}>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5">
               <label className="text-xs font-semibold text-slate-500 whitespace-nowrap">Du</label>
@@ -697,6 +715,7 @@ export default function Voyages() {
               </button>
             ))}
           </div>
+          </div>
         </div>
 
         {/* ── KPI CARDS ── */}
@@ -705,27 +724,27 @@ export default function Voyages() {
             {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-100 rounded-2xl" />)}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 md:p-4">
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Revenu brut</div>
-              <div className="text-2xl font-black text-slate-800">{fmtMoney(global.revenue.total)}</div>
+              <div className="text-lg md:text-2xl font-black text-slate-800 break-words">{fmtMoney(global.revenue.total)}</div>
               <div className="text-[10px] text-slate-400 mt-1">DHS · {filteredVoyages.length} voyages</div>
             </div>
-            <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-4">
+            <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-3 md:p-4">
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Coût total</div>
-              <div className="text-2xl font-black text-red-500">{fmtMoney(global.cost.total)}</div>
+              <div className="text-lg md:text-2xl font-black text-red-500 break-words">{fmtMoney(global.cost.total)}</div>
               <div className="text-[10px] text-slate-400 mt-1">DHS</div>
             </div>
-            <div className={`bg-white rounded-2xl border shadow-sm p-4 ${global.profit >= 0 ? 'border-emerald-100' : 'border-red-100'}`}>
+            <div className={`bg-white rounded-2xl border shadow-sm p-3 md:p-4 ${global.profit >= 0 ? 'border-emerald-100' : 'border-red-100'}`}>
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Profit net</div>
-              <div className={`text-2xl font-black ${global.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              <div className={`text-lg md:text-2xl font-black break-words ${global.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 {global.profit >= 0 ? '+' : ''}{fmtMoney(global.profit)}
               </div>
               <div className="text-[10px] text-slate-400 mt-1">DHS</div>
             </div>
-            <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4">
+            <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-3 md:p-4">
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">Marge moyenne</div>
-              <div className={`text-2xl font-black ${global.marge >= 0 ? 'text-blue-600' : 'text-red-500'}`}>{global.marge}%</div>
+              <div className={`text-lg md:text-2xl font-black break-words ${global.marge >= 0 ? 'text-blue-600' : 'text-red-500'}`}>{global.marge}%</div>
               <div className="text-[10px] text-slate-400 mt-1">Profit / Revenu</div>
             </div>
           </div>
@@ -760,6 +779,78 @@ export default function Voyages() {
                 <div className="text-5xl mb-3">🚛</div>
                 <div className="font-semibold">Aucun voyage sur cette période</div>
                 <div className="text-sm mt-1">Créez votre premier voyage ou modifiez les filtres</div>
+              </div>
+            ) : isMobile ? (
+              // MOBILE: cards instead of a squeezed 9-column table. Same
+              // `sortedVoyages`/`selectedIds`/`global` data and the exact same
+              // handlers (toggleSelect, openDeletePreview, setEditingVoyage) as
+              // the desktop table below — presentation only, nothing recomputed.
+              <div className="mobile-card-list" style={{ padding: 10 }}>
+                {sortedVoyages.map(v => {
+                  const isSelected = selectedIds.includes(v.id)
+                  return (
+                    <div key={v.id} className="mobile-row-card"
+                      style={{
+                        borderLeft: isSelected ? '3px solid #f59e0b' : undefined,
+                        background: isSelected ? '#fffbeb' : '#fff',
+                      }}>
+                      <div className="card-header" onClick={() => router.push(`/voyages/${v.id}`)} style={{ cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+                          <input type="checkbox" checked={isSelected}
+                            onClick={ev => ev.stopPropagation()}
+                            onChange={() => toggleSelect(v.id)}
+                            style={{ width: 18, height: 18, marginTop: 2, accentColor: '#f59e0b', flexShrink: 0 }} />
+                          <div style={{ minWidth: 0 }}>
+                            <div className="card-title">{v.camion_plaque || '—'}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                              {fmtDate(v.date_depart)}{v.chauffeur ? ` · ${v.chauffeur}` : ''}{v.destination ? ` → ${v.destination}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <StatusBadge statut={v.statut} />
+                          <span style={{ color: '#cbd5e1', fontSize: 16 }}>›</span>
+                        </div>
+                      </div>
+
+                      {/* Profit — the accounting bottom line for this voyage,
+                          shown as the card's primary figure (same sign/color
+                          rule as the desktop ProfitCell, just sized for this role). */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.04em' }}>Profit</span>
+                        <span style={{ fontSize: 18, fontWeight: 900, color: v.profit >= 0 ? '#059669' : '#dc2626' }}>
+                          {v.profit >= 0 ? '+' : ''}{fmtMoney(v.profit)} DHS
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2" style={{ fontSize: 11 }}>
+                        <div>
+                          <div style={{ color: '#94a3b8', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' }}>Revenu</div>
+                          <div style={{ fontWeight: 700, color: '#059669' }}>{fmtMoney(v.revenue.total)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#94a3b8', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' }}>Coût</div>
+                          <div style={{ fontWeight: 700, color: '#f87171' }}>−{fmtMoney(v.cost.total)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: '#94a3b8', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' }}>Marge</div>
+                          <MargeBadge m={v.marge} />
+                        </div>
+                      </div>
+
+                      <div className="card-meta">
+                        <span>{v.nbLivs} livraison{v.nbLivs !== 1 ? 's' : ''}</span>
+                      </div>
+
+                      <div className="card-actions" onClick={ev => ev.stopPropagation()}>
+                        <button className="mobile-icon-btn"
+                          onClick={() => { setEditingVoyage(v); setEditVoyageForm({ date_depart: v.date_depart, camion_id: v.camion_id, camion_plaque: v.camion_plaque, chauffeur: v.chauffeur, destination: v.destination, note: v.note, statut: v.statut, km_depart: v.km_depart }) }}
+                          title="Modifier">✏️</button>
+                        <button className="mobile-icon-btn danger" onClick={() => openDeletePreview([v])} title="Archiver">🗄️</button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <div className="overflow-x-auto">

@@ -104,6 +104,17 @@ function Icon({ name, size = 18 }) {
     activity: (
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
     ),
+    building: (
+      <>
+        <rect x="4" y="2" width="16" height="20" rx="1"/>
+        <line x1="9" y1="7" x2="9" y2="7.01"/>
+        <line x1="15" y1="7" x2="15" y2="7.01"/>
+        <line x1="9" y1="12" x2="9" y2="12.01"/>
+        <line x1="15" y1="12" x2="15" y2="12.01"/>
+        <line x1="9" y1="17" x2="9" y2="17.01"/>
+        <line x1="15" y1="17" x2="15" y2="17.01"/>
+      </>
+    ),
     dollar: (
       <>
         <line x1="12" y1="1" x2="12" y2="23"/>
@@ -244,42 +255,68 @@ export default function Layout({ children, title, subtitle }) {
     return (
       <div className="flex flex-col min-h-screen" style={{ background: '#f8fafc' }}>
 
-        {/* TOP BAR */}
+        {/* TOP BAR — minHeight keeps this identical whether or not a page passes
+            a `title`, so the app doesn't visibly jump height between pages;
+            paddingTop respects the iOS status bar once installed as a
+            standalone PWA (manifest declares black-translucent, which overlays
+            content without this). */}
         <header
-          className="text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50"
-          style={{ background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+          className="text-white px-4 flex items-center justify-between sticky top-0 z-50"
+          style={{
+            background: '#0f172a',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            minHeight: 56,
+            paddingTop: 'max(0.6rem, env(safe-area-inset-top, 0px))',
+            paddingBottom: '0.6rem',
+          }}
         >
-          <div className="flex items-center gap-2.5">
-            <DsLogo size={30} />
-            <div>
-              <div className="font-bold text-sm leading-tight tracking-wide text-white">DAR SADIK</div>
-              {title && <div className="text-slate-400 text-[11px] leading-tight">{title}</div>}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <DsLogo size={28} />
+            <div className="min-w-0">
+              <div className="font-bold text-[13px] leading-tight tracking-wide text-white">DAR SADIK</div>
+              {title && <div className="text-slate-400 text-[11px] leading-tight truncate">{title}</div>}
             </div>
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="w-9 h-9 flex items-center justify-center rounded-lg transition-all text-slate-300"
+            className="w-9 h-9 flex items-center justify-center rounded-lg transition-all text-slate-300 flex-shrink-0"
             style={{ background: 'rgba(255,255,255,0.07)' }}
           >
             <Icon name={mobileMenuOpen ? 'x' : 'menu'} size={18} />
           </button>
         </header>
 
-        {/* SLIDE-IN DRAWER */}
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setMobileMenuOpen(false)}>
+        {/* SLIDE-IN DRAWER — always mounted so the transform can actually
+            transition; pointer-events toggle so the invisible/off-screen state
+            never intercepts taps on the page behind it. */}
+        <div
+          className={`fixed inset-0 z-40 transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden={!mobileMenuOpen}
+        >
             <div
-              className="absolute top-0 right-0 h-full w-64 flex flex-col"
+              className={`absolute top-0 right-0 h-full w-64 flex flex-col transition-transform duration-300 ease-out ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
               style={{ background: '#0f172a' }}
               onClick={e => e.stopPropagation()}
             >
               {/* Drawer header */}
-              <div className="flex items-center gap-3 px-4 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                <DsLogo size={34} />
-                <div>
-                  <div className="text-white font-bold text-sm tracking-wide">DAR SADIK</div>
-                  <div className="text-slate-500 text-xs">Selouane — Nador</div>
+              <div className="flex items-center justify-between gap-3 px-4 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <DsLogo size={34} />
+                  <div className="min-w-0">
+                    <div className="text-white font-bold text-sm tracking-wide">DAR SADIK</div>
+                    <div className="text-slate-500 text-xs">Selouane — Nador</div>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.06)' }}
+                  aria-label="Fermer le menu"
+                >
+                  <Icon name="x" size={16} />
+                </button>
               </div>
 
               {/* Nav */}
@@ -342,8 +379,8 @@ export default function Layout({ children, title, subtitle }) {
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="p-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              {/* Footer — paddingBottom respects the home-indicator safe area */}
+              <div className="p-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
                 <div className="flex items-center gap-2.5 mb-3">
                   <Avatar email={user?.email} size={30} />
                   <div className="flex-1 min-w-0">
@@ -364,13 +401,15 @@ export default function Layout({ children, title, subtitle }) {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+        </div>
 
-        {/* PAGE CONTENT */}
-        <main className="flex-1 p-3 pb-24">{children}</main>
+        {/* PAGE CONTENT — paddingBottom reserves space for the fixed bottom
+            nav plus its own safe-area inset, so content is never hidden
+            behind it on notched/gesture-bar phones. */}
+        <main className="flex-1 p-3" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>{children}</main>
 
-        {/* BOTTOM NAV */}
+        {/* BOTTOM NAV — pt fixed, pb safe-area-aware so it clears the home
+            indicator instead of sitting flush against it. */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 z-30 flex" style={{ boxShadow: '0 -2px 12px rgba(0,0,0,0.06)' }}>
           {nav.filter(i => ['/', '/voyages', '/rentabilite', '/clients'].includes(i.href)).map(item => {
             const active = router.pathname === item.href
@@ -378,15 +417,15 @@ export default function Layout({ children, title, subtitle }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex-1 flex flex-col items-center justify-center py-2.5 relative transition-all"
-                style={{ color: active ? '#2563eb' : '#94a3b8' }}
+                className="flex-1 flex flex-col items-center justify-center pt-2.5 relative transition-all"
+                style={{ color: active ? '#2563eb' : '#94a3b8', paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom, 0px))' }}
               >
                 <Icon name={item.icon} size={20} />
                 <span className="text-[10px] font-medium mt-1 leading-tight">{item.label}</span>
                 {active && (
                   <span
                     className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-t-full"
-                    style={{ width: 24, height: 2, background: '#2563eb' }}
+                    style={{ width: 24, height: 2, background: '#2563eb', bottom: 'env(safe-area-inset-bottom, 0px)' }}
                   />
                 )}
               </Link>

@@ -6,7 +6,7 @@ export default function Section({ title, subtitle, action, children, bodyClassNa
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
       {(title || action) && (
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+        <div className="px-4 py-3 md:px-5 md:py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
           <div>
             {title && <h3 className="font-bold text-slate-700 text-sm">{title}</h3>}
             {subtitle && <p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>}

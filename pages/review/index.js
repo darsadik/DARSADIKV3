@@ -297,21 +297,28 @@ export default function ReviewMode() {
       </div>
 
       {/* ── MOBILE DRAWER — same filters/stats/queue as the desktop sidebar,
-          same visual language as components/Layout.js's own mobile drawer
-          (dark backdrop, slide-in panel). ── */}
-      {mobileDrawerOpen && (
-        <div className="md:hidden fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setMobileDrawerOpen(false)}>
-          <div className="absolute top-0 left-0 h-full w-[86%] max-w-sm bg-white flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-shrink-0">
-              <h3 className="font-bold text-slate-800 text-sm">Filtres &amp; File de révision</h3>
-              <button onClick={() => setMobileDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
-            </div>
-            <div className="flex-1 min-h-0 flex flex-col">
-              {renderQueuePanel()}
-            </div>
+          same visual language + animation technique as components/Layout.js's
+          own mobile drawer (dark backdrop, slide-in panel, always mounted so
+          the transform can transition). ── */}
+      <div
+        className={`md:hidden fixed inset-0 z-50 transition-opacity duration-300 ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        style={{ background: 'rgba(0,0,0,0.6)' }}
+        onClick={() => setMobileDrawerOpen(false)}
+        aria-hidden={!mobileDrawerOpen}
+      >
+        <div
+          className={`absolute top-0 left-0 h-full w-[86%] max-w-sm bg-white flex flex-col shadow-2xl transition-transform duration-300 ease-out ${mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 flex-shrink-0">
+            <h3 className="font-bold text-slate-800 text-sm">Filtres &amp; File de révision</h3>
+            <button onClick={() => setMobileDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+          </div>
+          <div className="flex-1 min-h-0 flex flex-col">
+            {renderQueuePanel()}
           </div>
         </div>
-      )}
+      </div>
 
       <div className="flex gap-4 items-stretch" style={{ height: 'calc(100vh - 7.5rem)' }}>
 

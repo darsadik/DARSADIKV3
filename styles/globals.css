@@ -223,6 +223,26 @@ tbody tr:hover td { background-color: rgba(248, 250, 252, 0.9); }
   .stat-value         { font-size: 20px !important; }
 
   .card { padding: 12px !important; }
+
+  /* Touch-sized row-action button (edit/delete/etc. icons on mobile cards) —
+     ~40px tap target, replacing the sub-20px inline-styled links used on
+     desktop tables. Shared across every table→card conversion. */
+  .mobile-icon-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    font-size: 15px;
+    transition: background 0.15s;
+  }
+  .mobile-icon-btn:active { background: #f1f5f9; }
+  .mobile-icon-btn.danger { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {

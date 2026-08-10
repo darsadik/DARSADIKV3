@@ -36,7 +36,7 @@ export default function ExecutiveKpis({ results, clients, grignonClients, fourni
   )
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2 md:gap-3">
       {profitCard('Profit · Jour', kpis.day)}
       {profitCard('Profit · Semaine', kpis.week)}
       {profitCard('Profit · Mois', kpis.month)}
