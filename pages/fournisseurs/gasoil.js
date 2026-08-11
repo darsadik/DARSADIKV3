@@ -286,6 +286,28 @@ export default function FournisseursGasoil() {
   function getEffectivePeriod(e) { return presentationOrder[eKey(e)]?.p ?? e.date.slice(0, 7) }
   function getEffectiveSeq(e) { return presentationOrder[eKey(e)]?.s ?? new Date(e.date + 'T00:00:00').getTime() }
 
+  // ── DISPLAY SPLIT (presentation) — same visual per-product split as
+  // Chronologie's splitLedgerRow (one row per Achat Carburant / Achat
+  // AdBlue, single Litres/Prix U. columns instead of 4 wide ones), but it
+  // keeps the ORIGINAL entry `id` on both rows (only `displayId` — used for
+  // the React key / print row identity — is suffixed). eKey() still reads
+  // `id`, so both product rows of one combined purchase stay one addressable
+  // unit for checkbox selection, drag reorder and presentation_order
+  // persistence — no reordering/selection logic below has to change, and no
+  // previously-saved custom order for a combined entry gets orphaned. ──
+  function splitPresentationEntry(e) {
+    if (e.type !== 'purchase') return [{ ...e, displayId: e.id }]
+    const hasFuel = e.qte > 0, hasAdblue = e.adblueQte > 0
+    if (hasFuel && hasAdblue) {
+      return [
+        { ...e, displayId: `${e.id}-f`, label: 'Achat Carburant', debit: e.fuelAmount, solde: e.solde - e.adblueAmount },
+        { ...e, displayId: `${e.id}-a`, label: 'Achat AdBlue', debit: e.adblueAmount, qte: e.adblueQte, prixUnitaire: e.adbluePrixUnitaire },
+      ]
+    }
+    if (hasAdblue) return [{ ...e, displayId: e.id, label: 'Achat AdBlue', qte: e.adblueQte, prixUnitaire: e.adbluePrixUnitaire }]
+    return [{ ...e, displayId: e.id, label: 'Achat Carburant' }]
+  }
+
   // ── BUILD PRESENTATION LEDGER — full supplier history (not date-filtered),
   // sorted by effectivePeriod/effectiveSeq when a custom order exists,
   // otherwise falls back exactly to chronological (seq) order. ──
@@ -516,21 +538,24 @@ ${printFooter(printDate)}
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
       const cfAmt = fmtMoney(Math.abs(selectionCarryForward))
-      return `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap;color:#92400e">—</td><td style="font-size:12px;font-weight:600;color:#92400e">Report</td><td class="m">—</td><td class="m">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15.5px;color:#b45309;white-space:nowrap">${cfSign}${cfAmt}</td></tr>`
+      return `<tr style="background:#fffbeb"><td class="m2" style="white-space:nowrap;color:#92400e">—</td><td style="font-size:12px;font-weight:600;color:#92400e">Report</td><td class="m2">—</td><td class="m2">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:15.5px;color:#b45309;white-space:nowrap">${cfSign}${cfAmt}</td></tr>`
     })() : ''
 
-    const rows = reportRowHtml + pEntries.map(e => {
+    // ── Same per-product split as Chronologie's displayLedger (splitLedgerRow)
+    // — one row per Achat Carburant / Achat AdBlue, single Litres/Prix U.
+    // columns — so the printed Présentation table matches Chronologie's
+    // print exactly. Purely a row-rendering transform of pEntries; the
+    // totals/carry-forward math above already ran on the unsplit pEntries. ──
+    const rows = reportRowHtml + pEntries.flatMap(splitPresentationEntry).map(e => {
       const isPurchase = e.type === 'purchase'
       const isMoved = !!presentationOrder[eKey(e)]
       return `<tr>
-      <td class="m" style="white-space:nowrap">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:${accent}">↕ Déplacé</span>`:''}</td>
-      <td>${e.label}</td>
-      <td class="m">${e.camion}</td>
-      <td class="m">${e.bon}</td>
-      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.qte ? `<b>${fmtD(e.qte)} L</b>` : '—'}</td>
-      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.qte ? `<b>${fmtMoney(e.prixUnitaire)} DH</b>` : '—'}</td>
-      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.adblueQte ? `<b>${fmtD(e.adblueQte)} L</b>` : '—'}</td>
-      <td class="r" style="color:#0f172a;font-size:14px">${isPurchase && e.adblueQte ? `<b>${fmtMoney(e.adbluePrixUnitaire)} DH</b>` : '—'}</td>
+      <td class="m2" style="white-space:nowrap">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:${accent}">↕ Déplacé</span>`:''}</td>
+      <td class="opn">${e.label}</td>
+      <td class="m2">${e.camion}</td>
+      <td class="m2">${e.bon}</td>
+      <td class="r" style="color:#0f172a;font-size:14.5px">${isPurchase && e.qte ? `<b>${fmtD(e.qte)} L</b>` : '—'}</td>
+      <td class="r" style="color:#0f172a;font-size:14.5px">${isPurchase && e.qte ? `<b>${fmtMoney(e.prixUnitaire)} DH</b>` : '—'}</td>
       <td class="r" style="color:${accent}">${e.debit ? `<b>+ ${fmtMoney(e.debit)}</b>` : '—'}</td>
       <td class="r" style="color:#16a34a">${e.credit ? `<b>− ${fmtMoney(e.credit)}</b>` : '—'}</td>
       <td class="r" style="font-weight:800;color:${e.solde>=0?'#dc2626':'#16a34a'}">${e.solde>=0?'+ ':'− '}${fmtMoney(Math.abs(e.solde))}</td>
@@ -541,6 +566,12 @@ ${printFooter(printDate)}
 <meta charset="UTF-8"><title>Relevé Présentation — ${selected.nom}</title>
 <style>
 ${printBaseCss(accent)}
+/* ── Same tighter horizontal spacing + heavier ledger typography as the
+   Chronologique print (printFournisseur), so both statement modes render
+   as the same compact accounting table on paper. ── */
+.bdy table td, .bdy table th { padding-left: 9px; padding-right: 9px; }
+.m2 { color: #1e293b; font-size: 13.5px; font-weight: 600; }
+.opn { font-size: 13.5px; font-weight: 700; color: #1e293b; }
 </style></head><body>
 ${printHeader({ date: printDate })}
 ${entityCard({
@@ -551,8 +582,8 @@ ${entityCard({
 <div class="bdy">
 <div class="sec-title">Relevé Présentation${isSelectionPrint ? ` — Sélection (${pEntries.length})` : ''}</div>
 <table>
-  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres Gasoil</th><th class="r">Prix U. Gasoil</th><th class="r">Litres AdBlue</th><th class="r">Prix U. AdBlue</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
-  <tbody>${rows||'<tr><td colspan="11" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
+  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres</th><th class="r">Prix U.</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
 </table>
 <div class="sec-title" style="margin-top:20px">Calcul du Solde à Payer</div>
 <table style="width:100%;border-collapse:collapse">
@@ -581,7 +612,13 @@ ${printFooter(printDate)}
   // voyage-group rowspan merging (fuel ledger rows are already flat). ──
   function renderPresentationTable() {
     const presLedger     = buildPresentationLedger()
-    const displayEntries = presLedger.entries
+    // Same per-product split as Chronologie's displayLedger — one row per
+    // Achat Carburant / Achat AdBlue, single Litres/Prix U. columns — so the
+    // two statement modes render as the same table. splitPresentationEntry
+    // keeps the original entry `id` on both rows (only `displayId`, used for
+    // the React key, is suffixed), so eKey()-driven selection/reorder/
+    // persistence below is completely unaffected by the split.
+    const displayEntries = presLedger.entries.flatMap(splitPresentationEntry)
     const thS = { background:'#ede9fe', color:'#5b21b6', borderBottom:'2px solid #ddd6fe', whiteSpace:'nowrap', padding:'9px 12px', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', userSelect:'none' }
 
     const selectedEntries = displayEntries.filter(e => presSelectedRows.has(eKey(e)))
@@ -660,7 +697,7 @@ ${printFooter(printDate)}
                 <th style={{...thS,width:20,padding:'9px 4px'}}></th>
                 {[
                   {l:'Date',r:false},{l:'Opération',r:false},{l:'Camion',r:false},{l:'N° BON',r:false},
-                  {l:'Débit (+)',r:true},{l:'Crédit (−)',r:true},{l:'Solde',r:true}
+                  {l:'Litres',r:true},{l:'Prix U.',r:true},{l:'Débit (+)',r:true},{l:'Crédit (−)',r:true},{l:'Solde',r:true}
                 ].map((col,ci) => (
                   <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
                 ))}
@@ -678,7 +715,7 @@ ${printFooter(printDate)}
                 const bdr          = { border:'1px solid #f1f5f9' }
 
                 const rowEl = (
-                  <tr key={eKey(e)}
+                  <tr key={e.displayId}
                     /* ── Drop zone (for row reorder) ── */
                     onDragOver={ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; setPresDragOver(i) }}
                     onDrop={ev => { ev.preventDefault(); handlePresentationReorder(presDragFrom, i, displayEntries) }}
@@ -756,8 +793,8 @@ ${printFooter(printDate)}
                         ⠿
                       </td>
                     )}
-                    {/* DATE + MOVED INDICATOR */}
-                    <td className="td" style={{...bdr,color:'#374151',fontWeight:600,fontSize:13.5,whiteSpace:'nowrap',padding:'10px 12px'}}>
+                    {/* DATE + MOVED INDICATOR — same size/weight as Chronologie's date column */}
+                    <td className="td" style={{...bdr,color:'#374151',fontWeight:600,fontSize:14,whiteSpace:'nowrap',padding:'10px 12px'}}>
                       <div>{fmtDate(e.date)}</div>
                       {isMoved && (
                         <div style={{fontSize:9,marginTop:2}}>
@@ -765,50 +802,37 @@ ${printFooter(printDate)}
                         </div>
                       )}
                     </td>
-                    {/* OPÉRATION — compact Gasoil/AdBlue pills (never a separate column), same
-                        badge language as Chronologie's split rows, so both modes read as the
-                        same operation vocabulary at a glance. */}
+                    {/* OPÉRATION — identical badge to Chronologie (Achat Carburant / Achat
+                        AdBlue / Paiement), driven by the same split rows, so the product
+                        type reads directly in this cell without a dedicated column. */}
                     <td className="td" style={{...bdr,padding:'10px 12px'}}>
-                      {e.type === 'purchase' ? (
-                        <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                          {e.qte > 0 && (
-                            <span style={{background:'#fff7ed',color:'#c2410c',fontWeight:700,fontSize:10.5,padding:'2px 7px',borderRadius:3,border:'1px solid #fed7aa',whiteSpace:'nowrap'}}>
-                              ⛽ Gasoil
-                            </span>
-                          )}
-                          {e.adblueQte > 0 && (
-                            <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10.5,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>
-                              💧 AdBlue
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10.5,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
-                          💸 Paiement
-                        </span>
-                      )}
-                      {e.type === 'purchase' && (e.qte > 0 || e.adblueQte > 0) && (
-                        <div style={{fontSize:12,fontWeight:600,color:'#475569',marginTop:4,lineHeight:1.4}}>
-                          {e.qte > 0 && <div>{fmtD(e.qte)} L × {fmtMoney(e.prixUnitaire)} DH/L</div>}
-                          {e.adblueQte > 0 && <div>{fmtD(e.adblueQte)} L × {fmtMoney(e.adbluePrixUnitaire)} DH/L</div>}
-                        </div>
-                      )}
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${e.type==='purchase'?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700'}`}>
+                        {e.type==='purchase' ? '⛽' : '💸'} {e.label}
+                      </span>
                     </td>
-                    {/* CAMION */}
-                    <td className="td" style={{...bdr,color:'#475569',fontWeight:600,fontSize:13.5,whiteSpace:'nowrap',padding:'10px 12px'}}>{e.camion}</td>
+                    {/* CAMION — same size/weight as Chronologie */}
+                    <td className="td" style={{...bdr,color:'#374151',fontWeight:500,fontSize:14,whiteSpace:'nowrap',padding:'10px 12px'}}>{e.camion}</td>
                     {/* N° BON / MODE */}
-                    <td className="td" style={{...bdr,color:'#475569',fontWeight:600,fontSize:13.5,whiteSpace:'nowrap',padding:'10px 12px'}}>{e.bon}</td>
+                    <td className="td" style={{...bdr,color:'#374151',fontWeight:500,fontSize:14,whiteSpace:'nowrap',padding:'10px 12px'}}>{e.bon}</td>
+                    {/* LITRES */}
+                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:600,color:'#0f172a',whiteSpace:'nowrap',padding:'10px 12px'}}>
+                      {e.type==='purchase' && e.qte ? `${fmtD(e.qte)} L` : <span style={{color:'#cbd5e1',fontWeight:400}}>—</span>}
+                    </td>
+                    {/* PRIX U. */}
+                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:600,color:'#0f172a',whiteSpace:'nowrap',padding:'10px 12px'}}>
+                      {e.type==='purchase' && e.qte ? `${fmtMoney(e.prixUnitaire)} DH` : <span style={{color:'#cbd5e1',fontWeight:400}}>—</span>}
+                    </td>
                     {/* DÉBIT */}
-                    <td className="td text-right" style={{...bdr,fontSize:14.5,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#c2410c'}}>
+                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#c2410c'}}>
                       {e.debit ? `+ ${fmtMoney(e.debit)}` : <span style={{color:'#9ca3af'}}>—</span>}
                     </td>
                     {/* CRÉDIT */}
-                    <td className="td text-right" style={{...bdr,fontSize:14.5,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#16a34a'}}>
+                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#16a34a'}}>
                       {e.credit ? `− ${fmtMoney(e.credit)}` : <span style={{color:'#9ca3af'}}>—</span>}
                     </td>
                     {/* SOLDE */}
-                    <td className="td text-right" style={{...bdr,fontSize:15,fontWeight:900,whiteSpace:'nowrap',padding:'10px 14px',
-                      color: e.solde >= 0 ? '#dc2626' : '#16a34a', letterSpacing:'-0.2px'}}>
+                    <td className="td text-right" style={{...bdr,fontSize:14,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',
+                      color: e.solde >= 0 ? '#dc2626' : '#16a34a'}}>
                       {e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`}
                     </td>
                   </tr>
@@ -817,9 +841,9 @@ ${printFooter(printDate)}
                   const cfSign = carryForwardBalance >= 0 ? '+ ' : '− '
                   const cfAmt = fmtMoney(Math.abs(carryForwardBalance))
                   return (
-                    <Fragment key={`rf-${eKey(e)}`}>
+                    <Fragment key={`rf-${e.displayId}`}>
                       <tr style={{background:'#fef3c7',cursor:'default'}}>
-                        <td colSpan={8} style={{border:'1px solid #fde68a',padding:'10px 12px',color:'#92400e',fontWeight:700,fontSize:12}}>
+                        <td colSpan={10} style={{border:'1px solid #fde68a',padding:'10px 12px',color:'#92400e',fontWeight:700,fontSize:12}}>
                           <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',marginRight:8}}>Report</span>
                           Solde reporté avant la sélection
                         </td>
@@ -837,7 +861,7 @@ ${printFooter(printDate)}
             {displayEntries.length > 0 && (
               <tfoot>
                 <tr>
-                  <td colSpan={8} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
+                  <td colSpan={10} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
                     Solde final
                   </td>
                   <td style={{padding:'11px 14px',background:'#f5f3ff',fontSize:17,fontWeight:700,color: presLedger.finalBalance >= 0 ? '#dc2626' : '#16a34a',textAlign:'right',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderRight:'1px solid #ddd6fe',borderRadius:'0 0 8px 0',letterSpacing:'-0.2px'}}>
