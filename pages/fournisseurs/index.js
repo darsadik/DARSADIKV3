@@ -198,15 +198,20 @@ export default function FournisseursBriques() {
     const accent = '#1e3a5f'
     const printDate = printGeneratedDate()
     const periode = filterType === 'all' ? 'Toutes dates' : `${fmtDate(from)} → ${fmtDate(to)}`
-    const rows = filteredAchats.map(a => `<tr>
+    const rows = achatsWithDistribution.map(a => {
+      const clients = (a.repartition||[]).length === 0
+        ? '—'
+        : a.repartition.map(r => `${r.client_nom} (${fmt(r.qte)})`).join(' • ')
+      return `<tr>
       <td class="m" style="white-space:nowrap">${fmtDate(a.date)}</td>
       <td class="m">${a.camion_plaque||'—'}</td>
       <td>${a.type_brique||'—'}</td>
       <td class="r">${fmt(a.qte)}</td>
       <td class="r">${fmtMoney(a.prix_achat)}</td>
       <td class="r"><b>${fmtMoney(a.total_achat)} DHS</b></td>
-      <td class="m">${a.note||'—'}</td>
-    </tr>`).join('')
+      <td style="word-break:break-word">${clients}</td>
+    </tr>`
+    }).join('')
     const paiRows = filteredPai.map(p => `<tr>
       <td class="m" style="white-space:nowrap">${fmtDate(p.date)}</td>
       <td class="m">${p.mode||'—'}</td>
@@ -234,7 +239,7 @@ ${summaryCards([
 <div class="bdy">
 <div class="sec-title">Achats Briques</div>
 <table>
-  <thead><tr><th>Date</th><th>Camion</th><th>Produit</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total DHS</th><th>Note</th></tr></thead>
+  <thead><tr><th>Date</th><th>Camion</th><th>Produit</th><th class="r">Qté</th><th class="r">Prix/u</th><th class="r">Total</th><th>Client(s)</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#aaa">Aucun achat</td></tr>'}</tbody>
   ${filteredAchats.length>0?`<tfoot><tr><td colspan="3">TOTAL</td><td class="r">${fmt(filteredAchats.reduce((s,a)=>s+(a.qte||0),0))}</td><td></td><td class="r">${fmtMoney(totalAchats)} DHS</td><td></td></tr></tfoot>`:''}
 </table>
