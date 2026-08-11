@@ -9,9 +9,14 @@ import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 
 const ADMIN = 'abdelhafidbaadi@gmail.com'
 
-// One merged chronological ledger per supplier — every Fuel Purchase (Plein)
-// linked via gasoil.fournisseur_id is a DEBIT, every Payment linked via
-// paiements.gasoil_fourn_id (type_compte='gasoil') is a CREDIT. The running
+// One merged chronological ledger per supplier — accounts-payable direction:
+// every Fuel Purchase (Plein) linked via gasoil.fournisseur_id increases what
+// we owe the supplier (displayed as CRÉDIT), every Payment linked via
+// paiements.gasoil_fourn_id (type_compte='gasoil') reduces it (displayed as
+// DÉBIT). The `debit`/`credit` fields below are the raw ledger math (running
+// += debit − credit already nets purchases up, payments down, correctly) —
+// only the column LABELS shown to the user are Crédit-for-purchase/
+// Débit-for-payment, matching real accounts-payable terminology. The running
 // balance is never stored separately here — it's always replayed from these
 // two sources, exactly like a Client/Supplier statement (§6 of the spec).
 export default function FournisseursGasoil() {
@@ -445,7 +450,7 @@ ${entityCard({
 <div class="bdy">
 <div class="sec-title">Relevé Chronologique</div>
 <table>
-  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres</th><th class="r">Prix U.</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
+  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres</th><th class="r">Prix U.</th><th class="r">Crédit (+)</th><th class="r">Débit (−)</th><th class="r">Solde</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
 </table>
 <div class="sec-title" style="margin-top:20px">Résumé</div>
@@ -582,7 +587,7 @@ ${entityCard({
 <div class="bdy">
 <div class="sec-title">Relevé Présentation${isSelectionPrint ? ` — Sélection (${pEntries.length})` : ''}</div>
 <table>
-  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres</th><th class="r">Prix U.</th><th class="r">Débit (+)</th><th class="r">Crédit (−)</th><th class="r">Solde</th></tr></thead>
+  <thead><tr><th>Date</th><th>Opération</th><th>Camion</th><th>N° BON</th><th class="r">Litres</th><th class="r">Prix U.</th><th class="r">Crédit (+)</th><th class="r">Débit (−)</th><th class="r">Solde</th></tr></thead>
   <tbody>${rows||'<tr><td colspan="9" style="text-align:center;color:#aaa">Aucune opération</td></tr>'}</tbody>
 </table>
 <div class="sec-title" style="margin-top:20px">Calcul du Solde à Payer</div>
@@ -697,7 +702,7 @@ ${printFooter(printDate)}
                 <th style={{...thS,width:20,padding:'9px 4px'}}></th>
                 {[
                   {l:'Date',r:false},{l:'Opération',r:false},{l:'Camion',r:false},{l:'N° BON',r:false},
-                  {l:'Litres',r:true},{l:'Prix U.',r:true},{l:'Débit (+)',r:true},{l:'Crédit (−)',r:true},{l:'Solde',r:true}
+                  {l:'Litres',r:true},{l:'Prix U.',r:true},{l:'Crédit (+)',r:true},{l:'Débit (−)',r:true},{l:'Solde',r:true}
                 ].map((col,ci) => (
                   <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
                 ))}
@@ -1019,8 +1024,8 @@ ${printFooter(printDate)}
                             <th className="th">N° BON</th>
                             <th className="th text-right">Litres</th>
                             <th className="th text-right">Prix U.</th>
-                            <th className="th text-right">Débit (+)</th>
-                            <th className="th text-right">Crédit (−)</th>
+                            <th className="th text-right">Crédit (+)</th>
+                            <th className="th text-right">Débit (−)</th>
                             <th className="th text-right">Solde</th>
                           </tr></thead>
                           <tbody>
