@@ -489,65 +489,65 @@ export default function Clients() {
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Relevé — ${selected.nom}</title>
 <style>
-  @page{margin:0mm}
+  @page{size:A4;margin:0mm}
   @media print{.btn-p{display:none!important}}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:14px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
-  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
-  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
-  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  body{font-family:Arial,sans-serif;font-size:15px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:14px 22px 12px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:23px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:12.5px;color:#2563eb;font-weight:700;margin-top:3px}
+  .co-addr{font-size:12.5px;color:#475569;margin-top:6px}
   .co-r{text-align:right;flex-shrink:0}
   .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
-  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
-  .cli-card{display:flex;align-items:center;gap:18px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:5px solid #1e3a5f;border-radius:10px;padding:14px 22px}
-  .cli-avatar{width:58px;height:58px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-1px}
-  .cli-name{font-size:23px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
-  .bdy{padding:10px 24px}
+  .cli-section{padding:12px 22px 14px;border-bottom:2px solid #e2e8f0}
+  .cli-card{display:flex;align-items:center;gap:18px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-left:5px solid #1e3a5f;border-radius:10px;padding:13px 22px}
+  .cli-avatar{width:54px;height:54px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-1px}
+  .cli-name{font-size:20px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .cli-meta{font-size:12.5px;color:#374151;margin-top:7px;line-height:1.8}
+  .bdy{padding:10px 20px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:14px 14px;font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;text-align:left;white-space:nowrap}
+  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:15px 14px;font-size:14.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
-  thead th.dt{min-width:88px}
-  thead th.cm{min-width:92px}
-  thead th.op{min-width:150px}
-  thead th.ty{min-width:96px}
-  thead th.qte,thead td.qte{min-width:56px}
-  thead th.pu{min-width:78px}
-  thead th.mt{min-width:112px}
-  thead th.sd{min-width:126px}
+  thead th.dt{min-width:96px}
+  thead th.cm{min-width:100px}
+  thead th.op{min-width:162px}
+  thead th.ty{min-width:104px}
+  thead th.qte,thead td.qte{min-width:60px}
+  thead th.pu{min-width:84px}
+  thead th.mt{min-width:122px}
+  thead th.sd{min-width:138px}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:12px 14px;font-size:15px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
+  tbody td{padding:13px 14px;font-size:16.5px;font-weight:500;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-size:13.5px;font-weight:500;white-space:nowrap}
+  tbody td.m{color:#374151;font-size:15px;font-weight:600;white-space:nowrap}
   tbody tr.band td{background:#f1f5f9 !important}
   tbody tr.grp-end td{border-bottom:2px solid #cbd5e1 !important}
-  .tag{display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
+  .tag{display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
   .total-box{margin-top:10px;position:relative;overflow:hidden;background:#f8faf9;border:1px solid #dde5e0;border-radius:10px;padding:14px 20px 14px 24px;display:flex;justify-content:space-between;align-items:center}
   .total-box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:#16a34a}
-  .total-box .tb-label{font-size:15px;font-weight:800;color:#1e293b;letter-spacing:0.07em;text-transform:uppercase}
-  .total-box .tb-amount{font-size:30px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
-  .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#4b8f68;margin-left:3px}
-  .total-words{margin-top:10px;font-size:12px;color:#475569;line-height:1.65;text-align:left}
+  .total-box .tb-label{font-size:16px;font-weight:800;color:#1e293b;letter-spacing:0.07em;text-transform:uppercase}
+  .total-box .tb-amount{font-size:32px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
+  .total-box .tb-amount .u{font-size:15px;font-weight:700;color:#4b8f68;margin-left:3px}
+  .total-words{margin-top:10px;font-size:13px;color:#475569;line-height:1.65;text-align:left}
   .total-words .tw-label{color:#334155;font-weight:600}
   .total-words strong{color:#334155;font-weight:700}
-  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+  .foot{display:flex;justify-content:space-between;font-size:10.5px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
 <div class="hdr">
   <div>
     <div style="display:flex;align-items:center;gap:12px">
-      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <svg width="52" height="52" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
       <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
     </div>
     <div class="co-addr">Selouane, Nador</div>
   </div>
   <div class="co-r">
-    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+    <div style="font-size:12.5px;color:#1e3a5f;line-height:1.9">
       <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
       <strong>Bureau</strong> 06 62 82 88 20<br>
       <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
     </div>
-    <div style="font-size:9.5px;color:#94a3b8;margin-top:3px">Généré le ${date}</div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:4px">Généré le ${date}</div>
     <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
   </div>
 </div>
@@ -567,7 +567,7 @@ export default function Clients() {
     <th class="r qte">Qté</th><th class="r pu">Prix/u</th><th class="r mt">Montant</th><th class="r sd">Solde</th><th>Note</th>
   </tr></thead>
   <tbody>
-    ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap;font-weight:700;font-size:14px;color:#92400e">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:14px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report' : 'Solde initial'}</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:17px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmtMoney(ancienSoldeVal)}</td><td class="m">${carryOver !== null ? '' : (selected.opening_note||'Solde de départ')}</td></tr>` : ''}
+    ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap;font-weight:700;font-size:15.5px;color:#92400e">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:15.5px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report' : 'Solde initial'}</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:18.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmtMoney(ancienSoldeVal)}</td><td class="m">${carryOver !== null ? '' : (selected.opening_note||'Solde de départ')}</td></tr>` : ''}
     ${pDisplayEntries.map((e, i) => {
       const isVente = e.src === 'vente'; const v = e.raw
       const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
@@ -577,30 +577,30 @@ export default function Clients() {
       const rowSpan = pRowSpans[i]
       const bandBg = pGroupMeta.band[i] === 1 ? '#f1f5f9' : '#ffffff'
       const rowClass = [pGroupMeta.band[i] === 1 ? 'band' : '', pGroupMeta.isGroupLast[i] ? 'grp-end' : ''].filter(Boolean).join(' ')
-      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:14px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
-      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:14px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:15.5px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:15.5px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       const typeTag = e.type === 'vente' || e.type === 'frais-charge'
         ? `<span class="tag">${e.label}</span>`
         : e.type === 'mdo'
-        ? `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
-        : `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
+        ? `<span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
+        : `<span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
       // Frais/déduction rows are children of the Livraison directly above them
       // within the same voyage group — indent + subordinate weight makes that
       // relationship visible instead of reading as an unrelated operation.
       const isChild = e.src === 'frais'
       const opCell = isChild
-        ? `<td style="font-size:14px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
-        : `<td style="font-size:15px;font-weight:700;color:#0f172a">${e.operation}</td>`
+        ? `<td style="font-size:15.5px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
+        : `<td style="font-size:16.5px;font-weight:700;color:#0f172a">${e.operation}</td>`
       return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
         ${opCell}
         <td>${typeTag}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:15px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:15px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmtMoney(v.prix_vente||0):'<span style="color:#9ca3af">—</span>'}</td>
-        <td class="r" style="font-size:16px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
-        <td class="r" style="font-weight:900;font-size:17px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
-        <td class="m" style="white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?700:400};color:${e.note?'#374151':'#9ca3af'}">${noteDisplay}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:16.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:16.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmtMoney(v.prix_vente||0):'<span style="color:#9ca3af">—</span>'}</td>
+        <td class="r" style="font-size:17.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:19px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
+        <td class="m" style="white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?700:400};color:${e.note?'#374151':'#9ca3af'}">${noteDisplay}</td>
       </tr>`
     }).join('')}
   </tbody>
@@ -633,7 +633,7 @@ export default function Clients() {
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
       const cfAmt = fmtMoney(Math.abs(selectionCarryForward))
-      return `<tr style="background:#fef3c7"><td class="m" style="white-space:nowrap;color:#92400e;font-weight:700;font-size:14px">—</td><td class="m">—</td><td style="font-size:14px;font-weight:700;color:#92400e">Report</td><td><span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Report</span></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:17px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${cfSign}${cfAmt}</td><td class="m"></td></tr>`
+      return `<tr style="background:#fef3c7"><td class="m" style="white-space:nowrap;color:#92400e;font-weight:700;font-size:15.5px">—</td><td class="m">—</td><td style="font-size:15.5px;font-weight:700;color:#92400e">Report</td><td><span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Report</span></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:18.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${cfSign}${cfAmt}</td><td class="m"></td></tr>`
     })() : ''
 
     const _now = new Date()
@@ -648,14 +648,14 @@ export default function Clients() {
       if (e.type === 'opening') {
         const soldeAmber = e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`
         return `<tr class="${rowClass}" style="background:#fffbeb !important">
-          <td class="m" style="color:#92400e;white-space:nowrap;font-weight:700;font-size:14px" rowspan="${rowSpan}">${e.date ? fmtDate(e.date) : '—'}</td>
+          <td class="m" style="color:#92400e;white-space:nowrap;font-weight:700;font-size:15.5px" rowspan="${rowSpan}">${e.date ? fmtDate(e.date) : '—'}</td>
           <td class="m" rowspan="${rowSpan}">—</td>
-          <td style="font-size:14px;font-weight:600;color:#92400e">Solde initial</td>
-          <td><span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Solde initial</span></td>
+          <td style="font-size:15.5px;font-weight:600;color:#92400e">Solde initial</td>
+          <td><span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Solde initial</span></td>
           <td class="r" style="color:#9ca3af">—</td>
           <td class="r" style="color:#9ca3af">—</td>
           <td class="r" style="color:#9ca3af">—</td>
-          <td class="r" style="font-weight:900;font-size:17px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${soldeAmber}</td>
+          <td class="r" style="font-weight:900;font-size:18.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${soldeAmber}</td>
           <td class="m" style="color:#92400e;font-style:italic">${e.note || 'Solde de départ'}</td>
         </tr>`
       }
@@ -669,96 +669,96 @@ export default function Clients() {
       const qteCell  = isVenteLine ? `<span style="font-weight:700;color:#374151">${fmt(v.qte)}</span>` : dash
       const prixCell = isVenteLine ? `<span style="font-weight:600;color:#374151">${fmtMoney(v.prix_vente||0)}</span>` : dash
       const typeTag = e.type === 'vente' || e.type === 'frais-charge'
-        ? `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">${e.label}</span>`
+        ? `<span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">${e.label}</span>`
         : e.type === 'mdo'
-        ? `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
-        : `<span style="display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
+        ? `<span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
+        : `<span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
       const bandBg = pGroupMeta.band[i] === 1 ? '#f1f5f9' : '#ffffff'
-      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:14px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:9px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
-      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:14px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:15.5px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:10px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:15.5px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       // Frais/déduction rows are children of the Livraison directly above them
       // within the same voyage group — indent + subordinate weight makes that
       // relationship visible instead of reading as an unrelated operation.
       const isChild = e.src === 'frais'
       const opCell = isChild
-        ? `<td style="font-size:14px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
-        : `<td style="font-size:15px;font-weight:700;color:#0f172a">${e.operation}</td>`
+        ? `<td style="font-size:15.5px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
+        : `<td style="font-size:16.5px;font-weight:700;color:#0f172a">${e.operation}</td>`
       return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
         ${opCell}
         <td>${typeTag}</td>
-        <td class="r" style="font-size:15px">${qteCell}</td>
-        <td class="r" style="font-size:15px">${prixCell}</td>
-        <td class="r" style="font-size:16px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
-        <td class="r" style="font-weight:900;font-size:17px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
-        <td class="m" style="white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?700:400};color:${e.note?'#374151':'#9ca3af'}">${e.note||'—'}</td>
+        <td class="r" style="font-size:16.5px">${qteCell}</td>
+        <td class="r" style="font-size:16.5px">${prixCell}</td>
+        <td class="r" style="font-size:17.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:19px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
+        <td class="m" style="white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?700:400};color:${e.note?'#374151':'#9ca3af'}">${e.note||'—'}</td>
       </tr>`
     }).join('')
 
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Relevé Présentation — ${selected.nom}</title>
 <style>
-  @page{margin:0mm}
+  @page{size:A4;margin:0mm}
   @media print{.btn-p{display:none!important}}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:14px;color:#1e293b;background:#fff;border-top:4px solid #7c3aed}
-  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
-  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
-  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  body{font-family:Arial,sans-serif;font-size:15px;color:#1e293b;background:#fff;border-top:4px solid #7c3aed}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:14px 22px 12px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:23px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:12.5px;color:#2563eb;font-weight:700;margin-top:3px}
+  .co-addr{font-size:12.5px;color:#475569;margin-top:6px}
   .co-r{text-align:right;flex-shrink:0}
-  .mode-badge{display:inline-block;background:#ede9fe;color:#7c3aed;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #ddd6fe;margin-bottom:6px}
+  .mode-badge{display:inline-block;background:#ede9fe;color:#7c3aed;font-weight:700;font-size:12px;padding:3px 10px;border-radius:20px;border:1px solid #ddd6fe;margin-bottom:6px}
   .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
-  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
-  .cli-card{display:flex;align-items:center;gap:18px;background:#faf5ff;border:1.5px solid #ddd6fe;border-left:5px solid #7c3aed;border-radius:10px;padding:14px 22px}
-  .cli-avatar{width:58px;height:58px;border-radius:50%;background:#7c3aed;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .cli-name{font-size:23px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
-  .bdy{padding:10px 24px}
+  .cli-section{padding:12px 22px 14px;border-bottom:2px solid #e2e8f0}
+  .cli-card{display:flex;align-items:center;gap:18px;background:#faf5ff;border:1.5px solid #ddd6fe;border-left:5px solid #7c3aed;border-radius:10px;padding:13px 22px}
+  .cli-avatar{width:54px;height:54px;border-radius:50%;background:#7c3aed;color:#fff;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cli-name{font-size:20px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .cli-meta{font-size:12.5px;color:#374151;margin-top:7px;line-height:1.8}
+  .bdy{padding:10px 20px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#fff !important;padding:14px 14px;font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;text-align:left;white-space:nowrap}
+  thead th{background:#1e3a5f !important;color:#fff !important;padding:15px 14px;font-size:14.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
-  thead th.dt{min-width:88px}
-  thead th.cm{min-width:92px}
-  thead th.op{min-width:150px}
-  thead th.ty{min-width:96px}
-  thead th.qte{min-width:56px}
-  thead th.pu{min-width:78px}
-  thead th.mt{min-width:112px}
-  thead th.sd{min-width:126px}
+  thead th.dt{min-width:96px}
+  thead th.cm{min-width:100px}
+  thead th.op{min-width:162px}
+  thead th.ty{min-width:104px}
+  thead th.qte{min-width:60px}
+  thead th.pu{min-width:84px}
+  thead th.mt{min-width:122px}
+  thead th.sd{min-width:138px}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:12px 14px;font-size:15px;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
+  tbody td{padding:13px 14px;font-size:16.5px;font-weight:500;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-size:13.5px;font-weight:500;white-space:nowrap}
+  tbody td.m{color:#374151;font-size:15px;font-weight:600;white-space:nowrap}
   tbody tr.band td{background:#f1f5f9 !important}
   tbody tr.grp-end td{border-bottom:2px solid #cbd5e1 !important}
   .total-box{margin-top:10px;position:relative;overflow:hidden;background:#f8faf9;border:1px solid #dde5e0;border-radius:10px;padding:14px 20px 14px 24px;display:flex;justify-content:space-between;align-items:center}
   .total-box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:#16a34a}
-  .total-box .tb-label{font-size:15px;font-weight:800;color:#1e293b;letter-spacing:0.07em;text-transform:uppercase}
-  .total-box .tb-amount{font-size:30px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
-  .total-box .tb-amount .u{font-size:14px;font-weight:700;color:#4b8f68;margin-left:3px}
-  .total-words{margin-top:10px;font-size:12px;color:#475569;line-height:1.65;text-align:left}
+  .total-box .tb-label{font-size:16px;font-weight:800;color:#1e293b;letter-spacing:0.07em;text-transform:uppercase}
+  .total-box .tb-amount{font-size:32px;font-weight:800;color:#15803d;letter-spacing:-0.4px;line-height:1}
+  .total-box .tb-amount .u{font-size:15px;font-weight:700;color:#4b8f68;margin-left:3px}
+  .total-words{margin-top:10px;font-size:13px;color:#475569;line-height:1.65;text-align:left}
   .total-words .tw-label{color:#334155;font-weight:600}
   .total-words strong{color:#334155;font-weight:700}
-  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+  .foot{display:flex;justify-content:space-between;font-size:10.5px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
 <div class="hdr">
   <div>
     <div style="display:flex;align-items:center;gap:12px">
-      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <svg width="52" height="52" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
       <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
     </div>
     <div class="co-addr">Selouane, Nador</div>
   </div>
   <div class="co-r">
-    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+    <div style="font-size:12.5px;color:#1e3a5f;line-height:1.9">
       <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
       <strong>Bureau</strong> 06 62 82 88 20<br>
       <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
     </div>
     <div style="margin-top:5px"><div class="mode-badge">↕ Vue Présentation</div></div>
-    <div style="font-size:9.5px;color:#94a3b8">Généré le ${date}</div>
+    <div style="font-size:10px;color:#94a3b8">Généré le ${date}</div>
     <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
   </div>
 </div>
@@ -840,59 +840,59 @@ export default function Clients() {
     openPrintWindow(`<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"><title>Relevé de Facturation — ${selected.nom}</title>
 <style>
-  @page{margin:0mm}
+  @page{size:A4;margin:0mm}
   @media print{.btn-p{display:none!important}}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:13.5px;color:#1e293b;background:#fff;border-top:4px solid #0f766e}
-  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:12px 24px 10px;border-bottom:1px solid #e2e8f0}
-  .co-n{font-size:20px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .co-tag{font-size:11px;color:#2563eb;font-weight:700;margin-top:2px}
-  .co-addr{font-size:11px;color:#475569;margin-top:5px}
+  body{font-family:Arial,sans-serif;font-size:15px;color:#1e293b;background:#fff;border-top:4px solid #0f766e}
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:14px 22px 12px;border-bottom:1px solid #e2e8f0}
+  .co-n{font-size:23px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .co-tag{font-size:12.5px;color:#2563eb;font-weight:700;margin-top:3px}
+  .co-addr{font-size:12.5px;color:#475569;margin-top:6px}
   .co-r{text-align:right;flex-shrink:0}
-  .mode-badge{display:inline-block;background:#ccfbf1;color:#0f766e;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #99f6e4;margin-bottom:6px}
+  .mode-badge{display:inline-block;background:#ccfbf1;color:#0f766e;font-weight:700;font-size:12px;padding:3px 10px;border-radius:20px;border:1px solid #99f6e4;margin-bottom:6px}
   .btn-p{padding:4px 10px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#475569;color:#fff}
-  .cli-section{padding:12px 24px 14px;border-bottom:2px solid #e2e8f0}
-  .cli-card{display:flex;align-items:center;gap:18px;background:#f0fdfa;border:1.5px solid #99f6e4;border-left:5px solid #0f766e;border-radius:10px;padding:14px 22px}
-  .cli-avatar{width:58px;height:58px;border-radius:50%;background:#0f766e;color:#fff;font-size:26px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .cli-name{font-size:26px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
-  .cli-meta{font-size:12px;color:#374151;margin-top:7px;line-height:1.8}
-  .bdy{padding:10px 24px}
+  .cli-section{padding:12px 22px 14px;border-bottom:2px solid #e2e8f0}
+  .cli-card{display:flex;align-items:center;gap:18px;background:#f0fdfa;border:1.5px solid #99f6e4;border-left:5px solid #0f766e;border-radius:10px;padding:13px 22px}
+  .cli-avatar{width:54px;height:54px;border-radius:50%;background:#0f766e;color:#fff;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cli-name{font-size:21px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
+  .cli-meta{font-size:12.5px;color:#374151;margin-top:7px;line-height:1.8}
+  .bdy{padding:10px 20px}
   table{width:100%;border-collapse:collapse}
-  thead th{background:#0f766e !important;color:#ffffff !important;padding:10px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;text-align:left;white-space:nowrap}
+  thead th{background:#0f766e !important;color:#ffffff !important;padding:12px 12px;font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;text-align:left;white-space:nowrap}
   thead th.r{text-align:right}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:9.5px 12px;font-size:13.5px;color:#0f1115;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
+  tbody td{padding:11px 12px;font-size:15px;font-weight:500;color:#0f1115;border-bottom:1px solid #e8ecf0;vertical-align:middle;line-height:1.45}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#1f2937;font-size:12.5px;font-weight:600;white-space:nowrap}
-  tbody tr:nth-child(even) td{background:#f8fafc !important}
+  tbody td.m{color:#1f2937;font-size:13.5px;font-weight:600;white-space:nowrap}
+  tbody tr:nth-child(even) td{background:#f1f5f9 !important}
   .total-final{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
-  .sf-lbl{font-size:11px;font-weight:800;color:#14532d;letter-spacing:0.06em;text-transform:uppercase}
-  .sf-amt{font-size:24px;font-weight:900;color:#14532d;line-height:1.2;letter-spacing:-0.3px}
-  .sf-unit{font-size:12px;font-weight:700;color:#14532d;margin-left:4px}
-  .sf-sub{font-size:10px;color:#374151;margin-top:2px}
+  .sf-lbl{font-size:12px;font-weight:800;color:#14532d;letter-spacing:0.06em;text-transform:uppercase}
+  .sf-amt{font-size:26px;font-weight:900;color:#14532d;line-height:1.2;letter-spacing:-0.3px}
+  .sf-unit{font-size:13px;font-weight:700;color:#14532d;margin-left:4px}
+  .sf-sub{font-size:10.5px;color:#374151;margin-top:2px}
   .prev-solde{background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-  .ps-lbl{font-size:11px;font-weight:800;color:#171717;letter-spacing:0.06em;text-transform:uppercase}
-  .ps-amt{font-size:20px;font-weight:800;color:#7f1d1d;line-height:1.2}
-  .ps-unit{font-size:12px;font-weight:700;color:#7f1d1d;margin-left:4px}
-  .ps-sub{font-size:10px;color:#4b5563;margin-top:2px}
-  .foot{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
+  .ps-lbl{font-size:12px;font-weight:800;color:#171717;letter-spacing:0.06em;text-transform:uppercase}
+  .ps-amt{font-size:22px;font-weight:800;color:#7f1d1d;line-height:1.2}
+  .ps-unit{font-size:13px;font-weight:700;color:#7f1d1d;margin-left:4px}
+  .ps-sub{font-size:10.5px;color:#4b5563;margin-top:2px}
+  .foot{display:flex;justify-content:space-between;font-size:10.5px;color:#94a3b8;margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style></head><body>
 <div class="hdr">
   <div>
     <div style="display:flex;align-items:center;gap:12px">
-      <svg width="44" height="44" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
+      <svg width="52" height="52" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="90" fill="#1e3a5f"/><polygon points="40,170 256,50 472,170" fill="#e8b84b"/><rect x="60" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="195" y="175" width="122" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="337" y="175" width="115" height="70" rx="12" fill="#fff" opacity=".95"/><rect x="60" y="260" width="85" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="165" y="260" width="122" height="70" rx="12" fill="#e8b84b" opacity=".95"/><rect x="307" y="260" width="145" height="70" rx="12" fill="#e8b84b" opacity=".95"/></svg>
       <div><div class="co-n">DAR SADIK</div><div class="co-tag">Matériaux de Construction</div></div>
     </div>
     <div class="co-addr">Selouane, Nador</div>
   </div>
   <div class="co-r">
-    <div style="font-size:11px;color:#1e3a5f;line-height:1.85">
+    <div style="font-size:12.5px;color:#1e3a5f;line-height:1.9">
       <strong>Mohamed</strong> 06 61 32 56 65 &nbsp;·&nbsp; <strong>Sadik</strong> 06 61 97 87 47<br>
       <strong>Bureau</strong> 06 62 82 88 20<br>
       <span style="color:#2563eb">Dar.sadik@hotmail.com</span>
     </div>
     <div style="margin-top:5px"><div class="mode-badge">🧾 Relevé de Facturation</div></div>
-    <div style="font-size:9.5px;color:#94a3b8">Généré le ${date}</div>
+    <div style="font-size:10px;color:#94a3b8">Généré le ${date}</div>
     <div style="margin-top:4px"><button class="btn-p" onclick="window.print()">Imprimer / PDF</button></div>
   </div>
 </div>
@@ -920,7 +920,7 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   <tbody>
     ${rowsSel.map(r => {
       const soldeColor = r.solde > 0 ? '#1e3a5f' : '#16a34a'
-      const soldeCell = `<td class="r" style="font-weight:900;font-size:15.5px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${r.solde>=0?'+ '+fmtMoney(r.solde):'− '+fmtMoney(Math.abs(r.solde))}</td>`
+      const soldeCell = `<td class="r" style="font-weight:900;font-size:17px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${r.solde>=0?'+ '+fmtMoney(r.solde):'− '+fmtMoney(Math.abs(r.solde))}</td>`
       if (r.kind === 'paiement') {
         const p = r.raw
         const noteTxt = [p.mode, p.note].filter(Boolean).join(' · ')
@@ -928,11 +928,11 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         <td class="m" style="white-space:nowrap">${fmtDate(p.date)}</td>
         <td class="m">${p.camion_plaque || '—'}</td>
         <td style="color:#0f1115;font-weight:700">Paiement</td>
-        <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">—</td>
-        <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">—</td>
-        <td class="r" style="font-size:14.5px;font-weight:800;color:#1e3a5f;white-space:nowrap">− ${fmtMoney(p.montant||0)}</td>
+        <td class="r" style="font-weight:700;color:#0f1115;font-size:15px">—</td>
+        <td class="r" style="font-weight:700;color:#0f1115;font-size:15px">—</td>
+        <td class="r" style="font-size:16px;font-weight:800;color:#1e3a5f;white-space:nowrap">− ${fmtMoney(p.montant||0)}</td>
         ${soldeCell}
-        <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${noteTxt?600:400};color:${noteTxt?'#1f2937':'#6b7280'}">${noteTxt || '—'}</td>
+        <td class="m" style="white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis;font-weight:${noteTxt?600:400};color:${noteTxt?'#1f2937':'#6b7280'}">${noteTxt || '—'}</td>
       </tr>`
       }
       const v = r.raw
@@ -940,11 +940,11 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
         <td class="m" style="white-space:nowrap">${fmtDate(v.date)}</td>
         <td class="m">${v.camion_plaque || '—'}</td>
         <td style="color:#0f1115;font-weight:700">${v.type_brique || '—'}</td>
-        <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">${fmt(v.qte)}</td>
-        <td class="r" style="font-weight:700;color:#0f1115;font-size:13.5px">${fmtMoney(v.prix_vente||0)}</td>
-        <td class="r" style="font-size:14.5px;font-weight:800;color:#1e3a5f;white-space:nowrap">+ ${fmtMoney(v.total_vente||0)}</td>
+        <td class="r" style="font-weight:700;color:#0f1115;font-size:15px">${fmt(v.qte)}</td>
+        <td class="r" style="font-weight:700;color:#0f1115;font-size:15px">${fmtMoney(v.prix_vente||0)}</td>
+        <td class="r" style="font-size:16px;font-weight:800;color:#1e3a5f;white-space:nowrap">+ ${fmtMoney(v.total_vente||0)}</td>
         ${soldeCell}
-        <td class="m" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;font-weight:${v.note?600:400};color:${v.note?'#1f2937':'#6b7280'}">${v.note || '—'}</td>
+        <td class="m" style="white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis;font-weight:${v.note?600:400};color:${v.note?'#1f2937':'#6b7280'}">${v.note || '—'}</td>
       </tr>`
     }).join('')}
   </tbody>
