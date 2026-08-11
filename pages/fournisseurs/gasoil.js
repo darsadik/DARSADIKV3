@@ -659,8 +659,8 @@ ${printFooter(printDate)}
                 {/* Drag handle col */}
                 <th style={{...thS,width:20,padding:'9px 4px'}}></th>
                 {[
-                  {l:'Date',r:false},{l:'Opération',r:false},{l:'Camion',r:false},{l:'Bon / Mode',r:false},
-                  {l:'Note',r:false},{l:'Débit (+)',r:true},{l:'Crédit (−)',r:true},{l:'Solde',r:true}
+                  {l:'Date',r:false},{l:'Opération',r:false},{l:'Camion',r:false},{l:'N° BON',r:false},
+                  {l:'Débit (+)',r:true},{l:'Crédit (−)',r:true},{l:'Solde',r:true}
                 ].map((col,ci) => (
                   <th key={ci} style={{...thS,textAlign:col.r?'right':'left'}}>{col.l}</th>
                 ))}
@@ -757,7 +757,7 @@ ${printFooter(printDate)}
                       </td>
                     )}
                     {/* DATE + MOVED INDICATOR */}
-                    <td className="td text-xs" style={{...bdr,color:'#374151',fontWeight:500,whiteSpace:'nowrap',padding:'10px 12px'}}>
+                    <td className="td" style={{...bdr,color:'#374151',fontWeight:600,fontSize:13.5,whiteSpace:'nowrap',padding:'10px 12px'}}>
                       <div>{fmtDate(e.date)}</div>
                       {isMoved && (
                         <div style={{fontSize:9,marginTop:2}}>
@@ -765,38 +765,45 @@ ${printFooter(printDate)}
                         </div>
                       )}
                     </td>
-                    {/* OPÉRATION */}
+                    {/* OPÉRATION — compact Gasoil/AdBlue pills (never a separate column), same
+                        badge language as Chronologie's split rows, so both modes read as the
+                        same operation vocabulary at a glance. */}
                     <td className="td" style={{...bdr,padding:'10px 12px'}}>
-                      <span style={{
-                        background: e.type==='purchase' ? '#fff7ed' : '#dcfce7',
-                        color: e.type==='purchase' ? '#c2410c' : '#15803d',
-                        fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,
-                        border:`1px solid ${e.type==='purchase' ? '#fed7aa' : '#bbf7d0'}`,whiteSpace:'nowrap',
-                      }}>
-                        {e.type==='purchase' ? '⛽' : '💸'} {e.label}
-                      </span>
+                      {e.type === 'purchase' ? (
+                        <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                          {e.qte > 0 && (
+                            <span style={{background:'#fff7ed',color:'#c2410c',fontWeight:700,fontSize:10.5,padding:'2px 7px',borderRadius:3,border:'1px solid #fed7aa',whiteSpace:'nowrap'}}>
+                              ⛽ Gasoil
+                            </span>
+                          )}
+                          {e.adblueQte > 0 && (
+                            <span style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:10.5,padding:'2px 7px',borderRadius:3,border:'1px solid #bfdbfe',whiteSpace:'nowrap'}}>
+                              💧 AdBlue
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{background:'#dcfce7',color:'#15803d',fontWeight:700,fontSize:10.5,padding:'2px 7px',borderRadius:3,border:'1px solid #bbf7d0',whiteSpace:'nowrap'}}>
+                          💸 Paiement
+                        </span>
+                      )}
                       {e.type === 'purchase' && (e.qte > 0 || e.adblueQte > 0) && (
-                        <div style={{fontSize:10,color:'#9ca3af',marginTop:3,lineHeight:1.3}}>
+                        <div style={{fontSize:12,fontWeight:600,color:'#475569',marginTop:4,lineHeight:1.4}}>
                           {e.qte > 0 && <div>{fmtD(e.qte)} L × {fmtMoney(e.prixUnitaire)} DH/L</div>}
-                          {e.adblueQte > 0 && <div>AdBlue: {fmtD(e.adblueQte)} L × {fmtMoney(e.adbluePrixUnitaire)} DH/L</div>}
+                          {e.adblueQte > 0 && <div>{fmtD(e.adblueQte)} L × {fmtMoney(e.adbluePrixUnitaire)} DH/L</div>}
                         </div>
                       )}
                     </td>
                     {/* CAMION */}
-                    <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{e.camion}</td>
-                    {/* BON / MODE */}
-                    <td className="td text-xs" style={{...bdr,color:'#64748b',whiteSpace:'nowrap',padding:'10px 12px'}}>{e.bon}</td>
-                    {/* NOTE */}
-                    <td className="td text-xs" style={{...bdr,maxWidth:'150px',wordBreak:'break-word',padding:'10px 12px',
-                      color: e.note ? '#374151' : '#9ca3af', fontStyle: e.note ? 'normal' : 'italic', fontWeight: e.note ? 600 : 400}}>
-                      {e.note || '—'}
-                    </td>
+                    <td className="td" style={{...bdr,color:'#475569',fontWeight:600,fontSize:13.5,whiteSpace:'nowrap',padding:'10px 12px'}}>{e.camion}</td>
+                    {/* N° BON / MODE */}
+                    <td className="td" style={{...bdr,color:'#475569',fontWeight:600,fontSize:13.5,whiteSpace:'nowrap',padding:'10px 12px'}}>{e.bon}</td>
                     {/* DÉBIT */}
-                    <td className="td text-right" style={{...bdr,fontSize:13,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#c2410c'}}>
+                    <td className="td text-right" style={{...bdr,fontSize:14.5,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#c2410c'}}>
                       {e.debit ? `+ ${fmtMoney(e.debit)}` : <span style={{color:'#9ca3af'}}>—</span>}
                     </td>
                     {/* CRÉDIT */}
-                    <td className="td text-right" style={{...bdr,fontSize:13,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#16a34a'}}>
+                    <td className="td text-right" style={{...bdr,fontSize:14.5,fontWeight:700,whiteSpace:'nowrap',padding:'10px 12px',color:'#16a34a'}}>
                       {e.credit ? `− ${fmtMoney(e.credit)}` : <span style={{color:'#9ca3af'}}>—</span>}
                     </td>
                     {/* SOLDE */}
@@ -812,7 +819,7 @@ ${printFooter(printDate)}
                   return (
                     <Fragment key={`rf-${eKey(e)}`}>
                       <tr style={{background:'#fef3c7',cursor:'default'}}>
-                        <td colSpan={9} style={{border:'1px solid #fde68a',padding:'10px 12px',color:'#92400e',fontWeight:700,fontSize:12}}>
+                        <td colSpan={8} style={{border:'1px solid #fde68a',padding:'10px 12px',color:'#92400e',fontWeight:700,fontSize:12}}>
                           <span style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:10,padding:'2px 7px',borderRadius:3,border:'1px solid #fde68a',marginRight:8}}>Report</span>
                           Solde reporté avant la sélection
                         </td>
@@ -830,7 +837,7 @@ ${printFooter(printDate)}
             {displayEntries.length > 0 && (
               <tfoot>
                 <tr>
-                  <td colSpan={9} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
+                  <td colSpan={8} style={{padding:'11px 12px',background:'#f5f3ff',color:'#5b21b6',fontWeight:700,fontSize:13,borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderLeft:'1px solid #ddd6fe',borderRadius:'0 0 0 8px'}}>
                     Solde final
                   </td>
                   <td style={{padding:'11px 14px',background:'#f5f3ff',fontSize:17,fontWeight:700,color: presLedger.finalBalance >= 0 ? '#dc2626' : '#16a34a',textAlign:'right',borderTop:'1px solid #ddd6fe',borderBottom:'1px solid #ddd6fe',borderRight:'1px solid #ddd6fe',borderRadius:'0 0 8px 0',letterSpacing:'-0.2px'}}>
