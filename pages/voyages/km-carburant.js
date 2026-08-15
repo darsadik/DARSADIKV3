@@ -17,6 +17,7 @@ import KmEditPopover from '../../components/carburant/KmEditPopover'
 import CreateNextVoyageModal from '../../components/carburant/CreateNextVoyageModal'
 import OdometerChainStrip from '../../components/carburant/OdometerChainStrip'
 import AllocationControlCenter from '../../components/carburant/AllocationControlCenter'
+import TruckPlanCenter from '../../components/carburant/TruckPlanCenter'
 
 const SEVERITY_TONE = { error: 'badge-red', warning: 'badge-amber', info: 'badge-blue' }
 
@@ -26,7 +27,7 @@ const DEFAULT_FILTERS = {
 
 export default function VoyageKmCarburant() {
   const router = useRouter()
-  const [tab, setTab] = useState('timeline') // 'timeline' | 'allocation'
+  const [tab, setTab] = useState('timeline') // 'timeline' | 'allocation' | 'link'
   // Deep-link support (spec items 10, 11, 14) — /gasoil's alert banner and
   // "voir les suggestions" link land here with ?tab=allocation&statusFilter=…
   // Applied once when the router is ready; the tab/filters stay normal local
@@ -68,7 +69,7 @@ export default function VoyageKmCarburant() {
     const [camionsRes, voyagesRes, gasoilRes, voyageGasoilRes, livraisonsRes] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('voyages')
-        .select('id,reference,date_depart,camion_id,camion_plaque,chauffeur,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
+        .select('id,reference,date_depart,camion_id,camion_plaque,chauffeur,statut,destination,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
         .order('date_depart', { ascending: true }),
       // 'heure' was a product decision to drop entirely (trucks don't operate
       // on an hourly schedule) — do not select it, it no longer exists on
@@ -203,6 +204,10 @@ export default function VoyageKmCarburant() {
           className={`text-sm font-bold px-4 py-2 rounded-lg transition ${tab === 'allocation' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
           ⛽ Contrôle Allocation
         </button>
+        <button onClick={() => setTab('link')}
+          className={`text-sm font-bold px-4 py-2 rounded-lg transition ${tab === 'link' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+          🔗 Camion ↔ Plan
+        </button>
       </div>
 
       {tab === 'allocation' && loading && (
@@ -234,6 +239,32 @@ export default function VoyageKmCarburant() {
           onSaved={loadAll}
           initialFilters={initialAllocationFilters}
         />
+      )}
+
+      {tab === 'link' && !loading && (
+        <TruckPlanCenter
+          camions={camions}
+          activeVoyages={activeVoyages}
+          voyageRows={voyageRows}
+          voyageGasoilRows={voyageGasoilRows}
+          onSaved={loadAll}
+        />
+      )}
+
+      {tab === 'link' && loading && (
+        <div className="space-y-4">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="card animate-pulse">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <div className="h-4 w-40 bg-slate-100 rounded" />
+                  <div className="h-3 w-64 bg-slate-100 rounded" />
+                </div>
+                <div className="h-8 w-24 bg-slate-100 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {tab === 'timeline' && <>
