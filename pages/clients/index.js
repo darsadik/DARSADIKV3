@@ -373,8 +373,23 @@ export default function Clients() {
     return d.toLocaleDateString('fr-MA', { month: 'long', year: 'numeric' })
   }
 
-  const carryOver   = selected ? getCarryOver() : null
-  const periodLabel = selected ? getPeriodLabel() : null
+  // ── Display-only: the actual date of the latest transaction/opening balance
+  // strictly before the filter period, used by the print/PDF carry-over header
+  // ("Le reste du solde au …") instead of the vague "Avant <mois>" label.
+  // Does not affect getCarryOver()'s balance math — purely for the printed date text.
+  function getCarryOverDate() {
+    const { from } = getDateRange()
+    if (!from) return null
+    let last = selected?.opening_date || null
+    clientVentes.forEach(v => { if (v.date < from && (!last || v.date > last)) last = v.date })
+    clientPaiements.forEach(p => { if (p.date < from && (!last || p.date > last)) last = p.date })
+    clientRemises.forEach(r => { if (r.date < from && (!last || r.date > last)) last = r.date })
+    return last
+  }
+
+  const carryOver     = selected ? getCarryOver() : null
+  const periodLabel   = selected ? getPeriodLabel() : null
+  const carryOverDate = selected ? getCarryOverDate() : null
 
   // ── ENTRY KEY ──
   function eKey(e) { return `${e.src}:${e.raw?.id ?? e.date}` }
@@ -492,7 +507,7 @@ export default function Clients() {
   @page{size:A4;margin:0mm}
   @media print{.btn-p{display:none!important}}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:15px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
+  body{font-family:Arial,sans-serif;font-size:15.5px;color:#1e293b;background:#fff;border-top:4px solid #1e3a5f}
   .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:14px 22px 12px;border-bottom:1px solid #e2e8f0}
   .co-n{font-size:23px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
   .co-tag{font-size:12.5px;color:#2563eb;font-weight:700;margin-top:3px}
@@ -505,8 +520,9 @@ export default function Clients() {
   .cli-name{font-size:20px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
   .cli-meta{font-size:12.5px;color:#374151;margin-top:7px;line-height:1.8}
   .bdy{padding:10px 20px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:15px 14px;font-size:14.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;text-align:left;white-space:nowrap}
+  table{width:100%;border-collapse:collapse;border:1px solid #cbd5e1}
+  thead th{background:#1e3a5f !important;color:#ffffff !important;padding:16px 14px;font-size:15.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;text-align:left;white-space:nowrap;border-right:1px solid rgba(255,255,255,.16)}
+  thead th:last-child{border-right:none}
   thead th.r{text-align:right}
   thead th.dt{min-width:96px}
   thead th.cm{min-width:100px}
@@ -517,9 +533,10 @@ export default function Clients() {
   thead th.mt{min-width:122px}
   thead th.sd{min-width:138px}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:13px 14px;font-size:16.5px;font-weight:500;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
+  tbody td{padding:15px 14px;font-size:17px;font-weight:500;color:#1e293b;border-bottom:1.5px solid #e2e8f0;border-right:1px solid #edf1f5;vertical-align:middle;line-height:1.55}
+  tbody td:last-child{border-right:none}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-size:15px;font-weight:600;white-space:nowrap}
+  tbody td.m{color:#374151;font-size:16px;font-weight:600;white-space:nowrap}
   tbody tr.band td{background:#f1f5f9 !important}
   tbody tr.grp-end td{border-bottom:2px solid #cbd5e1 !important}
   .tag{display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;letter-spacing:0.03em;white-space:nowrap}
@@ -567,7 +584,17 @@ export default function Clients() {
     <th class="r qte">Qté</th><th class="r pu">Prix/u</th><th class="r mt">Montant</th><th class="r sd">Solde</th><th>Note</th>
   </tr></thead>
   <tbody>
-    ${showAncienSolde ? `<tr style="background:#fffbeb"><td class="m" style="white-space:nowrap;font-weight:700;font-size:15.5px;color:#92400e">${carryOver !== null ? `Avant ${periodLabel}` : (selected.opening_date ? fmtDate(selected.opening_date) : '—')}</td><td class="m">—</td><td style="font-size:15.5px;font-weight:600;color:#92400e">${carryOver !== null ? 'Report' : 'Solde initial'}</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:18.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmtMoney(ancienSoldeVal)}</td><td class="m">${carryOver !== null ? '' : (selected.opening_note||'Solde de départ')}</td></tr>` : ''}
+    ${showAncienSolde ? (() => {
+      const isCarryPeriod = carryOver !== null
+      const carryLabel = carryOverDate ? `Le reste du solde au ${fmtDate(carryOverDate)}` : `Le reste du solde avant ${periodLabel}`
+      const dateTd = isCarryPeriod
+        ? `<td class="m" style="text-align:center;color:#c99a5b">—</td>`
+        : `<td class="m" style="white-space:nowrap;font-weight:700;font-size:16px;color:#92400e">${selected.opening_date ? fmtDate(selected.opening_date) : '—'}</td>`
+      const midTd = isCarryPeriod
+        ? `<td colspan="6" style="text-align:center;vertical-align:middle;font-size:16px;font-weight:800;color:#92400e;letter-spacing:0.02em;padding:16px 14px">${carryLabel}</td>`
+        : `<td class="m">—</td><td style="font-size:16px;font-weight:600;color:#92400e">Solde initial</td><td></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td>`
+      return `<tr style="background:#fffbeb">${dateTd}${midTd}<td class="r" style="font-weight:900;font-size:19.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${fmtMoney(ancienSoldeVal)}</td><td class="m">${isCarryPeriod ? '' : (selected.opening_note||'Solde de départ')}</td></tr>`
+    })() : ''}
     ${pDisplayEntries.map((e, i) => {
       const isVente = e.src === 'vente'; const v = e.raw
       const isPos = e.delta >= 0; const abs = Math.abs(e.delta)
@@ -577,8 +604,8 @@ export default function Clients() {
       const rowSpan = pRowSpans[i]
       const bandBg = pGroupMeta.band[i] === 1 ? '#f1f5f9' : '#ffffff'
       const rowClass = [pGroupMeta.band[i] === 1 ? 'band' : '', pGroupMeta.isGroupLast[i] ? 'grp-end' : ''].filter(Boolean).join(' ')
-      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:15.5px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
-      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:15.5px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:16.5px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:16.5px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       const typeTag = e.type === 'vente' || e.type === 'frais-charge'
         ? `<span class="tag">${e.label}</span>`
         : e.type === 'mdo'
@@ -589,17 +616,17 @@ export default function Clients() {
       // relationship visible instead of reading as an unrelated operation.
       const isChild = e.src === 'frais'
       const opCell = isChild
-        ? `<td style="font-size:15.5px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
-        : `<td style="font-size:16.5px;font-weight:700;color:#0f172a">${e.operation}</td>`
+        ? `<td style="font-size:16.5px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
+        : `<td style="font-size:17.5px;font-weight:700;color:#0f172a">${e.operation}</td>`
       return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
         ${opCell}
         <td>${typeTag}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:16.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
-        <td class="r" style="font-weight:700;color:#0f172a;font-size:16.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmtMoney(v.prix_vente||0):'<span style="color:#9ca3af">—</span>'}</td>
-        <td class="r" style="font-size:17.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
-        <td class="r" style="font-weight:900;font-size:19px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:17.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmt(v.qte):'<span style="color:#9ca3af">—</span>'}</td>
+        <td class="r" style="font-weight:700;color:#0f172a;font-size:17.5px">${isVente&&e.type!=='remise-voyage'&&e.type!=='mdo'?fmtMoney(v.prix_vente||0):'<span style="color:#9ca3af">—</span>'}</td>
+        <td class="r" style="font-size:18.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor};white-space:nowrap">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:20px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
         <td class="m" style="white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?700:400};color:${e.note?'#374151':'#9ca3af'}">${noteDisplay}</td>
       </tr>`
     }).join('')}
@@ -633,7 +660,7 @@ export default function Clients() {
     const reportRowHtml = selectionCarryForward !== null ? (() => {
       const cfSign = selectionCarryForward >= 0 ? '+ ' : '− '
       const cfAmt = fmtMoney(Math.abs(selectionCarryForward))
-      return `<tr style="background:#fef3c7"><td class="m" style="white-space:nowrap;color:#92400e;font-weight:700;font-size:15.5px">—</td><td class="m">—</td><td style="font-size:15.5px;font-weight:700;color:#92400e">Report</td><td><span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Report</span></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:18.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${cfSign}${cfAmt}</td><td class="m"></td></tr>`
+      return `<tr style="background:#fef3c7"><td class="m" style="white-space:nowrap;color:#92400e;font-weight:700;font-size:16.5px">—</td><td class="m">—</td><td style="font-size:16.5px;font-weight:700;color:#92400e">Report</td><td><span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Report</span></td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="color:#9ca3af">—</td><td class="r" style="font-weight:900;font-size:19.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${cfSign}${cfAmt}</td><td class="m"></td></tr>`
     })() : ''
 
     const _now = new Date()
@@ -648,14 +675,14 @@ export default function Clients() {
       if (e.type === 'opening') {
         const soldeAmber = e.solde >= 0 ? `+ ${fmtMoney(e.solde)}` : `− ${fmtMoney(Math.abs(e.solde))}`
         return `<tr class="${rowClass}" style="background:#fffbeb !important">
-          <td class="m" style="color:#92400e;white-space:nowrap;font-weight:700;font-size:15.5px" rowspan="${rowSpan}">${e.date ? fmtDate(e.date) : '—'}</td>
+          <td class="m" style="color:#92400e;white-space:nowrap;font-weight:700;font-size:16.5px" rowspan="${rowSpan}">${e.date ? fmtDate(e.date) : '—'}</td>
           <td class="m" rowspan="${rowSpan}">—</td>
-          <td style="font-size:15.5px;font-weight:600;color:#92400e">Solde initial</td>
+          <td style="font-size:16.5px;font-weight:600;color:#92400e">Solde initial</td>
           <td><span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a">Solde initial</span></td>
           <td class="r" style="color:#9ca3af">—</td>
           <td class="r" style="color:#9ca3af">—</td>
           <td class="r" style="color:#9ca3af">—</td>
-          <td class="r" style="font-weight:900;font-size:18.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${soldeAmber}</td>
+          <td class="r" style="font-weight:900;font-size:19.5px;color:#b45309;white-space:nowrap;letter-spacing:-0.3px">${soldeAmber}</td>
           <td class="m" style="color:#92400e;font-style:italic">${e.note || 'Solde de départ'}</td>
         </tr>`
       }
@@ -674,24 +701,24 @@ export default function Clients() {
         ? `<span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#fef9c3;color:#92400e;border:1px solid #fde68a">M.O.</span>`
         : `<span style="display:inline-block;padding:4px 9px;border-radius:3px;font-size:12.5px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">${e.type==='paiement'||e.type==='frais-deduction'?e.label:'Remise'}</span>`
       const bandBg = pGroupMeta.band[i] === 1 ? '#f1f5f9' : '#ffffff'
-      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:15.5px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:10px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
-      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:15.5px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
+      const dateCell   = rowSpan > 0 ? `<td class="m" style="white-space:nowrap;background:${bandBg};font-weight:700;font-size:16.5px;color:#1e293b" rowspan="${rowSpan}">${fmtDate(e.date)}${isMoved?`<br><span style="font-size:10px;font-weight:700;color:#7c3aed">↕ Déplacé</span>`:''}</td>` : ''
+      const camionCell = rowSpan > 0 ? `<td class="m" style="background:${bandBg};border-right:1.5px solid #dde3ea;font-weight:700;font-size:16.5px;color:#475569" rowspan="${rowSpan}">${e.detail||'—'}</td>` : ''
       // Frais/déduction rows are children of the Livraison directly above them
       // within the same voyage group — indent + subordinate weight makes that
       // relationship visible instead of reading as an unrelated operation.
       const isChild = e.src === 'frais'
       const opCell = isChild
-        ? `<td style="font-size:15.5px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
-        : `<td style="font-size:16.5px;font-weight:700;color:#0f172a">${e.operation}</td>`
+        ? `<td style="font-size:16.5px;font-weight:600;color:#64748b;padding-left:26px">↳ ${e.operation}</td>`
+        : `<td style="font-size:17.5px;font-weight:700;color:#0f172a">${e.operation}</td>`
       return `<tr class="${rowClass}">
         ${dateCell}
         ${camionCell}
         ${opCell}
         <td>${typeTag}</td>
-        <td class="r" style="font-size:16.5px">${qteCell}</td>
-        <td class="r" style="font-size:16.5px">${prixCell}</td>
-        <td class="r" style="font-size:17.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
-        <td class="r" style="font-weight:900;font-size:19px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
+        <td class="r" style="font-size:17.5px">${qteCell}</td>
+        <td class="r" style="font-size:17.5px">${prixCell}</td>
+        <td class="r" style="font-size:18.5px;white-space:nowrap"><span style="font-weight:800;color:${mvColor}">${isPos?'+ ':'− '}${fmtMoney(abs)}</span></td>
+        <td class="r" style="font-weight:900;font-size:20px;color:${soldeColor};white-space:nowrap;letter-spacing:-0.3px">${e.solde>=0?'+ '+fmtMoney(e.solde):'− '+fmtMoney(Math.abs(e.solde))}</td>
         <td class="m" style="white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;font-weight:${e.note?700:400};color:${e.note?'#374151':'#9ca3af'}">${e.note||'—'}</td>
       </tr>`
     }).join('')
@@ -702,7 +729,7 @@ export default function Clients() {
   @page{size:A4;margin:0mm}
   @media print{.btn-p{display:none!important}}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:15px;color:#1e293b;background:#fff;border-top:4px solid #7c3aed}
+  body{font-family:Arial,sans-serif;font-size:15.5px;color:#1e293b;background:#fff;border-top:4px solid #7c3aed}
   .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:14px 22px 12px;border-bottom:1px solid #e2e8f0}
   .co-n{font-size:23px;font-weight:900;color:#1e3a5f;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
   .co-tag{font-size:12.5px;color:#2563eb;font-weight:700;margin-top:3px}
@@ -716,8 +743,9 @@ export default function Clients() {
   .cli-name{font-size:20px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;line-height:1}
   .cli-meta{font-size:12.5px;color:#374151;margin-top:7px;line-height:1.8}
   .bdy{padding:10px 20px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f !important;color:#fff !important;padding:15px 14px;font-size:14.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;text-align:left;white-space:nowrap}
+  table{width:100%;border-collapse:collapse;border:1px solid #cbd5e1}
+  thead th{background:#1e3a5f !important;color:#fff !important;padding:16px 14px;font-size:15.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;text-align:left;white-space:nowrap;border-right:1px solid rgba(255,255,255,.16)}
+  thead th:last-child{border-right:none}
   thead th.r{text-align:right}
   thead th.dt{min-width:96px}
   thead th.cm{min-width:100px}
@@ -728,9 +756,10 @@ export default function Clients() {
   thead th.mt{min-width:122px}
   thead th.sd{min-width:138px}
   tbody tr{page-break-inside:avoid}
-  tbody td{padding:13px 14px;font-size:16.5px;font-weight:500;color:#1e293b;border-bottom:1px solid #edf1f5;vertical-align:middle;line-height:1.5}
+  tbody td{padding:15px 14px;font-size:17px;font-weight:500;color:#1e293b;border-bottom:1.5px solid #e2e8f0;border-right:1px solid #edf1f5;vertical-align:middle;line-height:1.55}
+  tbody td:last-child{border-right:none}
   tbody td.r{text-align:right;font-family:'Courier New',monospace;white-space:nowrap}
-  tbody td.m{color:#374151;font-size:15px;font-weight:600;white-space:nowrap}
+  tbody td.m{color:#374151;font-size:16px;font-weight:600;white-space:nowrap}
   tbody tr.band td{background:#f1f5f9 !important}
   tbody tr.grp-end td{border-bottom:2px solid #cbd5e1 !important}
   .total-box{margin-top:10px;position:relative;overflow:hidden;background:#f8faf9;border:1px solid #dde5e0;border-radius:10px;padding:14px 20px 14px 24px;display:flex;justify-content:space-between;align-items:center}
