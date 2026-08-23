@@ -18,6 +18,7 @@ const nav = [
   { href: '/fournisseurs/grignon',icon: 'building',label: 'Fourn. Grignon' },
   { href: '/fournisseurs/gasoil', icon: 'building',label: 'Fourn. Carburant' },
   { href: '/paiements',           icon: 'card',    label: 'Paiements' },
+  { href: '/paiements/fournisseurs', icon: 'card', label: 'Paiements Fournisseurs' },
   { href: '/retours',     icon: 'undo',       label: 'Retours' },
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },
   { href: '/voyages/km-carburant', icon: 'layers', label: 'Truck Control Center', highlight: true },
