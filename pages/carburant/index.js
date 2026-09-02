@@ -8,10 +8,10 @@ import {
   buildFuelCycles, buildFleetFuelStats, enrichByCamion, buildFleetIntelligenceSummary, detectAlerts,
   detectMissingData, listMergeSuggestions, buildDataHealthScore,
 } from '../../lib/services/fuelCycles'
-import { buildVoyageKmFuelTimeline } from '../../lib/services/voyageKmFuel'
-import { buildOdometerRows } from '../../lib/services/kilometrage'
-import { DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
-import { fetchRemiseCarburantRate } from '../../lib/services/settings'
+import {
+  buildPropreFleetPeriods, buildTruckFuelHistory, buildPeriodSummary,
+  buildFleetPeriodTotals, currentKmFor,
+} from '../../lib/services/fleetFuelMonitoring'
 import CycleCard from '../../components/carburant/CycleCard'
 import CycleAnalysisModal from '../../components/carburant/CycleAnalysisModal'
 import TruckHealthPanel from '../../components/carburant/TruckHealthPanel'
@@ -24,7 +24,6 @@ import VoyageFixModal from '../../components/carburant/VoyageFixModal'
 import GasoilFixModal from '../../components/carburant/GasoilFixModal'
 import PeriodSelector from '../../components/carburant/PeriodSelector'
 import TruckControlCard from '../../components/carburant/TruckControlCard'
-import KmEditPopover from '../../components/carburant/KmEditPopover'
 
 const SEVERITY_META = {
   error:   { emoji: '🔴', label: 'Critique',    bg: 'bg-red-50',   text: 'text-red-700',   ring: 'ring-red-100' },
@@ -77,84 +76,49 @@ function cycleMatchesFilters(c, filters) {
   return true
 }
 
-// Per-voyage/per-truck weighted aggregation — the ONLY correct way to reduce
-// several voyages' own already-computed litersLinked/distance/fuelCost
-// (lib/services/voyageKmFuel.js, itself the corrected fuelAllocation.js
-// engine's per-voyage share) into one period figure: sum litres, sum km,
-// THEN divide — never average each voyage's own L/100km. A voyage only
-// enters the litres/km ratio when it has a genuine measured allocation
-// (litersLinked > 0 and a known distance); a still-open period's voyages
-// never dilute it (§ never fabricate).
-function summarizePeriod(rows) {
-  const measured = rows.filter(r => r.litersLinked !== null && r.litersLinked > 0 && r.distance > 0)
-  const totalKm = rows.reduce((s, r) => s + (r.distance || 0), 0)
-  const totalLitres = measured.reduce((s, r) => s + r.litersLinked, 0)
-  const measuredKm = measured.reduce((s, r) => s + r.distance, 0)
-  const avgL100km = measuredKm > 0 ? (totalLitres / measuredKm) * 100 : null
-  const totalCost = rows.reduce((s, r) => s + (r.fuelCost || 0), 0)
-  const avgDhKm = totalKm > 0 ? totalCost / totalKm : null
-  const nbPending = rows.filter(r => r.status === 'pending_measurement').length
-  return { totalKm, totalLitres, avgL100km, totalCost, avgDhKm, nbMeasured: measured.length, nbPending, total: rows.length }
-}
-
 export default function CarburantCycles() {
   const [camions, setCamions] = useState([])
   const [gasoil, setGasoil] = useState([])
   const [voyages, setVoyages] = useState([])
-  const [voyageGasoilRows, setVoyageGasoilRows] = useState([])
-  const [livraisons, setLivraisons] = useState([])
-  const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [analyzing, setAnalyzing] = useState(null) // { cycle, camionPlaque }
   const [fixingVoyageId, setFixingVoyageId] = useState(null)
   const [fixingGasoilId, setFixingGasoilId] = useState(null)
   const [period, setPeriod] = useState(() => periodRange('mois'))
-  const [editingKmRow, setEditingKmRow] = useState(null)
   const [showValidationTools, setShowValidationTools] = useState(false)
 
-  useEffect(() => { loadAll(); fetchRemiseCarburantRate().then(setRemiseRate) }, [])
+  useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
-    const [{ data: ca }, { data: ga }, { data: vo }, { data: vgl }, { data: li }] = await Promise.all([
+    const [{ data: ca }, { data: ga }, { data: vo }] = await Promise.all([
       supabase.from('camions').select('*').order('plaque'),
       supabase.from('gasoil').select('*').order('date', { ascending: true }),
       supabase.from('voyages')
         .select('id,reference,date_depart,camion_id,camion_plaque,destination,statut,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
         .order('date_depart', { ascending: true }),
-      supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,is_split'),
-      supabase.from('voyage_livraisons').select('voyage_id, client_nom'),
     ])
     setCamions(ca || [])
     setGasoil(ga || [])
     setVoyages(vo || [])
-    setVoyageGasoilRows(vgl || [])
-    setLivraisons(li || [])
     setLoading(false)
   }
 
-  // ── /carburant is Camions Propre only (§2) — loué trucks are excluded
-  // BEFORE any engine call, not just hidden in the UI: their gasoil/voyages
-  // rows never reach buildFuelCycles/buildVoyageKmFuelTimeline, so they can
-  // never contribute to any total, average, or KPI on this page.
+  // ── /carburant is Camions Propre only — loué trucks are excluded BEFORE
+  // any engine call, not just hidden in the UI: their gasoil/voyages rows
+  // never reach buildFuelCycles/buildFleetFuelPeriods, so they can never
+  // contribute to any total, average, or KPI on this page.
   const propreCamions = useMemo(() => camions.filter(c => c.type_camion !== 'loue'), [camions])
   const propreCamionIds = useMemo(() => new Set(propreCamions.map(c => c.id)), [propreCamions])
   const gasoilPropre = useMemo(() => gasoil.filter(g => propreCamionIds.has(g.camion_id)), [gasoil, propreCamionIds])
   const voyagesPropre = useMemo(() => voyages.filter(v => propreCamionIds.has(v.camion_id)), [voyages, propreCamionIds])
 
-  const clientNamesByVoyageId = useMemo(() => {
-    const map = new Map()
-    livraisons.forEach(l => {
-      if (!l.voyage_id || !l.client_nom) return
-      if (!map.has(l.voyage_id)) map.set(l.voyage_id, [])
-      if (!map.get(l.voyage_id).includes(l.client_nom)) map.get(l.voyage_id).push(l.client_nom)
-    })
-    return map
-  }, [livraisons])
-
   // Everything below is derived from the propre-scoped arrays via useMemo —
   // no duplicated queries, no repeated computation on unrelated re-renders.
+  // This `byCamion` (fuelCycles.js) stays exactly as before — it's what the
+  // collapsed "Outils de validation des données" section further down still
+  // reads; it is NOT the source for the primary Bon table above it.
   const byCamion = useMemo(() => buildFuelCycles({ gasoil: gasoilPropre, voyages: voyagesPropre, camions: propreCamions }), [gasoilPropre, voyagesPropre, propreCamions])
   const enriched = useMemo(() => enrichByCamion(byCamion, filters.thresholdPct), [byCamion, filters.thresholdPct])
   const fleetStats = useMemo(() => buildFleetFuelStats(byCamion), [byCamion])
@@ -164,57 +128,23 @@ export default function CarburantCycles() {
   const mergeSuggestions = useMemo(() => listMergeSuggestions(enriched), [enriched])
   const health = useMemo(() => buildDataHealthScore({ byCamion, missingData, mergeSuggestions }), [byCamion, missingData, mergeSuggestions])
 
-  // ── NEW primary view — per-voyage rows (client/destination/L per 100km),
-  // reusing lib/services/voyageKmFuel.js's buildVoyageKmFuelTimeline exactly
-  // as the Voyage Carburant Chronologie tab does. No second calculation.
-  const voyageRows = useMemo(() => buildVoyageKmFuelTimeline({
-    voyages: voyagesPropre, camions: propreCamions, gasoil: gasoilPropre, voyageGasoilRows, remiseRate,
-  }), [voyagesPropre, propreCamions, gasoilPropre, voyageGasoilRows, remiseRate])
+  // ── PRIMARY VIEW — one row per Gasoil Bon, not per voyage. Periods are
+  // always built from the FULL history (never period-filtered) — the period
+  // only decides which already-computed rows are displayed, so a Bon just
+  // inside the window still measures against its real previous Bon even
+  // when that one falls outside it.
+  const bonByCamion = useMemo(() => buildPropreFleetPeriods({ camions, gasoil, voyages }), [camions, gasoil, voyages])
 
-  const periodVoyageRows = useMemo(() =>
-    voyageRows
-      .filter(r => (!period.from || r.date >= period.from) && (!period.to || r.date <= period.to))
-      .map(r => ({ ...r, clientNames: clientNamesByVoyageId.get(r.voyageId) || [] })),
-    [voyageRows, period, clientNamesByVoyageId])
-
-  const truckPeriodData = useMemo(() => {
-    const byCamionId = new Map()
-    periodVoyageRows.forEach(r => {
-      if (!byCamionId.has(r.camionId)) byCamionId.set(r.camionId, [])
-      byCamionId.get(r.camionId).push(r)
+  const truckPeriodData = useMemo(() => bonByCamion
+    .map(truck => {
+      const rows = buildTruckFuelHistory(truck)
+      const summary = buildPeriodSummary(truck, rows, period.from, period.to)
+      return { camion: truck.camion, currentKm: currentKmFor(truck), summary }
     })
-    return propreCamions
-      .map(camion => {
-        const rows = (byCamionId.get(camion.id) || []).sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1)
-        return { camion, rows, kpis: summarizePeriod(rows) }
-      })
-      .sort((a, b) => (a.camion.plaque || '').localeCompare(b.camion.plaque || ''))
-  }, [propreCamions, periodVoyageRows])
+    .sort((a, b) => (a.camion?.plaque || '').localeCompare(b.camion?.plaque || '')),
+    [bonByCamion, period])
 
-  const fleetSummary = useMemo(() => summarizePeriod(periodVoyageRows), [periodVoyageRows])
-
-  // "Current KM" per truck (§3) — the truck's last voyage's own km_depart,
-  // the same source suggestPreviousKm/KmEditPopover already use. Editing it
-  // goes through the exact same saveStartKm path (see KmEditPopover below).
-  const odometerRows = useMemo(() => buildOdometerRows(voyagesPropre, propreCamions), [voyagesPropre, propreCamions])
-  const currentKmRowByCamion = useMemo(() => {
-    const map = new Map()
-    odometerRows.forEach(r => { if (r.isLastForTruck) map.set(r.camionId, r) })
-    return map
-  }, [odometerRows])
-
-  // "Last relevant fuel/measurement date" (§3) — the truck's own cycles,
-  // already built above (fuelCycles.js), not period-scoped (a truck-level
-  // fact, not a period aggregate).
-  const lastFuelDateByCamion = useMemo(() => {
-    const map = new Map()
-    byCamion.forEach(t => {
-      const openCycle = t.cycles.find(c => c.statut === 'en_cours')
-      const lastClosed = [...t.cycles].reverse().find(c => c.statut === 'termine')
-      map.set(t.camionId, openCycle ? openCycle.dateDebut : (lastClosed ? lastClosed.dateFin : null))
-    })
-    return map
-  }, [byCamion])
+  const fleetSummary = useMemo(() => buildFleetPeriodTotals(truckPeriodData.map(t => t.summary)), [truckPeriodData])
 
   const truckHasMissingKm = useMemo(() => new Set(missingData
     .filter(m => m.category === 'voyage_missing_km' || m.category === 'plein_missing_km')
@@ -269,7 +199,7 @@ export default function CarburantCycles() {
   }), { kmTotal: 0, litresGasoil: 0, litresAdblue: 0, coutTotal: 0, nbCycles: 0, nbPleins: 0 })
 
   return (
-    <Layout title="Truck Control Center" subtitle="Suivi carburant de la flotte propre — KM, consommation et coût par camion et par voyage">
+    <Layout title="Contrôle KM & Carburant" subtitle="Camions Propre uniquement — KM et consommation réelle calculés à partir des Bons Gasoil existants">
 
       <div className="flex justify-end mb-3 text-xs text-gray-400">
         <Link href="/gasoil" className="text-brand-600 font-semibold hover:underline">← Gasoil (pleins)</Link>
@@ -281,7 +211,8 @@ export default function CarburantCycles() {
 
       <PeriodSelector value={period} onChange={setPeriod} />
 
-      {/* ── FLEET SUMMARY (Camions Propre only) ── */}
+      {/* ── FLEET SUMMARY (Camions Propre only, weighted — never an average
+          of individual L/100km values) ── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="stat-card border border-slate-100">
           <div className="stat-label">Camions propres</div>
@@ -290,42 +221,40 @@ export default function CarburantCycles() {
         </div>
         <div className="stat-card border border-blue-100 bg-blue-50">
           <div className="stat-label text-blue-600">Total KM</div>
-          <div className="stat-value text-blue-700">{fmt(fleetSummary.totalKm)}</div>
+          <div className="stat-value text-blue-700">{fmt(fleetSummary.distanceTotal)}</div>
           <div className="stat-sub">Période sélectionnée</div>
         </div>
         <div className="stat-card border border-cyan-100 bg-cyan-50">
           <div className="stat-label text-cyan-600">Total litres</div>
-          <div className="stat-value text-cyan-700">{fmt(fleetSummary.totalLitres)} L</div>
-          <div className="stat-sub">Voyages mesurés</div>
+          <div className="stat-value text-cyan-700">{fmt(fleetSummary.litresTotal)} L</div>
+          <div className="stat-sub">Bons mesurés</div>
         </div>
         <div className="stat-card border border-purple-100 bg-purple-50">
-          <div className="stat-label text-purple-600">L/100km moyen</div>
-          <div className="stat-value text-purple-700">{fleetSummary.avgL100km !== null ? fleetSummary.avgL100km.toFixed(1) : '—'}</div>
-          <div className="stat-sub">Pondéré par distance</div>
+          <div className="stat-label text-purple-600">Consommation totale</div>
+          <div className="stat-value text-purple-700">{fleetSummary.consoL100 !== null ? fleetSummary.consoL100.toFixed(1) : '—'}</div>
+          <div className="stat-sub">L/100km — Σlitres ÷ Σkm</div>
         </div>
         <div className="stat-card border border-orange-100 bg-orange-50">
           <div className="stat-label text-orange-600">Coût carburant</div>
-          <div className="stat-value text-orange-700">{fmtMoney(fleetSummary.totalCost)}</div>
-          <div className="stat-sub">DHS</div>
+          <div className="stat-value text-orange-700">{fmtMoney(fleetSummary.coutTotal)}</div>
+          <div className="stat-sub">{fleetSummary.coutKm !== null ? `${fmtMoney(fleetSummary.coutKm)} DH/km` : 'DHS'}</div>
         </div>
       </div>
 
-      {/* ── TRUCK CARDS ── */}
+      {/* ── TRUCK CARDS — one row per Gasoil Bon ── */}
       {loading ? (
         <div className="card text-center text-gray-400 py-10">Chargement...</div>
       ) : truckPeriodData.length === 0 ? (
         <div className="card text-center text-gray-400 py-10">Aucun camion propre enregistré</div>
       ) : (
         <div className="space-y-4 mb-8">
-          {truckPeriodData.map(({ camion, rows, kpis }) => (
+          {truckPeriodData.map(({ camion, currentKm, summary }) => (
             <TruckControlCard
               key={camion.id}
               camion={camion}
-              currentKmRow={currentKmRowByCamion.get(camion.id) || null}
-              lastFuelDate={lastFuelDateByCamion.get(camion.id) || null}
-              kpis={kpis}
-              voyageRows={rows}
-              onEditKm={setEditingKmRow}
+              currentKm={currentKm}
+              summary={summary}
+              onEditKm={row => setFixingGasoilId(row.id)}
             />
           ))}
         </div>
@@ -480,16 +409,6 @@ export default function CarburantCycles() {
           gasoilRow={gasoilRowById[fixingGasoilId]}
           camions={propreCamions}
           onClose={() => setFixingGasoilId(null)}
-          onSaved={loadAll}
-        />
-      )}
-
-      {editingKmRow && (
-        <KmEditPopover
-          voyage={editingKmRow}
-          mode="depart"
-          camionRawVoyages={voyagesPropre.filter(v => v.camion_id === editingKmRow.camionId)}
-          onClose={() => setEditingKmRow(null)}
           onSaved={loadAll}
         />
       )}
