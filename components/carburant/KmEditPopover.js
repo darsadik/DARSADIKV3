@@ -20,7 +20,24 @@ export default function KmEditPopover({ voyage, mode, camionRawVoyages, onClose,
 
   const suggested = !isArrival ? suggestPreviousKm(camionRawVoyages, voyage.voyageId) : null
 
+  // Basic sanity checks — saveStartKm/updateKm accept any parseFloat result
+  // with no validation at all today, so this is the only guard in the app
+  // against an obviously wrong KM (typo, negative, going backwards).
+  function validate(parsed) {
+    if (!Number.isFinite(parsed) || parsed <= 0) return 'Entrez une KM valide (nombre positif).'
+    if (!isArrival && suggested !== null && parsed < suggested) {
+      return `La KM ne peut pas être inférieure à la dernière valeur connue (${fmt(suggested)} km).`
+    }
+    if (isArrival && voyage.kmDepart !== null && voyage.kmDepart !== undefined && parsed < voyage.kmDepart) {
+      return `La KM d'arrivée ne peut pas être inférieure à la KM de départ de ce voyage (${fmt(voyage.kmDepart)} km).`
+    }
+    return null
+  }
+
   async function save() {
+    const parsed = parseFloat(value)
+    const validationError = validate(parsed)
+    if (validationError) { setError(validationError); return }
     setSaving(true); setError('')
     try {
       await saveStartKm(targetVoyageId, voyage.camionId, value)
