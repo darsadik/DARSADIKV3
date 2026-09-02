@@ -77,6 +77,37 @@ function Tile({ label, value, tone }) {
   )
 }
 
+// Client + destination, compact ("Client ABC → Oujda") — mandatory on every
+// voyage card so the reference alone is never the only identifying info
+// (spec: Date → Client → Destination → KM → Liters → L/100km must all read
+// at a glance). clientNames/destination are read straight off the voyage
+// row (voyageKmFuel.js/the page's clientNamesByVoyageId lookup) — no new
+// query, no second data source.
+function ClientDestinationLine({ e }) {
+  const client = (e.clientNames && e.clientNames.length) ? e.clientNames.join(', ') : 'Client non renseigné'
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap text-sm font-bold mt-0.5">
+      <span className={e.clientNames?.length ? 'text-slate-800' : 'text-slate-400 italic font-semibold'}>{client}</span>
+      <span className="text-slate-300">→</span>
+      <span className={e.destination ? 'text-slate-600 font-semibold' : 'text-slate-400 italic font-semibold'}>{e.destination || 'Destination non renseignée'}</span>
+    </div>
+  )
+}
+
+// Same L/100km read as TruckControlCard.js's VoyageL100Km (/carburant) —
+// litersLinked/distance from the same corrected allocation engine, never a
+// second formula.
+function VoyageL100Km({ e }) {
+  if (e.litersLinked !== null && e.litersLinked > 0 && e.distance > 0) {
+    return <>{(e.litersLinked / e.distance * 100).toFixed(1)}</>
+  }
+  if (e.status === 'pending_measurement') {
+    const meta = TIMELINE_STATUS.pending_measurement
+    return <span className="text-amber-600 text-xs font-semibold">{meta.emoji} {meta.label}</span>
+  }
+  return <>—</>
+}
+
 function VoyageBlock({ e, onFixVoyage, onEditKm }) {
   const meta = TIMELINE_STATUS[e.status]
   return (
@@ -86,7 +117,8 @@ function VoyageBlock({ e, onFixVoyage, onEditKm }) {
           <span className="text-2xl">🚚</span>
           <div>
             <Link href={`/voyages/${e.voyageId}`} className="text-lg font-black text-brand-700 hover:underline leading-tight">{e.reference}</Link>
-            <div className="text-xs font-semibold text-slate-500">{e.plaque} <span className="text-slate-300">·</span> {e.chauffeur}</div>
+            <ClientDestinationLine e={e} />
+            <div className="text-xs font-semibold text-slate-500 mt-0.5">{e.plaque} <span className="text-slate-300">·</span> {e.chauffeur}</div>
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -98,9 +130,11 @@ function VoyageBlock({ e, onFixVoyage, onEditKm }) {
       <KmHero startLabel="KM Départ" startValue={e.kmDepart} endLabel="KM Arrivée" endValue={e.kmArrivee} />
       <ChainBreadcrumb e={e} />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-100">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-3 border-t border-slate-100">
         <Tile label="Distance" value={e.distance !== null ? `${fmt(e.distance)} km` : '—'}
           tone={e.distance < 0 ? 'text-red-600' : e.distance === 0 ? 'text-amber-600' : undefined} />
+        <Tile label="Litres" value={e.litersLinked !== null && e.litersLinked > 0 ? `${fmtD(e.litersLinked)} L` : '—'} />
+        <Tile label="L/100km" value={<VoyageL100Km e={e} />} />
         <Tile label="Carburant assigné" value={e.fuelCost ? `${fmtMoney(e.fuelCost)} DHS` : '—'} tone="text-amber-700" />
         <Tile label="Coût / KM" value={e.costPerKm !== null ? `${fmtMoney(e.costPerKm)} DHS` : '—'} />
         <Tile label="Source" value={<span className="text-xs font-semibold text-slate-500">{e.fuelSourceLabel}{e.fillLabel ? ` · ${e.fillLabel}` : ''}</span>} />

@@ -101,8 +101,10 @@ export default function VoyageKmCarburant() {
 
   const activeVoyages = useMemo(() => voyages.filter(v => !v.deleted_at), [voyages])
 
-  // Used only by the "Contrôle Allocation" tab (AllocationControlCenter) —
-  // dedup, preserve insertion order.
+  // Client name per voyage — dedup, preserve insertion order. Feeds both the
+  // "Contrôle Allocation" tab (AllocationControlCenter) and, via voyageRows
+  // below, every voyage card in the Chronologie tab (spec: client name +
+  // destination are mandatory on every voyage row, never just the reference).
   const clientNamesByVoyageId = useMemo(() => {
     const map = new Map()
     livraisons.forEach(l => {
@@ -113,9 +115,14 @@ export default function VoyageKmCarburant() {
     return map
   }, [livraisons])
 
+  // destination already comes straight off the voyage row inside
+  // buildVoyageKmFuelTimeline (voyageKmFuel.js) — clientNames is the only
+  // field attached here, reusing the same lookup as the Allocation tab
+  // rather than a second query.
   const voyageRows = useMemo(() => buildVoyageKmFuelTimeline({
     voyages, camions, gasoil, voyageGasoilRows, remiseRate,
-  }), [voyages, camions, gasoil, voyageGasoilRows, remiseRate])
+  }).map(r => ({ ...r, clientNames: clientNamesByVoyageId.get(r.voyageId) || [] })),
+    [voyages, camions, gasoil, voyageGasoilRows, remiseRate, clientNamesByVoyageId])
 
   const dashboard = useMemo(() => buildTimelineDashboard(voyageRows), [voyageRows])
 
