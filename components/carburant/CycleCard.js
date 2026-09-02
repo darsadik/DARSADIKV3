@@ -79,12 +79,12 @@ export default function CycleCard({ cycle, onMergeChoice, onAnalyze, thresholdPc
         <Stat label="Distance" value={cycle.distance !== null ? `${fmt(cycle.distance)} km` : 'en attente'} tone="bg-blue-50" />
         <Stat label="Voyages" value={cycle.nbVoyages} />
         <Stat label="Pleins" value={cycle.pleins.length} />
-        <Stat label="Litres" value={`${fmtD(cycle.litresGasoil)} L`} tone="bg-cyan-50" />
+        <Stat label="Litres" value={cycle.measured ? `${fmtD(cycle.litresGasoil)} L` : 'En attente du prochain plein'} tone="bg-cyan-50" />
       </div>
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2 text-center">
-        <Stat label="Coût carburant" value={`${fmtMoney(cycle.coutTotal)} DHS`} tone="bg-red-50" />
-        <Stat label="Consommation" value={cycle.consoL100 !== null ? `${cycle.consoL100.toFixed(1)} L/100` : '—'} tone="bg-purple-50" />
-        <Stat label="Coût/km" value={cycle.coutKm !== null ? `${fmtMoney(cycle.coutKm)} DHS` : '—'} tone="bg-amber-50" />
+        <Stat label="Coût carburant" value={cycle.measured ? `${fmtMoney(cycle.coutTotal)} DHS` : 'En attente du prochain plein'} tone="bg-red-50" />
+        <Stat label="Consommation" value={cycle.measured && cycle.consoL100 !== null ? `${cycle.consoL100.toFixed(1)} L/100` : 'En attente du prochain plein'} tone="bg-purple-50" />
+        <Stat label="Coût/km" value={cycle.measured && cycle.coutKm !== null ? `${fmtMoney(cycle.coutKm)} DHS` : 'En attente du prochain plein'} tone="bg-amber-50" />
         <Stat label="KM ouverture" value={fmt(cycle.kmDebut)} />
         <Stat label="KM fermeture" value={isOpen ? (cycle.kmActuel !== null ? fmt(cycle.kmActuel) : '—') : fmt(cycle.kmFin)} />
         <Stat label="Durée" value={cycle.dateFin ? `${Math.round((new Date(cycle.dateFin) - new Date(cycle.dateDebut)) / 86400000)} j` : '—'} sub="secondaire" />

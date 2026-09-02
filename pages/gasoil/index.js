@@ -7,6 +7,7 @@ import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards
 import { DEFAULT_REMISE_CARBURANT_RATE, buildFuelMapsByCamion } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate, DEFAULT_FUEL_OPENING_BALANCE, fetchFuelOpeningBalance } from '../../lib/services/settings'
 import { previewCycleForNewPlein } from '../../lib/services/fuelCycles'
+import { aggregateDailyRefuels } from '../../lib/services/fuelPeriods'
 import { buildAllocationCards, buildAllocationStats } from '../../lib/services/voyage/fuelAllocationCenter'
 import AllocationAlertBanner from '../../components/carburant/AllocationAlertBanner'
 import Link from 'next/link'
@@ -429,26 +430,32 @@ export default function Gasoil() {
   })()
 
   // ── FUEL CYCLES: cost per km between consecutive refills ─────────────────────
+  // REFUEL → VOYAGES → NEXT REFUEL (lib/services/fuelPeriods.js): the
+  // cost/litres of a cycle come from the plein that CLOSES it (g2), never the
+  // one that opens it (g1) — a refill measures what was already consumed, it
+  // never funds what comes after it. No full-tank requirement: a partial
+  // top-up is just as valid a boundary. Multiple refills of the same truck on
+  // the same date are aggregated into one event first (aggregateDailyRefuels)
+  // — never split into separate cycles.
   const fuelCycles = (() => {
     const cycles = []
     const byCam = {}
-    gasoil
-      .filter(g => g.km)
-      .sort((a, b) => (a.camion_id - b.camion_id) || parseFloat(a.km) - parseFloat(b.km))
-      .forEach(g => {
-        if (!byCam[g.camion_id]) byCam[g.camion_id] = []
-        byCam[g.camion_id].push(g)
-      })
+    gasoil.forEach(g => {
+      if (!g.camion_id) return
+      if (!byCam[g.camion_id]) byCam[g.camion_id] = []
+      byCam[g.camion_id].push(g)
+    })
 
-    Object.entries(byCam).forEach(([camionId, refills]) => {
+    Object.entries(byCam).forEach(([camionId, rawRows]) => {
+      const refills = aggregateDailyRefuels(rawRows)
       for (let i = 0; i < refills.length - 1; i++) {
         const g1 = refills[i], g2 = refills[i + 1]
-        const kmStart   = parseFloat(g1.km)
-        const kmEnd     = parseFloat(g2.km)
+        const kmStart   = g1.km
+        const kmEnd     = g2.km
         const cycleKm   = kmEnd - kmStart
         if (cycleKm <= 0) continue
-        const dieselCost = g1.total || 0
-        const adblueCost = g1.adblue_total || 0
+        const dieselCost = g2.total || 0
+        const adblueCost = g2.adblue_total || 0
         const fuelCost  = dieselCost + adblueCost
         const costPerKm = fuelCost / cycleKm
         const cycleVoyages = voyages.filter(v =>

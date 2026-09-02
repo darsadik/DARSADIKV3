@@ -3,8 +3,7 @@ import { useRouter } from 'next/router'
 import { fmt, fmtDate, fmtMoney } from '../../lib/utils'
 import { detectAnomalies } from '../../lib/services/review/anomalies'
 import { computeVoyageValidation, voyageValidationStatus } from '../../lib/services/voyage/validation'
-import { buildFuelCycles, historicalAverages, statusForCycle } from '../../lib/camionPerformance'
-import { buildFuelCycles as buildNewFuelCycles, detectAlerts as detectNewFuelAlerts } from '../../lib/services/fuelCycles'
+import { buildFuelCycles, detectAlerts as detectFuelAlerts } from '../../lib/services/fuelCycles'
 import Section from './Section'
 
 // Presentation-only thresholds — not accounting rules. Mirrors the 100 000 DHS
@@ -69,22 +68,15 @@ export default function OperationalAlerts({
   const missingOdometer = byType('missing_odometer')
   const exceedsPurchase = perVoyage.filter(r => r.validationStatus === 'error')
 
-  const fuelIssues = useMemo(() => {
-    const cycles = buildFuelCycles(allGasoil)
-    const hist = historicalAverages(cycles)
-    const inRange = cycles.filter(c => c.dateFin >= rangeFrom && c.dateFin <= rangeTo)
-    return inRange
-      .map(c => ({ cycle: c, status: statusForCycle(c, hist, FUEL_ANOMALY_THRESHOLD_PCT) }))
-      .filter(c => c.status === 'anormale')
-  }, [allGasoil, rangeFrom, rangeTo])
-
-  // ── Cycles Carburant alerts (§9) — additive, from lib/services/fuelCycles.js.
-  // Distinct from `fuelIssues` above (which only flags anomalous cost/consumption
-  // vs. history): this adds KM-coherence, missing-data, and stale-cycle checks
-  // that the older camionPerformance-based detector doesn't cover.
-  const newFuelAlerts = useMemo(() => {
-    const byCamion = buildNewFuelCycles({ gasoil: allGasoil, voyages: voyages || [], camions })
-    return detectNewFuelAlerts({ byCamion, thresholdPct: FUEL_ANOMALY_THRESHOLD_PCT }).filter(a => a.severity !== 'info')
+  // ── Cycles Carburant alerts (§9/§12) — the ONE fuel-cycle anomaly source
+  // (lib/services/fuelCycles.js), real-refueling-period-based. Covers
+  // anomalous cost/consumption vs. history plus KM-coherence, missing-data,
+  // and stale-cycle checks — previously duplicated by a second, disagreeing
+  // camionPerformance-based detector, removed so there is a single
+  // authoritative signal (per the fuel-consumption-model refactor).
+  const fuelAlerts = useMemo(() => {
+    const byCamion = buildFuelCycles({ gasoil: allGasoil, voyages: voyages || [], camions })
+    return detectFuelAlerts({ byCamion, thresholdPct: FUEL_ANOMALY_THRESHOLD_PCT }).filter(a => a.severity !== 'info')
   }, [allGasoil, voyages, camions])
 
   const unpaidSuppliers = useMemo(() => (
@@ -105,8 +97,8 @@ export default function OperationalAlerts({
   }
 
   const totalAlerts = missingFuel.length + noAchats.length + noLivraisons.length + negativeProfit.length
-    + missingOdometer.length + exceedsPurchase.length + fuelIssues.length + unpaidSuppliers.length + overLimitClients.length
-    + newFuelAlerts.length
+    + missingOdometer.length + exceedsPurchase.length + unpaidSuppliers.length + overLimitClients.length
+    + fuelAlerts.length
 
   return (
     <Section
@@ -131,20 +123,11 @@ export default function OperationalAlerts({
             onClick={() => openVoyageDrill('🚚 Livraison manquante', noLivraisons)} />
           <AlertCard icon="🔢" label="Odomètre manquant" count={missingOdometer.length} tone="amber"
             onClick={() => openVoyageDrill('🔢 Odomètre manquant', missingOdometer)} />
-          <AlertCard icon="📈" label="Cycle carburant anormal" count={fuelIssues.length} tone="amber"
-            sub={`Seuil ${FUEL_ANOMALY_THRESHOLD_PCT}%`}
-            onClick={() => setDrill({
-              title: '📈 Cycle carburant anormal',
-              items: fuelIssues.map(({ cycle }) => ({
-                label: `${camions.find(c => c.id === cycle.camionId)?.plaque || cycle.camionPlaque || '—'} — ${fmtDate(cycle.dateDebut)} → ${fmtDate(cycle.dateFin)}`,
-                onClick: () => router.push('/camions'),
-              })),
-            })} />
-          <AlertCard icon="🧭" label="Cycles carburant" count={newFuelAlerts.length} tone={newFuelAlerts.some(a => a.severity === 'error') ? 'red' : 'amber'}
-            sub="KM, cycles, données manquantes"
+          <AlertCard icon="🧭" label="Cycles carburant" count={fuelAlerts.length} tone={fuelAlerts.some(a => a.severity === 'error') ? 'red' : 'amber'}
+            sub="Consommation, KM, données manquantes"
             onClick={() => setDrill({
               title: '🧭 Cycles carburant',
-              items: newFuelAlerts.map(a => ({ label: a.message, onClick: () => router.push('/carburant') })),
+              items: fuelAlerts.map(a => ({ label: a.message, onClick: () => router.push('/carburant') })),
             })} />
           <AlertCard icon="🏭" label="Fournisseur impayé" count={unpaidSuppliers.length} tone="amber"
             sub={`≥ ${fmtMoney(SUPPLIER_UNPAID_THRESHOLD)} DHS`}

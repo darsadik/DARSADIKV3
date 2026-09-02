@@ -118,6 +118,25 @@ Revenue formula on `voyage_livraisons`:
 REVENU LIVRAISON = total_vente + frais_total   (frais_total may be negative when deductions outweigh charges)
 ```
 
+## Fuel consumption model (real refueling-based)
+
+Single authoritative model — **REFUEL → VOYAGES → NEXT REFUEL** — implemented in `lib/services/fuelPeriods.js` (the shared "what counts as a refuel boundary" predicate: `isRefuelRow`/`aggregateDailyRefuels`) and consumed by three places that used to each implement their own, disagreeing direction:
+
+- `lib/services/fuelAllocation.js` — per-voyage fuel **cost** (money engine). A refuel's own total is distributed, distance-proportionally, across the voyages that happened *since the previous refuel* — never voyages that come after it. A refuel measures what was already burned, it is never treated as funding what comes next. Feeds `profitability.js`, Rentabilité, Review, dashboards — no separate money formula anywhere else.
+- `lib/services/fuelCycles.js` — per-truck **measured consumption**, the Truck Control Center at `/carburant`: a closed cycle's litres/coût/L-per-100km come from the refuel that *closes* it, never the one that opens it.
+- `lib/camionPerformance.js` — the same rule, lightweight version feeding `/camions`.
+
+**There is no full-tank requirement.** Any diesel purchase with a KM reading can open/close a period — a partial top-up is just as valid a boundary as a full one, it only needs a KM reading (`fuelPeriods.js:isRefuelRow`).
+
+**Same-date refuels for the same truck are always ONE fuel event** (`fuelPeriods.js:aggregateDailyRefuels`) — mandatory, never a user choice: 100L + 50L entered as two separate `gasoil` rows on the same date sum to 150L for every period/consumption/allocation calculation, exactly as if it had been entered as one row. The individual rows are preserved as-is in the database for accounting/audit purposes (supplier ledger, `/gasoil`'s own list); only the consumption/allocation engines aggregate them. A manual link (`voyage_gasoil`) to any one of the aggregated rows resolves to the whole aggregate's total, not just that row's own slice (see `fuelAllocation.js`'s `eventIdForRow`).
+
+**Open vs. closed periods:**
+- *Closed* — a refuel event exists both before and after: real consumption = the closing event's own (aggregated) litres/cost; distance = the km gap between the two events. Cent-exact: `distributeFuelPurchase` (`fuelAllocation.js`) guarantees Σ(voyage allocations) = the closing event's total, no rounding loss.
+- *Open* — only the most recent refuel event exists: voyages since it and distance-so-far are known, but real consumption is **never fabricated**. Automatic-mode voyages here get fuel cost = 0/pending (`voyageKmFuel.js`'s `pending_measurement` status, "⏳ En attente du prochain plein") until a later refuel closes the period — cost/profit for that period's voyages then recompute automatically on the next read, since nothing here is persisted; everything is derived live from `gasoil`/`voyages`.
+- A truck's very first refuel event closes nothing (no prior boundary to measure from) — it's a reference starting point only.
+
+**Manual overrides stay independent of the period model, on purpose**: `voyage_gasoil` links, `fuel_mode = 'manual_km'` / `'manual_fixed'` (an approximate distance or a fixed DHS slice charged against a manually-chosen plein), and `'manual_rate'` / `'manual_amount'` (fully independent, never touch the allocation engine) all keep working exactly as before, regardless of whether the purchase they reference has closed a period yet — a dispatcher's manual correction is never blocked by the measurement model.
+
 ## Profit formula per voyage
 
 ```

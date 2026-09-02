@@ -173,7 +173,11 @@ export default function PurchaseAllocationCard({ card, onAssign, onMoveVoyage, o
           ) : card.voyageAllocations.length === 0 ? (
             <div className="text-center py-6 text-sm text-slate-400">
               Aucun voyage associé pour l'instant.
-              {card.isOpenBracket && <div className="text-xs mt-1">En attente du prochain voyage.</div>}
+              {card.isFirstBoundary ? (
+                <div className="text-xs mt-1">Premier plein enregistré pour ce camion — point de départ, rien à mesurer encore.</div>
+              ) : card.isOpenBracket && (
+                <div className="text-xs mt-1">Aucun voyage dans la période couverte par ce plein.</div>
+              )}
             </div>
           ) : (
             <div>
