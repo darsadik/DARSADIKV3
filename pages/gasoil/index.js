@@ -69,7 +69,6 @@ export default function Gasoil() {
   const [savingPai, setSavingPai] = useState(false)
   const [showPaiForm, setShowPaiForm] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [filterCamion, setFilterCamion] = useState('')
@@ -136,36 +135,29 @@ export default function Gasoil() {
 
   async function loadAll() {
     setLoading(true)
-    setLoadError(null)
-    try {
-      const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }, { data: vgl }, { data: gf }] = await Promise.all([
-        supabase.from('camions').select('*').order('plaque'),
-        // ✅ date ASC — oldest to newest
-        supabase.from('gasoil').select('*').order('date', { ascending: true }),
-        supabase.from('gasoil_paiements').select('*').order('date', { ascending: true }),
-        // fuel_mode/manual_*/deleted_at added: needed by the allocation engine
-        // (lib/services/fuelAllocation.js, via buildFuelMapsByCamion below) to
-        // resolve automatic brackets and manual overrides for this truck.
-        supabase.from('voyages').select('id,reference,date_depart,camion_id,camion_plaque,destination,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at').order('date_depart', { ascending: true }),
-        // Pure (gasoil_id, voyage_id) membership rows for the engine — never its
-        // own `total` column (see lib/services/voyage/gasoilLink.js: that column
-        // is always 0 for links created under this engine, and is no longer a
-        // valid source for "how much fuel this voyage actually consumed").
-        supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
-        supabase.from('gasoil_fournisseurs').select('*').order('nom'),
-      ])
-      setCamions(ca || [])
-      setGasoil(ga || [])
-      setGasoilPaiements(gp || [])
-      setVoyages(vg || [])
-      setVoyageGasoilLinks(vgl || [])
-      setGasoilFournisseurs(gf || [])
-    } catch (err) {
-      console.error('Gasoil loadAll:', err)
-      setLoadError(err.message || 'Erreur de chargement des données.')
-    } finally {
-      setLoading(false)
-    }
+    const [{ data: ca }, { data: ga }, { data: gp }, { data: vg }, { data: vgl }, { data: gf }] = await Promise.all([
+      supabase.from('camions').select('*').order('plaque'),
+      // ✅ date ASC — oldest to newest
+      supabase.from('gasoil').select('*').order('date', { ascending: true }),
+      supabase.from('gasoil_paiements').select('*').order('date', { ascending: true }),
+      // fuel_mode/manual_*/deleted_at added: needed by the allocation engine
+      // (lib/services/fuelAllocation.js, via buildFuelMapsByCamion below) to
+      // resolve automatic brackets and manual overrides for this truck.
+      supabase.from('voyages').select('id,reference,date_depart,camion_id,camion_plaque,destination,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at').order('date_depart', { ascending: true }),
+      // Pure (gasoil_id, voyage_id) membership rows for the engine — never its
+      // own `total` column (see lib/services/voyage/gasoilLink.js: that column
+      // is always 0 for links created under this engine, and is no longer a
+      // valid source for "how much fuel this voyage actually consumed").
+      supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
+      supabase.from('gasoil_fournisseurs').select('*').order('nom'),
+    ])
+    setCamions(ca || [])
+    setGasoil(ga || [])
+    setGasoilPaiements(gp || [])
+    setVoyages(vg || [])
+    setVoyageGasoilLinks(vgl || [])
+    setGasoilFournisseurs(gf || [])
+    setLoading(false)
   }
 
   async function saveGasoil(e) {
@@ -723,13 +715,6 @@ ${printFooter(printDate)}
 
   return (
     <Layout title="Gasoil" subtitle="Suivi de consommation et coûts carburant">
-
-      {loadError && (
-        <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
-          <span>⚠ Erreur de chargement : {loadError}</span>
-          <button onClick={loadAll} className="font-semibold underline flex-shrink-0">Réessayer</button>
-        </div>
-      )}
 
       <AllocationAlertBanner stats={allocationStats} />
 

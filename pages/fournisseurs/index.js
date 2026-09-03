@@ -25,7 +25,6 @@ export default function FournisseursBriques() {
   const [voyageLivraisons, setVoyageLivraisons] = useState([])
   const [voyagesById,      setVoyagesById]      = useState({})
   const [loading,      setLoading]      = useState(true)
-  const [loadError,    setLoadError]    = useState(null)
   const [loadingDetail,setLoadingDetail]= useState(false)
   const [search,       setSearch]       = useState('')
   const [filterFrom,   setFilterFrom]   = useState(startOfMonth())
@@ -49,16 +48,9 @@ export default function FournisseursBriques() {
 
   async function loadFournisseurs() {
     setLoading(true)
-    setLoadError(null)
-    try {
-      const { data } = await supabase.from('fournisseurs').select('*').order('solde', { ascending: false })
-      setFournisseurs(data || [])
-    } catch (err) {
-      console.error('Fournisseurs loadFournisseurs:', err)
-      setLoadError(err.message || 'Erreur de chargement des données.')
-    } finally {
-      setLoading(false)
-    }
+    const { data } = await supabase.from('fournisseurs').select('*').order('solde', { ascending: false })
+    setFournisseurs(data || [])
+    setLoading(false)
   }
 
   async function selectFournisseur(f) {
@@ -267,12 +259,6 @@ ${printFooter(printDate)}
 
   return (
     <Layout title="Fournisseurs Briques" subtitle="Achats et paiements fournisseurs briques">
-      {loadError && (
-        <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
-          <span>⚠ Erreur de chargement : {loadError}</span>
-          <button onClick={loadFournisseurs} className="font-semibold underline flex-shrink-0">Réessayer</button>
-        </div>
-      )}
       <EditTransactionModal
         editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
         onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}

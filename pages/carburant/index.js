@@ -81,7 +81,6 @@ export default function CarburantCycles() {
   const [gasoil, setGasoil] = useState([])
   const [voyages, setVoyages] = useState([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(null)
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [analyzing, setAnalyzing] = useState(null) // { cycle, camionPlaque }
   const [fixingVoyageId, setFixingVoyageId] = useState(null)
@@ -93,24 +92,17 @@ export default function CarburantCycles() {
 
   async function loadAll() {
     setLoading(true)
-    setLoadError(null)
-    try {
-      const [{ data: ca }, { data: ga }, { data: vo }] = await Promise.all([
-        supabase.from('camions').select('*').order('plaque'),
-        supabase.from('gasoil').select('*').order('date', { ascending: true }),
-        supabase.from('voyages')
-          .select('id,reference,date_depart,camion_id,camion_plaque,destination,statut,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
-          .order('date_depart', { ascending: true }),
-      ])
-      setCamions(ca || [])
-      setGasoil(ga || [])
-      setVoyages(vo || [])
-    } catch (err) {
-      console.error('Carburant loadAll:', err)
-      setLoadError(err.message || 'Erreur de chargement des données.')
-    } finally {
-      setLoading(false)
-    }
+    const [{ data: ca }, { data: ga }, { data: vo }] = await Promise.all([
+      supabase.from('camions').select('*').order('plaque'),
+      supabase.from('gasoil').select('*').order('date', { ascending: true }),
+      supabase.from('voyages')
+        .select('id,reference,date_depart,camion_id,camion_plaque,destination,statut,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
+        .order('date_depart', { ascending: true }),
+    ])
+    setCamions(ca || [])
+    setGasoil(ga || [])
+    setVoyages(vo || [])
+    setLoading(false)
   }
 
   // ── /carburant is Camions Propre only — loué trucks are excluded BEFORE
@@ -208,13 +200,6 @@ export default function CarburantCycles() {
 
   return (
     <Layout title="Contrôle KM & Carburant" subtitle="Camions Propre uniquement — KM et consommation réelle calculés à partir des Bons Gasoil existants">
-
-      {loadError && (
-        <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
-          <span>⚠ Erreur de chargement : {loadError}</span>
-          <button onClick={loadAll} className="font-semibold underline flex-shrink-0">Réessayer</button>
-        </div>
-      )}
 
       <div className="flex justify-end mb-3 text-xs text-gray-400">
         <Link href="/gasoil" className="text-brand-600 font-semibold hover:underline">← Gasoil (pleins)</Link>

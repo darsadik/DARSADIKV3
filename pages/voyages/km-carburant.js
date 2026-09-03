@@ -52,7 +52,6 @@ export default function VoyageKmCarburant() {
   const [livraisons, setLivraisons] = useState([])
   const [remiseRate, setRemiseRate] = useState(DEFAULT_REMISE_CARBURANT_RATE)
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(null)
 
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
 
@@ -67,46 +66,37 @@ export default function VoyageKmCarburant() {
 
   async function loadAll() {
     setLoading(true)
-    setLoadError(null)
-    try {
-      const [camionsRes, voyagesRes, gasoilRes, voyageGasoilRes, livraisonsRes] = await Promise.all([
-        supabase.from('camions').select('*').order('plaque'),
-        supabase.from('voyages')
-          .select('id,reference,date_depart,camion_id,camion_plaque,chauffeur,statut,destination,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
-          .order('date_depart', { ascending: true }),
-        // 'heure' was a product decision to drop entirely (trucks don't operate
-        // on an hourly schedule) — do not select it, it no longer exists on
-        // gasoil. Selecting a nonexistent column fails the WHOLE query (not
-        // just that field), which previously emptied the entire fuel timeline
-        // silently.
-        supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,adblue_qte,adblue_prix_unitaire,date,station'),
-        supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total,is_split'),
-        // Client name per voyage for the "Contrôle Allocation" tab's Allocation
-        // List (spec item 2) — client_nom is already denormalized on this
-        // table, so this is a read-only, additive lookup, unused by the
-        // Chronologie tab.
-        supabase.from('voyage_livraisons').select('voyage_id, client_nom'),
-      ])
-      // Surface query failures instead of silently rendering empty data —
-      // this is exactly the class of bug that made the Fuel tab look empty
-      // (a bad column name failed the query, and the failure went unnoticed
-      // because only `data` was read, never `error`).
-      const firstError = [camionsRes, voyagesRes, gasoilRes, voyageGasoilRes, livraisonsRes].find(res => res.error)
-      if (firstError) {
-        console.error('km-carburant loadAll:', firstError.error.message)
-        setLoadError(firstError.error.message)
-      }
-      setCamions(camionsRes.data || [])
-      setVoyages(voyagesRes.data || [])
-      setGasoil(gasoilRes.data || [])
-      setVoyageGasoilRows(voyageGasoilRes.data || [])
-      setLivraisons(livraisonsRes.data || [])
-    } catch (err) {
-      console.error('km-carburant loadAll:', err)
-      setLoadError(err.message || 'Erreur de chargement des données.')
-    } finally {
-      setLoading(false)
-    }
+    const [camionsRes, voyagesRes, gasoilRes, voyageGasoilRes, livraisonsRes] = await Promise.all([
+      supabase.from('camions').select('*').order('plaque'),
+      supabase.from('voyages')
+        .select('id,reference,date_depart,camion_id,camion_plaque,chauffeur,statut,destination,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at')
+        .order('date_depart', { ascending: true }),
+      // 'heure' was a product decision to drop entirely (trucks don't operate
+      // on an hourly schedule) — do not select it, it no longer exists on
+      // gasoil. Selecting a nonexistent column fails the WHOLE query (not
+      // just that field), which previously emptied the entire fuel timeline
+      // silently.
+      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,total,qte,prix_unitaire,adblue_total,adblue_qte,adblue_prix_unitaire,date,station'),
+      supabase.from('voyage_gasoil').select('id,voyage_id,gasoil_id,date_gasoil,qte_litres,prix_unitaire,total,is_split'),
+      // Client name per voyage for the "Contrôle Allocation" tab's Allocation
+      // List (spec item 2) — client_nom is already denormalized on this
+      // table, so this is a read-only, additive lookup, unused by the
+      // Chronologie tab.
+      supabase.from('voyage_livraisons').select('voyage_id, client_nom'),
+    ])
+    // Surface query failures instead of silently rendering empty data —
+    // this is exactly the class of bug that made the Fuel tab look empty
+    // (a bad column name failed the query, and the failure went unnoticed
+    // because only `data` was read, never `error`).
+    ;[camionsRes, voyagesRes, gasoilRes, voyageGasoilRes, livraisonsRes].forEach(res => {
+      if (res.error) console.error('km-carburant loadAll:', res.error.message)
+    })
+    setCamions(camionsRes.data || [])
+    setVoyages(voyagesRes.data || [])
+    setGasoil(gasoilRes.data || [])
+    setVoyageGasoilRows(voyageGasoilRes.data || [])
+    setLivraisons(livraisonsRes.data || [])
+    setLoading(false)
   }
 
   const activeVoyages = useMemo(() => voyages.filter(v => !v.deleted_at), [voyages])
@@ -211,13 +201,6 @@ export default function VoyageKmCarburant() {
 
   return (
     <Layout title="Truck Timeline & KM/Fuel Control Center" subtitle="Centre de contrôle unique par camion — voyages, pleins, KM, distance et carburant en une seule chronologie. Corrigez, assignez et vérifiez tout depuis cette page.">
-
-      {loadError && (
-        <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
-          <span>⚠ Erreur de chargement : {loadError}</span>
-          <button onClick={loadAll} className="font-semibold underline flex-shrink-0">Réessayer</button>
-        </div>
-      )}
 
       <div className="flex gap-2 bg-white border border-slate-200 rounded-xl p-1.5 mb-6 w-fit">
         <button onClick={() => setTab('timeline')}

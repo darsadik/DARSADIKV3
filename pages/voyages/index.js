@@ -213,7 +213,6 @@ export default function Voyages() {
 
   // ── UI ──
   const [loading,   setLoading]   = useState(true)
-  const [loadError, setLoadError] = useState(null)
   const [saving,    setSaving]    = useState(false)
   const [showForm,  setShowForm]  = useState(false)
   const [msg,       setMsg]       = useState('')
@@ -247,49 +246,42 @@ export default function Voyages() {
 
   async function loadAll() {
     setLoading(true)
-    setLoadError(null)
-    try {
-      const [
-        { data: v },
-        { data: ac },
-        { data: li },
-        { data: re },
-        { data: ga },
-        { data: ch },
-        { data: ca },
-        { data: cl },
-        { data: ag },
-        { data: loc },
-      ] = await Promise.all([
-        supabase.from('voyages').select('*').is('deleted_at', null).order('date_depart', { ascending: false }),
-        supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
-        supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,total_achat,frais_total,deductions_total'),
-        supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
-        supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
-        supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
-        supabase.from('camions').select('*').order('plaque'),
-        supabase.from('clients').select('id,nom').order('nom'),
-        // No km filter: a no-km purchase can still be manually linked, and must
-        // stay visible to lib/services/fuelAllocation.js.
-        supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').order('km', { ascending: true }),
-        supabase.from('voyage_locations').select('voyage_id,montant_location'),
-      ])
-      setVoyages(v || [])
-      setAchats(ac || [])
-      setLivraisons(li || [])
-      setRetours(re || [])
-      setGasoilData(ga || [])
-      setAllGasoil(ag || [])
-      setCharges(ch || [])
-      setCamions(ca || [])
-      setClients(cl || [])
-      setLocationsData(loc || [])
-    } catch (err) {
-      console.error('Voyages loadAll:', err)
-      setLoadError(err.message || 'Erreur de chargement des données.')
-    } finally {
-      setLoading(false)
-    }
+    const [
+      { data: v },
+      { data: ac },
+      { data: li },
+      { data: re },
+      { data: ga },
+      { data: ch },
+      { data: ca },
+      { data: cl },
+      { data: ag },
+      { data: loc },
+    ] = await Promise.all([
+      supabase.from('voyages').select('*').is('deleted_at', null).order('date_depart', { ascending: false }),
+      supabase.from('voyage_achats').select('voyage_id,type_produit,type_brique,total_achat,qte,prix_achat'),
+      supabase.from('voyage_livraisons').select('voyage_id,type_produit,type_brique,client_id,client_nom,qte,total_vente,total_achat,frais_total,deductions_total'),
+      supabase.from('voyage_retours').select('voyage_id,montant,montant_paye,restant'),
+      supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
+      supabase.from('voyage_charges').select('voyage_id,montant,facture_client,client_id,client_nom'),
+      supabase.from('camions').select('*').order('plaque'),
+      supabase.from('clients').select('id,nom').order('nom'),
+      // No km filter: a no-km purchase can still be manually linked, and must
+      // stay visible to lib/services/fuelAllocation.js.
+      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte').order('km', { ascending: true }),
+      supabase.from('voyage_locations').select('voyage_id,montant_location'),
+    ])
+    setVoyages(v || [])
+    setAchats(ac || [])
+    setLivraisons(li || [])
+    setRetours(re || [])
+    setGasoilData(ga || [])
+    setAllGasoil(ag || [])
+    setCharges(ch || [])
+    setCamions(ca || [])
+    setClients(cl || [])
+    setLocationsData(loc || [])
+    setLoading(false)
   }
 
   // ── PROFIT FORMULA (shared engine — lib/services/profitability.js) ─────────
@@ -768,13 +760,6 @@ export default function Voyages() {
             </button>
           ))}
         </div>
-
-        {loadError && (
-          <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl px-4 py-3 mb-3 flex items-center justify-between gap-3">
-            <span>⚠ Erreur de chargement : {loadError}</span>
-            <button onClick={loadAll} className="font-semibold underline flex-shrink-0">Réessayer</button>
-          </div>
-        )}
 
         {loading && (
           <div className="text-center py-16 text-slate-400 animate-pulse">Chargement des données...</div>
