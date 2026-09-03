@@ -23,10 +23,14 @@ BEGIN
     IF v.grignon_operation_id IS NOT NULL THEN
       DELETE FROM grignon_operations WHERE id = v.grignon_operation_id;
     ELSE
+      -- voyage_id-scoped: client_id+date+qte alone is not unique across
+      -- voyages (two voyages delivering the same qty to the same client on
+      -- the same date would otherwise both match and both get deleted).
       DELETE FROM grignon_operations
       WHERE client_id   = v.client_id
         AND date        = v.date_livraison
-        AND qte         = v.qte;
+        AND qte         = v.qte
+        AND voyage_id   = v.voyage_id;
     END IF;
 
     UPDATE grignon_clients
@@ -56,9 +60,100 @@ END;
 $$;
 
 
+-- 1b. Save a brique voyage livraison atomically (the primary path saveLiv's
+--     brique branch calls first, in lib/services/voyage/livraisons.js):
+--     inserts ventes + voyage_livraisons + frais rows, adjusts client solde.
+--     NOTE: this function existed live in Supabase but was never captured in
+--     this file. Documenting it here now, WITH a fix — the deployed version
+--     wrapped its voyage_livraisons total_achat/marge UPDATE in
+--     BEGIN ... EXCEPTION WHEN OTHERS THEN NULL; END, because that UPDATE
+--     also tried to set total_vente directly, which is a Postgres
+--     GENERATED ALWAYS AS (qte * prix_vente) STORED column — an illegal
+--     write that made the whole UPDATE statement fail every single time,
+--     silently swallowed by the exception handler. Net effect: total_achat
+--     and marge were NEVER actually persisted for any brique livraison
+--     saved through this function (measured live: 583 of 596 existing rows
+--     have total_achat=0/marge=0). Removing total_vente from the SET list
+--     lets the UPDATE succeed normally, so the exception wrapper is removed
+--     too — a genuine failure here should now surface, not vanish.
+CREATE OR REPLACE FUNCTION save_livraison_brique(
+  p_voyage_id BIGINT, p_date DATE, p_client_id BIGINT, p_client_nom TEXT,
+  p_camion_id BIGINT, p_camion_plaque TEXT, p_chauffeur TEXT,
+  p_type_brique_id BIGINT, p_type_brique TEXT,
+  p_qte NUMERIC, p_prix_vente NUMERIC, p_prix_achat NUMERIC, p_remise NUMERIC,
+  p_frais_total NUMERIC, p_accounting_total NUMERIC,
+  p_frais_note TEXT, p_note TEXT, p_frais JSONB,
+  p_deductions_total NUMERIC DEFAULT 0
+)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_vente_id BIGINT;
+  v_liv_id   BIGINT;
+BEGIN
+  INSERT INTO ventes (
+    date, date_fournisseur, client_id, client_nom,
+    camion_id, camion_plaque, chauffeur,
+    type_brique_id, type_brique, qte, prix_vente, prix_achat,
+    total_vente, voyage_id, note, frais_note
+  ) VALUES (
+    p_date, p_date, p_client_id, p_client_nom,
+    p_camion_id, p_camion_plaque, p_chauffeur,
+    p_type_brique_id, p_type_brique, p_qte, p_prix_vente, p_prix_achat,
+    p_accounting_total, p_voyage_id, p_note, p_frais_note
+  ) RETURNING id INTO v_vente_id;
+
+  INSERT INTO voyage_livraisons (
+    voyage_id, date_livraison, type_produit,
+    client_id, client_nom, type_brique,
+    qte, prix_vente, prix_achat, remise,
+    frais_total, deductions_total, note, vente_id
+  ) VALUES (
+    p_voyage_id, p_date, 'brique',
+    p_client_id, p_client_nom, p_type_brique,
+    p_qte, p_prix_vente, p_prix_achat, p_remise,
+    p_frais_total, p_deductions_total, p_note, v_vente_id
+  ) RETURNING id INTO v_liv_id;
+
+  -- total_vente omitted — GENERATED column, recomputes itself from qte/prix_vente above.
+  UPDATE voyage_livraisons
+  SET total_achat = (p_qte * p_prix_achat),
+      marge       = (p_qte * p_prix_vente - p_remise) - (p_qte * p_prix_achat)
+  WHERE id = v_liv_id;
+
+  IF p_frais IS NOT NULL AND jsonb_array_length(p_frais) > 0 THEN
+    INSERT INTO voyage_livraison_frais (livraison_id, label, montant, note, kind)
+    SELECT v_liv_id, f->>'label', (f->>'montant')::NUMERIC, NULLIF(f->>'note',''),
+           COALESCE(NULLIF(f->>'kind',''), 'charge')
+    FROM jsonb_array_elements(p_frais) f
+    WHERE (f->>'montant')::NUMERIC > 0;
+  END IF;
+
+  UPDATE clients SET solde = solde + p_accounting_total WHERE id = p_client_id;
+
+  RETURN jsonb_build_object('vente_id', v_vente_id, 'livraison_id', v_liv_id);
+END;
+$$;
+
+
 -- 2. Update a voyage livraison atomically:
 --    updates voyage_livraisons + linked ventes row
---    + adjusts client solde by the difference (new - old)
+--    Solde is intentionally NOT touched here (see fix note below) — the
+--    caller (updateLiv in lib/services/voyage/livraisons.js) is the single
+--    place that adjusts clients/grignon_clients.solde, unconditionally,
+--    using a diff that correctly includes frais/déductions.
+--
+-- FIX (2026-09): this function used to also apply diff := (p_qte*p_prix_vente
+-- - p_remise) - COALESCE(v.total_vente,0) to clients/grignon_clients.solde.
+-- updateLiv's JS ALSO unconditionally applied its own (more complete, frais-
+-- inclusive) diff to the same solde column right after calling this RPC —
+-- with no guard on whether the RPC had already done it. Every successful
+-- call therefore double-counted the solde adjustment on every livraison edit
+-- that changed the billed amount (both grignon_clients.solde AND
+-- clients.solde, since this RPC and updateLiv are shared by both business
+-- lines). Removing the solde update here — and updating total_achat/marge on
+-- voyage_livraisons directly instead of only inside the vente_id-guarded
+-- block, which is grignon's ONLY place they were previously set at all —
+-- makes updateLiv's own diff application the sole source of truth.
 CREATE OR REPLACE FUNCTION update_voyage_livraison(
   p_id          BIGINT,
   p_date        DATE,
@@ -74,21 +169,21 @@ CREATE OR REPLACE FUNCTION update_voyage_livraison(
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v   voyage_livraisons%ROWTYPE;
-  diff NUMERIC;
 BEGIN
   SELECT * INTO v FROM voyage_livraisons WHERE id = p_id;
   IF NOT FOUND THEN RETURN; END IF;
 
-  -- Compute new total_vente from formula (these columns are GENERATED in DB)
-  diff := (p_qte * p_prix_vente - p_remise) - COALESCE(v.total_vente, 0);
-
+  -- total_vente is NOT set here — GENERATED ALWAYS AS (qte * prix_vente)
+  -- STORED column; it recomputes itself from qte/prix_vente above.
   UPDATE voyage_livraisons SET
     date_livraison = p_date,
     qte            = p_qte,
     prix_vente     = p_prix_vente,
     prix_achat     = p_prix_achat,
     remise         = p_remise,
-    note           = p_note
+    note           = p_note,
+    total_achat    = p_total_achat,
+    marge          = p_marge
   WHERE id = p_id;
 
   IF v.vente_id IS NOT NULL THEN
@@ -100,14 +195,6 @@ BEGIN
       total_achat = p_total_achat,
       marge       = p_marge
     WHERE id = v.vente_id;
-  END IF;
-
-  IF diff <> 0 THEN
-    IF v.type_produit = 'grignon' THEN
-      UPDATE grignon_clients SET solde = solde + diff WHERE id = v.client_id;
-    ELSE
-      UPDATE clients SET solde = solde + diff WHERE id = v.client_id;
-    END IF;
   END IF;
 END;
 $$;
@@ -273,8 +360,9 @@ BEGIN
       IF liv.grignon_operation_id IS NOT NULL THEN
         DELETE FROM grignon_operations WHERE id = liv.grignon_operation_id;
       ELSE
+        -- voyage_id-scoped — same reasoning as delete_voyage_livraison above.
         DELETE FROM grignon_operations
-          WHERE client_id = liv.client_id AND date = liv.date_livraison AND qte = liv.qte;
+          WHERE client_id = liv.client_id AND date = liv.date_livraison AND qte = liv.qte AND voyage_id = liv.voyage_id;
       END IF;
       UPDATE grignon_clients SET solde = solde - COALESCE(liv.total_vente, 0) WHERE id = liv.client_id;
     ELSE
