@@ -333,24 +333,28 @@ ${printFooter(printDate)}
                     <button onClick={printFournisseur} className="btn-primary text-xs px-3 py-1.5" style={{background:'#15803d'}}>🖨️ PDF</button>
                   </div>
                 </div>
-                <div className={`grid gap-3 mt-4 ${(selected.opening_balance || 0) !== 0 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}>
-                  {(selected.opening_balance || 0) !== 0 && (
-                    <div className="text-center p-3 rounded-xl" style={{background:'#fffbeb',border:'1px solid #fde68a'}}>
-                      <div className="text-xs font-semibold" style={{color:'#92400e'}}>Solde d'ouverture</div>
-                      <div className="font-bold text-lg" style={{color:'#92400e'}}>{fmtMoney(selected.opening_balance||0)} DHS</div>
+                <div className="mt-4">
+                  {/* Final total — the one number that matters most, kept unmistakably prominent */}
+                  <div className="text-center p-4 rounded-2xl bg-red-50 border-2 border-red-100">
+                    <div className="text-xs font-bold uppercase tracking-wide text-red-500">Solde dû total</div>
+                    <div className="font-black text-3xl md:text-4xl text-red-700 mt-0.5">{fmtMoney(selected.solde||0)} DHS</div>
+                  </div>
+                  {/* Secondary detail — same figures as before, just visually subordinate to the total above */}
+                  <div className={`grid gap-2 mt-3 ${(selected.opening_balance || 0) !== 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    {(selected.opening_balance || 0) !== 0 && (
+                      <div className="text-center p-2 rounded-lg" style={{background:'#fffbeb',border:'1px solid #fde68a'}}>
+                        <div className="text-[10px] font-medium" style={{color:'#92400e'}}>Solde d'ouverture</div>
+                        <div className="font-semibold text-sm" style={{color:'#92400e'}}>{fmtMoney(selected.opening_balance||0)} DHS</div>
+                      </div>
+                    )}
+                    <div className="text-center p-2 rounded-lg bg-green-50 border border-green-100">
+                      <div className="text-[10px] text-green-600 font-medium">Achats période</div>
+                      <div className="font-semibold text-green-700 text-sm">{fmtMoney(totalAchats)} DHS</div>
                     </div>
-                  )}
-                  <div className="text-center p-3 rounded-xl bg-green-50 border border-green-100">
-                    <div className="text-xs text-green-600 font-semibold">Achats période</div>
-                    <div className="font-bold text-green-700 text-lg">{fmtMoney(totalAchats)} DHS</div>
-                  </div>
-                  <div className="text-center p-3 rounded-xl" style={{background:'#f0fdf4',border:'1px solid #bbf7d0'}}>
-                    <div className="text-xs text-green-600 font-semibold">Payé période</div>
-                    <div className="font-bold text-green-700 text-lg">{fmtMoney(totalPaiements)} DHS</div>
-                  </div>
-                  <div className="text-center p-3 rounded-xl bg-red-50 border border-red-100">
-                    <div className="text-xs text-red-600 font-semibold">Solde dû total</div>
-                    <div className="font-bold text-red-700 text-lg">{fmtMoney(selected.solde||0)} DHS</div>
+                    <div className="text-center p-2 rounded-lg" style={{background:'#f0fdf4',border:'1px solid #bbf7d0'}}>
+                      <div className="text-[10px] text-green-600 font-medium">Payé période</div>
+                      <div className="font-semibold text-green-700 text-sm">{fmtMoney(totalPaiements)} DHS</div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4 flex-wrap">
@@ -383,7 +387,7 @@ ${printFooter(printDate)}
                           <th className="th text-xs py-3.5 text-right">Qté kg</th>
                           <th className="th text-xs py-3.5 text-right">Prix/kg</th>
                           <th className="th text-xs py-3.5 text-right">Total DHS</th>
-                          <th className="th text-xs py-3.5">Note</th>
+                          <th className="th text-[10px] font-medium text-gray-400 py-3.5">Note</th>
                           <th className="th text-xs py-3.5"></th>
                         </tr></thead>
                         <tbody>
@@ -394,7 +398,7 @@ ${printFooter(printDate)}
                               <td className="td py-3.5 text-right font-bold">{fmt(a.qte)} kg</td>
                               <td className="td py-3.5 text-right text-gray-600 font-medium">{fmtMoney(a.prix_achat)}</td>
                               <td className="td py-3.5 text-right font-bold text-green-700">{fmtMoney(a.total_achat)} DHS</td>
-                              <td className="td py-3.5 text-gray-500">{a.note||'—'}</td>
+                              <td className="td py-3.5 text-xs text-gray-400">{a.note||'—'}</td>
                               <td className="td py-3.5 whitespace-nowrap">
                                 {a.voyage_id && (
                                   <div className="flex items-center gap-1">
@@ -430,18 +434,18 @@ ${printFooter(printDate)}
                         <thead><tr>
                           <th className="th text-xs py-3.5">Date</th>
                           <th className="th text-xs py-3.5">Mode</th>
-                          <th className="th text-xs py-3.5">Chèque</th>
+                          <th className="th text-[10px] font-medium text-gray-400 py-3.5">Chèque</th>
                           <th className="th text-xs py-3.5 text-right">Montant DHS</th>
-                          <th className="th text-xs py-3.5">Note</th>
+                          <th className="th text-[10px] font-medium text-gray-400 py-3.5">Note</th>
                         </tr></thead>
                         <tbody>
                           {filteredPai.map(p => (
                             <tr key={p.id} className="hover:bg-green-50">
                               <td className="td py-3.5 text-gray-600 font-medium">{fmtDate(p.date)}</td>
                               <td className="td py-3.5 font-medium">{p.mode||'—'}</td>
-                              <td className="td py-3.5 font-mono text-blue-600">{p.cheque_number||'—'}</td>
+                              <td className="td py-3.5 text-xs font-mono text-gray-400">{p.cheque_number||'—'}</td>
                               <td className="td py-3.5 text-right font-bold text-green-600">− {fmtMoney(p.montant)} DHS</td>
-                              <td className="td py-3.5 text-gray-500">{p.note||'—'}</td>
+                              <td className="td py-3.5 text-xs text-gray-400">{p.note||'—'}</td>
                             </tr>
                           ))}
                           {filteredPai.length === 0 && <tr><td colSpan={5} className="td text-center text-gray-400 py-6">Aucun paiement</td></tr>}
