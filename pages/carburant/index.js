@@ -12,6 +12,7 @@ import {
   buildPropreFleetPeriods, buildTruckFuelHistory, buildPeriodSummary,
   buildFleetPeriodTotals, currentKmFor,
 } from '../../lib/services/fleetFuelMonitoring'
+import { printControleKmCarburantReport } from '../../lib/printControleKmCarburant'
 import CycleCard from '../../components/carburant/CycleCard'
 import CycleAnalysisModal from '../../components/carburant/CycleAnalysisModal'
 import TruckHealthPanel from '../../components/carburant/TruckHealthPanel'
@@ -87,6 +88,7 @@ export default function CarburantCycles() {
   const [fixingGasoilId, setFixingGasoilId] = useState(null)
   const [period, setPeriod] = useState(() => periodRange('mois'))
   const [showValidationTools, setShowValidationTools] = useState(false)
+  const [camionFilter, setCamionFilter] = useState('') // '' = Tous les Camions Propre
 
   useEffect(() => { loadAll() }, [])
 
@@ -144,7 +146,19 @@ export default function CarburantCycles() {
     .sort((a, b) => (a.camion?.plaque || '').localeCompare(b.camion?.plaque || '')),
     [bonByCamion, period])
 
-  const fleetSummary = useMemo(() => buildFleetPeriodTotals(truckPeriodData.map(t => t.summary)), [truckPeriodData])
+  // What's actually shown/printed — "Tous les Camions Propre" (camionFilter
+  // === '') or one selected truck. The KPI row and the Imprimer/PDF report
+  // always reflect exactly this same selection (§8/§10) — never a second,
+  // separately-filtered figure.
+  const visibleTruckPeriodData = useMemo(() =>
+    camionFilter ? truckPeriodData.filter(t => t.camion?.id === parseInt(camionFilter)) : truckPeriodData,
+    [truckPeriodData, camionFilter])
+
+  const fleetSummary = useMemo(() => buildFleetPeriodTotals(visibleTruckPeriodData.map(t => t.summary)), [visibleTruckPeriodData])
+
+  function handlePrint() {
+    printControleKmCarburantReport({ trucks: visibleTruckPeriodData, fleetTotals: fleetSummary, from: period.from, to: period.to })
+  }
 
   const truckHasMissingKm = useMemo(() => new Set(missingData
     .filter(m => m.category === 'voyage_missing_km' || m.category === 'plein_missing_km')
@@ -209,15 +223,28 @@ export default function CarburantCycles() {
         <Link href="/camions" className="text-brand-600 font-semibold hover:underline">Performance Camions →</Link>
       </div>
 
-      <PeriodSelector value={period} onChange={setPeriod} />
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
+        <PeriodSelector value={period} onChange={setPeriod} />
+        <div className="flex items-end gap-3">
+          <div>
+            <label className="label">Camion</label>
+            <select className="input" value={camionFilter} onChange={e => setCamionFilter(e.target.value)}>
+              <option value="">Tous les Camions Propre</option>
+              {propreCamions.map(c => <option key={c.id} value={c.id}>{c.plaque}</option>)}
+            </select>
+          </div>
+          <button onClick={handlePrint} className="btn-secondary whitespace-nowrap">🖨️ Imprimer / PDF</button>
+        </div>
+      </div>
 
       {/* ── FLEET SUMMARY (Camions Propre only, weighted — never an average
-          of individual L/100km values) ── */}
+          of individual L/100km values; reflects the current truck/période
+          selection exactly, same figures the print report uses) ── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="stat-card border border-slate-100">
-          <div className="stat-label">Camions propres</div>
-          <div className="stat-value text-gray-700">{propreCamions.length}</div>
-          <div className="stat-sub">Flotte surveillée</div>
+          <div className="stat-label">Camions</div>
+          <div className="stat-value text-gray-700">{visibleTruckPeriodData.length}</div>
+          <div className="stat-sub">{camionFilter ? 'Sélectionné' : `Flotte propre (${propreCamions.length})`}</div>
         </div>
         <div className="stat-card border border-blue-100 bg-blue-50">
           <div className="stat-label text-blue-600">Total KM</div>
@@ -244,11 +271,11 @@ export default function CarburantCycles() {
       {/* ── TRUCK CARDS — one row per Gasoil Bon ── */}
       {loading ? (
         <div className="card text-center text-gray-400 py-10">Chargement...</div>
-      ) : truckPeriodData.length === 0 ? (
+      ) : visibleTruckPeriodData.length === 0 ? (
         <div className="card text-center text-gray-400 py-10">Aucun camion propre enregistré</div>
       ) : (
         <div className="space-y-4 mb-8">
-          {truckPeriodData.map(({ camion, currentKm, summary }) => (
+          {visibleTruckPeriodData.map(({ camion, currentKm, summary }) => (
             <TruckControlCard
               key={camion.id}
               camion={camion}

@@ -12,26 +12,50 @@ function Kpi({ label, value, sub, tone = '' }) {
   )
 }
 
+// Status badges (spec §11) — one glance tells the user whether a row's
+// L/100km is real, still waiting on data, or was never trustworthy.
 function RowStatus({ row }) {
   if (row.status === 'pending') {
-    return <span className="text-amber-600 text-[11px] font-bold">⏳ En attente</span>
+    return <span className="text-amber-600 text-[11px] font-bold whitespace-nowrap">⏳ En attente</span>
   }
-  if (row.status === 'insufficient_km') {
-    return <span className="text-amber-600 text-[11px] font-bold">⚠ KM insuffisant</span>
+  if (row.status === 'missing_km') {
+    return (
+      <div className="text-right">
+        <span className="text-amber-600 text-[11px] font-bold whitespace-nowrap">⚠ KM manquant</span>
+        <div className="text-[9px] text-amber-500 mt-0.5">
+          {row.linkedToDate
+            ? `↳ Inclus dans la mesure du ${fmtDate(row.linkedToDate)}`
+            : '↳ En attente d\'un relevé KM valide'}
+        </div>
+      </div>
+    )
   }
   if (row.status === 'invalid') {
-    return <span className="text-red-600 text-[11px] font-bold">⚠ KM invalide</span>
+    return <span className="text-red-600 text-[11px] font-bold whitespace-nowrap">⚠ KM invalide</span>
   }
-  return <span className="font-bold text-slate-700">{row.consoL100.toFixed(1)}</span>
+  return <span className="font-bold text-slate-700 whitespace-nowrap">✓ {row.consoL100.toFixed(1)}</span>
 }
 
-// A Bon whose own KM was missing never disappears — its litres ride along
-// with the next Bon that DOES have a KM, and this note is the only visible
-// trace of that merge (so the higher litres figure on that row is never a
-// silent surprise).
-function GroupedNote({ row }) {
-  if (!row.groupedFrom) return null
-  return <div className="text-[9px] text-amber-600 mt-0.5">inclut plein(s) sans KM depuis le {fmtDate(row.groupedFrom)}</div>
+// A Bon whose own KM was missing never disappears from the table (its own
+// row above shows it) — this note is the other half of that same link: the
+// row that CLOSES the period explicitly lists which missing-KM Bon(s) got
+// folded into its litres, so the higher total is never a silent surprise.
+function MergedNote({ row }) {
+  if (!row.mergedFrom || row.mergedFrom.length === 0) return null
+  const parts = row.mergedFrom.map(m => `${fmtD(m.liters)} L du ${fmtDate(m.date)}`)
+  return <div className="text-[9px] text-amber-600 mt-0.5">Inclut {parts.join(', ')}</div>
+}
+
+// Several Bons for the same truck on the same date are one fuel event for
+// calculation (mandatory rule) — this badge is the only visible trace of
+// that grouping; the individual database rows are never touched (spec §5).
+function GroupedBadge({ row }) {
+  if (!row.bonsCount || row.bonsCount <= 1) return null
+  return (
+    <span className="ml-1.5 inline-flex items-center text-[9px] font-bold text-slate-400" title={`${row.bonsCount} bons regroupés pour ce jour`}>
+      🔗{row.bonsCount}
+    </span>
+  )
 }
 
 // Bon-based KM & consumption card (Contrôle KM & Carburant) — one row per
@@ -69,7 +93,7 @@ export default function TruckControlCard({ camion, currentKm, summary, onEditKm 
         <Kpi label="Consommation" value={summary.consoL100 !== null ? `${summary.consoL100.toFixed(1)} L/100` : '—'} tone="bg-purple-50" />
         <Kpi label="Coût carburant" value={`${fmtMoney(summary.coutTotal)} DHS`} tone="bg-red-50" />
         <Kpi label="DH/km" value={summary.coutKm !== null ? fmtMoney(summary.coutKm) : '—'} tone="bg-amber-50" />
-        <Kpi label="Bons" value={`${summary.measuredCount} / ${rows.length}`} sub={summary.pendingCount > 0 ? `${summary.pendingCount} en attente` : 'tous mesurés'} />
+        <Kpi label="Périodes mesurées" value={`${summary.measuredCount} / ${rows.length}`} sub={summary.missingKmCount > 0 ? `${summary.missingKmCount} KM manquant` : 'tout mesuré'} />
       </div>
 
       {/* ── Bon / KM table ── */}
@@ -90,13 +114,16 @@ export default function TruckControlCard({ camion, currentKm, summary, onEditKm 
             </thead>
             <tbody>
               {[...rows].reverse().map(row => (
-                <tr key={row.key} className="border-b border-slate-50 hover:bg-slate-50">
-                  <td className="py-2 pr-3 text-slate-500">{fmtDate(row.date)}</td>
+                <tr key={row.key} className={`border-b border-slate-50 hover:bg-slate-50 ${row.status === 'missing_km' ? 'bg-amber-50/40' : ''}`}>
+                  <td className="py-2 pr-3 text-slate-500">
+                    {fmtDate(row.date)}
+                    <GroupedBadge row={row} />
+                  </td>
                   <td className="py-2 pr-3 text-right font-semibold text-slate-700">{row.km !== null ? fmt(row.km) : '—'}</td>
                   <td className="py-2 pr-3 text-right text-slate-600">{row.distance !== null ? `${fmt(row.distance)} km` : '—'}</td>
                   <td className="py-2 pr-3 text-right text-slate-600">
                     {fmtD(row.liters)} L
-                    <GroupedNote row={row} />
+                    <MergedNote row={row} />
                   </td>
                   <td className="py-2 pr-3 text-right"><RowStatus row={row} /></td>
                   <td className="py-2 text-right">
