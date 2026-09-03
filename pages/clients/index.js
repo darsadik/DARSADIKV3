@@ -18,6 +18,7 @@ export default function Clients() {
   // ── CLIENT STATE ──
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
   const [clientVentes, setClientVentes] = useState([])
@@ -143,9 +144,16 @@ export default function Clients() {
 
   async function loadClients() {
     setLoading(true)
-    const { data } = await supabase.from('clients').select('*').order('solde', { ascending: false })
-    setClients(data || [])
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const { data } = await supabase.from('clients').select('*').order('solde', { ascending: false })
+      setClients(data || [])
+    } catch (err) {
+      console.error('Clients loadClients:', err)
+      setLoadError(err.message || 'Erreur de chargement des données.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function loadPeriodBalances(clientList) {
@@ -2325,6 +2333,12 @@ ${billingIncludePrevSolde ? `<div class="bdy" style="padding-bottom:0">
   // ═══════════════════════════════════════════════════════
   return (
     <Layout title="Clients Briques" subtitle="Gestion des clients et suivi des comptes">
+      {loadError && (
+        <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+          <span>⚠ Erreur de chargement : {loadError}</span>
+          <button onClick={loadClients} className="font-semibold underline flex-shrink-0">Réessayer</button>
+        </div>
+      )}
       <EditTransactionModal
         editRow={voyEditRow} editForm={voyEditForm} setEditForm={setVoyEditForm}
         onSave={saveVoyEdit} onCancel={closeVoyEdit} saving={voyEditSaving}

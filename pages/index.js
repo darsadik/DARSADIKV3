@@ -46,6 +46,7 @@ export default function Dashboard() {
   useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
 
   // ── date-window-scoped voyage data ──
   const [voyages,      setVoyages]      = useState([])
@@ -93,54 +94,66 @@ export default function Dashboard() {
   useEffect(() => { loadVoyageData() }, [windowFrom, windowTo])
 
   async function loadOptions() {
-    const [{ data: ca }, { data: cl }, { data: gc }, { data: fo }, { data: gf }, { data: ag }, { data: pt }, { data: gpt }, { data: agf }, { data: avf }, { data: vgl }] = await Promise.all([
-      supabase.from('camions').select('id,plaque,type_camion,chauffeur').order('plaque'),
-      supabase.from('clients').select('id,nom,solde'),
-      supabase.from('grignon_clients').select('id,nom,solde'),
-      supabase.from('fournisseurs').select('id,nom,solde'),
-      supabase.from('grignon_fournisseurs').select('id,nom,solde'),
-      supabase.from('gasoil').select('id,camion_id,camion_plaque,km,date,adblue_total,adblue_qte,qte,total,merge_with_previous').not('km', 'is', null).order('km', { ascending: true }),
-      supabase.from('paiements').select('id,date,client_nom,montant').eq('date', today()),
-      supabase.from('grignon_paiements').select('id,date,client_nom,montant').eq('date', today()),
-      // Fuel allocation engine inputs (see allGasoilForFuel/etc. declaration
-      // above) — no km filter, since a no-km purchase can still be manually
-      // linked and must stay visible to the engine.
-      supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte'),
-      // manual_distance_km/manual_fuel_cost/manual_cost_per_km REQUIRED —
-      // poolEntryForVoyage (lib/services/fuelAllocation.js) reads them off
-      // every truck voyage to build manual_km/manual_fixed pool entries.
-      // Without them, those voyages (and their pool-siblings' shares)
-      // silently computed wrong here while Contrôle Allocation (which
-      // already selects these fields) computed correctly for the same data.
-      supabase.from('voyages').select('id,camion_id,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at'),
-      supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
-    ])
-    setCamions(ca || []); setClients(cl || []); setGrignonClients(gc || [])
-    setFournisseurs(fo || []); setGrignonFournisseurs(gf || [])
-    setAllGasoil(ag || [])
-    setPaiementsToday([...(pt || []), ...(gpt || [])])
-    setAllGasoilForFuel(agf || [])
-    setAllVoyagesForFuel(avf || [])
-    setAllVoyageGasoilLinks(vgl || [])
+    try {
+      const [{ data: ca }, { data: cl }, { data: gc }, { data: fo }, { data: gf }, { data: ag }, { data: pt }, { data: gpt }, { data: agf }, { data: avf }, { data: vgl }] = await Promise.all([
+        supabase.from('camions').select('id,plaque,type_camion,chauffeur').order('plaque'),
+        supabase.from('clients').select('id,nom,solde'),
+        supabase.from('grignon_clients').select('id,nom,solde'),
+        supabase.from('fournisseurs').select('id,nom,solde'),
+        supabase.from('grignon_fournisseurs').select('id,nom,solde'),
+        supabase.from('gasoil').select('id,camion_id,camion_plaque,km,date,adblue_total,adblue_qte,qte,total,merge_with_previous').not('km', 'is', null).order('km', { ascending: true }),
+        supabase.from('paiements').select('id,date,client_nom,montant').eq('date', today()),
+        supabase.from('grignon_paiements').select('id,date,client_nom,montant').eq('date', today()),
+        // Fuel allocation engine inputs (see allGasoilForFuel/etc. declaration
+        // above) — no km filter, since a no-km purchase can still be manually
+        // linked and must stay visible to the engine.
+        supabase.from('gasoil').select('camion_id,km,total,date,adblue_total,qte'),
+        // manual_distance_km/manual_fuel_cost/manual_cost_per_km REQUIRED —
+        // poolEntryForVoyage (lib/services/fuelAllocation.js) reads them off
+        // every truck voyage to build manual_km/manual_fixed pool entries.
+        // Without them, those voyages (and their pool-siblings' shares)
+        // silently computed wrong here while Contrôle Allocation (which
+        // already selects these fields) computed correctly for the same data.
+        supabase.from('voyages').select('id,camion_id,km_depart,km_arrivee,fuel_mode,manual_distance_km,manual_cost_per_km,manual_fuel_cost,deleted_at'),
+        supabase.from('voyage_gasoil').select('voyage_id,gasoil_id'),
+      ])
+      setCamions(ca || []); setClients(cl || []); setGrignonClients(gc || [])
+      setFournisseurs(fo || []); setGrignonFournisseurs(gf || [])
+      setAllGasoil(ag || [])
+      setPaiementsToday([...(pt || []), ...(gpt || [])])
+      setAllGasoilForFuel(agf || [])
+      setAllVoyagesForFuel(avf || [])
+      setAllVoyageGasoilLinks(vgl || [])
+    } catch (err) {
+      console.error('Dashboard loadOptions:', err)
+      setLoadError(err.message || 'Erreur de chargement des données.')
+    }
   }
 
   async function loadVoyageData() {
     setLoading(true)
-    const { data: v } = await supabase.from('voyages').select('*')
-      .gte('date_depart', windowFrom).lte('date_depart', windowTo)
-      .order('date_depart', { ascending: false })
-    const vList = v || []
-    const vIds = vList.map(x => x.id)
-    const [ac, li, ch, re, loc] = await Promise.all([
-      fetchByVoyageIds('voyage_achats', 'voyage_id,type_produit,type_brique,qte,prix_achat,total_achat', vIds),
-      fetchByVoyageIds('voyage_livraisons', 'id,voyage_id,date_livraison,type_produit,type_brique,client_id,client_nom,qte,total_vente,frais_total,deductions_total', vIds),
-      fetchByVoyageIds('voyage_charges', 'voyage_id,montant,facture_client,client_id,client_nom', vIds),
-      fetchByVoyageIds('voyage_retours', 'voyage_id,montant', vIds),
-      fetchByVoyageIds('voyage_locations', 'voyage_id,montant_location', vIds),
-    ])
-    setVoyages(vList); setAchats(ac); setLivraisons(li); setCharges(ch)
-    setRetours(re); setLocations(loc)
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const { data: v } = await supabase.from('voyages').select('*')
+        .gte('date_depart', windowFrom).lte('date_depart', windowTo)
+        .order('date_depart', { ascending: false })
+      const vList = v || []
+      const vIds = vList.map(x => x.id)
+      const [ac, li, ch, re, loc] = await Promise.all([
+        fetchByVoyageIds('voyage_achats', 'voyage_id,type_produit,type_brique,qte,prix_achat,total_achat', vIds),
+        fetchByVoyageIds('voyage_livraisons', 'id,voyage_id,date_livraison,type_produit,type_brique,client_id,client_nom,qte,total_vente,frais_total,deductions_total', vIds),
+        fetchByVoyageIds('voyage_charges', 'voyage_id,montant,facture_client,client_id,client_nom', vIds),
+        fetchByVoyageIds('voyage_retours', 'voyage_id,montant', vIds),
+        fetchByVoyageIds('voyage_locations', 'voyage_id,montant_location', vIds),
+      ])
+      setVoyages(vList); setAchats(ac); setLivraisons(li); setCharges(ch)
+      setRetours(re); setLocations(loc)
+    } catch (err) {
+      console.error('Dashboard loadVoyageData:', err)
+      setLoadError(err.message || 'Erreur de chargement des données.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const gasoilByCamion = useMemo(() => {
@@ -195,6 +208,13 @@ export default function Dashboard() {
   return (
     <Layout title="Dashboard" subtitle="Cockpit exécutif">
       <div className="max-w-[1500px] mx-auto space-y-4">
+
+        {loadError && (
+          <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <span>⚠ Erreur de chargement : {loadError}</span>
+            <button onClick={() => { loadOptions(); loadVoyageData() }} className="font-semibold underline flex-shrink-0">Réessayer</button>
+          </div>
+        )}
 
         {/* ── SECTION 1 — Executive KPIs (fixed periods) ── */}
         <ExecutiveKpis
