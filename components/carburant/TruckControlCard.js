@@ -16,7 +16,22 @@ function RowStatus({ row }) {
   if (row.status === 'pending') {
     return <span className="text-amber-600 text-[11px] font-bold">⏳ En attente</span>
   }
+  if (row.status === 'insufficient_km') {
+    return <span className="text-amber-600 text-[11px] font-bold">⚠ KM insuffisant</span>
+  }
+  if (row.status === 'invalid') {
+    return <span className="text-red-600 text-[11px] font-bold">⚠ KM invalide</span>
+  }
   return <span className="font-bold text-slate-700">{row.consoL100.toFixed(1)}</span>
+}
+
+// A Bon whose own KM was missing never disappears — its litres ride along
+// with the next Bon that DOES have a KM, and this note is the only visible
+// trace of that merge (so the higher litres figure on that row is never a
+// silent surprise).
+function GroupedNote({ row }) {
+  if (!row.groupedFrom) return null
+  return <div className="text-[9px] text-amber-600 mt-0.5">inclut plein(s) sans KM depuis le {fmtDate(row.groupedFrom)}</div>
 }
 
 // Bon-based KM & consumption card (Contrôle KM & Carburant) — one row per
@@ -54,7 +69,7 @@ export default function TruckControlCard({ camion, currentKm, summary, onEditKm 
         <Kpi label="Consommation" value={summary.consoL100 !== null ? `${summary.consoL100.toFixed(1)} L/100` : '—'} tone="bg-purple-50" />
         <Kpi label="Coût carburant" value={`${fmtMoney(summary.coutTotal)} DHS`} tone="bg-red-50" />
         <Kpi label="DH/km" value={summary.coutKm !== null ? fmtMoney(summary.coutKm) : '—'} tone="bg-amber-50" />
-        <Kpi label="Bons" value={`${summary.measuredCount} / ${summary.measuredCount + summary.pendingCount}`} sub={summary.pendingCount > 0 ? `${summary.pendingCount} en attente` : 'tous mesurés'} />
+        <Kpi label="Bons" value={`${summary.measuredCount} / ${rows.length}`} sub={summary.pendingCount > 0 ? `${summary.pendingCount} en attente` : 'tous mesurés'} />
       </div>
 
       {/* ── Bon / KM table ── */}
@@ -77,9 +92,12 @@ export default function TruckControlCard({ camion, currentKm, summary, onEditKm 
               {[...rows].reverse().map(row => (
                 <tr key={row.key} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="py-2 pr-3 text-slate-500">{fmtDate(row.date)}</td>
-                  <td className="py-2 pr-3 text-right font-semibold text-slate-700">{fmt(row.km)}</td>
+                  <td className="py-2 pr-3 text-right font-semibold text-slate-700">{row.km !== null ? fmt(row.km) : '—'}</td>
                   <td className="py-2 pr-3 text-right text-slate-600">{row.distance !== null ? `${fmt(row.distance)} km` : '—'}</td>
-                  <td className="py-2 pr-3 text-right text-slate-600">{fmtD(row.liters)} L</td>
+                  <td className="py-2 pr-3 text-right text-slate-600">
+                    {fmtD(row.liters)} L
+                    <GroupedNote row={row} />
+                  </td>
                   <td className="py-2 pr-3 text-right"><RowStatus row={row} /></td>
                   <td className="py-2 text-right">
                     {row.editGasoilRow && (
