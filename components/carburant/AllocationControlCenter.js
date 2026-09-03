@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
-import { buildAllocationCards, filterAllocationCards, buildAllocationStats } from '../../lib/services/voyage/fuelAllocationCenter'
+import { buildAllocationCards, filterAllocationCards, buildAllocationStats, buildUnallocatedVoyages, buildFuelCoverageSummary } from '../../lib/services/voyage/fuelAllocationCenter'
 import { unlinkGasoilFromVoyage } from '../../lib/services/voyage/gasoilLink'
 import AllocationStatsCards from './AllocationStatsCards'
 import AllocationFilterBar from './AllocationFilterBar'
 import PurchaseAllocationCard from './PurchaseAllocationCard'
 import AllocationAssignModal from './AllocationAssignModal'
 import AllocationVisualTimeline from './AllocationVisualTimeline'
+import UnallocatedVoyagesPanel from './UnallocatedVoyagesPanel'
 
 const DEFAULT_FILTERS = { camionId: '', dateFrom: '', dateTo: '', statusFilter: '', search: '' }
 
@@ -43,6 +44,14 @@ export default function AllocationControlCenter({ camions, activeVoyages, voyage
 
   const stats = useMemo(() => buildAllocationStats(filteredCards), [filteredCards])
 
+  // A voyage with real KM but no fuel cost never shows up in `allCards`
+  // (cards are per-purchase, not per-voyage) — this reads the SAME
+  // voyageRows prop the cards above are built from, just filtered/reshaped,
+  // so a voyage in an open refueling period or with no bracket at all is
+  // never silently invisible here (spec §2/§3).
+  const unallocatedVoyages = useMemo(() => buildUnallocatedVoyages(voyageRows), [voyageRows])
+  const coverage = useMemo(() => buildFuelCoverageSummary(voyageRows), [voyageRows])
+
   function resetFilters() { setFilters(DEFAULT_FILTERS) }
   function selectStatusFilter(key) { setFilters(f => ({ ...f, statusFilter: f.statusFilter === key ? '' : key })) }
 
@@ -68,7 +77,8 @@ export default function AllocationControlCenter({ camions, activeVoyages, voyage
 
   return (
     <div className="space-y-4">
-      <AllocationStatsCards stats={stats} activeStatusFilter={filters.statusFilter} onSelectStatusFilter={selectStatusFilter} />
+      <AllocationStatsCards stats={stats} activeStatusFilter={filters.statusFilter} onSelectStatusFilter={selectStatusFilter} coverage={coverage} />
+      <UnallocatedVoyagesPanel voyages={unallocatedVoyages} />
       <AllocationFilterBar camions={camions} filters={filters} setFilters={setFilters} onReset={resetFilters} />
 
       <div className="flex items-center justify-end gap-2 -mt-2">

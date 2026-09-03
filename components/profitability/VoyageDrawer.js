@@ -9,6 +9,7 @@ const FUEL_SOURCE_LABEL = {
   manuel:        '📝 Manuel (pleins liés)',
   manual_rate:   '📏 Estimation KM',
   manual_amount: '💰 Montant manuel',
+  pending:       '⏳ En attente du prochain plein',
   none:          '⚠ Non disponible',
 }
 
@@ -50,6 +51,11 @@ export default function VoyageDrawer({ voyage: v, onClose, contributions }) {
               {v.warnings?.length > 0 && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                   ⚠ {v.warnings.length} avertissement{v.warnings.length > 1 ? 's' : ''}
+                </span>
+              )}
+              {v.cost.hasPendingFuel && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  ⏳ Carburant en attente — profit provisoire
                 </span>
               )}
             </div>
@@ -120,7 +126,11 @@ export default function VoyageDrawer({ voyage: v, onClose, contributions }) {
             <div className="flex items-center justify-between py-1.5 text-xs">
               <span className="text-slate-500">Gasoil — {FUEL_SOURCE_LABEL[v.cost.fuelSource] || v.cost.fuelSource}</span>
               <span className="flex items-center gap-2">
-                <span className="text-slate-600">− {fmtMoney(v.cost.fuel)} DHS</span>
+                {v.cost.hasPendingFuel ? (
+                  <span className="text-blue-600 font-semibold">⏳ En attente de mesure</span>
+                ) : (
+                  <span className="text-slate-600">− {fmtMoney(v.cost.fuel)} DHS</span>
+                )}
                 {hasFuelDetail && (
                   <button onClick={() => setShowFuelDetail(x => !x)} className="text-[10px] font-bold text-blue-600 hover:underline whitespace-nowrap">
                     {showFuelDetail ? '✕ Fermer' : 'Détails →'}

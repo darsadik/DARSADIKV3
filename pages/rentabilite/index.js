@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../_app'
-import { computeVoyageProfit, buildFuelMapsByCamion, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
+import { computeVoyageProfit, buildFuelMapsByCamion, buildPendingFuelVoyageIds, DEFAULT_REMISE_CARBURANT_RATE } from '../../lib/services/profitability'
 import { buildVoyageFuelContributions } from '../../lib/services/voyage/fuelAllocationCenter'
 import { fetchRemiseCarburantRate } from '../../lib/services/settings'
 import FilterBar, { DEFAULT_FILTERS } from '../../components/profitability/FilterBar'
@@ -158,6 +158,15 @@ export default function ProfitabiliteCenter() {
     gasoil: allGasoil, voyages: allVoyages, voyageGasoilLinks: allVoyageGasoilLinks, remiseRate,
   }), [allGasoil, allVoyages, allVoyageGasoilLinks, remiseRate])
 
+  // Voyages whose real fuel cost isn't measured yet (still-open refueling
+  // period) — without this, a voyage with real KM but no closed period would
+  // silently look like "fuel cost = 0" here exactly like a genuine zero,
+  // inflating profit without any visible warning. Same unmodified engine,
+  // same full (never date-filtered) inputs as fuelMapsByCamion above.
+  const pendingFuelVoyageIds = useMemo(() => buildPendingFuelVoyageIds({
+    gasoil: allGasoil, voyages: allVoyages, voyageGasoilLinks: allVoyageGasoilLinks, remiseRate,
+  }), [allGasoil, allVoyages, allVoyageGasoilLinks, remiseRate])
+
   // Per-purchase breakdown for the VoyageDrawer's fuel-cost transparency
   // panel (spec item 9) — same inputs as fuelMapsByCamion above, reading the
   // engine's own voyageContributions instead of discarding them.
@@ -216,8 +225,9 @@ export default function ProfitabiliteCenter() {
       locations: locations.filter(l => l.voyage_id === v.id),
       voyageFuelMap: fuelMapsByCamion.get(v.camion_id) || new Map(),
       voyageGasoilLinks: allVoyageGasoilLinks,
+      pendingVoyageIds: pendingFuelVoyageIds,
     }),
-  })), [visibleVoyages, achats, livraisons, charges, retours, locations, fuelMapsByCamion, allVoyageGasoilLinks])
+  })), [visibleVoyages, achats, livraisons, charges, retours, locations, fuelMapsByCamion, allVoyageGasoilLinks, pendingFuelVoyageIds])
 
   const resultById = useMemo(() => Object.fromEntries(results.map(r => [r.id, r])), [results])
   const drawerVoyage = drawerVoyageId ? resultById[drawerVoyageId] : null

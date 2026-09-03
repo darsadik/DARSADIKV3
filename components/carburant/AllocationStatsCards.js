@@ -1,4 +1,4 @@
-import { fmtMoney } from '../../lib/utils'
+import { fmt, fmtMoney } from '../../lib/utils'
 
 function Card({ label, value, sub, active, onClick, toneClass, emoji }) {
   const clickable = !!onClick
@@ -17,7 +17,12 @@ function Card({ label, value, sub, active, onClick, toneClass, emoji }) {
 // buildAllocationStats(filteredCards), so these deliberately reflect the
 // currently active filters (unlike KmFuelDashboardCards on the Chronologie
 // tab, which is intentionally fleet-wide).
-export default function AllocationStatsCards({ stats, activeStatusFilter, onSelectStatusFilter }) {
+// `coverage` (spec §16) — the voyage-level summary, from
+// buildFuelCoverageSummary(voyageRows): total voyages with KM, total KM,
+// total ALLOCATED fuel cost (never includes a pending/missing voyage's
+// silent 0), and how many are pending vs. genuinely missing. Optional so
+// this component still works wherever it's used without that data.
+export default function AllocationStatsCards({ stats, activeStatusFilter, onSelectStatusFilter, coverage }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
       <Card emoji="⛽" label="Achats carburant" value={stats.totalPurchases} />
@@ -35,6 +40,16 @@ export default function AllocationStatsCards({ stats, activeStatusFilter, onSele
         active={activeStatusFilter === 'manual'} onClick={() => onSelectStatusFilter('manual')} />
       <Card emoji="💰" label="Montant restant à allouer" value={`${fmtMoney(stats.totalRemaining)} DHS`}
         toneClass={stats.totalRemaining > 0 ? 'text-orange-600' : 'text-emerald-600'} />
+      {coverage && (
+        <>
+          <Card emoji="🚛" label="Voyages avec KM" value={coverage.totalVoyages} sub={`${fmt(coverage.totalKm)} km`} />
+          <Card emoji="✅" label="Carburant alloué" value={`${fmtMoney(coverage.totalCost)} DHS`} toneClass="text-emerald-600" sub={`${coverage.nbAllocated} voyage(s)`} />
+          <Card emoji="⏳" label="En attente" value={coverage.nbPending}
+            toneClass={coverage.nbPending ? 'text-blue-600' : 'text-emerald-600'} />
+          <Card emoji="⚠" label="Manquant" value={coverage.nbMissing}
+            toneClass={coverage.nbMissing ? 'text-red-600' : 'text-emerald-600'} />
+        </>
+      )}
     </div>
   )
 }

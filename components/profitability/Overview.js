@@ -111,6 +111,17 @@ export default function Overview({ results, camions }) {
 
   return (
     <div className="space-y-4">
+      {/* Never let a pending refueling period pass as a silently-complete,
+          fully-reliable profit number (§10) — this reads global.pendingFuelCount,
+          which aggregateVoyageProfits already computes from each voyage's own
+          cost.fuelSource, never a new calculation. */}
+      {global.pendingFuelCount > 0 && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 text-xs font-semibold rounded-xl px-4 py-2.5">
+          <span>⏳</span>
+          <span>{global.pendingFuelCount} voyage{global.pendingFuelCount > 1 ? 's' : ''} avec carburant en attente de mesure (période de plein pas encore clôturée) — le Gasoil et le Profit ci-dessous sont incomplets pour ces voyages.</span>
+        </div>
+      )}
+
       {/* Revenue → Gasoil / Charges → Total Cost → Profit → Margin, using
           professional accounting colors (green=revenue, red=cost lines,
           dark red=total cost, green/red=profit, tiered=margin). Charges is
@@ -118,7 +129,8 @@ export default function Overview({ results, camions }) {
           opérationnelles) — Gasoil + Charges always equals Coût total. */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard label="Revenu" icon="💰" color="green" large value={fmtMoney(global.revenue.total) + ' DHS'} />
-        <KpiCard label="Gasoil"  icon="⛽" color="red" value={fmtMoney(global.cost.fuel) + ' DHS'} />
+        <KpiCard label="Gasoil"  icon="⛽" color="red" value={fmtMoney(global.cost.fuel) + ' DHS'}
+          sub={global.pendingFuelCount > 0 ? `⏳ ${global.pendingFuelCount} en attente` : undefined} />
         <KpiCard label="Charges" icon="💸" color="red" value={fmtMoney(global.cost.total - global.cost.fuel) + ' DHS'} />
         <KpiCard label="Coût total" icon="🧾" color="darkred" large value={fmtMoney(global.cost.total) + ' DHS'} />
         <KpiCard label="Profit net" icon={global.profit >= 0 ? '✅' : '❌'} color={global.profit >= 0 ? 'green' : 'red'} large

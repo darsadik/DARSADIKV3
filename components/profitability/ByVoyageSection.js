@@ -59,7 +59,16 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
       total: rows => fmtMoney(computeTotals(rows).revenue) + ' DHS' },
     { key: 'purchases', label: 'Achats', right: true, sortValue: r => r.cost.achatTotal, exportValue: r => Math.round(r.cost.achatTotal), printValue: r => '− ' + fmtMoney(r.cost.achatTotal) + ' DHS', render: r => <span className="text-red-400">−{fmtMoney(r.cost.achatTotal)}</span>,
       total: rows => '− ' + fmtMoney(computeTotals(rows).purchases) + ' DHS' },
-    { key: 'gasoil', label: 'Gasoil', right: true, sortValue: r => r.cost.fuel, exportValue: r => Math.round(r.cost.fuel), printValue: r => '− ' + fmtMoney(r.cost.fuel) + ' DHS', render: r => <span className="text-red-400">−{fmtMoney(r.cost.fuel)}</span>,
+    { key: 'gasoil', label: 'Gasoil', right: true, sortValue: r => r.cost.fuel,
+      exportValue: r => r.cost.hasPendingFuel ? null : Math.round(r.cost.fuel),
+      printValue: r => r.cost.hasPendingFuel ? 'En attente' : '− ' + fmtMoney(r.cost.fuel) + ' DHS',
+      // A pending refuel period is never shown as a confirmed "− 0,00 DHS" —
+      // that would read as a real, final zero (§3). r.cost.fuel IS 0 here by
+      // construction (computeFuelCost never fabricates a pending amount),
+      // this only changes how that 0 is presented.
+      render: r => r.cost.hasPendingFuel
+        ? <span className="text-blue-600 font-semibold text-[11px]">⏳ En attente</span>
+        : <span className="text-red-400">−{fmtMoney(r.cost.fuel)}</span>,
       total: rows => '− ' + fmtMoney(computeTotals(rows).gasoil) + ' DHS' },
     { key: 'charges', label: 'Charges', right: true, sortValue: r => r.cost.chargesOperationnelles, exportValue: r => Math.round(r.cost.chargesOperationnelles), printValue: r => '− ' + fmtMoney(r.cost.chargesOperationnelles) + ' DHS', render: r => <span className="text-red-400">−{fmtMoney(r.cost.chargesOperationnelles)}</span>,
       total: rows => '− ' + fmtMoney(computeTotals(rows).charges) + ' DHS' },
@@ -78,13 +87,17 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
 
   function footer(rows) {
     const { revenue: rev, purchases, gasoil, charges, totalCost, profit, marge } = computeTotals(rows)
+    const nbPending = rows.filter(r => r.cost.hasPendingFuel).length
     return (
       <tfoot>
         <tr className="border-t-2 border-slate-300 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
           <td colSpan={4} className="py-3 px-3 font-black text-sm uppercase tracking-wide">Total ({rows.length})</td>
           <td className="py-3 px-3 text-right font-black text-emerald-400">{fmtMoney(rev)}</td>
           <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(purchases)}</td>
-          <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(gasoil)}</td>
+          <td className="py-3 px-3 text-right font-bold text-red-300">
+            −{fmtMoney(gasoil)}
+            {nbPending > 0 && <span className="ml-1 text-blue-300 font-normal" title={`${nbPending} voyage(s) avec carburant en attente — non inclus`}>⏳{nbPending}</span>}
+          </td>
           <td className="py-3 px-3 text-right font-bold text-red-300">−{fmtMoney(charges)}</td>
           <td className="py-3 px-3 text-right font-black text-red-200">−{fmtMoney(totalCost)}</td>
           <td className={`py-3 px-3 text-right font-black text-lg ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{profit >= 0 ? '+' : ''}{fmtMoney(profit)}</td>
@@ -112,10 +125,11 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
       printIcon="🚛"
       printSummary={rows => {
         const t = computeTotals(rows)
+        const nbPending = rows.filter(r => r.cost.hasPendingFuel).length
         return [
           { label: 'Revenu Total', value: `${fmtMoney(t.revenue)} DHS`, color: '#16a34a' },
           { label: 'Total Achats', value: `− ${fmtMoney(t.purchases)} DHS`, color: '#dc2626' },
-          { label: 'Total Gasoil', value: `− ${fmtMoney(t.gasoil)} DHS`, color: '#dc2626' },
+          { label: nbPending > 0 ? `Total Gasoil (${nbPending} en attente)` : 'Total Gasoil', value: `− ${fmtMoney(t.gasoil)} DHS`, color: '#dc2626' },
           { label: 'Total Charges', value: `− ${fmtMoney(t.charges)} DHS`, color: '#dc2626' },
           { label: 'Coût Total', value: `− ${fmtMoney(t.totalCost)} DHS`, color: '#b91c1c' },
           { label: 'Marge Moyenne', value: `${t.marge}%`, color: '#2563eb' },
@@ -123,7 +137,9 @@ export default function ByVoyageSection({ results, onOpenVoyage }) {
       }}
       printBanner={rows => {
         const t = computeTotals(rows)
-        return { label: 'Profit Net Total', amountFormatted: fmtMoney(t.profit), amount: t.profit, sub: `${rows.length} voyage(s) — Marge ${t.marge}%` }
+        const nbPending = rows.filter(r => r.cost.hasPendingFuel).length
+        return { label: 'Profit Net Total', amountFormatted: fmtMoney(t.profit), amount: t.profit,
+          sub: `${rows.length} voyage(s) — Marge ${t.marge}%${nbPending > 0 ? ` — ⚠ ${nbPending} avec carburant en attente (chiffres incomplets)` : ''}` }
       }}
       exportFilename="Voyages"
     />

@@ -40,10 +40,14 @@ export default function AllocationListRow({ voyage, onMove, onUnlink, canUnlink 
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 mt-2 pl-0">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1 mt-2 pl-0">
         <div>
           <div className="text-[10px] text-slate-400 uppercase tracking-wide">Client</div>
           <div className="text-xs font-semibold text-slate-600">{voyage.clientNames?.length ? voyage.clientNames.join(', ') : 'Sans client'}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-slate-400 uppercase tracking-wide">Destination</div>
+          <div className="text-xs font-semibold text-slate-600">{voyage.destination || '—'}</div>
         </div>
         <div>
           <div className="text-[10px] text-slate-400 uppercase tracking-wide">Date</div>
