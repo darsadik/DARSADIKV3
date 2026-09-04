@@ -7,7 +7,8 @@ import { printBaseCss, printHeader, printGeneratedDate, entityCard, summaryCards
 import { DEFAULT_REMISE_CARBURANT_RATE, buildFuelMapsByCamion } from '../../lib/services/profitability'
 import { fetchRemiseCarburantRate, DEFAULT_FUEL_OPENING_BALANCE, fetchFuelOpeningBalance } from '../../lib/services/settings'
 import { previewCycleForNewPlein } from '../../lib/services/fuelCycles'
-import { aggregateDailyRefuels } from '../../lib/services/fuelPeriods'
+import { aggregateDailyRefuels, buildFleetFuelPeriods } from '../../lib/services/fuelPeriods'
+import { buildTruckFuelHistory, buildPeriodSummary } from '../../lib/services/fleetFuelMonitoring'
 import { buildAllocationCards, buildAllocationStats } from '../../lib/services/voyage/fuelAllocationCenter'
 import AllocationAlertBanner from '../../components/carburant/AllocationAlertBanner'
 import Link from 'next/link'
@@ -391,43 +392,49 @@ export default function Gasoil() {
   }, [gasoil, voyages, voyageGasoilLinks, remiseRate])
   const currentFuelBalance = fuelOpeningBalance + totalGasoilAll + totalAdblueAll - fuelAllocatedToVoyages
 
-  // ── MONTHLY CONSUMPTION PER CAMION ──
-  // For each camion in selected month:
-  // distance = last km - first km
-  // fuel = sum of liters
-  // conso = (fuel / distance) * 100
-  const consoStats = (() => {
-    const monthGasoil = gasoil
-      .filter(g => g.date && g.date.startsWith(consoMonth) && g.km)
-      .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.id - b.id))
+  // ── MONTHLY CONSUMPTION PER CAMION — Contrôle Gasoil ──────────────────────
+  // Real consumption is measured between two full-refuel boundaries (REFUEL →
+  // VOYAGES → NEXT REFUEL, lib/services/fuelPeriods.js), never from a Bon's
+  // own same-day/same-month litres against a same-window KM range — that was
+  // the previous bug here (distance = last KM − first KM *of the month*,
+  // which silently mixed one period's opening litres into another period's
+  // distance and vanished entirely for any month with only one KM-bearing
+  // Bon). buildFleetFuelPeriods + buildTruckFuelHistory/buildPeriodSummary
+  // (fleetFuelMonitoring.js) are the same authoritative engine already used
+  // by Contrôle KM & Carburant — reused here instead of a second, conflicting
+  // algorithm. Periods are always built from the FULL history, never
+  // truncated to the selected month, so a period that crosses the month
+  // boundary is never split: it's simply counted under the month of the Bon
+  // that CLOSES it. A Bon with a missing KM never loses its litres — they
+  // carry forward until a later Bon with a valid KM absorbs them. An open
+  // period (no closing Bon yet) never gets a fabricated ratio.
+  const consoStats = useMemo(() => {
+    const [y, m] = consoMonth.split('-').map(Number)
+    const monthFrom = `${consoMonth}-01`
+    const monthTo = `${consoMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+    const byCamion = buildFleetFuelPeriods({ gasoil, voyages, camions })
 
-    const byCam = {}
-    monthGasoil.forEach(g => {
-      if (!byCam[g.camion_plaque]) byCam[g.camion_plaque] = { entries: [], liters: 0 }
-      byCam[g.camion_plaque].entries.push(g)
-    })
-
-    // Also sum ALL liters for that month (including entries without km)
-    gasoil
-      .filter(g => g.date && g.date.startsWith(consoMonth))
-      .forEach(g => {
-        if (!byCam[g.camion_plaque]) byCam[g.camion_plaque] = { entries: [], liters: 0 }
-        byCam[g.camion_plaque].liters += (g.qte || 0)
+    return byCamion
+      .map(truck => {
+        const rows = buildTruckFuelHistory(truck)
+        const summary = buildPeriodSummary(truck, rows, monthFrom, monthTo)
+        const measuredRows = summary.rowsInPeriod.filter(r => r.status === 'measured')
+        const firstKm = measuredRows.length ? Math.min(...measuredRows.map(r => r.previousKm)) : null
+        const lastKm = measuredRows.length ? Math.max(...measuredRows.map(r => r.km)) : null
+        return {
+          plaque: truck.camionPlaque,
+          distance: summary.distanceTotal > 0 ? summary.distanceTotal : null,
+          liters: summary.litresTotal,
+          conso: summary.consoL100,
+          firstKm, lastKm,
+          pendingCount: summary.pendingCount,
+          missingKmCount: summary.missingKmCount,
+          anyActivity: summary.rowsInPeriod.length > 0,
+        }
       })
-
-    return Object.entries(byCam)
-      .map(([plaque, d]) => {
-        const sorted = d.entries.sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-        const firstKm = sorted.length > 0 ? parseFloat(sorted[0].km) : null
-        const lastKm  = sorted.length > 1 ? parseFloat(sorted[sorted.length - 1].km) : null
-        const distance = firstKm && lastKm && lastKm > firstKm ? lastKm - firstKm : null
-        const liters = d.liters
-        const conso = distance && liters > 0 ? ((liters / distance) * 100) : null
-        return { plaque, firstKm, lastKm, distance, liters, conso, count: sorted.length }
-      })
-      .filter(d => d.liters > 0)
+      .filter(d => d.anyActivity)
       .sort((a, b) => a.plaque.localeCompare(b.plaque))
-  })()
+  }, [gasoil, voyages, camions, consoMonth])
 
   // ── FUEL CYCLES: cost per km between consecutive refills ─────────────────────
   // REFUEL → VOYAGES → NEXT REFUEL (lib/services/fuelPeriods.js): the
@@ -978,7 +985,9 @@ ${printFooter(printDate)}
                           {d.conso.toFixed(1)} L/100km
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-lg">KM insuffisant</span>
+                        <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-lg">
+                          {d.missingKmCount > 0 ? '⚠ KM manquant' : d.pendingCount > 0 ? '⏳ En attente du prochain plein' : 'N/A'}
+                        </span>
                       )}
                     </div>
                     <div className="grid grid-cols-3 gap-1 text-center">
@@ -989,22 +998,29 @@ ${printFooter(printDate)}
                         </div>
                       </div>
                       <div className="bg-blue-50 rounded-lg p-1.5">
-                        <div className="text-xs text-blue-400">Litres</div>
+                        <div className="text-xs text-blue-400">Litres mesurés</div>
                         <div className="text-xs font-bold text-blue-700">{d.liters.toFixed(0)} L</div>
                       </div>
                       <div className="bg-gray-50 rounded-lg p-1.5">
                         <div className="text-xs text-gray-400">KM</div>
                         <div className="text-xs font-bold text-gray-600">
-                          {d.firstKm ? `${fmt(d.firstKm)}→${fmt(d.lastKm)}` : '—'}
+                          {d.firstKm !== null ? `${fmt(d.firstKm)}→${fmt(d.lastKm)}` : '—'}
                         </div>
                       </div>
                     </div>
+                    {(d.missingKmCount > 0 || d.pendingCount > 0) && (
+                      <div className="mt-1.5 text-[10px] text-amber-600">
+                        {d.missingKmCount > 0 && `${d.missingKmCount} bon(s) sans KM en attente d'un relevé pour être mesurés`}
+                        {d.missingKmCount > 0 && d.pendingCount > 0 && ' · '}
+                        {d.pendingCount > 0 && `${d.pendingCount} 1er relevé du camion (référence, pas encore mesurable)`}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
             <div className="mt-3 pt-2 border-t border-gray-100 text-xs text-gray-400">
-              Distance = dernier KM − premier KM du mois
+              Mesuré entre pleins KM réels — une période n'est jamais coupée au mois civil
             </div>
           </div>
 
