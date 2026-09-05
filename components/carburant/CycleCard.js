@@ -79,7 +79,8 @@ export default function CycleCard({ cycle, onMergeChoice, onAnalyze, thresholdPc
         <Stat label="Distance" value={cycle.distance !== null ? `${fmt(cycle.distance)} km` : 'en attente'} tone="bg-blue-50" />
         <Stat label="Voyages" value={cycle.nbVoyages} />
         <Stat label="Pleins" value={cycle.pleins.length} />
-        <Stat label="Litres" value={cycle.measured ? `${fmtD(cycle.litresGasoil)} L` : 'En attente du prochain plein'} tone="bg-cyan-50" />
+        <Stat label="Litres" value={cycle.measured ? `${fmtD(cycle.litresGasoil)} L` : 'En attente du prochain plein'} tone="bg-cyan-50"
+          sub={cycle.carriedRows?.length ? `dont ${cycle.carriedRows.length} bon(s) sans KM` : null} />
       </div>
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2 text-center">
         <Stat label="Coût carburant" value={cycle.measured ? `${fmtMoney(cycle.coutTotal)} DHS` : 'En attente du prochain plein'} tone="bg-red-50" />
