@@ -23,6 +23,7 @@ const nav = [
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },
   { href: '/voyages/km-carburant', icon: 'layers', label: 'Truck Control Center', highlight: true },
   { href: '/carburant',   icon: 'refresh-cw', label: 'Contrôle KM & Carburant' },
+  { href: '/carburant/rapport', icon: 'activity', label: 'Rapport Consommation' },
   { href: '/kilometrage', icon: 'gauge',      label: 'Kilométrage' },
   { href: '/camions',     icon: 'activity',   label: 'Performance Camions' },
   { href: '/charges',     icon: 'dollar',     label: 'Charges' },
