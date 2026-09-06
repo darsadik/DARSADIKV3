@@ -10,7 +10,7 @@ import {
 } from '../../lib/services/fuelCycles'
 import {
   buildPropreFleetPeriods, buildTruckFuelHistory, buildPeriodSummary,
-  buildFleetPeriodTotals, currentKmFor,
+  buildFleetPeriodTotals, buildOpeningAnchoredPeriodRows, currentKmFor,
 } from '../../lib/services/fleetFuelMonitoring'
 import { printControleKmCarburantReport } from '../../lib/printControleKmCarburant'
 import CycleCard from '../../components/carburant/CycleCard'
@@ -141,7 +141,13 @@ export default function CarburantCycles() {
     .map(truck => {
       const rows = buildTruckFuelHistory(truck)
       const summary = buildPeriodSummary(truck, rows, period.from, period.to)
-      return { camion: truck.camion, currentKm: currentKmFor(truck), summary }
+      // The KPI cards above the table stay sourced from `summary` (unchanged,
+      // closing-anchored aggregate — correct and untouched). Only the
+      // detailed per-Bon table uses `displayRows`, which re-attaches each
+      // period's distance/litres/consumption to its OPENING Bon instead of
+      // its closing one — see buildOpeningAnchoredPeriodRows.
+      const displayRows = buildOpeningAnchoredPeriodRows(rows, period.from, period.to)
+      return { camion: truck.camion, currentKm: currentKmFor(truck), summary, displayRows }
     })
     .sort((a, b) => (a.camion?.plaque || '').localeCompare(b.camion?.plaque || '')),
     [bonByCamion, period])
@@ -275,12 +281,13 @@ export default function CarburantCycles() {
         <div className="card text-center text-gray-400 py-10">Aucun camion propre enregistré</div>
       ) : (
         <div className="space-y-4 mb-8">
-          {visibleTruckPeriodData.map(({ camion, currentKm, summary }) => (
+          {visibleTruckPeriodData.map(({ camion, currentKm, summary, displayRows }) => (
             <TruckControlCard
               key={camion.id}
               camion={camion}
               currentKm={currentKm}
               summary={summary}
+              displayRows={displayRows}
               onEditKm={row => setFixingGasoilId(row.id)}
             />
           ))}

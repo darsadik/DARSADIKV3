@@ -63,9 +63,13 @@ function GroupedBadge({ row }) {
 // lib/services/fleetFuelMonitoring.js, itself a thin shaping of
 // lib/services/fuelPeriods.js's buildFleetFuelPeriods (the same authoritative
 // REFUEL → VOYAGES → NEXT REFUEL model behind fuelAllocation.js) — no second
-// calculation engine.
-export default function TruckControlCard({ camion, currentKm, summary, onEditKm }) {
-  const rows = summary.rowsInPeriod
+// calculation engine. `displayRows` (buildOpeningAnchoredPeriodRows) shows
+// each period's distance/litres/consumption on the Bon that OPENS it, not
+// the one that closes it — the KPI cards above stay sourced from `summary`
+// (closing-anchored, unaffected) since Σdistance/Σlitres don't depend on
+// which row displays them.
+export default function TruckControlCard({ camion, currentKm, summary, displayRows, onEditKm }) {
+  const rows = displayRows
   return (
     <Section icon="🚛" title={camion.plaque} color="blue"
       action={<Link href={`/camions/${camion.id}`} className="text-xs font-semibold text-brand-600 hover:underline">Fiche camion →</Link>}>
