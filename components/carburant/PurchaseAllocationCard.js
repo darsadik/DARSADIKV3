@@ -71,7 +71,11 @@ export default function PurchaseAllocationCard({ card, onAssign, onMoveVoyage, o
               </span>
             </div>
             <div className="text-xs text-slate-400 mt-0.5">
-              {fmtDate(card.date)} · {card.station || 'Station inconnue'} · {card.hasKm ? `KM ${fmt(card.km)}` : 'Sans KM'}
+              {fmtDate(card.date)} · {card.station || 'Station inconnue'} · {card.hasKm
+                ? `KM ${fmt(card.km)}`
+                : card.resolvedBy === 'date'
+                  ? <span className="text-amber-600 font-semibold">KM manquant → associé par date</span>
+                  : 'Sans KM'}
               {' · '}{fmtD(card.qte)} L × {fmtMoney(card.prixUnitaire)} DHS/L
               {card.discount > 0 && <> · <span className="text-emerald-500">Remise −{fmtMoney(card.discount)} DHS</span></>}
               {card.adblueTotal > 0 && <> · AdBlue {fmtMoney(card.adblueTotal)} DHS</>}
