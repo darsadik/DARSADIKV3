@@ -25,6 +25,7 @@ import VoyageFixModal from '../../components/carburant/VoyageFixModal'
 import GasoilFixModal from '../../components/carburant/GasoilFixModal'
 import PeriodSelector from '../../components/carburant/PeriodSelector'
 import TruckControlCard from '../../components/carburant/TruckControlCard'
+import ExportPdfModal from '../../components/carburant/ExportPdfModal'
 
 const SEVERITY_META = {
   error:   { emoji: '🔴', label: 'Critique',    bg: 'bg-red-50',   text: 'text-red-700',   ring: 'ring-red-100' },
@@ -89,6 +90,7 @@ export default function CarburantCycles() {
   const [period, setPeriod] = useState(() => periodRange('mois'))
   const [showValidationTools, setShowValidationTools] = useState(false)
   const [camionFilter, setCamionFilter] = useState('') // '' = Tous les Camions Propre
+  const [showExportModal, setShowExportModal] = useState(false)
 
   useEffect(() => { loadAll() }, [])
 
@@ -162,8 +164,28 @@ export default function CarburantCycles() {
 
   const fleetSummary = useMemo(() => buildFleetPeriodTotals(visibleTruckPeriodData.map(t => t.summary)), [visibleTruckPeriodData])
 
-  function handlePrint() {
-    printControleKmCarburantReport({ trucks: visibleTruckPeriodData, fleetTotals: fleetSummary, from: period.from, to: period.to })
+  // ── PDF export — dedicated date range + truck selection, independent from
+  // the on-screen PeriodSelector/camion dropdown above (spec's Imprimer/PDF →
+  // Date début → Date fin → Camion(s) → Générer PDF flow). Reuses
+  // `bonByCamion` (already Camions Propre only, full history) with the SAME
+  // engine calls as truckPeriodData above — no second calculation, no
+  // duplicated fuel data — just a different from/to/camion selection.
+  function handleExportGenerate({ camionIds, from, to }) {
+    const chosen = camionIds === null ? bonByCamion : bonByCamion.filter(t => camionIds.includes(t.camionId))
+    const exportData = chosen
+      .map(truck => {
+        const rows = buildTruckFuelHistory(truck)
+        const summary = buildPeriodSummary(truck, rows, from, to)
+        const displayRows = buildOpeningAnchoredPeriodRows(rows, from, to)
+        return { camion: truck.camion, currentKm: currentKmFor(truck), summary, displayRows }
+      })
+      .sort((a, b) => (a.camion?.plaque || '').localeCompare(b.camion?.plaque || ''))
+    const exportTotals = buildFleetPeriodTotals(exportData.map(t => t.summary))
+    printControleKmCarburantReport({
+      trucks: exportData, fleetTotals: exportTotals, from, to,
+      allPropreCount: propreCamions.length,
+    })
+    setShowExportModal(false)
   }
 
   const truckHasMissingKm = useMemo(() => new Set(missingData
@@ -239,7 +261,7 @@ export default function CarburantCycles() {
               {propreCamions.map(c => <option key={c.id} value={c.id}>{c.plaque}</option>)}
             </select>
           </div>
-          <button onClick={handlePrint} className="btn-secondary whitespace-nowrap">🖨️ Imprimer / PDF</button>
+          <button onClick={() => setShowExportModal(true)} className="btn-secondary whitespace-nowrap">🖨️ Imprimer / PDF</button>
         </div>
       </div>
 
@@ -425,6 +447,16 @@ export default function CarburantCycles() {
           </div>
         </div>
       </details>
+
+      {showExportModal && (
+        <ExportPdfModal
+          camions={propreCamions}
+          defaultFrom={period.from}
+          defaultTo={period.to}
+          onGenerate={handleExportGenerate}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
 
       {analyzing && (
         <CycleAnalysisModal
