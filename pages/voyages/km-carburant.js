@@ -18,6 +18,7 @@ import CreateNextVoyageModal from '../../components/carburant/CreateNextVoyageMo
 import OdometerChainStrip from '../../components/carburant/OdometerChainStrip'
 import AllocationControlCenter from '../../components/carburant/AllocationControlCenter'
 import TruckPlanCenter from '../../components/carburant/TruckPlanCenter'
+import VoyageFuelReportPanel from '../../components/carburant/VoyageFuelReportPanel'
 
 const SEVERITY_TONE = { error: 'badge-red', warning: 'badge-amber', info: 'badge-blue' }
 
@@ -215,7 +216,19 @@ export default function VoyageKmCarburant() {
           className={`text-sm font-bold px-4 py-2 rounded-lg transition ${tab === 'link' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
           🔗 Camion ↔ Plan
         </button>
+        <button onClick={() => setTab('report')}
+          className={`text-sm font-bold px-4 py-2 rounded-lg transition ${tab === 'report' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+          📄 Rapport PDF
+        </button>
       </div>
+
+      {tab === 'report' && !loading && (
+        <VoyageFuelReportPanel camions={camions} voyageRows={voyageRows} />
+      )}
+
+      {tab === 'report' && loading && (
+        <div className="card text-center text-gray-400 py-10">Chargement...</div>
+      )}
 
       {tab === 'allocation' && loading && (
         <div className="space-y-4">
