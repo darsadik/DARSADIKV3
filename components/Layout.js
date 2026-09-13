@@ -19,6 +19,7 @@ const nav = [
   { href: '/fournisseurs/gasoil', icon: 'building',label: 'Fourn. Carburant' },
   { href: '/paiements',           icon: 'card',    label: 'Paiements' },
   { href: '/paiements/fournisseurs', icon: 'card', label: 'Paiements Fournisseurs' },
+  { href: '/caisse',              icon: 'archive', label: 'Caisse',            highlight: true },
   { href: '/retours',     icon: 'undo',       label: 'Retours' },
   { href: '/gasoil',      icon: 'droplet',    label: 'Gasoil' },
   { href: '/voyages/km-carburant', icon: 'layers', label: 'Truck Control Center', highlight: true },
@@ -191,6 +192,13 @@ function Icon({ name, size = 18 }) {
         <polygon points="12 2 2 7 12 12 22 7 12 2"/>
         <polyline points="2 17 12 22 22 17"/>
         <polyline points="2 12 12 17 22 12"/>
+      </>
+    ),
+    archive: (
+      <>
+        <polyline points="21 8 21 21 3 21 3 8"/>
+        <rect x="1" y="3" width="22" height="5"/>
+        <line x1="10" y1="12" x2="14" y2="12"/>
       </>
     ),
   }
