@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { fmt, fmtD, fmtMoney } from '../../lib/utils'
 import { TIMELINE_STATUS } from '../../lib/services/voyageKmFuel'
 
-const BADGE_TONE = { ok: 'badge-green', warning: 'badge-amber', error: 'badge-red', info: 'badge-blue' }
+const BADGE_TONE = { ok: 'badge-green', warning: 'badge-amber', error: 'badge-red', info: 'badge-blue', provisional: 'badge-gray' }
 
 // Color-coding language from spec §5: blue = voyage, green = fuel purchase,
 // gray = estimated position, red overrides both when the event has a real
@@ -101,6 +101,18 @@ function VoyageL100Km({ e }) {
   if (e.litersLinked !== null && e.litersLinked > 0 && e.distance > 0) {
     return <>{(e.litersLinked / e.distance * 100).toFixed(1)}</>
   }
+  // Provisional — truck's own historical average, shown only until a real
+  // Plein closes this voyage's period (see voyageKmFuel.js's isProvisional).
+  // Deliberately muted/italic, never the same weight as a real measured
+  // value — spec requires the distinction to be obvious but never via a
+  // bright color.
+  if (e.status === 'pending_measurement' && e.isProvisional) {
+    return (
+      <span className="text-slate-500 text-xs font-semibold italic">
+        ≈{e.provisionalL100.toFixed(1)} <span className="not-italic text-[10px] text-slate-400">PROVISOIRE</span>
+      </span>
+    )
+  }
   if (e.status === 'pending_measurement') {
     const meta = TIMELINE_STATUS.pending_measurement
     return <span className="text-amber-600 text-xs font-semibold">{meta.emoji} {meta.label}</span>
@@ -109,7 +121,7 @@ function VoyageL100Km({ e }) {
 }
 
 function VoyageBlock({ e, onFixVoyage, onEditKm }) {
-  const meta = TIMELINE_STATUS[e.status]
+  const meta = e.isProvisional ? TIMELINE_STATUS.provisional_measurement : TIMELINE_STATUS[e.status]
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -133,9 +145,15 @@ function VoyageBlock({ e, onFixVoyage, onEditKm }) {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-3 border-t border-slate-100">
         <Tile label="Distance" value={e.distance !== null ? `${fmt(e.distance)} km` : '—'}
           tone={e.distance < 0 ? 'text-red-600' : e.distance === 0 ? 'text-amber-600' : undefined} />
-        <Tile label="Litres" value={e.litersLinked !== null && e.litersLinked > 0 ? `${fmtD(e.litersLinked)} L` : '—'} />
+        <Tile label="Litres" value={
+          e.litersLinked !== null && e.litersLinked > 0 ? `${fmtD(e.litersLinked)} L`
+            : e.isProvisional ? <span className="italic text-slate-500">≈{fmtD(e.provisionalLiters)} L</span> : '—'
+        } tone={e.isProvisional ? 'text-slate-500' : undefined} />
         <Tile label="L/100km" value={<VoyageL100Km e={e} />} />
-        <Tile label="Carburant assigné" value={e.fuelCost ? `${fmtMoney(e.fuelCost)} DHS` : '—'} tone="text-amber-700" />
+        <Tile label="Carburant assigné" value={
+          e.fuelCost ? `${fmtMoney(e.fuelCost)} DHS`
+            : e.isProvisional && e.provisionalCost !== null ? <span className="italic text-slate-500">≈{fmtMoney(e.provisionalCost)} DHS</span> : '—'
+        } tone={e.isProvisional ? 'text-slate-500' : 'text-amber-700'} />
         <Tile label="Coût / KM" value={e.costPerKm !== null ? `${fmtMoney(e.costPerKm)} DHS` : '—'} />
         <Tile label="Source" value={<span className="text-xs font-semibold text-slate-500">{e.fuelSourceLabel}{e.fillLabel ? ` · ${e.fillLabel}` : ''}</span>} />
       </div>

@@ -7,15 +7,30 @@ const NOTE_TONE = {
   date: 'text-amber-600',
   missing: 'text-red-600',
   pending: 'text-slate-400 italic',
+  provisional: 'text-slate-500 italic',
   ok: '',
+}
+
+// A provisional figure (lib/services/voyageKmFuel.js's isProvisional) is
+// shown with a leading "≈" and muted/italic styling — never the same visual
+// weight as a real measured value (spec: REAL vs PROVISIONAL must be
+// obvious, but never via a bright/flashy color). Only rendered when there is
+// no real liters figure yet — a real value always wins.
+function ProvisionalValue({ children }) {
+  return <span className="text-slate-500 italic">≈{children}</span>
 }
 
 function VoyageRow({ row }) {
   const st = voyageReportStatus(row)
   const hasLiters = hasRealLiters(row)
   const conso = hasLiters && row.distance > 0 ? (row.litersLinked / row.distance) * 100 : null
+  const showProvisional = row.isProvisional && !hasLiters
+  // Provisional gets its own subtle neutral-gray row tint — deliberately
+  // NOT the warm amber tint used for warnings/missing data, so a reader
+  // never confuses "estimated" with "needs attention".
+  const rowTint = showProvisional ? 'bg-slate-50' : st.tone !== 'ok' ? 'bg-amber-50/30' : ''
   return (
-    <tr className={`border-b border-slate-50 ${st.tone !== 'ok' ? 'bg-amber-50/30' : ''}`}>
+    <tr className={`border-b border-slate-50 ${rowTint}`}>
       <td className="py-1.5 pr-3 text-slate-500 whitespace-nowrap">{fmtDate(row.date)}</td>
       <td className="py-1.5 pr-3 text-slate-600 whitespace-nowrap">{row.reference}</td>
       <td className="py-1.5 pr-3 text-slate-700">
@@ -25,10 +40,19 @@ function VoyageRow({ row }) {
         )}
       </td>
       <td className="py-1.5 pr-3 text-right text-slate-600">{row.distance !== null ? `${fmt(row.distance)} km` : '—'}</td>
-      <td className="py-1.5 pr-3 text-right text-slate-600">{hasLiters ? `${fmtMoney(row.litersLinked)} L` : '—'}</td>
-      <td className="py-1.5 pr-3 text-right font-semibold text-slate-700">{conso !== null ? fmtMoney(conso) : '—'}</td>
+      <td className="py-1.5 pr-3 text-right text-slate-600">
+        {hasLiters ? `${fmtMoney(row.litersLinked)} L`
+          : showProvisional ? <ProvisionalValue>{fmtMoney(row.provisionalLiters)} L</ProvisionalValue> : '—'}
+      </td>
+      <td className="py-1.5 pr-3 text-right font-semibold text-slate-700">
+        {conso !== null ? fmtMoney(conso)
+          : showProvisional ? <ProvisionalValue>{fmtMoney(row.provisionalL100)}</ProvisionalValue> : '—'}
+      </td>
       <td className="py-1.5 text-right">
-        <div className="font-semibold text-slate-800">{row.fuelCost > 0 ? `${fmtMoney(row.fuelCost)} DH` : '—'}</div>
+        <div className="font-semibold text-slate-800">
+          {row.fuelCost > 0 ? `${fmtMoney(row.fuelCost)} DH`
+            : showProvisional && row.provisionalCost !== null ? <ProvisionalValue>{fmtMoney(row.provisionalCost)} DH</ProvisionalValue> : '—'}
+        </div>
         {st.tone !== 'ok' && <div className={`text-[9px] font-semibold ${NOTE_TONE[st.tone]}`}>{st.text}</div>}
       </td>
     </tr>

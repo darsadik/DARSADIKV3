@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { fmt, fmtDate } from '../../lib/utils'
+import { fmt, fmtD, fmtDate } from '../../lib/utils'
 import { TIMELINE_STATUS } from '../../lib/services/voyageKmFuel'
 
 // ── Voyages sans allocation carburant (spec §2/§3/§14 case 1) ───────────────
@@ -45,7 +45,11 @@ export default function UnallocatedVoyagesPanel({ voyages }) {
           </thead>
           <tbody>
             {voyages.map(v => {
-              const meta = TIMELINE_STATUS[v.status]
+              // Provisional (truck-average estimate) gets its own softer
+              // wording/color here too — it still needs a real allocation,
+              // but showing a bare "en attente" next to an indicative ≈figure
+              // would look inconsistent with the Chronologie tab's badge.
+              const meta = v.isProvisional ? TIMELINE_STATUS.provisional_measurement : TIMELINE_STATUS[v.status]
               return (
                 <tr key={v.voyageId} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="py-2 pr-3 text-slate-500">{fmtDate(v.date)}</td>
@@ -54,9 +58,12 @@ export default function UnallocatedVoyagesPanel({ voyages }) {
                   <td className="py-2 pr-3 text-right text-slate-600">{fmt(v.distance)} km</td>
                   <td className="py-2 text-right">
                     <Link href={`/voyages/km-carburant?tab=allocation&search=${v.reference}`} className="font-semibold hover:underline"
-                      style={{ color: v.status === 'pending_measurement' ? '#2563eb' : '#d97706' }}>
+                      style={{ color: v.isProvisional ? '#64748b' : v.status === 'pending_measurement' ? '#2563eb' : '#d97706' }}>
                       {meta?.emoji} {meta?.label}
                     </Link>
+                    {v.isProvisional && (
+                      <div className="text-[10px] text-slate-400 italic mt-0.5">≈{fmtD(v.provisionalLiters)} L · {v.provisionalL100.toFixed(1)} L/100km</div>
+                    )}
                   </td>
                 </tr>
               )
